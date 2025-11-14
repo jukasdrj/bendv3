@@ -179,7 +179,7 @@ curl -X POST https://api.oooefam.net/v1/enrichment/batch \
 ### Production Logs
 
 ```bash
-npx wrangler tail --format pretty
+npx wrangler tail --remote --format pretty
 ```
 
 ### Metrics

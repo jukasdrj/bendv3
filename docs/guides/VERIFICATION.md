@@ -285,7 +285,7 @@ api-worker
 
 **Command:**
 ```bash
-wrangler tail api-worker --format pretty
+npx wrangler tail --remote api-worker --format pretty
 ```
 
 **Expected Patterns:**
@@ -345,7 +345,7 @@ wrangler tail api-worker --format pretty
 - [x] Enrichment jobs return 202 Accepted
 - [x] AI scan jobs return 202 Accepted
 - [x] iOS app URLs updated
-- [x] No errors in production logs (verified via wrangler tail)
+- [x] No errors in production logs (verified via npx wrangler tail --remote)
 
 ### Code Quality
 - [x] Zero circular dependencies

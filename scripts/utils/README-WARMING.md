@@ -217,7 +217,7 @@ Check Analytics Engine is writing:
 curl "https://api-worker.jukasdrj.workers.dev/search/title?q=test"
 
 # Check logs
-npx wrangler tail api-worker --search "CACHE_ANALYTICS"
+npx wrangler tail --remote api-worker --search "CACHE_ANALYTICS"
 ```
 
 ### Queue Not Processing
@@ -226,7 +226,7 @@ Check consumer health:
 
 ```bash
 # View consumer logs
-npx wrangler tail api-worker --search "author-warming-consumer"
+npx wrangler tail --remote api-worker --search "author-warming-consumer"
 
 # Check queue status
 npx wrangler queues consumer list author-warming-queue

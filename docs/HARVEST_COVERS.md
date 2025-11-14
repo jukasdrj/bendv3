@@ -8,10 +8,10 @@ One-time harvest of book cover images from ISBNdb API before subscription expire
 cd cloudflare-workers/api-worker
 
 # Dry run (test without API calls)
-DRY_RUN=true npx wrangler dev --remote --task harvest-covers
+DRY_RUN=true npx wrangler dev  # DEPRECATED: Use remote: true in wrangler.toml --task harvest-covers
 
 # Production harvest
-npx wrangler dev --remote --task harvest-covers
+npx wrangler dev  # DEPRECATED: Use remote: true in wrangler.toml --task harvest-covers
 ```
 
 ## What It Does

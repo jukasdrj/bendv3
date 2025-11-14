@@ -247,7 +247,7 @@ curl -v https://api-worker.jukasdrj.workers.dev/search/title?q=American%20Gods \
 
 ### Logs (Real-time)
 ```bash
-npx wrangler tail api-worker --format pretty
+npx wrangler tail --remote api-worker --format pretty
 ```
 
 **Expected patterns:**

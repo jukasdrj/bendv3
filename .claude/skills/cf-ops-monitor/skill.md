@@ -55,7 +55,7 @@ npx wrangler deploy
 ### Log Analysis
 ```bash
 # Stream logs with context
-npx wrangler tail --format=pretty
+npx wrangler tail --remote --format=pretty
 
 # Pattern recognition
 - Group errors by type and frequency
@@ -67,7 +67,7 @@ npx wrangler tail --format=pretty
 ### Performance Profiling
 ```bash
 # Analyze cold start times
-npx wrangler tail --format=json | jq '.diagnostics.cpuTime'
+npx wrangler tail --remote --format=json | jq '.diagnostics.cpuTime'
 
 # Identify bottlenecks
 - External API latency (Google Books, ISBNdb)
@@ -110,13 +110,13 @@ npx wrangler deployments list --json | jq '.[0]'
 ### Stream Production Logs
 ```bash
 # All logs with timestamp
-npx wrangler tail --format=pretty
+npx wrangler tail --remote --format=pretty
 
 # Filter errors only
-npx wrangler tail --format=json | jq 'select(.level == "error")'
+npx wrangler tail --remote --format=json | jq 'select(.level == "error")'
 
 # Search for specific pattern
-npx wrangler tail --format=json | jq 'select(.message | contains("Google Books API"))'
+npx wrangler tail --remote --format=json | jq 'select(.message | contains("Google Books API"))'
 ```
 
 ### Inspect KV Cache
@@ -272,7 +272,7 @@ npx wrangler deploy
 npx wrangler rollback
 
 # Stream logs
-npx wrangler tail
+npx wrangler tail --remote
 
 # List deployments
 npx wrangler deployments list

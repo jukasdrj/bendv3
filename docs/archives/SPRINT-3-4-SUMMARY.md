@@ -253,7 +253,7 @@ npx wrangler queues consumer list author-warming-queue
 
 **Worker Logs:**
 ```bash
-npx wrangler tail api-worker --search "author-warming-consumer"
+npx wrangler tail --remote api-worker --search "author-warming-consumer"
 ```
 
 ---
@@ -274,7 +274,7 @@ npx wrangler tail api-worker --search "author-warming-consumer"
 
 **Check warming frequency:**
 ```bash
-npx wrangler tail --search "Cached author"
+npx wrangler tail --remote --search "Cached author"
 ```
 
 **Check queue backlog:**

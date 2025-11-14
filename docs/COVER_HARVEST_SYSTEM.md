@@ -430,7 +430,7 @@ Target: 60%+ (WebP)
 
 **Worker Logs:**
 ```bash
-npx wrangler tail --format pretty
+npx wrangler tail --remote --format pretty
 ```
 
 **Test Edition Discovery:**

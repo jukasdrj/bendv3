@@ -13,7 +13,7 @@ The hybrid cache system logs metrics to Cloudflare Analytics Engine via the `CAC
 Use `wrangler` CLI to query Analytics Engine:
 
 ```bash
-wrangler query-analytics \
+npx wrangler query-analytics \
   --dataset CACHE_ANALYTICS \
   --query "<SQL_QUERY>"
 ```
@@ -119,7 +119,7 @@ WHERE index1 = 'api_miss'
 
 ```bash
 # Run this daily to verify cache health
-wrangler query-analytics \
+npx wrangler query-analytics \
   --dataset CACHE_ANALYTICS \
   --query "
     SELECT

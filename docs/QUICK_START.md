@@ -66,7 +66,7 @@ docs/
 
 ```bash
 # Local development
-npm run dev                    # Start wrangler dev server
+npm run dev                    # Start npx wrangler dev server
 
 # Testing
 npm test                       # Run all tests

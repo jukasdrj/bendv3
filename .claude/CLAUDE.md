@@ -211,7 +211,7 @@ describe('ISBN Validation', () => {
 
 ### Integration Tests
 ```javascript
-// Use wrangler dev for local testing
+// Use npx wrangler dev for local testing
 // Test against localhost:8787
 
 describe('Search API', () => {
@@ -308,10 +308,10 @@ function setCorsHeaders(response, origin) {
 ### Rollback Procedure
 ```bash
 # List deployments
-wrangler deployments list
+npx wrangler deployments list
 
 # Rollback to previous version
-wrangler rollback --message "Rolling back due to error spike"
+npx wrangler rollback --message "Rolling back due to error spike"
 ```
 
 ---

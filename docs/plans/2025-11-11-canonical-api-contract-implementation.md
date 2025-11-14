@@ -774,7 +774,7 @@ npx wrangler deploy
 **Monitoring Commands:**
 ```bash
 # Check Cloudflare Analytics
-wrangler tail books-api-proxy --search "error"
+npx wrangler tail --remote books-api-proxy --search "error"
 
 # Check specific endpoint
 curl https://books-api-proxy.jukasdrj.workers.dev/v1/search/title?q=test
@@ -832,7 +832,7 @@ wscat -c wss://books-api-proxy.jukasdrj.workers.dev/ws/progress?jobId=test-123
 
 **Monitoring Query:**
 ```bash
-wrangler tail books-api-proxy --search "DEPRECATED"
+npx wrangler tail --remote books-api-proxy --search "DEPRECATED"
 ```
 
 ### After 6 Weeks (Around January 2026)

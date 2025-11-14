@@ -97,19 +97,19 @@ npm run dev
 curl http://localhost:8787/v1/search/isbn?isbn=9780439708180
 
 # Watch logs
-npx wrangler tail
+npx wrangler tail --remote
 ```
 
 ### Step 2: Check Production Logs
 ```bash
 # Tail production logs
-npx wrangler tail --format pretty
+npx wrangler tail --remote --format pretty
 
 # Filter for errors
-npx wrangler tail | grep "ERROR"
+npx wrangler tail --remote | grep "ERROR"
 
 # Search for specific job ID
-npx wrangler tail | grep "job-123"
+npx wrangler tail --remote | grep "job-123"
 ```
 
 ### Step 3: Use Zen MCP Debug
@@ -168,7 +168,7 @@ npx wrangler kv:key delete "book:isbn:9780439708180" --namespace-id=$KV_NAMESPAC
 curl "https://api.oooefam.net/ws/progress?jobId=test-123" --include
 
 # Check DO logs
-npx wrangler tail --format json | jq 'select(.durableObject != null)'
+npx wrangler tail --remote --format json | jq 'select(.durableObject != null)'
 ```
 
 ## When to Escalate

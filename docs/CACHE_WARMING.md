@@ -157,7 +157,7 @@ npx wrangler queues list
 
 **Tail consumer logs:**
 ```bash
-npx wrangler tail api-worker --format pretty
+npx wrangler tail --remote api-worker --format pretty
 ```
 
 **Check DLQ:**
@@ -227,7 +227,7 @@ Authors are marked as "processed" for 90 days to prevent redundant work:
 npx wrangler deployments list
 
 # Tail logs for errors
-npx wrangler tail api-worker --format pretty
+npx wrangler tail --remote api-worker --format pretty
 ```
 
 **Common Causes:**
@@ -312,7 +312,7 @@ curl -X POST https://api-worker.jukasdrj.workers.dev/api/warming/upload \
   -d "{\"csv\":\"$(cat test.csv)\",\"maxDepth\":1}"
 
 # Authors should be skipped (check logs)
-npx wrangler tail api-worker --format pretty
+npx wrangler tail --remote api-worker --format pretty
 ```
 
 ## Next Steps

@@ -117,7 +117,7 @@ Found 0 unique ISBNs (0 analytics, 0 library)
 
 ### Check Tomorrow's Harvest Run
 ```bash
-npx wrangler tail api-worker --search "harvest"
+npx wrangler tail --remote api-worker --search "harvest"
 ```
 
 ### Verify Analytics Accumulation

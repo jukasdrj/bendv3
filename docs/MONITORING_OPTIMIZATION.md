@@ -250,7 +250,7 @@ ORDER BY hour DESC;
 npx wrangler kv:namespace list
 
 # Check recent logs
-npx wrangler tail api-worker --format pretty
+npx wrangler tail --remote api-worker --format pretty
 
 # Test with different period
 curl "https://api-worker.YOUR-DOMAIN.workers.dev/metrics?period=24h"
@@ -269,7 +269,7 @@ curl "https://api-worker.YOUR-DOMAIN.workers.dev/metrics?period=24h"
 npx wrangler deployments list
 
 # Monitor next alert check
-npx wrangler tail api-worker --format pretty
+npx wrangler tail --remote api-worker --format pretty
 
 # Check deduplication cache
 npx wrangler kv:key list --binding=CACHE --prefix="alert:"
@@ -333,7 +333,7 @@ npx wrangler deploy
 curl "https://api-worker.YOUR-DOMAIN.workers.dev/metrics?period=1h"
 
 # Monitor scheduled alerts (wait ~15 minutes)
-npx wrangler tail api-worker --format pretty
+npx wrangler tail --remote api-worker --format pretty
 ```
 
 ## Monitoring Best Practices

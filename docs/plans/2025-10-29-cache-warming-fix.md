@@ -454,7 +454,7 @@ npx wrangler deploy
 
 **Monitoring:**
 ```bash
-npx wrangler tail api-worker --format pretty
+npx wrangler tail --remote api-worker --format pretty
 ```
 
 ### Phase E: Validation
@@ -545,7 +545,7 @@ curl -X POST https://api-worker.jukasdrj.workers.dev/api/warming/upload \
 
 **Real-time:**
 ```bash
-npx wrangler tail api-worker --format pretty
+npx wrangler tail --remote api-worker --format pretty
 ```
 
 **Key patterns:**

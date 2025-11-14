@@ -188,7 +188,7 @@ Manually trigger harvest for testing:
 
 ```bash
 # Via wrangler CLI (test mode)
-npx wrangler dev --remote
+npx wrangler dev  # DEPRECATED: Use remote: true in wrangler.toml
 # Then call scheduled handler manually (requires code modification)
 
 # Or wait for next 3 AM UTC cron trigger
@@ -199,7 +199,7 @@ npx wrangler dev --remote
 Check Worker logs for first harvest run:
 
 ```bash
-npx wrangler tail api-worker --search "harvest"
+npx wrangler tail --remote api-worker --search "harvest"
 ```
 
 **Expected Log Output:**
@@ -275,7 +275,7 @@ node scripts/test-harvest.js --isbn "9780545010221,9780439023481"
 Check Worker logs for daily harvest summary:
 
 ```bash
-npx wrangler tail api-worker --search "Harvest Summary"
+npx wrangler tail --remote api-worker --search "Harvest Summary"
 ```
 
 **Key Metrics:**

@@ -143,7 +143,7 @@ npm run dev
 
 **2. Check logs**
 ```bash
-npx wrangler tail
+npx wrangler tail --remote
 ```
 
 **3. Deep debug (Zen MCP)**

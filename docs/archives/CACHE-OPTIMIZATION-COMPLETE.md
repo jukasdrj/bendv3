@@ -320,7 +320,7 @@ Request → Check Edge Cache
 - [ ] Test warming script locally (`node scripts/analyze-and-warm.js --test`)
 - [ ] Enable GitHub Actions workflow
 - [ ] Monitor first automated run (6 AM UTC)
-- [ ] Check queue consumer logs (`npx wrangler tail`)
+- [ ] Check queue consumer logs (`npx wrangler tail --remote`)
 - [ ] Verify warming report artifact
 
 ---
@@ -354,13 +354,13 @@ Request → Check Edge Cache
 
 ```bash
 # Stream Worker logs
-npx wrangler tail api-worker
+npx wrangler tail --remote api-worker
 
 # Filter for cache hits
-npx wrangler tail api-worker --search "Cache HIT"
+npx wrangler tail --remote api-worker --search "Cache HIT"
 
 # Filter for warming activity
-npx wrangler tail api-worker --search "author-warming-consumer"
+npx wrangler tail --remote api-worker --search "author-warming-consumer"
 
 # Check queue status
 npx wrangler queues list
@@ -532,7 +532,7 @@ node scripts/analyze-and-warm.js --test
 **Solution:** Analytics period too short or cache already hot (good problem!)
 
 **Issue:** Queue not processing
-**Solution:** Check consumer health with `npx wrangler tail`
+**Solution:** Check consumer health with `npx wrangler tail --remote`
 
 **Issue:** Test script timing errors
 **Solution:** Non-critical bash issue, deployment still successful
@@ -540,7 +540,7 @@ node scripts/analyze-and-warm.js --test
 ### Getting Help
 
 - Check documentation: `scripts/README-WARMING.md`
-- View logs: `npx wrangler tail api-worker`
+- View logs: `npx wrangler tail --remote api-worker`
 - Test locally: `node scripts/analyze-and-warm.js --test`
 - Review GitHub Actions: Actions tab → Cache Warming workflow
 

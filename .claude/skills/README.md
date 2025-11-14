@@ -151,7 +151,7 @@ Claude Code:
 User: "We're seeing 5xx errors on /v1/search/isbn"
 
 cf-ops-monitor:
-  1. Streams wrangler tail to analyze error patterns
+  1. Streams npx wrangler tail --remote to analyze error patterns
   2. Identifies Google Books API timeout issue
   3. Checks KV cache hit rate (low, causing more API calls)
   4. Suggests increasing cache TTL

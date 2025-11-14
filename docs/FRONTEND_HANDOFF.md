@@ -456,7 +456,7 @@ curl -X POST https://api.oooefam.net/v1/enrichment/batch \
 1. Open GitHub issue with jobId and timestamp
 2. Backend team uses cf-ops-monitor to analyze logs:
    ```bash
-   npx wrangler tail --format=json | grep "jobId:test-ios-001"
+   npx wrangler tail --remote --format=json | grep "jobId:test-ios-001"
    ```
 3. Backend team reports connection status, message delivery, errors
 
@@ -753,7 +753,7 @@ When you encounter persistent errors:
 
 Backend team will:
 - Use cf-ops-monitor to analyze logs
-- Provide wrangler tail output
+- Provide npx wrangler tail --remote output
 - Identify root cause and fix
 
 **4. Launch Checklist**
@@ -830,7 +830,7 @@ Title: Request: Add pagination support to /v1/search/title
 
 **Frontend teams should:**
 - Report errors with full context (timestamp, jobId, endpoint)
-- Test against production only (no local wrangler dev)
+- Test against production only (no local npx wrangler dev)
 - Respect rate limits (10 req/min)
 - Handle CORS errors gracefully (check allowed origins list)
 - Update this doc via PR if discrepancies found
@@ -897,7 +897,7 @@ Title: Request: Add pagination support to /v1/search/title
 
 ### Backend CI/CD (Already Automated)
 ```
-Push to main → GitHub Actions → wrangler deploy → health check
+Push to main → GitHub Actions → npx wrangler deploy → health check
                                        ↓
                               cf-ops-monitor watches
                                        ↓

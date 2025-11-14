@@ -1,3 +1,32 @@
+# ====================================================================================
+# BooksTrack Backend - Cloudflare Workers Configuration
+# ====================================================================================
+#
+# Remote Bindings (Wrangler v4.37+)
+# ---------------------------------------------------------------------------
+# You can now access production resources during local development by setting
+# `remote = true` on individual bindings (KV, R2, D1, etc.).
+#
+# Benefits:
+#   - Test local code changes against real production data
+#   - Share resources across development team
+#   - Reproduce bugs tied to real data
+#   - No need to deploy for every test iteration
+#
+# Usage:
+#   1. Uncomment `remote = true` on any binding below
+#   2. Run `npx wrangler dev` as normal
+#   3. Your local code will connect to production resources
+#
+# Example:
+#   [[kv_namespaces]]
+#   binding = "CACHE"
+#   id = "b9cade63b6db48fd80c109a013f38fdb"
+#   remote = true  # ✅ Access production KV cache from local dev
+#
+# Documentation: .claude/WRANGLER_COMMAND_STANDARDS.md
+# ====================================================================================
+
 name = "api-worker"
 main = "src/index.js"
 compatibility_date = "2024-10-01"
@@ -43,13 +72,18 @@ MAX_SCAN_FILE_SIZE = "10485760"
 ENABLE_UNIFIED_ENVELOPE = "false"  # Default: legacy format
 
 # KV Namespaces (consolidated from books-api-proxy and external-apis-worker)
+# Note: Set remote = true to access production KV during local development (Wrangler v4.37+)
 [[kv_namespaces]]
 binding = "CACHE"
 id = "b9cade63b6db48fd80c109a013f38fdb"
+# remote = false  # Default: use local simulation (empty cache)
+# remote = true   # Uncomment to access production KV cache from 'npx wrangler dev'
 
 [[kv_namespaces]]
 binding = "KV_CACHE"
 id = "b9cade63b6db48fd80c109a013f38fdb"
+# remote = false  # Default: use local simulation
+# remote = true   # Uncomment to access production KV cache
 
 # Note: SCAN_JOBS KV namespace (5d4b89403bbb4be1949b1ee30df5353e) is intentionally
 # excluded - we're eliminating the polling system in favor of WebSocket-only
@@ -74,21 +108,30 @@ secret_name = "google_gemini_oooebooks"
 # These are automatically available as env.CF_ACCOUNT_ID and env.CF_API_TOKEN
 
 # R2 Buckets (from books-api-proxy and bookshelf-ai-worker)
+# Note: Set remote = true to access production R2 during local development (Wrangler v4.37+)
 [[r2_buckets]]
 binding = "API_CACHE_COLD"
 bucket_name = "personal-library-data"
+# remote = false  # Default: local simulation (empty bucket)
+# remote = true   # Uncomment to access production R2 from 'npx wrangler dev'
 
 [[r2_buckets]]
 binding = "LIBRARY_DATA"
 bucket_name = "personal-library-data"
+# remote = false  # Default: local simulation
+# remote = true   # Uncomment to access production R2
 
 [[r2_buckets]]
 binding = "BOOKSHELF_IMAGES"
 bucket_name = "bookshelf-images"
+# remote = false  # Default: local simulation
+# remote = true   # Uncomment to access production R2
 
 [[r2_buckets]]
 binding = "BOOK_COVERS"
 bucket_name = "bookstrack-covers"
+# remote = false  # Default: local simulation
+# remote = true   # Uncomment to access production R2
 
 # Workers AI binding (from books-api-proxy and bookshelf-ai-worker)
 [ai]

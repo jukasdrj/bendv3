@@ -263,7 +263,7 @@ The AI setup from `docs/robit/` was adapted for this backend:
 | Feature | Flutter Original | Backend Adapted |
 |---------|-----------------|-----------------|
 | **Guidelines** | Flutter, Dart patterns | Cloudflare Workers, Node.js patterns |
-| **Pre-commit** | `flutter analyze`, `dart format` | JavaScript syntax, prettier, wrangler validate |
+| **Pre-commit** | `flutter analyze`, `dart format` | JavaScript syntax, prettier, npx wrangler validate |
 | **Components** | database, ui, scanner, firebase | search, ai, cache, websocket, providers, workers |
 | **Effort Labels** | Same (XS → XL) | Same |
 | **AI Tools** | Same (Claude Code, Jules, Zen MCP, Copilot) | Same |

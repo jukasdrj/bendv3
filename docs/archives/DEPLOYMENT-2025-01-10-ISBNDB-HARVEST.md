@@ -117,7 +117,7 @@ CF_ACCOUNT_ID and CF_API_TOKEN are **commented out** in wrangler.toml for now. T
 
 **Check Worker Logs:**
 ```bash
-npx wrangler tail api-worker --search "harvest"
+npx wrangler tail --remote api-worker --search "harvest"
 ```
 
 **Expected Log Output:**
@@ -158,7 +158,7 @@ Duration: 67.3s
 
 **Check Cron Status:**
 ```bash
-npx wrangler tail api-worker --format pretty | grep -i "harvest\|cron"
+npx wrangler tail --remote api-worker --format pretty | grep -i "harvest\|cron"
 ```
 
 **Verify R2 Storage:**

@@ -126,7 +126,7 @@ wscat -c "wss://api.oooefam.net/ws/progress?jobId=test-123"
 ### 4. Monitor Logs
 
 ```bash
-npx wrangler tail --format pretty
+npx wrangler tail --remote --format pretty
 ```
 
 ## Custom Domain Setup
@@ -205,13 +205,13 @@ gh workflow run deploy-staging.yml --repo jukasdrj/bookstrack-backend
 
 ```bash
 # Stream all logs
-npx wrangler tail --format pretty
+npx wrangler tail --remote --format pretty
 
 # Filter by search term
-npx wrangler tail --format pretty --search "error"
+npx wrangler tail --remote --format pretty --search "error"
 
 # Filter by status code
-npx wrangler tail --format pretty --status error
+npx wrangler tail --remote --format pretty --status error
 ```
 
 ### Analytics Dashboard
@@ -250,7 +250,7 @@ gh secret set CLOUDFLARE_API_TOKEN --repo jukasdrj/bookstrack-backend
 
 **Diagnosis:**
 ```bash
-npx wrangler tail --format pretty --status error
+npx wrangler tail --remote --format pretty --status error
 ```
 
 **Common Causes:**
@@ -289,7 +289,7 @@ curl -I https://api.oooefam.net/ws/progress?jobId=test
 **Investigation:**
 ```bash
 # Check Analytics Engine for slow queries
-npx wrangler tail --format pretty | grep "duration"
+npx wrangler tail --remote --format pretty | grep "duration"
 ```
 
 **Optimizations:**

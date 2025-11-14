@@ -19,3 +19,5 @@ coverage/
 
 # Development only
 scripts/dev/output/
+.wrangler-fixes-backup-*/
+rollback-wrangler-fixes.sh

@@ -42,29 +42,56 @@ git commit --no-verify -m "Emergency production fix"
 ---
 
 ### 🤖 post-tool-use.sh (Claude Code Hook)
-Automatically suggests relevant agents based on tool usage patterns.
+**Automatically invokes relevant agents** based on tool usage patterns.
+
+**⚡ NEW: Auto-Invoke Mode**
+The hook now **automatically launches agents** when triggered, creating a proactive AI assistant. See [AUTO_INVOKE_GUIDE.md](./AUTO_INVOKE_GUIDE.md) for full documentation.
+
+**Configuration:**
+```bash
+# Enable auto-invoke (default: true)
+export AUTO_INVOKE_AGENTS=true
+
+# Enable critical operations only (deploy, rollback, config)
+export AUTO_INVOKE_CRITICAL=true
+
+# Minimum lines changed to trigger code review
+export MIN_LINES_FOR_REVIEW=10
+```
 
 **How It Works:**
-Monitors Claude Code tool invocations and suggests specialized agents when relevant operations are detected.
+Monitors Claude Code tool invocations and automatically launches specialized agents when relevant operations are detected.
 
 **Automatic Triggers:**
 
-| Tool Activity | Triggered Agent | Context |
-|--------------|----------------|---------|
-| `wrangler deploy` | `cf-ops-monitor` | Deployment + health monitoring |
-| `wrangler rollback` | `cf-ops-monitor` | Rollback verification |
-| `wrangler tail` | `cf-ops-monitor` | Log stream analysis |
-| Code changes in `src/handlers/` | `cf-code-reviewer` | Code quality review |
-| Code changes in `src/services/` | `cf-code-reviewer` | Pattern validation |
-| Edits to `wrangler.toml` | Both agents | Config + deployment impact |
+| Tool Activity | Triggered Agent | Priority | Auto-Invoke |
+|--------------|----------------|----------|-------------|
+| `wrangler deploy` | `cf-ops-monitor` | 🔴 Critical | Always (if enabled) |
+| `wrangler rollback` | `cf-ops-monitor` | 🔴 Critical | Always (if enabled) |
+| Edits to `wrangler.toml` | Both agents | 🔴 Critical | Always (if enabled) |
+| Code changes in `src/handlers/` | `cf-code-reviewer` | 🟡 Significant | If ≥ 10 lines changed |
+| Code changes in `src/services/` | `cf-code-reviewer` | 🟡 Significant | If ≥ 10 lines changed |
+| Code changes in `src/providers/` | `cf-code-reviewer` | 🟡 Significant | If ≥ 10 lines changed |
+| `wrangler tail` | `cf-ops-monitor` | 🟢 Informational | Optional |
 
-**Example Output:**
+**Example Output (Auto-Invoke Mode):**
 ```
-🤖 Agent Trigger: Code changes in src/handlers/search.js detected. Running quality review...
+🤖 AUTO-INVOKING: Deployment detected. Monitoring health and metrics...
+
+   ⚡ Launching skill: cf-ops-monitor
+
+   💡 Tip: Set AUTO_INVOKE_AGENTS=false in your shell to disable auto-invoke
+```
+
+**Example Output (Suggestion Mode):**
+```
+🤖 Agent Trigger: Code changes in src/handlers/search.js detected (23 lines). Running quality review...
    Relevant Skills: cf-code-reviewer
 
    To invoke manually, use:
    /skill cf-code-reviewer
+
+   💡 Tip: Set AUTO_INVOKE_AGENTS=true in your shell to enable auto-invoke
 ```
 
 **Customization:**

@@ -86,7 +86,7 @@ If you don't want to use Secrets Store, you can convert to standard Wrangler sec
    ```
 
 3. **Update deployment workflow:**
-   No changes needed - wrangler secrets work automatically
+   No changes needed - npx wrangler secrets work automatically
 
 4. **Retry deployment:**
    ```bash
