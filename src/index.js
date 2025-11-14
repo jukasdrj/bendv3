@@ -34,6 +34,7 @@ import {
   acceptedResponse,
   notFoundResponse,
 } from "./utils/response-builder.ts";
+import { getProgressDOStub } from "./utils/durable-object-helpers.ts";
 
 // Export the Durable Object classes for Cloudflare Workers runtime
 export { ProgressWebSocketDO, RateLimiterDO };
@@ -72,8 +73,7 @@ export default {
       }
 
       // Get Durable Object instance for this specific jobId
-      const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-      const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+      const doStub = getProgressDOStub(jobId, env);
 
       // Forward the request to the Durable Object
       return doStub.fetch(request);
@@ -98,8 +98,7 @@ export default {
         }
 
         // Get DO stub for this job
-        const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-        const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+        const doStub = getProgressDOStub(jobId, env);
 
         // Refresh token via Durable Object
         const result = await doStub.refreshAuthToken(oldToken);
@@ -159,8 +158,7 @@ export default {
         }
 
         // Get DO stub for this job
-        const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-        const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+        const doStub = getProgressDOStub(jobId, env);
 
         // Fetch job state and auth details (includes validation)
         const result = await doStub.getJobStateAndAuth();
@@ -279,8 +277,7 @@ export default {
         }
 
         // Get DO stub for this job
-        const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-        const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+        const doStub = getProgressDOStub(jobId, env);
 
         // Call cancelJob() on the Durable Object
         const result = await doStub.cancelJob(
@@ -337,8 +334,7 @@ export default {
         }
 
         // Call Durable Object to cancel batch
-        const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-        const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+        const doStub = getProgressDOStub(jobId, env);
         const result = await doStub.cancelBatch();
 
         return jsonResponse(result, 200, request);
@@ -439,8 +435,7 @@ export default {
         const imageData = await request.arrayBuffer();
 
         // Get DO stub for this job
-        const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-        const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+        const doStub = getProgressDOStub(jobId, env);
 
         // SECURITY: Generate authentication token for WebSocket connection
         const authToken = crypto.randomUUID();
@@ -935,8 +930,7 @@ export default {
     if (url.pathname === "/test/do/init-batch" && request.method === "POST") {
       try {
         const { jobId, totalPhotos, status } = await request.json();
-        const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-        const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+        const doStub = getProgressDOStub(jobId, env);
 
         const result = await doStub.initBatch({ jobId, totalPhotos, status });
 
@@ -960,8 +954,7 @@ export default {
           );
         }
 
-        const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-        const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+        const doStub = getProgressDOStub(jobId, env);
 
         const state = await doStub.getState();
 
@@ -986,8 +979,7 @@ export default {
           booksFound,
           error: photoError,
         } = await request.json();
-        const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-        const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+        const doStub = getProgressDOStub(jobId, env);
 
         const result = await doStub.updatePhoto({
           photoIndex,
@@ -1014,8 +1006,7 @@ export default {
       try {
         const { jobId, status, totalBooks, photoResults, books } =
           await request.json();
-        const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-        const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+        const doStub = getProgressDOStub(jobId, env);
 
         const result = await doStub.completeBatch({
           status,
@@ -1044,8 +1035,7 @@ export default {
           );
         }
 
-        const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-        const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+        const doStub = getProgressDOStub(jobId, env);
 
         const result = await doStub.isBatchCanceled();
 
@@ -1060,8 +1050,7 @@ export default {
     if (url.pathname === "/test/do/cancel-batch" && request.method === "POST") {
       try {
         const { jobId } = await request.json();
-        const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-        const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+        const doStub = getProgressDOStub(jobId, env);
 
         const result = await doStub.cancelBatch();
 
