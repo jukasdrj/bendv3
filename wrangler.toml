@@ -94,11 +94,11 @@ bucket_name = "bookstrack-covers"
 [ai]
 binding = "AI"
 
-# Rate Limiting via KV (Security: Prevents denial-of-wallet attacks)
-# Note: Using existing KV_CACHE namespace for rate limit tracking
-# Implementation: src/middleware/rate-limiter.js stores per-IP counters with TTL
-# Limit: 10 requests per minute per IP (protects expensive AI/enrichment endpoints)
-# Cost: ~$0 (uses existing KV namespace with ~100 writes/min peak)
+# Rate Limiting via Durable Objects (Security: Prevents denial-of-wallet attacks)
+# Implementation: src/durable-objects/rate-limiter.js provides atomic per-IP counters
+# Binding: RATE_LIMITER_DO (one DO instance per client IP for serialization)
+# Limit: 10 requests per 60-second window per IP (protects expensive AI/enrichment endpoints)
+# Cost: ~$0 (DO requests included in Workers plan with ~100 calls/min peak)
 
 # CORS Configuration
 # Current: 'Access-Control-Allow-Origin: *' (permissive)

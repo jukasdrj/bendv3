@@ -1,16 +1,16 @@
 /**
  * Rate Limiting Middleware
  *
- * Protects expensive endpoints from abuse using KV-based token bucket algorithm.
+ * Protects expensive endpoints from abuse using Durable Object-based fixed-window algorithm.
  *
  * Security: Prevents denial-of-wallet attacks on AI/enrichment endpoints.
- * Implementation: Stores per-IP counters in KV with TTL expiration.
- * Cost: ~$0 (uses existing KV namespace, ~100 writes/min peak)
+ * Implementation: Uses atomic Durable Object per IP to prevent race conditions.
+ * Cost: ~$0 (DO requests included in Workers plan, ~100 DO calls/min peak)
  *
- * Algorithm: Token Bucket
- * - Each IP gets 10 tokens per minute
+ * Algorithm: Fixed Window Counter
+ * - Each IP gets 10 requests per 60-second window
  * - Each request consumes 1 token
- * - Tokens refill at 1 token every 6 seconds
+ * - Window resets 60 seconds after first request
  *
  * @example
  * ```javascript
@@ -53,7 +53,8 @@ export async function checkRateLimit(request, env) {
 
     if (!allowed) {
       // Rate limit exceeded
-      const retryAfter = Math.ceil((resetAt - Date.now()) / 1000);
+      const retryAfterSeconds = Math.ceil((resetAt - Date.now()) / 1000);
+      const retryAfter = Math.max(1, retryAfterSeconds); // Ensure positive value
       console.warn(
         `[Rate Limit] Blocked request from IP: ${clientIP} (limit exceeded)`,
       );
@@ -92,32 +93,3 @@ export async function checkRateLimit(request, env) {
   }
 }
 
-/**
- * Get rate limit status for a client IP (for monitoring/debugging).
- *
- * @param {string} clientIP - Client IP address
- * @param {object} env - Worker environment bindings
- * @returns {Promise<object>} - Rate limit status
- */
-export async function getRateLimitStatus(clientIP, env) {
-  try {
-    // Cloudflare Rate Limiting provides remaining count via limit() result
-    const { success, limit, remaining } = await env.RATE_LIMITER.limit({
-      key: clientIP,
-      dryRun: true, // Check without consuming quota
-    });
-
-    return {
-      success,
-      limit,
-      remaining,
-      clientIP: clientIP.substring(0, 8) + "...",
-    };
-  } catch (error) {
-    console.error("[Rate Limit] Error getting status:", error);
-    return {
-      error: error.message,
-      clientIP: clientIP.substring(0, 8) + "...",
-    };
-  }
-}
