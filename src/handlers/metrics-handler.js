@@ -1,4 +1,4 @@
-import { aggregateMetrics } from '../services/metrics-aggregator.js';
+import { aggregateMetrics } from "../services/metrics-aggregator.js";
 
 /**
  * GET /metrics - Cache metrics API endpoint
@@ -15,15 +15,15 @@ import { aggregateMetrics } from '../services/metrics-aggregator.js';
 export async function handleMetricsRequest(request, env, ctx) {
   try {
     const url = new URL(request.url);
-    const period = url.searchParams.get('period') || '1h';
-    const format = url.searchParams.get('format') || 'json';
+    const period = url.searchParams.get("period") || "1h";
+    const format = url.searchParams.get("format") || "json";
 
     // Check cache first (5min TTL)
     const cacheKey = `metrics:${period}`;
     const cached = await env.CACHE.get(cacheKey);
     if (cached) {
       return new Response(cached, {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -37,33 +37,37 @@ export async function handleMetricsRequest(request, env, ctx) {
     metrics.health = assessHealth(metrics);
 
     // Format response
-    const body = format === 'prometheus' ?
-      formatPrometheus(metrics) :
-      JSON.stringify(metrics, null, 2);
+    const body =
+      format === "prometheus"
+        ? formatPrometheus(metrics)
+        : JSON.stringify(metrics, null, 2);
 
     // Cache for 5 minutes
     ctx.waitUntil(
       env.CACHE.put(cacheKey, body, {
-        expirationTtl: 300
-      })
+        expirationTtl: 300,
+      }),
     );
 
     return new Response(body, {
       headers: {
-        'Content-Type': format === 'prometheus' ?
-          'text/plain; version=0.0.4' :
-          'application/json'
-      }
+        "Content-Type":
+          format === "prometheus"
+            ? "text/plain; version=0.0.4"
+            : "application/json",
+      },
     });
-
   } catch (error) {
-    return new Response(JSON.stringify({
-      error: 'Failed to fetch metrics',
-      message: error.message
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify({
+        error: "Failed to fetch metrics",
+        message: error.message,
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 }
 
@@ -73,13 +77,13 @@ export async function handleMetricsRequest(request, env, ctx) {
  * @returns {Object} Cost estimates
  */
 function estimateCosts(volume) {
-  const kvReadCost = (volume.kv_hits * 0.50) / 1000000;
+  const kvReadCost = (volume.kv_hits * 0.5) / 1000000;
   const r2ReadCost = (volume.r2_rehydrations * 0.36) / 1000000;
 
   return {
     kv_reads_estimate: `$${kvReadCost.toFixed(4)}/period`,
     r2_reads: `$${r2ReadCost.toFixed(4)}/period`,
-    total_estimate: `$${(kvReadCost + r2ReadCost).toFixed(4)}/period`
+    total_estimate: `$${(kvReadCost + r2ReadCost).toFixed(4)}/period`,
   };
 }
 
@@ -94,24 +98,24 @@ function assessHealth(metrics) {
   // Check combined hit rate
   if (metrics.hitRates.combined < 90) {
     issues.push({
-      severity: 'warning',
+      severity: "warning",
       message: `Combined hit rate below target (${metrics.hitRates.combined.toFixed(1)}% vs 95% target)`,
-      since: metrics.timestamp
+      since: metrics.timestamp,
     });
   }
 
   // Check edge hit rate
   if (metrics.hitRates.edge < 75) {
     issues.push({
-      severity: 'warning',
+      severity: "warning",
       message: `Edge hit rate low (${metrics.hitRates.edge.toFixed(1)}% vs 80% target)`,
-      since: metrics.timestamp
+      since: metrics.timestamp,
     });
   }
 
   return {
-    status: issues.length === 0 ? 'healthy' : 'degraded',
-    issues: issues
+    status: issues.length === 0 ? "healthy" : "degraded",
+    issues: issues,
   };
 }
 

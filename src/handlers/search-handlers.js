@@ -7,7 +7,7 @@
  * - Request coalescing to prevent duplicate in-flight calls
  */
 
-import * as externalApis from '../services/external-apis.js';
+import * as externalApis from "../services/external-apis.ts";
 
 // Request coalescing: Map of in-flight requests by cache key
 const IN_FLIGHT_REQUESTS = new Map();
@@ -18,11 +18,11 @@ const IN_FLIGHT_REQUESTS = new Map();
 function generateSearchCacheKey(searchParams) {
   const { bookTitle, authorName, isbn } = searchParams;
   const parts = [
-    isbn || '',
-    bookTitle?.toLowerCase().trim() || '',
-    authorName?.toLowerCase().trim() || ''
+    isbn || "",
+    bookTitle?.toLowerCase().trim() || "",
+    authorName?.toLowerCase().trim() || "",
   ];
-  return `search:${parts.filter(Boolean).join(':')}`;
+  return `search:${parts.filter(Boolean).join(":")}`;
 }
 
 /**
@@ -32,18 +32,20 @@ function generateSearchCacheKey(searchParams) {
 async function checkNegativeCache(cacheKey, env) {
   try {
     const negativeKey = `negative:${cacheKey}`;
-    const cached = await env.KV_CACHE.get(negativeKey, 'json');
+    const cached = await env.KV_CACHE.get(negativeKey, "json");
 
     if (cached && cached.timestamp) {
       const age = Date.now() - cached.timestamp;
       // Return cached error if less than 5 minutes old
       if (age < 300000) {
-        console.log(`⚠️ Negative cache HIT: ${cacheKey} (age: ${Math.round(age / 1000)}s)`);
+        console.log(
+          `⚠️ Negative cache HIT: ${cacheKey} (age: ${Math.round(age / 1000)}s)`,
+        );
         return cached;
       }
     }
   } catch (error) {
-    console.error('Negative cache check failed:', error);
+    console.error("Negative cache check failed:", error);
   }
   return null;
 }
@@ -58,17 +60,21 @@ async function checkNegativeCache(cacheKey, env) {
 async function storeNegativeCache(cacheKey, error, type, env) {
   try {
     const negativeKey = `negative:${cacheKey}`;
-    await env.KV_CACHE.put(negativeKey, JSON.stringify({
-      type: type || 'error',  // 'no_results' vs 'error'
-      error: error.message || 'Unknown error',
-      status: error.status || 500,
-      timestamp: Date.now()
-    }), {
-      expirationTtl: 300 // 5 minutes
-    });
+    await env.KV_CACHE.put(
+      negativeKey,
+      JSON.stringify({
+        type: type || "error", // 'no_results' vs 'error'
+        error: error.message || "Unknown error",
+        status: error.status || 500,
+        timestamp: Date.now(),
+      }),
+      {
+        expirationTtl: 300, // 5 minutes
+      },
+    );
     console.log(`📝 Stored negative cache: ${cacheKey} (type: ${type})`);
   } catch (err) {
-    console.error('Failed to store negative cache:', err);
+    console.error("Failed to store negative cache:", err);
   }
 }
 
@@ -89,19 +95,21 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
   const maxResults = options.maxResults || 1;
   const cacheKey = generateSearchCacheKey(searchParams);
 
-  console.log(`[AdvancedSearch] Searching for "${bookTitle}" by "${authorName}"`);
+  console.log(
+    `[AdvancedSearch] Searching for "${bookTitle}" by "${authorName}"`,
+  );
 
   // Check negative cache first (prevents repeated failed lookups)
   const negativeCache = await checkNegativeCache(cacheKey, env);
   if (negativeCache) {
     // Maintain consistent API contract: always return success: true for "no results"
-    if (negativeCache.type === 'no_results') {
+    if (negativeCache.type === "no_results") {
       return {
         success: true,
-        provider: 'none',
+        provider: "none",
         items: [],
         cached: true,
-        negativeCache: true
+        negativeCache: true,
       };
     }
     // Only true errors return success: false
@@ -110,122 +118,161 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
       error: negativeCache.error,
       items: [],
       cached: true,
-      negativeCache: true
+      negativeCache: true,
     };
   }
 
   // Check for in-flight request (request coalescing)
   if (IN_FLIGHT_REQUESTS.has(cacheKey)) {
-    console.log(`🔄 Request coalescing: Waiting for in-flight request (${cacheKey})`);
+    console.log(
+      `🔄 Request coalescing: Waiting for in-flight request (${cacheKey})`,
+    );
     return IN_FLIGHT_REQUESTS.get(cacheKey);
   }
 
   // Create new request promise
   const requestPromise = (async () => {
     try {
-    // Try Google Books first (most reliable for enrichment)
-    const query = [bookTitle, authorName].filter(Boolean).join(' ');
+      // Try Google Books first (most reliable for enrichment)
+      const query = [bookTitle, authorName].filter(Boolean).join(" ");
 
-    const googleResult = await externalApis.searchGoogleBooks(query, { maxResults }, env);
-
-    if (googleResult.success && googleResult.works && googleResult.works.length > 0) {
-      // Convert normalized works back to Google Books volumeInfo format
-      // This maintains compatibility with the existing enrichment code
-      const items = googleResult.works.flatMap(work =>
-        work.editions.map(edition => ({
-          id: edition.googleBooksVolumeId || `synthetic-${edition.isbn13 || edition.isbn10}`,
-          volumeInfo: {
-            title: work.title,
-            subtitle: work.subtitle,
-            authors: work.authors.map(a => a.name),
-            publishedDate: edition.publicationDate || edition.publishDate,
-            publisher: edition.publisher,
-            pageCount: edition.pageCount || edition.pages,
-            categories: edition.genres || [],
-            description: edition.description,
-            imageLinks: edition.coverImageURL ? {
-              thumbnail: edition.coverImageURL,
-              smallThumbnail: edition.coverImageURL
-            } : undefined,
-            industryIdentifiers: [
-              edition.isbn13 ? { type: 'ISBN_13', identifier: edition.isbn13 } : null,
-              edition.isbn10 ? { type: 'ISBN_10', identifier: edition.isbn10 } : null
-            ].filter(Boolean),
-            previewLink: edition.previewLink,
-            infoLink: edition.infoLink
-          }
-        }))
+      const googleResult = await externalApis.searchGoogleBooks(
+        query,
+        { maxResults },
+        env,
       );
 
-      return {
-        success: true,
-        provider: 'google',
-        items: items.slice(0, maxResults),
-        cached: false
-      };
-    }
+      if (
+        googleResult.success &&
+        googleResult.works &&
+        googleResult.works.length > 0
+      ) {
+        // Convert normalized works back to Google Books volumeInfo format
+        // This maintains compatibility with the existing enrichment code
+        const items = googleResult.works.flatMap((work) =>
+          work.editions.map((edition) => ({
+            id:
+              edition.googleBooksVolumeId ||
+              `synthetic-${edition.isbn13 || edition.isbn10}`,
+            volumeInfo: {
+              title: work.title,
+              subtitle: work.subtitle,
+              authors: work.authors.map((a) => a.name),
+              publishedDate: edition.publicationDate || edition.publishDate,
+              publisher: edition.publisher,
+              pageCount: edition.pageCount || edition.pages,
+              categories: edition.genres || [],
+              description: edition.description,
+              imageLinks: edition.coverImageURL
+                ? {
+                    thumbnail: edition.coverImageURL,
+                    smallThumbnail: edition.coverImageURL,
+                  }
+                : undefined,
+              industryIdentifiers: [
+                edition.isbn13
+                  ? { type: "ISBN_13", identifier: edition.isbn13 }
+                  : null,
+                edition.isbn10
+                  ? { type: "ISBN_10", identifier: edition.isbn10 }
+                  : null,
+              ].filter(Boolean),
+              previewLink: edition.previewLink,
+              infoLink: edition.infoLink,
+            },
+          })),
+        );
 
-    // Fallback to OpenLibrary if Google Books fails
-    console.log(`[AdvancedSearch] Google Books returned no results, trying OpenLibrary...`);
+        return {
+          success: true,
+          provider: "google",
+          items: items.slice(0, maxResults),
+          cached: false,
+        };
+      }
 
-    const olResult = await externalApis.searchOpenLibrary(query, { maxResults }, env);
-
-    if (olResult.success && olResult.works && olResult.works.length > 0) {
-      // Convert OpenLibrary format to Google Books-compatible format
-      const items = olResult.works.flatMap(work =>
-        work.editions.map(edition => ({
-          id: work.externalIds?.openLibraryWorkId || `ol-${work.title.replace(/\s+/g, '-').toLowerCase()}`,
-          volumeInfo: {
-            title: work.title,
-            subtitle: work.subtitle,
-            authors: work.authors.map(a => a.name),
-            publishedDate: edition.publicationDate,
-            publisher: edition.publisher,
-            pageCount: edition.pageCount,
-            categories: work.subjects?.slice(0, 5) || [],
-            imageLinks: edition.coverImageURL ? {
-              thumbnail: edition.coverImageURL,
-              smallThumbnail: edition.coverImageURL
-            } : undefined,
-            industryIdentifiers: [
-              edition.isbn13 ? { type: 'ISBN_13', identifier: edition.isbn13 } : null,
-              edition.isbn10 ? { type: 'ISBN_10', identifier: edition.isbn10 } : null
-            ].filter(Boolean)
-          }
-        }))
+      // Fallback to OpenLibrary if Google Books fails
+      console.log(
+        `[AdvancedSearch] Google Books returned no results, trying OpenLibrary...`,
       );
 
-      return {
-        success: true,
-        provider: 'openlibrary',
-        items: items.slice(0, maxResults),
-        cached: false
-      };
-    }
+      const olResult = await externalApis.searchOpenLibrary(
+        query,
+        { maxResults },
+        env,
+      );
+
+      if (olResult.success && olResult.works && olResult.works.length > 0) {
+        // Convert OpenLibrary format to Google Books-compatible format
+        const items = olResult.works.flatMap((work) =>
+          work.editions.map((edition) => ({
+            id:
+              work.externalIds?.openLibraryWorkId ||
+              `ol-${work.title.replace(/\s+/g, "-").toLowerCase()}`,
+            volumeInfo: {
+              title: work.title,
+              subtitle: work.subtitle,
+              authors: work.authors.map((a) => a.name),
+              publishedDate: edition.publicationDate,
+              publisher: edition.publisher,
+              pageCount: edition.pageCount,
+              categories: work.subjects?.slice(0, 5) || [],
+              imageLinks: edition.coverImageURL
+                ? {
+                    thumbnail: edition.coverImageURL,
+                    smallThumbnail: edition.coverImageURL,
+                  }
+                : undefined,
+              industryIdentifiers: [
+                edition.isbn13
+                  ? { type: "ISBN_13", identifier: edition.isbn13 }
+                  : null,
+                edition.isbn10
+                  ? { type: "ISBN_10", identifier: edition.isbn10 }
+                  : null,
+              ].filter(Boolean),
+            },
+          })),
+        );
+
+        return {
+          success: true,
+          provider: "openlibrary",
+          items: items.slice(0, maxResults),
+          cached: false,
+        };
+      }
 
       // No results from any provider - store as "no_results" type (not error)
       console.log(`[AdvancedSearch] No results found from any provider`);
-      await storeNegativeCache(cacheKey, { message: 'No results found', status: 404 }, 'no_results', env);
+      await storeNegativeCache(
+        cacheKey,
+        { message: "No results found", status: 404 },
+        "no_results",
+        env,
+      );
 
       return {
         success: true,
-        provider: 'none',
+        provider: "none",
         items: [],
-        cached: false
+        cached: false,
       };
-
     } catch (error) {
-      console.error(`[AdvancedSearch] Error searching for "${bookTitle}":`, error);
+      console.error(
+        `[AdvancedSearch] Error searching for "${bookTitle}":`,
+        error,
+      );
 
       // Store negative cache for 5xx errors only (not client errors)
       if (!error.status || error.status >= 500) {
-        await storeNegativeCache(cacheKey, error, 'error', env);
+        await storeNegativeCache(cacheKey, error, "error", env);
       }
 
       return {
         success: false,
         error: error.message,
-        items: []
+        items: [],
       };
     } finally {
       // Clean up in-flight request

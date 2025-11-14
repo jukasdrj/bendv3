@@ -11,7 +11,7 @@
 async function getHarvestStats(env) {
   try {
     // Get all cover keys from KV (cover:* pattern)
-    const list = await env.KV_CACHE.list({ prefix: 'cover:' });
+    const list = await env.KV_CACHE.list({ prefix: "cover:" });
 
     const totalCovers = list.keys.length;
 
@@ -33,16 +33,19 @@ async function getHarvestStats(env) {
       totalSavings += metadata.savings || 0;
 
       // Determine source
-      const source = metadata.source || 'isbndb';
-      if (source.includes('isbndb')) coversBySource.isbndb++;
-      else if (source.includes('google')) coversBySource.google++;
-      else if (source.includes('openlibrary')) coversBySource.openlibrary++;
+      const source = metadata.source || "isbndb";
+      if (source.includes("isbndb")) coversBySource.isbndb++;
+      else if (source.includes("google")) coversBySource.google++;
+      else if (source.includes("openlibrary")) coversBySource.openlibrary++;
     }
 
     // Extrapolate to full dataset
     const sampleRatio = totalCovers / recentCovers.length;
     const estimatedSize = totalSize * sampleRatio;
-    const avgSavings = recentCovers.length > 0 ? Math.round(totalSavings / recentCovers.length) : 0;
+    const avgSavings =
+      recentCovers.length > 0
+        ? Math.round(totalSavings / recentCovers.length)
+        : 0;
 
     return {
       totalCovers,
@@ -51,21 +54,21 @@ async function getHarvestStats(env) {
       coversBySource,
       lastUpdated: new Date().toISOString(),
       storageUsed: `${(estimatedSize / 1024 / 1024).toFixed(2)} MB`,
-      apiQuotaUsed: '77%', // From recent harvest
-      cacheHitRate: 'N/A' // Requires Analytics Engine aggregation
+      apiQuotaUsed: "77%", // From recent harvest
+      cacheHitRate: "N/A", // Requires Analytics Engine aggregation
     };
   } catch (error) {
-    console.error('Failed to get harvest stats:', error);
+    console.error("Failed to get harvest stats:", error);
     return {
       totalCovers: 0,
-      totalSizeMB: '0.00',
+      totalSizeMB: "0.00",
       avgCompressionSavings: 0,
       coversBySource: { isbndb: 0, google: 0, openlibrary: 0 },
       lastUpdated: new Date().toISOString(),
-      storageUsed: '0 MB',
-      apiQuotaUsed: 'N/A',
-      cacheHitRate: 'N/A',
-      error: error.message
+      storageUsed: "0 MB",
+      apiQuotaUsed: "N/A",
+      cacheHitRate: "N/A",
+      error: error.message,
     };
   }
 }
@@ -354,9 +357,10 @@ function renderDashboard(stats) {
         <div class="stat-label">Cache Hit Rate</div>
         <div class="stat-value">${stats.cacheHitRate}</div>
         <div class="stat-subtitle">
-          ${stats.cacheHitRate === 'N/A'
-            ? '<span class="badge badge-warning">Pending 24h Analytics</span>'
-            : 'Serving from cache'
+          ${
+            stats.cacheHitRate === "N/A"
+              ? '<span class="badge badge-warning">Pending 24h Analytics</span>'
+              : "Serving from cache"
           }
         </div>
       </div>
@@ -434,16 +438,16 @@ export async function handleHarvestDashboard(request, env) {
 
     return new Response(html, {
       headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=300', // 5 minute cache
-        'X-Content-Type-Options': 'nosniff'
-      }
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=300", // 5 minute cache
+        "X-Content-Type-Options": "nosniff",
+      },
     });
   } catch (error) {
-    console.error('Dashboard error:', error);
-    return new Response('Dashboard temporarily unavailable', {
+    console.error("Dashboard error:", error);
+    return new Response("Dashboard temporarily unavailable", {
       status: 500,
-      headers: { 'Content-Type': 'text/plain' }
+      headers: { "Content-Type": "text/plain" },
     });
   }
 }

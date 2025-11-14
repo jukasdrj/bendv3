@@ -11,9 +11,9 @@
  * - /v1/search/* endpoints (title, ISBN, advanced search)
  */
 
-import * as externalApis from './external-apis.js';
-import type { WorkDTO, EditionDTO, AuthorDTO } from '../types/canonical.js';
-import type { DataProvider } from '../types/enums.js';
+import * as externalApis from "./external-apis.ts";
+import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js";
+import type { DataProvider } from "../types/enums.js";
 
 // ========================================================================================
 // INTERFACES
@@ -24,50 +24,50 @@ import type { DataProvider } from '../types/enums.js';
  * See wrangler.toml for complete configuration
  */
 interface WorkerEnv {
-	// KV Namespaces
-	CACHE: KVNamespace;
-	KV_CACHE: KVNamespace;
+  // KV Namespaces
+  CACHE: KVNamespace;
+  KV_CACHE: KVNamespace;
 
-	// Secrets
-	GOOGLE_BOOKS_API_KEY: string;
-	ISBNDB_API_KEY: string;
-	GEMINI_API_KEY: string;
+  // Secrets
+  GOOGLE_BOOKS_API_KEY: string;
+  ISBNDB_API_KEY: string;
+  GEMINI_API_KEY: string;
 
-	// R2 Buckets
-	API_CACHE_COLD: R2Bucket;
-	LIBRARY_DATA: R2Bucket;
-	BOOKSHELF_IMAGES: R2Bucket;
+  // R2 Buckets
+  API_CACHE_COLD: R2Bucket;
+  LIBRARY_DATA: R2Bucket;
+  BOOKSHELF_IMAGES: R2Bucket;
 
-	// Workers AI
-	AI: Fetcher;
+  // Workers AI
+  AI: Fetcher;
 
-	// Durable Objects
-	PROGRESS_WEBSOCKET_DO: DurableObjectNamespace;
+  // Durable Objects
+  PROGRESS_WEBSOCKET_DO: DurableObjectNamespace;
 
-	// Analytics Engine
-	PERFORMANCE_ANALYTICS?: AnalyticsEngineDataset;
-	CACHE_ANALYTICS?: AnalyticsEngineDataset;
-	PROVIDER_ANALYTICS?: AnalyticsEngineDataset;
-	AI_ANALYTICS?: AnalyticsEngineDataset;
+  // Analytics Engine
+  PERFORMANCE_ANALYTICS?: AnalyticsEngineDataset;
+  CACHE_ANALYTICS?: AnalyticsEngineDataset;
+  PROVIDER_ANALYTICS?: AnalyticsEngineDataset;
+  AI_ANALYTICS?: AnalyticsEngineDataset;
 
-	// Queue Producers
-	AUTHOR_WARMING_QUEUE?: Queue;
+  // Queue Producers
+  AUTHOR_WARMING_QUEUE?: Queue;
 }
 
 /**
  * Query parameters for book searches
  */
 interface BookSearchQuery {
-	title?: string;
-	author?: string;
-	isbn?: string;
+  title?: string;
+  author?: string;
+  isbn?: string;
 }
 
 /**
  * Options for multi-book searches
  */
 interface SearchOptions {
-	maxResults?: number;
+  maxResults?: number;
 }
 
 /**
@@ -80,20 +80,20 @@ type WorkDTOWithAuthors = WorkDTO & { authors?: AuthorDTO[] };
  * Generic API response for external API calls
  */
 interface ApiResponse {
-	success: boolean;
-	works?: WorkDTOWithAuthors[];
-	editions?: EditionDTO[];
-	authors?: AuthorDTO[];
-	error?: string;
+  success: boolean;
+  works?: WorkDTOWithAuthors[];
+  editions?: EditionDTO[];
+  authors?: AuthorDTO[];
+  error?: string;
 }
 
 /**
  * Return type for enrichMultipleBooks
  */
 interface EnrichmentResult {
-	works: WorkDTO[];
-	editions: EditionDTO[];
-	authors: AuthorDTO[];
+  works: WorkDTO[];
+  editions: EditionDTO[];
+  authors: AuthorDTO[];
 }
 
 /**
@@ -101,9 +101,9 @@ interface EnrichmentResult {
  * Contains work, edition (with cover URL), and authors for a single book
  */
 export interface SingleEnrichmentResult {
-	work: WorkDTO;
-	edition: EditionDTO | null;
-	authors: AuthorDTO[];
+  work: WorkDTO;
+  edition: EditionDTO | null;
+  authors: AuthorDTO[];
 }
 
 // ========================================================================================
@@ -120,98 +120,149 @@ export interface SingleEnrichmentResult {
  * @returns EnrichmentResult with works, editions, and authors
  */
 export async function enrichMultipleBooks(
-	query: BookSearchQuery,
-	env: WorkerEnv,
-	options: SearchOptions = { maxResults: 20 }
+  query: BookSearchQuery,
+  env: WorkerEnv,
+  options: SearchOptions = { maxResults: 20 },
 ): Promise<EnrichmentResult> {
-	const { title, author, isbn } = query;
-	const { maxResults = 20 } = options;
+  const { title, author, isbn } = query;
+  const { maxResults = 20 } = options;
 
-	// ISBN search returns single result (ISBNs are unique)
-	if (isbn) {
-		try {
-			// Try Google Books ISBN search first
-			console.log(`enrichMultipleBooks: Searching Google Books by ISBN "${isbn}"`);
-			const googleResult: ApiResponse = await externalApis.searchGoogleBooksByISBN(isbn, env);
+  // ISBN search returns single result (ISBNs are unique)
+  if (isbn) {
+    try {
+      // Try Google Books ISBN search first
+      console.log(
+        `enrichMultipleBooks: Searching Google Books by ISBN "${isbn}"`,
+      );
+      const googleResult: ApiResponse =
+        await externalApis.searchGoogleBooksByISBN(isbn, env);
 
-			if (googleResult.success && googleResult.works && googleResult.works.length > 0) {
-				// Add provenance fields to all works
-				return {
-					works: googleResult.works.map((work: WorkDTO) => addProvenanceFields(work, 'google-books')),
-					editions: googleResult.editions || [],
-					authors: googleResult.authors || []
-				};
-			}
+      if (
+        googleResult.success &&
+        googleResult.works &&
+        googleResult.works.length > 0
+      ) {
+        // Add provenance fields to all works
+        return {
+          works: googleResult.works.map((work: WorkDTO) =>
+            addProvenanceFields(work, "google-books"),
+          ),
+          editions: googleResult.editions || [],
+          authors: googleResult.authors || [],
+        };
+      }
 
-			// Fallback to OpenLibrary ISBN search
-			console.log(`enrichMultipleBooks: Google Books returned no results, trying OpenLibrary`);
-			const olResult: ApiResponse = await externalApis.searchOpenLibrary(isbn, { maxResults: 1, isbn }, env);
+      // Fallback to OpenLibrary ISBN search
+      console.log(
+        `enrichMultipleBooks: Google Books returned no results, trying OpenLibrary`,
+      );
+      const olResult: ApiResponse = await externalApis.searchOpenLibrary(
+        isbn,
+        { maxResults: 1, isbn },
+        env,
+      );
 
-			if (olResult.success && olResult.works && olResult.works.length > 0) {
-				// Add provenance fields to all works
-				return {
-					works: olResult.works.map((work: WorkDTO) => addProvenanceFields(work, 'openlibrary')),
-					editions: olResult.editions || [],
-					authors: olResult.authors || []
-				};
-			}
+      if (olResult.success && olResult.works && olResult.works.length > 0) {
+        // Add provenance fields to all works
+        return {
+          works: olResult.works.map((work: WorkDTO) =>
+            addProvenanceFields(work, "openlibrary"),
+          ),
+          editions: olResult.editions || [],
+          authors: olResult.authors || [],
+        };
+      }
 
-			// No results from any provider
-			console.log(`enrichMultipleBooks: No results for ISBN "${isbn}"`);
-			return { works: [], editions: [], authors: [] };
-		} catch (error) {
-			console.error('enrichMultipleBooks ISBN search error:', error);
-			// Best-effort: API errors = empty results (don't propagate errors)
-			return { works: [], editions: [], authors: [] };
-		}
-	}
+      // No results from any provider
+      console.log(`enrichMultipleBooks: No results for ISBN "${isbn}"`);
+      return { works: [], editions: [], authors: [] };
+    } catch (error) {
+      console.error("enrichMultipleBooks ISBN search error:", error);
+      // Best-effort: API errors = empty results (don't propagate errors)
+      return { works: [], editions: [], authors: [] };
+    }
+  }
 
-	// Build search query for Google Books
-	const searchQuery = [title, author].filter(Boolean).join(' ');
+  // Build search query for Google Books
+  const searchQuery = [title, author].filter(Boolean).join(" ");
 
-	if (!searchQuery) {
-		console.warn('enrichMultipleBooks: No search parameters provided');
-		return { works: [], editions: [], authors: [] };
-	}
+  if (!searchQuery) {
+    console.warn("enrichMultipleBooks: No search parameters provided");
+    return { works: [], editions: [], authors: [] };
+  }
 
   try {
     // Try Google Books first with maxResults
-    console.log(`enrichMultipleBooks: Searching Google Books for "${searchQuery}" (maxResults: ${maxResults})`);
-    const googleResult: ApiResponse = await externalApis.searchGoogleBooks(searchQuery, { maxResults }, env);
+    console.log(
+      `enrichMultipleBooks: Searching Google Books for "${searchQuery}" (maxResults: ${maxResults})`,
+    );
+    const googleResult: ApiResponse = await externalApis.searchGoogleBooks(
+      searchQuery,
+      { maxResults },
+      env,
+    );
 
-    if (googleResult.success && googleResult.works && googleResult.works.length > 0) {
+    if (
+      googleResult.success &&
+      googleResult.works &&
+      googleResult.works.length > 0
+    ) {
       // Add provenance fields to all works
       return {
-        works: googleResult.works.map((work: WorkDTO) => addProvenanceFields(work, 'google-books')),
+        works: googleResult.works.map((work: WorkDTO) =>
+          addProvenanceFields(work, "google-books"),
+        ),
         editions: googleResult.editions || [],
-        authors: googleResult.authors || []
+        authors: googleResult.authors || [],
       };
     }
 
     // Fallback to OpenLibrary
-    console.log(`enrichMultipleBooks: Google Books returned no results, trying OpenLibrary`);
-    const olResult: ApiResponse = await externalApis.searchOpenLibrary(searchQuery, { maxResults }, env);
+    console.log(
+      `enrichMultipleBooks: Google Books returned no results, trying OpenLibrary`,
+    );
+    const olResult: ApiResponse = await externalApis.searchOpenLibrary(
+      searchQuery,
+      { maxResults },
+      env,
+    );
 
     if (olResult.success && olResult.works && olResult.works.length > 0) {
       // Add provenance fields to all works
       return {
-        works: olResult.works.map((work: WorkDTO) => addProvenanceFields(work, 'openlibrary')),
+        works: olResult.works.map((work: WorkDTO) =>
+          addProvenanceFields(work, "openlibrary"),
+        ),
         editions: olResult.editions || [],
-        authors: olResult.authors || []
+        authors: olResult.authors || [],
       };
     }
 
     // Fallback to ISBNdb (only if we have both title and author with meaningful values)
     if (title?.trim() && author?.trim()) {
-      console.log(`enrichMultipleBooks: OpenLibrary returned no results, trying ISBNdb`);
-      const isbndbResult: ApiResponse = await externalApis.searchISBNdb(title, author, env);
+      console.log(
+        `enrichMultipleBooks: OpenLibrary returned no results, trying ISBNdb`,
+      );
+      const isbndbResult: ApiResponse = await externalApis.searchISBNdb(
+        title,
+        author,
+        env,
+      );
 
-      if (isbndbResult.success && isbndbResult.works && isbndbResult.works.length > 0) {
-        console.log(`✅ ISBNdb SUCCESS: Found ${isbndbResult.works.length} works`);
+      if (
+        isbndbResult.success &&
+        isbndbResult.works &&
+        isbndbResult.works.length > 0
+      ) {
+        console.log(
+          `✅ ISBNdb SUCCESS: Found ${isbndbResult.works.length} works`,
+        );
         return {
-          works: isbndbResult.works.map((work: WorkDTO) => addProvenanceFields(work, 'isbndb')),
+          works: isbndbResult.works.map((work: WorkDTO) =>
+            addProvenanceFields(work, "isbndb"),
+          ),
           editions: isbndbResult.editions || [],
-          authors: isbndbResult.authors || []
+          authors: isbndbResult.authors || [],
         };
       }
     }
@@ -219,9 +270,8 @@ export async function enrichMultipleBooks(
     // No results from any provider
     console.log(`enrichMultipleBooks: No results for "${searchQuery}"`);
     return { works: [], editions: [], authors: [] };
-
   } catch (error) {
-    console.error('enrichMultipleBooks error:', error);
+    console.error("enrichMultipleBooks error:", error);
     // Best-effort: API errors = empty results (don't propagate errors)
     return { works: [], editions: [], authors: [] };
   }
@@ -235,49 +285,84 @@ export async function enrichMultipleBooks(
  * @param env - Worker environment bindings
  * @returns SingleEnrichmentResult with work, edition, and authors, or null if not found
  */
-export async function enrichSingleBook(query: BookSearchQuery, env: WorkerEnv): Promise<SingleEnrichmentResult | null> {
-	const { title, author, isbn, openLibraryId, googleBooksId } = query;
+export async function enrichSingleBook(
+  query: BookSearchQuery,
+  env: WorkerEnv,
+): Promise<SingleEnrichmentResult | null> {
+  const { title, author, isbn, openLibraryId, googleBooksId } = query;
 
-	// Require at least one search parameter
-	if (!title && !isbn && !author && !openLibraryId && !googleBooksId) {
-    console.warn('enrichSingleBook: No search parameters provided');
+  // Require at least one search parameter
+  if (!title && !isbn && !author && !openLibraryId && !googleBooksId) {
+    console.warn("enrichSingleBook: No search parameters provided");
     return null;
   }
 
   try {
     // Strategy 1: If ISBN provided, use ISBN search (most accurate)
     if (isbn) {
-      const result: SingleEnrichmentResult | null = await searchByISBN(isbn, env);
+      const result: SingleEnrichmentResult | null = await searchByISBN(
+        isbn,
+        env,
+      );
       // If we have a result with a cover, we're done
-      if (result && (result.work.coverImageURL || result.edition?.coverImageURL)) {
+      if (
+        result &&
+        (result.work.coverImageURL || result.edition?.coverImageURL)
+      ) {
         return result;
       }
     }
 
     // Strategy 2: Use other specific identifiers if available
     if (googleBooksId) {
-      const result: SingleEnrichmentResult | null = await searchGoogleBooksById(googleBooksId, env);
-      if (result && (result.work.coverImageURL || result.edition?.coverImageURL)) return result;
+      const result: SingleEnrichmentResult | null = await searchGoogleBooksById(
+        googleBooksId,
+        env,
+      );
+      if (
+        result &&
+        (result.work.coverImageURL || result.edition?.coverImageURL)
+      )
+        return result;
     }
 
     if (openLibraryId) {
-      const result: SingleEnrichmentResult | null = await searchOpenLibraryById(openLibraryId, env);
-      if (result && (result.work.coverImageURL || result.edition?.coverImageURL)) return result;
+      const result: SingleEnrichmentResult | null = await searchOpenLibraryById(
+        openLibraryId,
+        env,
+      );
+      if (
+        result &&
+        (result.work.coverImageURL || result.edition?.coverImageURL)
+      )
+        return result;
     }
 
     if (query.goodreadsId) {
-      const result: SingleEnrichmentResult | null = await searchOpenLibraryByGoodreadsId(query.goodreadsId, env);
-      if (result && (result.work.coverImageURL || result.edition?.coverImageURL)) return result;
+      const result: SingleEnrichmentResult | null =
+        await searchOpenLibraryByGoodreadsId(query.goodreadsId, env);
+      if (
+        result &&
+        (result.work.coverImageURL || result.edition?.coverImageURL)
+      )
+        return result;
     }
 
     // Strategy 3: Try Google Books with title+author
-    const googleResult: SingleEnrichmentResult | null = await searchGoogleBooks({ title, author }, env);
-    if (googleResult && (googleResult.work.coverImageURL || googleResult.edition?.coverImageURL)) {
+    const googleResult: SingleEnrichmentResult | null = await searchGoogleBooks(
+      { title, author },
+      env,
+    );
+    if (
+      googleResult &&
+      (googleResult.work.coverImageURL || googleResult.edition?.coverImageURL)
+    ) {
       return googleResult;
     }
 
     // Strategy 4: Fallback to OpenLibrary with title+author
-    const openLibResult: SingleEnrichmentResult | null = await searchOpenLibrary({ title, author }, env);
+    const openLibResult: SingleEnrichmentResult | null =
+      await searchOpenLibrary({ title, author }, env);
     if (openLibResult) {
       return openLibResult;
     }
@@ -290,9 +375,8 @@ export async function enrichSingleBook(query: BookSearchQuery, env: WorkerEnv): 
     // Book not found in any provider
     console.log(`enrichSingleBook: No results for query:`, query);
     return null;
-
   } catch (error) {
-    console.error('enrichSingleBook error:', error);
+    console.error("enrichSingleBook error:", error);
     // Best-effort: API errors = not found (don't propagate errors)
     return null;
   }
@@ -306,26 +390,32 @@ export async function enrichSingleBook(query: BookSearchQuery, env: WorkerEnv): 
  * @param env - Worker environment bindings
  * @returns SingleEnrichmentResult with work, edition, and authors or null
  */
-async function searchGoogleBooks(query: BookSearchQuery, env: WorkerEnv): Promise<SingleEnrichmentResult | null> {
-	const { title, author, isbn } = query;
+async function searchGoogleBooks(
+  query: BookSearchQuery,
+  env: WorkerEnv,
+): Promise<SingleEnrichmentResult | null> {
+  const { title, author, isbn } = query;
 
-	// Build search query (title + author for better precision)
-	const searchQuery: string = isbn ? isbn : [title, author].filter(Boolean).join(' ');
+  // Build search query (title + author for better precision)
+  const searchQuery: string = isbn
+    ? isbn
+    : [title, author].filter(Boolean).join(" ");
 
-	const result: ApiResponse = isbn
-		? await externalApis.searchGoogleBooksByISBN(searchQuery, env)
-		: await externalApis.searchGoogleBooks(searchQuery, { maxResults: 1 }, env);
+  const result: ApiResponse = isbn
+    ? await externalApis.searchGoogleBooksByISBN(searchQuery, env)
+    : await externalApis.searchGoogleBooks(searchQuery, { maxResults: 1 }, env);
 
-	if (!result.success || !result.works || result.works.length === 0) {
-		return null;
-	}
+  if (!result.success || !result.works || result.works.length === 0) {
+    return null;
+  }
 
-	// Return first work with provenance fields, plus edition and authors
-	const work: WorkDTO = addProvenanceFields(result.works[0], 'google-books');
-	const edition: EditionDTO | null = (result.editions && result.editions.length > 0) ? result.editions[0] : null;
-	const authors: AuthorDTO[] = result.authors || [];
+  // Return first work with provenance fields, plus edition and authors
+  const work: WorkDTO = addProvenanceFields(result.works[0], "google-books");
+  const edition: EditionDTO | null =
+    result.editions && result.editions.length > 0 ? result.editions[0] : null;
+  const authors: AuthorDTO[] = result.authors || [];
 
-	return { work, edition, authors };
+  return { work, edition, authors };
 }
 
 /**
@@ -336,22 +426,30 @@ async function searchGoogleBooks(query: BookSearchQuery, env: WorkerEnv): Promis
  * @param env - Worker environment bindings
  * @returns SingleEnrichmentResult with work, edition, and authors or null
  */
-async function searchOpenLibrary(query: BookSearchQuery, env: WorkerEnv): Promise<SingleEnrichmentResult | null> {
-	const { title, author } = query;
+async function searchOpenLibrary(
+  query: BookSearchQuery,
+  env: WorkerEnv,
+): Promise<SingleEnrichmentResult | null> {
+  const { title, author } = query;
 
-	const searchQuery: string = [title, author].filter(Boolean).join(' ');
-	const result: ApiResponse = await externalApis.searchOpenLibrary(searchQuery, { maxResults: 1 }, env);
+  const searchQuery: string = [title, author].filter(Boolean).join(" ");
+  const result: ApiResponse = await externalApis.searchOpenLibrary(
+    searchQuery,
+    { maxResults: 1 },
+    env,
+  );
 
-	if (!result.success || !result.works || result.works.length === 0) {
-		return null;
-	}
+  if (!result.success || !result.works || result.works.length === 0) {
+    return null;
+  }
 
-	// Return first work with provenance fields, plus edition and authors
-	const work: WorkDTO = addProvenanceFields(result.works[0], 'openlibrary');
-	const edition: EditionDTO | null = (result.editions && result.editions.length > 0) ? result.editions[0] : null;
-	const authors: AuthorDTO[] = result.authors || [];
+  // Return first work with provenance fields, plus edition and authors
+  const work: WorkDTO = addProvenanceFields(result.works[0], "openlibrary");
+  const edition: EditionDTO | null =
+    result.editions && result.editions.length > 0 ? result.editions[0] : null;
+  const authors: AuthorDTO[] = result.authors || [];
 
-	return { work, edition, authors };
+  return { work, edition, authors };
 }
 
 /**
@@ -362,15 +460,27 @@ async function searchOpenLibrary(query: BookSearchQuery, env: WorkerEnv): Promis
  * @param env - Worker environment bindings
  * @returns SingleEnrichmentResult with work, edition, and authors or null
  */
-async function searchByISBN(isbn: string, env: WorkerEnv): Promise<SingleEnrichmentResult | null> {
-	// Try Google Books ISBN search first
-	const googleResult: SingleEnrichmentResult | null = await searchGoogleBooks({ isbn }, env);
-  if (googleResult && (googleResult.work.coverImageURL || googleResult.edition?.coverImageURL)) {
+async function searchByISBN(
+  isbn: string,
+  env: WorkerEnv,
+): Promise<SingleEnrichmentResult | null> {
+  // Try Google Books ISBN search first
+  const googleResult: SingleEnrichmentResult | null = await searchGoogleBooks(
+    { isbn },
+    env,
+  );
+  if (
+    googleResult &&
+    (googleResult.work.coverImageURL || googleResult.edition?.coverImageURL)
+  ) {
     return googleResult;
   }
 
-	// Fallback to OpenLibrary ISBN search
-	const olResult: SingleEnrichmentResult | null = await searchOpenLibrary({ isbn }, env);
+  // Fallback to OpenLibrary ISBN search
+  const olResult: SingleEnrichmentResult | null = await searchOpenLibrary(
+    { isbn },
+    env,
+  );
   if (olResult) {
     return olResult;
   }
@@ -380,7 +490,7 @@ async function searchByISBN(isbn: string, env: WorkerEnv): Promise<SingleEnrichm
     return googleResult;
   }
 
-	return null;
+  return null;
 }
 
 /**
@@ -397,10 +507,10 @@ async function searchByISBN(isbn: string, env: WorkerEnv): Promise<SingleEnrichm
  * @returns WorkDTO with provenance fields
  */
 function addProvenanceFields(work: WorkDTO, provider: DataProvider): WorkDTO {
-	return {
-		...work, // Preserve all existing normalized fields
-		primaryProvider: provider,
+  return {
+    ...work, // Preserve all existing normalized fields
+    primaryProvider: provider,
     contributors: [provider],
-    synthetic: false // Direct API result, not inferred
+    synthetic: false, // Direct API result, not inferred
   };
 }

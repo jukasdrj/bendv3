@@ -4,9 +4,9 @@
  * Uses OpenLibrary API for author work lookups
  */
 
-import * as externalApis from '../services/external-apis.js';
-import { setCached, generateCacheKey } from '../utils/cache.js';
-import { UnifiedCacheService } from '../services/unified-cache.js';
+import * as externalApis from "../services/external-apis.ts";
+import { setCached, generateCacheKey } from "../utils/cache.js";
+import { UnifiedCacheService } from "../services/unified-cache.js";
 
 /**
  * Search books by author with pagination
@@ -20,7 +20,7 @@ import { UnifiedCacheService } from '../services/unified-cache.js';
  * @returns {Promise<Object>} Author bibliography with pagination
  */
 export async function searchByAuthor(authorName, options, env, ctx) {
-  const { limit = 50, offset = 0, sortBy = 'publicationYear' } = options;
+  const { limit = 50, offset = 0, sortBy = "publicationYear" } = options;
 
   // Validate pagination parameters
   const validatedLimit = Math.min(Math.max(1, limit), 100);
@@ -28,46 +28,48 @@ export async function searchByAuthor(authorName, options, env, ctx) {
 
   // Generate cache key consistent with the cache warmer
   const normalizedQuery = authorName.toLowerCase().trim();
-  const queryB64 = btoa(normalizedQuery).replace(/[/+=]/g, '_');
-  
+  const queryB64 = btoa(normalizedQuery).replace(/[/+=]/g, "_");
+
   const params = {
     maxResults: validatedLimit,
     showAllEditions: false, // Assuming default, adjust if needed
-    sortBy: sortBy
+    sortBy: sortBy,
   };
-  
+
   const paramsString = Object.keys(params)
     .sort()
-    .map(key => `${key}=${params[key]}`)
-    .join('&');
-  
-  const paramsB64 = btoa(paramsString).replace(/[/+=]/g, '_');
+    .map((key) => `${key}=${params[key]}`)
+    .join("&");
+
+  const paramsB64 = btoa(paramsString).replace(/[/+=]/g, "_");
   const cacheKey = `auto-search:${queryB64}:${paramsB64}`;
 
   // Try UnifiedCache first (Edge → KV tiers)
   const cache = new UnifiedCacheService(env, ctx);
-  const cachedResult = await cache.get(cacheKey, 'author', {
+  const cachedResult = await cache.get(cacheKey, "author", {
     query: authorName,
     limit: validatedLimit,
-    offset: validatedOffset
+    offset: validatedOffset,
   });
 
   if (cachedResult && cachedResult.data) {
     const { data, source } = cachedResult;
 
     // Write cache metrics
-    ctx.waitUntil(writeCacheMetrics(env, {
-      endpoint: '/search/author',
-      cacheHit: true,
-      responseTime: 0,
-      itemCount: data.works?.length || 0,
-      authorName: authorName
-    }));
+    ctx.waitUntil(
+      writeCacheMetrics(env, {
+        endpoint: "/search/author",
+        cacheHit: true,
+        responseTime: 0,
+        itemCount: data.works?.length || 0,
+        authorName: authorName,
+      }),
+    );
 
     return {
       ...data,
       cached: true,
-      cacheSource: source
+      cacheSource: source,
     };
   }
 
@@ -75,14 +77,17 @@ export async function searchByAuthor(authorName, options, env, ctx) {
 
   try {
     // Call existing OpenLibrary function
-    const olResult = await externalApis.getOpenLibraryAuthorWorks(authorName, env);
+    const olResult = await externalApis.getOpenLibraryAuthorWorks(
+      authorName,
+      env,
+    );
 
     if (!olResult.success) {
       return {
         success: false,
-        error: olResult.error || 'Author not found in OpenLibrary',
+        error: olResult.error || "Author not found in OpenLibrary",
         works: [],
-        pagination: null
+        pagination: null,
       };
     }
 
@@ -94,15 +99,18 @@ export async function searchByAuthor(authorName, options, env, ctx) {
     const sortedWorks = applySorting(allWorks, sortBy);
 
     // Slice for pagination
-    const paginatedWorks = sortedWorks.slice(validatedOffset, validatedOffset + validatedLimit);
+    const paginatedWorks = sortedWorks.slice(
+      validatedOffset,
+      validatedOffset + validatedLimit,
+    );
 
     const responseData = {
       success: true,
-      provider: 'openlibrary',
+      provider: "openlibrary",
       author: {
         name: authorName,
         openLibraryKey: olResult.author?.openLibraryKey || null,
-        totalWorks: totalWorks
+        totalWorks: totalWorks,
       },
       works: paginatedWorks,
       pagination: {
@@ -110,12 +118,13 @@ export async function searchByAuthor(authorName, options, env, ctx) {
         limit: validatedLimit,
         offset: validatedOffset,
         hasMore: validatedOffset + validatedLimit < totalWorks,
-        nextOffset: validatedOffset + validatedLimit < totalWorks
-          ? validatedOffset + validatedLimit
-          : null
+        nextOffset:
+          validatedOffset + validatedLimit < totalWorks
+            ? validatedOffset + validatedLimit
+            : null,
       },
       cached: false,
-      responseTime: Date.now() - startTime
+      responseTime: Date.now() - startTime,
     };
 
     // Cache for 6 hours (per-page caching)
@@ -123,23 +132,25 @@ export async function searchByAuthor(authorName, options, env, ctx) {
     ctx.waitUntil(setCached(cacheKey, responseData, ttl, env));
 
     // Write cache metrics
-    ctx.waitUntil(writeCacheMetrics(env, {
-      endpoint: '/search/author',
-      cacheHit: false,
-      responseTime: Date.now() - startTime,
-      itemCount: paginatedWorks.length,
-      authorName: authorName
-    }));
+    ctx.waitUntil(
+      writeCacheMetrics(env, {
+        endpoint: "/search/author",
+        cacheHit: false,
+        responseTime: Date.now() - startTime,
+        itemCount: paginatedWorks.length,
+        authorName: authorName,
+      }),
+    );
 
     return responseData;
   } catch (error) {
     console.error(`Author search failed for "${authorName}":`, error);
     return {
       success: false,
-      error: 'Author search failed',
+      error: "Author search failed",
       details: error.message,
       works: [],
-      pagination: null
+      pagination: null,
     };
   }
 }
@@ -154,28 +165,28 @@ function applySorting(works, sortBy) {
   const sortedWorks = [...works];
 
   switch (sortBy) {
-    case 'publicationYear':
+    case "publicationYear":
       // Newest first (default)
-      return sortedWorks.sort((a, b) =>
-        (b.firstPublicationYear || 0) - (a.firstPublicationYear || 0)
+      return sortedWorks.sort(
+        (a, b) => (b.firstPublicationYear || 0) - (a.firstPublicationYear || 0),
       );
 
-    case 'publicationYearAsc':
+    case "publicationYearAsc":
       // Oldest first
-      return sortedWorks.sort((a, b) =>
-        (a.firstPublicationYear || 0) - (b.firstPublicationYear || 0)
+      return sortedWorks.sort(
+        (a, b) => (a.firstPublicationYear || 0) - (b.firstPublicationYear || 0),
       );
 
-    case 'title':
+    case "title":
       // Alphabetical
       return sortedWorks.sort((a, b) =>
-        (a.title || '').localeCompare(b.title || '')
+        (a.title || "").localeCompare(b.title || ""),
       );
 
-    case 'popularity':
+    case "popularity":
       // Sort by number of editions (proxy for popularity)
-      return sortedWorks.sort((a, b) =>
-        (b.editions?.length || 0) - (a.editions?.length || 0)
+      return sortedWorks.sort(
+        (a, b) => (b.editions?.length || 0) - (a.editions?.length || 0),
       );
 
     default:
@@ -190,7 +201,7 @@ function applySorting(works, sortBy) {
  */
 async function writeCacheMetrics(env, metrics) {
   if (!env.CACHE_ANALYTICS) {
-    console.warn('CACHE_ANALYTICS binding not available');
+    console.warn("CACHE_ANALYTICS binding not available");
     return;
   }
 
@@ -199,17 +210,12 @@ async function writeCacheMetrics(env, metrics) {
       blobs: [
         metrics.endpoint,
         metrics.authorName,
-        metrics.cacheHit ? 'HIT' : 'MISS'
+        metrics.cacheHit ? "HIT" : "MISS",
       ],
-      doubles: [
-        metrics.responseTime,
-        metrics.itemCount
-      ],
-      indexes: [
-        metrics.cacheHit ? 'HIT' : 'MISS'
-      ]
+      doubles: [metrics.responseTime, metrics.itemCount],
+      indexes: [metrics.cacheHit ? "HIT" : "MISS"],
     });
   } catch (error) {
-    console.error('Failed to write cache metrics:', error);
+    console.error("Failed to write cache metrics:", error);
   }
 }

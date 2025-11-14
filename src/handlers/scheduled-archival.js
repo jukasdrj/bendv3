@@ -1,5 +1,8 @@
-import { queryAccessFrequency } from '../utils/analytics-queries.js';
-import { selectArchivalCandidates, archiveCandidates } from '../workers/archival-worker.js';
+import { queryAccessFrequency } from "../utils/analytics-queries.js";
+import {
+  selectArchivalCandidates,
+  archiveCandidates,
+} from "../workers/archival-worker.js";
 
 /**
  * Scheduled handler for daily archival process
@@ -11,7 +14,7 @@ export async function handleScheduledArchival(env, ctx) {
   const startTime = Date.now();
 
   try {
-    console.log('Starting scheduled archival process...');
+    console.log("Starting scheduled archival process...");
 
     // 1. Query Analytics Engine for access stats (last 30 days)
     const accessStats = await queryAccessFrequency(env, 30);
@@ -22,7 +25,7 @@ export async function handleScheduledArchival(env, ctx) {
     console.log(`Found ${candidates.length} archival candidates`);
 
     if (candidates.length === 0) {
-      console.log('No entries to archive');
+      console.log("No entries to archive");
       return;
     }
 
@@ -31,26 +34,27 @@ export async function handleScheduledArchival(env, ctx) {
 
     // 4. Log metrics
     const duration = Date.now() - startTime;
-    console.log(`Archived ${archivedCount}/${candidates.length} entries in ${duration}ms`);
+    console.log(
+      `Archived ${archivedCount}/${candidates.length} entries in ${duration}ms`,
+    );
 
     // Log to Analytics Engine
     if (env.CACHE_ANALYTICS) {
       env.CACHE_ANALYTICS.writeDataPoint({
-        blobs: ['archival_completed', ''],
+        blobs: ["archival_completed", ""],
         doubles: [archivedCount, duration],
-        indexes: ['archival_completed']
+        indexes: ["archival_completed"],
       });
     }
-
   } catch (error) {
-    console.error('Scheduled archival failed:', error);
+    console.error("Scheduled archival failed:", error);
 
     // Log error metric
     if (env.CACHE_ANALYTICS) {
       env.CACHE_ANALYTICS.writeDataPoint({
-        blobs: ['archival_failed', error.message],
+        blobs: ["archival_failed", error.message],
         doubles: [Date.now() - startTime],
-        indexes: ['archival_failed']
+        indexes: ["archival_failed"],
       });
     }
   }

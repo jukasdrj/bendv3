@@ -8,7 +8,7 @@
 export async function handleCacheMetrics(request, env) {
   try {
     const url = new URL(request.url);
-    const period = url.searchParams.get('period') || '24h';
+    const period = url.searchParams.get("period") || "24h";
 
     // NOTE: Analytics Engine queries must be done via Cloudflare API/GraphQL
     // Workers only have writeDataPoint() available
@@ -16,10 +16,11 @@ export async function handleCacheMetrics(request, env) {
 
     const metrics = {
       period: period,
-      message: 'Analytics Engine queries must be performed via Cloudflare API or GraphQL',
+      message:
+        "Analytics Engine queries must be performed via Cloudflare API or GraphQL",
       queryInstructions: {
-        method: 'GraphQL',
-        endpoint: 'https://api.cloudflare.com/client/v4/graphql',
+        method: "GraphQL",
+        endpoint: "https://api.cloudflare.com/client/v4/graphql",
         sampleQuery: `
 query {
   viewer {
@@ -44,26 +45,34 @@ SELECT
 FROM CACHE_ANALYTICS
 WHERE timestamp > NOW() - INTERVAL '${period}'
 GROUP BY index1
-        `
+        `,
       },
       realTimeMetrics: {
-        note: 'Real-time metrics are written but require external query',
-        dataset: 'books_api_cache_metrics',
-        indices: ['edge_hit', 'kv_hit', 'cold_check', 'r2_rehydrated', 'api_miss']
-      }
+        note: "Real-time metrics are written but require external query",
+        dataset: "books_api_cache_metrics",
+        indices: [
+          "edge_hit",
+          "kv_hit",
+          "cold_check",
+          "r2_rehydrated",
+          "api_miss",
+        ],
+      },
     };
 
     return new Response(JSON.stringify(metrics, null, 2), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: { "Content-Type": "application/json" },
     });
-
   } catch (error) {
-    return new Response(JSON.stringify({
-      error: 'Failed to fetch metrics',
-      message: error.message
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify({
+        error: "Failed to fetch metrics",
+        message: error.message,
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 }
