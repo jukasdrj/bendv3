@@ -7,15 +7,38 @@
  * - Environment variables
  */
 
-import { vi, beforeAll, afterEach } from 'vitest'
+import { vi, beforeAll, afterEach } from "vitest";
 
 // ============================================================================
 // ENVIRONMENT SETUP
 // ============================================================================
 
 // Set test environment variables
-process.env.ENABLE_UNIFIED_ENVELOPE = 'true'
-process.env.NODE_ENV = 'test'
+process.env.ENABLE_UNIFIED_ENVELOPE = "true";
+process.env.NODE_ENV = "test";
+
+// ============================================================================
+// POLYFILLS FOR NODE ENVIRONMENT
+// ============================================================================
+
+// MSW requires localStorage to be available
+// Provide a minimal polyfill for Node.js environment
+if (typeof globalThis.localStorage === "undefined") {
+  const storage = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => storage.get(key) || null,
+    setItem: (key, value) => storage.set(key, String(value)),
+    removeItem: (key) => storage.delete(key),
+    clear: () => storage.clear(),
+    get length() {
+      return storage.size;
+    },
+    key: (index) => {
+      const keys = Array.from(storage.keys());
+      return keys[index] || null;
+    },
+  };
+}
 
 // ============================================================================
 // GLOBAL MOCKS
@@ -33,40 +56,40 @@ process.env.NODE_ENV = 'test'
  * Used for testing KV cache operations
  */
 export function createMockKV() {
-  const store = new Map()
+  const store = new Map();
 
   return {
-    get: vi.fn(async (key, type = 'text') => {
-      const value = store.get(key)
-      if (type === 'json' && value) {
-        return JSON.parse(value)
+    get: vi.fn(async (key, type = "text") => {
+      const value = store.get(key);
+      if (type === "json" && value) {
+        return JSON.parse(value);
       }
-      return value
+      return value;
     }),
 
     put: vi.fn(async (key, value, options = {}) => {
-      let stringValue = value
-      if (typeof value === 'object') {
-        stringValue = JSON.stringify(value)
+      let stringValue = value;
+      if (typeof value === "object") {
+        stringValue = JSON.stringify(value);
       }
-      store.set(key, stringValue)
+      store.set(key, stringValue);
 
       // Handle expiration TTL
       if (options.expirationTtl) {
         setTimeout(() => {
-          store.delete(key)
-        }, options.expirationTtl * 1000)
+          store.delete(key);
+        }, options.expirationTtl * 1000);
       }
     }),
 
     delete: vi.fn(async (key) => {
-      store.delete(key)
+      store.delete(key);
     }),
 
     list: vi.fn(async () => {
-      return { keys: Array.from(store.keys()) }
-    })
-  }
+      return { keys: Array.from(store.keys()) };
+    }),
+  };
 }
 
 /**
@@ -74,40 +97,40 @@ export function createMockKV() {
  * Used for testing DO state persistence
  */
 export function createMockDOStorage() {
-  const store = new Map()
-  const alarms = []
+  const store = new Map();
+  const alarms = [];
 
   return {
     get: vi.fn(async (key) => {
-      return store.get(key)
+      return store.get(key);
     }),
 
     put: vi.fn(async (key, value) => {
-      if (typeof value === 'object') {
-        store.set(key, JSON.parse(JSON.stringify(value)))
+      if (typeof value === "object") {
+        store.set(key, JSON.parse(JSON.stringify(value)));
       } else {
-        store.set(key, value)
+        store.set(key, value);
       }
     }),
 
     delete: vi.fn(async (key) => {
-      store.delete(key)
+      store.delete(key);
     }),
 
     list: vi.fn(async () => {
-      return { keys: Array.from(store.keys()) }
+      return { keys: Array.from(store.keys()) };
     }),
 
     setAlarm: vi.fn(async (alarmTime) => {
-      alarms.push(alarmTime)
+      alarms.push(alarmTime);
     }),
 
     getAlarm: vi.fn(async () => {
-      return alarms.length > 0 ? alarms[0] : null
+      return alarms.length > 0 ? alarms[0] : null;
     }),
 
     deleteAlarm: vi.fn(async () => {
-      alarms.pop()
+      alarms.pop();
     }),
 
     // Test helper to get all stored data
@@ -115,10 +138,10 @@ export function createMockDOStorage() {
 
     // Test helper to clear all data
     __clear: () => {
-      store.clear()
-      alarms.length = 0
-    }
-  }
+      store.clear();
+      alarms.length = 0;
+    },
+  };
 }
 
 /**
@@ -126,19 +149,19 @@ export function createMockDOStorage() {
  * Used for testing WebSocket upgrade and messaging
  */
 export function createMockWebSocketPair() {
-  const serverListeners = {}
-  const clientListeners = {}
+  const serverListeners = {};
+  const clientListeners = {};
 
   const server = {
     send: vi.fn((message) => {
       if (clientListeners.message) {
-        clientListeners.message({ data: message })
+        clientListeners.message({ data: message });
       }
     }),
 
-    close: vi.fn((code = 1000, reason = '') => {
+    close: vi.fn((code = 1000, reason = "") => {
       if (serverListeners.close) {
-        serverListeners.close({ code, reason })
+        serverListeners.close({ code, reason });
       }
     }),
 
@@ -147,37 +170,37 @@ export function createMockWebSocketPair() {
     }),
 
     addEventListener: vi.fn((event, handler) => {
-      serverListeners[event] = handler
+      serverListeners[event] = handler;
     }),
 
     removeEventListener: vi.fn((event) => {
-      delete serverListeners[event]
-    })
-  }
+      delete serverListeners[event];
+    }),
+  };
 
   const client = {
     send: vi.fn((message) => {
       if (serverListeners.message) {
-        serverListeners.message({ data: message })
+        serverListeners.message({ data: message });
       }
     }),
 
-    close: vi.fn((code = 1000, reason = '') => {
+    close: vi.fn((code = 1000, reason = "") => {
       if (clientListeners.close) {
-        clientListeners.close({ code, reason })
+        clientListeners.close({ code, reason });
       }
     }),
 
     addEventListener: vi.fn((event, handler) => {
-      clientListeners[event] = handler
+      clientListeners[event] = handler;
     }),
 
     removeEventListener: vi.fn((event) => {
-      delete clientListeners[event]
-    })
-  }
+      delete clientListeners[event];
+    }),
+  };
 
-  return { server, client, serverListeners, clientListeners }
+  return { server, client, serverListeners, clientListeners };
 }
 
 /**
@@ -185,11 +208,11 @@ export function createMockWebSocketPair() {
  * Used for testing metrics and analytics
  */
 export function createMockAnalyticsDataset() {
-  const data = []
+  const data = [];
 
   return {
     writeDataPoint: vi.fn((dataPoint) => {
-      data.push(dataPoint)
+      data.push(dataPoint);
     }),
 
     // Test helper to retrieve all data
@@ -197,9 +220,9 @@ export function createMockAnalyticsDataset() {
 
     // Test helper to clear data
     __clear: () => {
-      data.length = 0
-    }
-  }
+      data.length = 0;
+    },
+  };
 }
 
 /**
@@ -207,38 +230,38 @@ export function createMockAnalyticsDataset() {
  * Used for testing file uploads/downloads
  */
 export function createMockR2Bucket() {
-  const store = new Map()
+  const store = new Map();
 
   return {
     head: vi.fn(async (key) => {
       if (store.has(key)) {
-        return { key, size: store.get(key).length }
+        return { key, size: store.get(key).length };
       }
-      return null
+      return null;
     }),
 
     get: vi.fn(async (key) => {
-      const data = store.get(key)
-      if (!data) return null
-      return { body: data, text: () => Promise.resolve(data.toString()) }
+      const data = store.get(key);
+      if (!data) return null;
+      return { body: data, text: () => Promise.resolve(data.toString()) };
     }),
 
     put: vi.fn(async (key, value) => {
-      store.set(key, value)
-      return { key }
+      store.set(key, value);
+      return { key };
     }),
 
     delete: vi.fn(async (key) => {
-      store.delete(key)
+      store.delete(key);
     }),
 
     list: vi.fn(async () => {
-      return { objects: Array.from(store.keys()).map(k => ({ key: k })) }
+      return { objects: Array.from(store.keys()).map((k) => ({ key: k })) };
     }),
 
     // Test helper
-    __getAll: () => Object.fromEntries(store)
-  }
+    __getAll: () => Object.fromEntries(store),
+  };
 }
 
 /**
@@ -246,25 +269,25 @@ export function createMockR2Bucket() {
  * Used for testing queue producers
  */
 export function createMockQueue() {
-  const messages = []
+  const messages = [];
 
   return {
     send: vi.fn(async (message) => {
-      messages.push(message)
-      return { id: `msg-${Date.now()}` }
+      messages.push(message);
+      return { id: `msg-${Date.now()}` };
     }),
 
     sendBatch: vi.fn(async (messages) => {
-      messages.forEach(msg => messages.push(msg))
-      return { id: `batch-${Date.now()}` }
+      messages.forEach((msg) => messages.push(msg));
+      return { id: `batch-${Date.now()}` };
     }),
 
     // Test helper
     __getMessages: () => messages,
     __clear: () => {
-      messages.length = 0
-    }
-  }
+      messages.length = 0;
+    },
+  };
 }
 
 // ============================================================================
@@ -275,8 +298,8 @@ export function createMockQueue() {
  * Clear all mocks before each test
  */
 afterEach(() => {
-  vi.clearAllMocks()
-})
+  vi.clearAllMocks();
+});
 
 // ============================================================================
 // EXPORTS FOR TEST FILES
@@ -288,5 +311,5 @@ export const testUtils = {
   createMockWebSocketPair,
   createMockAnalyticsDataset,
   createMockR2Bucket,
-  createMockQueue
-}
+  createMockQueue,
+};
