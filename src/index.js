@@ -28,6 +28,12 @@ import {
   validateResourceSize,
 } from "./middleware/size-validator.js";
 import { getCorsHeaders } from "./middleware/cors.js";
+import {
+  jsonResponse,
+  errorResponse,
+  acceptedResponse,
+  notFoundResponse,
+} from "./utils/response-builder.ts";
 
 // Export the Durable Object classes for Cloudflare Workers runtime
 export { ProgressWebSocketDO, RateLimiterDO };
@@ -57,7 +63,12 @@ export default {
     if (url.pathname === "/ws/progress") {
       const jobId = url.searchParams.get("jobId");
       if (!jobId) {
-        return new Response("Missing jobId parameter", { status: 400 });
+        return errorResponse(
+          "MISSING_PARAM",
+          "Missing jobId parameter",
+          400,
+          null,
+        );
       }
 
       // Get Durable Object instance for this specific jobId
@@ -78,17 +89,11 @@ export default {
         const { jobId, oldToken } = await request.json();
 
         if (!jobId || !oldToken) {
-          return new Response(
-            JSON.stringify({
-              error: "Invalid request: jobId and oldToken required",
-            }),
-            {
-              status: 400,
-              headers: {
-                ...getCorsHeaders(request),
-                "Content-Type": "application/json",
-              },
-            },
+          return errorResponse(
+            "INVALID_REQUEST",
+            "Invalid request: jobId and oldToken required",
+            400,
+            request,
           );
         }
 
@@ -100,49 +105,26 @@ export default {
         const result = await doStub.refreshAuthToken(oldToken);
 
         if (result.error) {
-          return new Response(
-            JSON.stringify({
-              error: result.error,
-            }),
-            {
-              status: 401,
-              headers: {
-                ...getCorsHeaders(request),
-                "Content-Type": "application/json",
-              },
-            },
-          );
+          return errorResponse("AUTH_ERROR", result.error, 401, request);
         }
 
         // Return new token
-        return new Response(
-          JSON.stringify({
+        return jsonResponse(
+          {
             jobId,
             token: result.token,
             expiresIn: result.expiresIn,
-          }),
-          {
-            status: 200,
-            headers: {
-              ...getCorsHeaders(request),
-              "Content-Type": "application/json",
-            },
           },
+          200,
+          request,
         );
       } catch (error) {
         console.error("Failed to refresh token:", error);
-        return new Response(
-          JSON.stringify({
-            error: "Failed to refresh token",
-            message: error.message,
-          }),
-          {
-            status: 500,
-            headers: {
-              ...getCorsHeaders(request),
-              "Content-Type": "application/json",
-            },
-          },
+        return errorResponse(
+          "INTERNAL_ERROR",
+          `Failed to refresh token: ${error.message}`,
+          500,
+          request,
         );
       }
     }
@@ -156,17 +138,11 @@ export default {
         const jobId = url.pathname.split("/").pop();
 
         if (!jobId) {
-          return new Response(
-            JSON.stringify({
-              error: "Invalid request: jobId required",
-            }),
-            {
-              status: 400,
-              headers: {
-                ...getCorsHeaders(request),
-                "Content-Type": "application/json",
-              },
-            },
+          return errorResponse(
+            "INVALID_REQUEST",
+            "Invalid request: jobId required",
+            400,
+            request,
           );
         }
 
@@ -174,15 +150,11 @@ export default {
         const authHeader = request.headers.get("Authorization");
         const providedToken = authHeader?.replace("Bearer ", "");
         if (!providedToken) {
-          return new Response(
-            JSON.stringify({ error: "Missing authorization token" }),
-            {
-              status: 401,
-              headers: {
-                ...getCorsHeaders(request),
-                "Content-Type": "application/json",
-              },
-            },
+          return errorResponse(
+            "AUTH_ERROR",
+            "Missing authorization token",
+            401,
+            request,
           );
         }
 
@@ -194,17 +166,9 @@ export default {
         const result = await doStub.getJobStateAndAuth();
 
         if (!result) {
-          return new Response(
-            JSON.stringify({
-              error: "Job not found or state not initialized",
-            }),
-            {
-              status: 404,
-              headers: {
-                ...getCorsHeaders(request),
-                "Content-Type": "application/json",
-              },
-            },
+          return notFoundResponse(
+            "Job not found or state not initialized",
+            request,
           );
         }
 
@@ -216,40 +180,23 @@ export default {
           providedToken !== authToken ||
           Date.now() > authTokenExpiration
         ) {
-          return new Response(
-            JSON.stringify({ error: "Invalid or expired token" }),
-            {
-              status: 401,
-              headers: {
-                ...getCorsHeaders(request),
-                "Content-Type": "application/json",
-              },
-            },
+          return errorResponse(
+            "AUTH_ERROR",
+            "Invalid or expired token",
+            401,
+            request,
           );
         }
 
         // Return job state
-        return new Response(JSON.stringify(jobState), {
-          status: 200,
-          headers: {
-            ...getCorsHeaders(request),
-            "Content-Type": "application/json",
-          },
-        });
+        return jsonResponse(jobState, 200, request);
       } catch (error) {
         console.error("Failed to get job state:", error);
-        return new Response(
-          JSON.stringify({
-            error: "Failed to get job state",
-            message: error.message,
-          }),
-          {
-            status: 500,
-            headers: {
-              ...getCorsHeaders(request),
-              "Content-Type": "application/json",
-            },
-          },
+        return errorResponse(
+          "INTERNAL_ERROR",
+          `Failed to get job state: ${error.message}`,
+          500,
+          request,
         );
       }
     }
@@ -275,26 +222,20 @@ export default {
 
         // Validate request
         if (!jobId || !workIds || !Array.isArray(workIds)) {
-          return new Response(
-            JSON.stringify({
-              error: "Invalid request: jobId and workIds (array) required",
-            }),
-            {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            },
+          return errorResponse(
+            "INVALID_REQUEST",
+            "Invalid request: jobId and workIds (array) required",
+            400,
+            null,
           );
         }
 
         if (workIds.length === 0) {
-          return new Response(
-            JSON.stringify({
-              error: "Invalid request: workIds array cannot be empty",
-            }),
-            {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            },
+          return errorResponse(
+            "INVALID_REQUEST",
+            "Invalid request: workIds array cannot be empty",
+            400,
+            null,
           );
         }
 
@@ -310,15 +251,11 @@ export default {
         return handleBatchEnrichment(modifiedRequest, env, ctx);
       } catch (error) {
         console.error("Failed to start enrichment:", error);
-        return new Response(
-          JSON.stringify({
-            error: "Failed to start enrichment",
-            message: error.message,
-          }),
-          {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "INTERNAL_ERROR",
+          `Failed to start enrichment: ${error.message}`,
+          500,
+          null,
         );
       }
     }
@@ -333,14 +270,11 @@ export default {
 
         // Validate request
         if (!jobId) {
-          return new Response(
-            JSON.stringify({
-              error: "Invalid request: jobId required",
-            }),
-            {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            },
+          return errorResponse(
+            "INVALID_REQUEST",
+            "Invalid request: jobId required",
+            400,
+            null,
           );
         }
 
@@ -354,31 +288,22 @@ export default {
         );
 
         // Return success response
-        return new Response(
-          JSON.stringify({
+        return jsonResponse(
+          {
             jobId,
             status: "canceled",
             message: "Enrichment job canceled successfully",
-          }),
-          {
-            status: 200,
-            headers: {
-              ...getCorsHeaders(request),
-              "Content-Type": "application/json",
-            },
           },
+          200,
+          request,
         );
       } catch (error) {
         console.error("Failed to cancel enrichment:", error);
-        return new Response(
-          JSON.stringify({
-            error: "Failed to cancel enrichment",
-            message: error.message,
-          }),
-          {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "INTERNAL_ERROR",
+          `Failed to cancel enrichment: ${error.message}`,
+          500,
+          null,
         );
       }
     }
@@ -408,10 +333,7 @@ export default {
         const { jobId } = await request.json();
 
         if (!jobId) {
-          return new Response(JSON.stringify({ error: "jobId required" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+          return errorResponse("MISSING_PARAM", "jobId required", 400, null);
         }
 
         // Call Durable Object to cancel batch
@@ -419,21 +341,14 @@ export default {
         const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
         const result = await doStub.cancelBatch();
 
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: {
-            ...getCorsHeaders(request),
-            "Content-Type": "application/json",
-          },
-        });
+        return jsonResponse(result, 200, request);
       } catch (error) {
         console.error("Cancel batch error:", error);
-        return new Response(
-          JSON.stringify({ error: "Failed to cancel batch" }),
-          {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "INTERNAL_ERROR",
+          "Failed to cancel batch",
+          500,
+          null,
         );
       }
     }
@@ -512,14 +427,11 @@ export default {
         // Validate content type
         const contentType = request.headers.get("content-type") || "";
         if (!contentType.startsWith("image/")) {
-          return new Response(
-            JSON.stringify({
-              error: "Invalid content type: image/* required",
-            }),
-            {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            },
+          return errorResponse(
+            "INVALID_REQUEST",
+            "Invalid content type: image/* required",
+            400,
+            null,
           );
         }
 
@@ -594,8 +506,8 @@ export default {
         ];
 
         // Return 202 Accepted immediately with stages metadata and auth token
-        return new Response(
-          JSON.stringify({
+        return acceptedResponse(
+          {
             jobId,
             token: authToken, // NEW: Token for WebSocket authentication
             status: "started",
@@ -606,26 +518,16 @@ export default {
               " for real-time updates.",
             stages,
             estimatedRange,
-          }),
-          {
-            status: 202,
-            headers: {
-              ...getCorsHeaders(request),
-              "Content-Type": "application/json",
-            },
           },
+          request,
         );
       } catch (error) {
         console.error("Failed to start AI scan:", error);
-        return new Response(
-          JSON.stringify({
-            error: "Failed to start AI scan",
-            message: error.message,
-          }),
-          {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "INTERNAL_ERROR",
+          `Failed to start AI scan: ${error.message}`,
+          500,
+          null,
         );
       }
     }
@@ -687,12 +589,11 @@ export default {
     if (url.pathname === "/search/title") {
       const query = url.searchParams.get("q");
       if (!query) {
-        return new Response(
-          JSON.stringify({ error: 'Missing query parameter "q"' }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "MISSING_PARAM",
+          'Missing query parameter "q"',
+          400,
+          null,
         );
       }
 
@@ -708,25 +609,23 @@ export default {
       const cacheHeaders = result._cacheHeaders || {};
       delete result._cacheHeaders; // Don't expose internal field to client
 
-      return new Response(JSON.stringify(result), {
-        headers: {
-          ...getCorsHeaders(request),
-          "Content-Type": "application/json",
-          ...cacheHeaders,
-        },
+      const response = jsonResponse(result, 200, request);
+      // Add cache headers
+      Object.entries(cacheHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value);
       });
+      return response;
     }
 
     // GET /search/isbn - Search books by ISBN with caching (7 day TTL)
     if (url.pathname === "/search/isbn") {
       const isbn = url.searchParams.get("isbn");
       if (!isbn) {
-        return new Response(
-          JSON.stringify({ error: "Missing ISBN parameter" }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "MISSING_PARAM",
+          "Missing ISBN parameter",
+          400,
+          null,
         );
       }
 
@@ -742,25 +641,23 @@ export default {
       const cacheHeaders = result._cacheHeaders || {};
       delete result._cacheHeaders; // Don't expose internal field to client
 
-      return new Response(JSON.stringify(result), {
-        headers: {
-          ...getCorsHeaders(request),
-          "Content-Type": "application/json",
-          ...cacheHeaders,
-        },
+      const response = jsonResponse(result, 200, request);
+      // Add cache headers
+      Object.entries(cacheHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value);
       });
+      return response;
     }
 
     // GET /search/author - Search books by author with pagination (6h cache)
     if (url.pathname === "/search/author") {
       const authorName = url.searchParams.get("q");
       if (!authorName) {
-        return new Response(
-          JSON.stringify({ error: 'Missing query parameter "q"' }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "MISSING_PARAM",
+          'Missing query parameter "q"',
+          400,
+          null,
         );
       }
 
@@ -775,29 +672,16 @@ export default {
 
       // Validate parameters
       if (limit < 1 || limit > 100) {
-        return new Response(
-          JSON.stringify({
-            error: "Invalid limit parameter",
-            message: "Limit must be between 1 and 100",
-          }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "INVALID_PARAM",
+          "Limit must be between 1 and 100",
+          400,
+          null,
         );
       }
 
       if (offset < 0) {
-        return new Response(
-          JSON.stringify({
-            error: "Invalid offset parameter",
-            message: "Offset must be >= 0",
-          }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
-        );
+        return errorResponse("INVALID_PARAM", "Offset must be >= 0", 400, null);
       }
 
       const validSortOptions = [
@@ -807,15 +691,11 @@ export default {
         "popularity",
       ];
       if (!validSortOptions.includes(sortBy)) {
-        return new Response(
-          JSON.stringify({
-            error: "Invalid sortBy parameter",
-            message: `sortBy must be one of: ${validSortOptions.join(", ")}`,
-          }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "INVALID_PARAM",
+          `sortBy must be one of: ${validSortOptions.join(", ")}`,
+          400,
+          null,
         );
       }
 
@@ -830,16 +710,13 @@ export default {
       const cacheStatus = result.cached ? "HIT" : "MISS";
       const cacheSource = result.cacheSource || "NONE";
 
-      return new Response(JSON.stringify(result), {
-        headers: {
-          ...getCorsHeaders(request),
-          "Content-Type": "application/json",
-          "Cache-Control": "public, max-age=21600", // 6h cache
-          "X-Cache": cacheStatus,
-          "X-Cache-Source": cacheSource,
-          "X-Provider": result.provider || "openlibrary",
-        },
-      });
+      const response = jsonResponse(result, 200, request);
+      // Add cache and provider headers
+      response.headers.set("Cache-Control", "public, max-age=21600"); // 6h cache
+      response.headers.set("X-Cache", cacheStatus);
+      response.headers.set("X-Cache-Source", cacheSource);
+      response.headers.set("X-Provider", result.provider || "openlibrary");
+      return response;
     }
 
     // GET/POST /search/advanced - Advanced multi-field search
@@ -867,31 +744,22 @@ export default {
           maxResults = searchParams.maxResults || 20;
         } else {
           // Only GET and POST allowed
-          return new Response(
-            JSON.stringify({
-              error: "Method not allowed",
-              message: "Use GET with query parameters or POST with JSON body",
-            }),
-            {
-              status: 405,
-              headers: {
-                "Content-Type": "application/json",
-                Allow: "GET, POST",
-              },
-            },
+          return errorResponse(
+            "METHOD_NOT_ALLOWED",
+            "Use GET with query parameters or POST with JSON body",
+            405,
+            null,
+            { Allow: "GET, POST" },
           );
         }
 
         // Validate that at least one search parameter is provided
         if (!bookTitle && !authorName) {
-          return new Response(
-            JSON.stringify({
-              error: "At least one search parameter required (title or author)",
-            }),
-            {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            },
+          return errorResponse(
+            "MISSING_PARAM",
+            "At least one search parameter required (title or author)",
+            400,
+            null,
           );
         }
 
@@ -902,27 +770,19 @@ export default {
           env,
         );
 
-        return new Response(JSON.stringify(result), {
-          headers: {
-            ...getCorsHeaders(request),
-            "Content-Type": "application/json",
-            // Add cache header for GET requests (like /search/title)
-            ...(request.method === "GET" && {
-              "Cache-Control": "public, max-age=21600",
-            }), // 6h cache
-          },
-        });
+        const response = jsonResponse(result, 200, request);
+        // Add cache header for GET requests (like /search/title)
+        if (request.method === "GET") {
+          response.headers.set("Cache-Control", "public, max-age=21600"); // 6h cache
+        }
+        return response;
       } catch (error) {
         console.error("Advanced search failed:", error);
-        return new Response(
-          JSON.stringify({
-            error: "Advanced search failed",
-            message: error.message,
-          }),
-          {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "INTERNAL_ERROR",
+          `Advanced search failed: ${error.message}`,
+          500,
+          null,
         );
       }
     }
@@ -935,12 +795,11 @@ export default {
     if (url.pathname === "/external/google-books") {
       const query = url.searchParams.get("q");
       if (!query) {
-        return new Response(
-          JSON.stringify({ error: "Missing query parameter" }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "MISSING_PARAM",
+          "Missing query parameter",
+          400,
+          null,
         );
       }
 
@@ -951,41 +810,35 @@ export default {
         env,
       );
 
-      return new Response(JSON.stringify(result), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200, null);
     }
 
     // Google Books ISBN search
     if (url.pathname === "/external/google-books-isbn") {
       const isbn = url.searchParams.get("isbn");
       if (!isbn) {
-        return new Response(
-          JSON.stringify({ error: "Missing isbn parameter" }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "MISSING_PARAM",
+          "Missing isbn parameter",
+          400,
+          null,
         );
       }
 
       const result = await externalApis.searchGoogleBooksByISBN(isbn, env);
 
-      return new Response(JSON.stringify(result), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200, null);
     }
 
     // OpenLibrary search
     if (url.pathname === "/external/openlibrary") {
       const query = url.searchParams.get("q");
       if (!query) {
-        return new Response(
-          JSON.stringify({ error: "Missing query parameter" }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "MISSING_PARAM",
+          "Missing query parameter",
+          400,
+          null,
         );
       }
 
@@ -996,50 +849,42 @@ export default {
         env,
       );
 
-      return new Response(JSON.stringify(result), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200, null);
     }
 
     // OpenLibrary author works
     if (url.pathname === "/external/openlibrary-author") {
       const author = url.searchParams.get("author");
       if (!author) {
-        return new Response(
-          JSON.stringify({ error: "Missing author parameter" }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "MISSING_PARAM",
+          "Missing author parameter",
+          400,
+          null,
         );
       }
 
       const result = await externalApis.getOpenLibraryAuthorWorks(author, env);
 
-      return new Response(JSON.stringify(result), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200, null);
     }
 
     // ISBNdb search
     if (url.pathname === "/external/isbndb") {
       const title = url.searchParams.get("title");
       if (!title) {
-        return new Response(
-          JSON.stringify({ error: "Missing title parameter" }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "MISSING_PARAM",
+          "Missing title parameter",
+          400,
+          null,
         );
       }
 
       const author = url.searchParams.get("author") || "";
       const result = await externalApis.searchISBNdb(title, author, env);
 
-      return new Response(JSON.stringify(result), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200, null);
     }
 
     // ISBNdb editions for work
@@ -1048,12 +893,11 @@ export default {
       const author = url.searchParams.get("author");
 
       if (!title || !author) {
-        return new Response(
-          JSON.stringify({ error: "Missing title or author parameter" }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "MISSING_PARAM",
+          "Missing title or author parameter",
+          400,
+          null,
         );
       }
 
@@ -1063,29 +907,24 @@ export default {
         env,
       );
 
-      return new Response(JSON.stringify(result), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200, null);
     }
 
     // ISBNdb book by ISBN
     if (url.pathname === "/external/isbndb-isbn") {
       const isbn = url.searchParams.get("isbn");
       if (!isbn) {
-        return new Response(
-          JSON.stringify({ error: "Missing isbn parameter" }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "MISSING_PARAM",
+          "Missing isbn parameter",
+          400,
+          null,
         );
       }
 
       const result = await externalApis.getISBNdbBookByISBN(isbn, env);
 
-      return new Response(JSON.stringify(result), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse(result, 200, null);
     }
 
     // ========================================================================
@@ -1101,19 +940,10 @@ export default {
 
         const result = await doStub.initBatch({ jobId, totalPhotos, status });
 
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: {
-            ...getCorsHeaders(request),
-            "Content-Type": "application/json",
-          },
-        });
+        return jsonResponse(result, 200, request);
       } catch (error) {
         console.error("Test init-batch failed:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+        return errorResponse("INTERNAL_ERROR", error.message, 500, null);
       }
     }
 
@@ -1122,12 +952,11 @@ export default {
       try {
         const jobId = url.searchParams.get("jobId");
         if (!jobId) {
-          return new Response(
-            JSON.stringify({ error: "Missing jobId parameter" }),
-            {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            },
+          return errorResponse(
+            "MISSING_PARAM",
+            "Missing jobId parameter",
+            400,
+            null,
           );
         }
 
@@ -1137,25 +966,13 @@ export default {
         const state = await doStub.getState();
 
         if (!state || Object.keys(state).length === 0) {
-          return new Response(JSON.stringify({ error: "Job not found" }), {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
+          return notFoundResponse("Job not found", null);
         }
 
-        return new Response(JSON.stringify(state), {
-          status: 200,
-          headers: {
-            ...getCorsHeaders(request),
-            "Content-Type": "application/json",
-          },
-        });
+        return jsonResponse(state, 200, request);
       } catch (error) {
         console.error("Test get-state failed:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+        return errorResponse("INTERNAL_ERROR", error.message, 500, null);
       }
     }
 
@@ -1179,19 +996,13 @@ export default {
           error: photoError,
         });
 
-        return new Response(JSON.stringify(result), {
-          status: result.error ? 404 : 200,
-          headers: {
-            ...getCorsHeaders(request),
-            "Content-Type": "application/json",
-          },
-        });
+        if (result.error) {
+          return notFoundResponse(result.error, request);
+        }
+        return jsonResponse(result, 200, request);
       } catch (error) {
         console.error("Test update-photo failed:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+        return errorResponse("INTERNAL_ERROR", error.message, 500, null);
       }
     }
 
@@ -1213,19 +1024,10 @@ export default {
           books,
         });
 
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: {
-            ...getCorsHeaders(request),
-            "Content-Type": "application/json",
-          },
-        });
+        return jsonResponse(result, 200, request);
       } catch (error) {
         console.error("Test complete-batch failed:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+        return errorResponse("INTERNAL_ERROR", error.message, 500, null);
       }
     }
 
@@ -1234,12 +1036,11 @@ export default {
       try {
         const jobId = url.searchParams.get("jobId");
         if (!jobId) {
-          return new Response(
-            JSON.stringify({ error: "Missing jobId parameter" }),
-            {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            },
+          return errorResponse(
+            "MISSING_PARAM",
+            "Missing jobId parameter",
+            400,
+            null,
           );
         }
 
@@ -1248,19 +1049,10 @@ export default {
 
         const result = await doStub.isBatchCanceled();
 
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: {
-            ...getCorsHeaders(request),
-            "Content-Type": "application/json",
-          },
-        });
+        return jsonResponse(result, 200, request);
       } catch (error) {
         console.error("Test is-canceled failed:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+        return errorResponse("INTERNAL_ERROR", error.message, 500, null);
       }
     }
 
@@ -1273,26 +1065,17 @@ export default {
 
         const result = await doStub.cancelBatch();
 
-        return new Response(JSON.stringify(result), {
-          status: 200,
-          headers: {
-            ...getCorsHeaders(request),
-            "Content-Type": "application/json",
-          },
-        });
+        return jsonResponse(result, 200, request);
       } catch (error) {
         console.error("Test cancel-batch failed:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+        return errorResponse("INTERNAL_ERROR", error.message, 500, null);
       }
     }
 
     // Health check endpoint
     if (url.pathname === "/health") {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        {
           status: "ok",
           worker: "api-worker",
           version: "1.0.0",
@@ -1315,10 +1098,9 @@ export default {
             "/external/isbndb-editions?title={title}&author={author}",
             "/external/isbndb-isbn?isbn={isbn}",
           ],
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
         },
+        200,
+        null,
       );
     }
 
@@ -1346,48 +1128,41 @@ export default {
         authHeader !== env.HARVEST_SECRET &&
         authHeader !== "test-local-dev"
       ) {
-        return new Response(
-          JSON.stringify({
-            error: "Unauthorized",
-            message: "Invalid or missing X-Harvest-Secret header",
-          }),
-          {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          },
+        return errorResponse(
+          "UNAUTHORIZED",
+          "Invalid or missing X-Harvest-Secret header",
+          401,
+          null,
         );
       }
 
       console.log("🌾 Manual ISBNdb harvest triggered");
       const result = await handleScheduledHarvest(env);
 
-      return new Response(
-        JSON.stringify({
-          success: result.success,
-          stats: result.stats,
-          message: result.success
-            ? "Harvest completed successfully"
-            : "Harvest failed",
-          error: result.error,
-        }),
-        {
-          status: result.success ? 200 : 500,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+      if (result.success) {
+        return jsonResponse(
+          {
+            success: result.success,
+            stats: result.stats,
+            message: "Harvest completed successfully",
+          },
+          200,
+          null,
+        );
+      } else {
+        return errorResponse(
+          "INTERNAL_ERROR",
+          `Harvest failed: ${result.error}`,
+          500,
+          null,
+        );
+      }
     }
 
     // Default 404
-    return new Response(
-      JSON.stringify({
-        error: "Not Found",
-        message:
-          "The requested endpoint does not exist. Use /health to see available endpoints.",
-      }),
-      {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      },
+    return notFoundResponse(
+      "The requested endpoint does not exist. Use /health to see available endpoints.",
+      null,
     );
   },
 
