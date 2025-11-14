@@ -14,7 +14,9 @@
  */
 
 // MSW requires localStorage - polyfill for Node.js environment
-if (typeof globalThis.localStorage === "undefined") {
+// Note: This polyfill is also in tests/setup.js (global setup)
+// We keep it here for backwards compatibility but it should already be set up
+if (!globalThis.localStorage) {
   const storage = new Map();
   globalThis.localStorage = {
     getItem: (key) => storage.get(key) || null,

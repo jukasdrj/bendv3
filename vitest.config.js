@@ -8,6 +8,9 @@ export default defineConfig({
     // Node environment for Cloudflare Workers testing
     environment: 'node',
 
+    // Global setup files - run BEFORE all tests
+    setupFiles: ['./tests/setup.js'],
+
     // Include all test files
     include: ['tests/**/*.test.js'],
 

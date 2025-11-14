@@ -21,8 +21,60 @@ process.env.NODE_ENV = "test";
 // POLYFILLS FOR NODE ENVIRONMENT
 // ============================================================================
 
-// Note: localStorage polyfill is now in tests/helpers/msw-server.js
-// This avoids duplication and keeps it with MSW-specific setup
+// localStorage polyfill for MSW compatibility in Node.js environment
+// MSW requires localStorage to store cookie data
+// CRITICAL: This must run BEFORE any MSW imports
+const storage = new Map()
+globalThis.localStorage = {
+  getItem: (key) => storage.get(key) || null,
+  setItem: (key, value) => storage.set(key, String(value)),
+  removeItem: (key) => storage.delete(key),
+  clear: () => storage.clear(),
+  get length() {
+    return storage.size
+  },
+  key: (index) => {
+    const keys = Array.from(storage.keys())
+    return keys[index] || null
+  },
+}
+
+// Cloudflare Edge Cache API polyfill for Node.js environment
+// Used by EdgeCacheService in UnifiedCacheService
+const cacheStorage = new Map()
+globalThis.caches = {
+  default: {
+    match: async (request) => {
+      const url = typeof request === 'string' ? request : request.url
+      return cacheStorage.get(url) || null
+    },
+    put: async (request, response) => {
+      const url = typeof request === 'string' ? request : request.url
+      cacheStorage.set(url, response)
+    },
+    delete: async (request) => {
+      const url = typeof request === 'string' ? request : request.url
+      return cacheStorage.delete(url)
+    },
+  },
+  open: async (cacheName) => ({
+    match: async (request) => {
+      const url = typeof request === 'string' ? request : request.url
+      const key = `${cacheName}:${url}`
+      return cacheStorage.get(key) || null
+    },
+    put: async (request, response) => {
+      const url = typeof request === 'string' ? request : request.url
+      const key = `${cacheName}:${url}`
+      cacheStorage.set(key, response)
+    },
+    delete: async (request) => {
+      const url = typeof request === 'string' ? request : request.url
+      const key = `${cacheName}:${url}`
+      return cacheStorage.delete(key)
+    },
+  }),
+}
 
 // ============================================================================
 // GLOBAL MOCKS
