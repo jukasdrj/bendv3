@@ -8,9 +8,10 @@
  */
 
 import * as externalApis from "../services/external-apis.ts";
-import { setCached, generateCacheKey } from "../utils/cache.js";
+import { setCached } from "../utils/cache.js";
 import { UnifiedCacheService } from "../services/unified-cache.js";
 import { writeCacheMetrics } from "../utils/analytics.js";
+import { CacheKeyFactory } from "../services/cache-key-factory.js";
 
 /**
  * Search books by title with multi-provider orchestration
@@ -23,10 +24,7 @@ import { writeCacheMetrics } from "../utils/analytics.js";
  */
 export async function searchByTitle(title, options, env, ctx) {
   const { maxResults = 20 } = options;
-  const cacheKey = generateCacheKey("search:title", {
-    title: title.toLowerCase(),
-    maxResults,
-  });
+  const cacheKey = CacheKeyFactory.bookTitle(title, maxResults);
 
   // Try UnifiedCache first (Edge → KV tiers)
   const cache = new UnifiedCacheService(env, ctx);
@@ -154,7 +152,7 @@ export async function searchByTitle(title, options, env, ctx) {
  */
 export async function searchByISBN(isbn, options, env, ctx) {
   const { maxResults = 1 } = options;
-  const cacheKey = generateCacheKey("search:isbn", { isbn });
+  const cacheKey = CacheKeyFactory.bookISBN(isbn);
 
   // Try UnifiedCache first (Edge → KV tiers)
   const cache = new UnifiedCacheService(env, ctx);

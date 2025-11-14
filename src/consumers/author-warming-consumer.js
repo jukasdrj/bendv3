@@ -6,11 +6,12 @@ import { enrichBooksParallel } from "../services/parallel-enrichment.js";
 /**
  * Author Warming Consumer - Processes queued authors
  *
- * CRITICAL: This consumer MUST generate cache keys identical to search handlers
- * to ensure warmed cache entries are actually used by search endpoints.
+ * CRITICAL: This consumer calls searchByAuthor and searchByTitle handlers directly
+ * which internally use CacheKeyFactory for consistent cache key generation.
+ * This ensures warmed cache entries are actually used by search endpoints.
  *
- * Cache key alignment (per 2025-10-29-cache-warming-fix.md):
- * - Title search: search:title:maxresults=20&title={normalizedTitle}
+ * Cache key patterns (via CacheKeyFactory in src/services/cache-key-factory.js):
+ * - Title search: search:title:maxresults={n}&title={normalizedTitle}
  * - Author search: auto-search:{queryB64}:{paramsB64}
  *
  * @param {Object} batch - Batch of queue messages

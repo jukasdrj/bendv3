@@ -4,20 +4,24 @@ import type {
   CoverMetadata,
   HarvestResult,
   HarvestReport,
-  Env
-} from './types/harvest-types';
-import * as fs from 'fs';
-import * as path from 'path';
+  Env,
+} from "./types/harvest-types";
+import * as fs from "fs";
+import * as path from "path";
+import { CacheKeyFactory } from "../services/cache-key-factory.js";
 
 /**
  * Load and parse all CSV files from docs/testImages/csv-expansion/
  */
 async function loadISBNsFromCSVs(): Promise<BookEntry[]> {
-  const csvDir = path.join(process.cwd(), '../../docs/testImages/csv-expansion');
+  const csvDir = path.join(
+    process.cwd(),
+    "../../docs/testImages/csv-expansion",
+  );
 
   console.log(`📂 Loading CSVs from: ${csvDir}`);
 
-  const files = fs.readdirSync(csvDir).filter(f => f.endsWith('.csv'));
+  const files = fs.readdirSync(csvDir).filter((f) => f.endsWith(".csv"));
   console.log(`Found ${files.length} CSV files`);
 
   const allEntries: BookEntry[] = [];
@@ -37,8 +41,8 @@ async function loadISBNsFromCSVs(): Promise<BookEntry[]> {
  * Expected format: Title,Author,ISBN-13
  */
 async function parseCSV(filePath: string): Promise<BookEntry[]> {
-  const content = fs.readFileSync(filePath, 'utf-8');
-  const lines = content.split('\n').filter(line => line.trim());
+  const content = fs.readFileSync(filePath, "utf-8");
+  const lines = content.split("\n").filter((line) => line.trim());
 
   // Skip header row
   const dataLines = lines.slice(1);
@@ -71,7 +75,9 @@ function deduplicateISBNs(entries: BookEntry[]): BookEntry[] {
     }
   }
 
-  console.log(`📊 Deduplicated: ${entries.length} → ${unique.length} unique ISBNs`);
+  console.log(
+    `📊 Deduplicated: ${entries.length} → ${unique.length} unique ISBNs`,
+  );
   return unique;
 }
 
@@ -79,12 +85,13 @@ function deduplicateISBNs(entries: BookEntry[]): BookEntry[] {
  * Helper to get API key from environment (handles both string and object types)
  */
 async function getApiKey(env: Env): Promise<string> {
-  const apiKey = typeof env.ISBNDB_API_KEY === 'object'
-    ? await env.ISBNDB_API_KEY.get()
-    : env.ISBNDB_API_KEY;
+  const apiKey =
+    typeof env.ISBNDB_API_KEY === "object"
+      ? await env.ISBNDB_API_KEY.get()
+      : env.ISBNDB_API_KEY;
 
   if (!apiKey) {
-    throw new Error('ISBNDB_API_KEY not found');
+    throw new Error("ISBNDB_API_KEY not found");
   }
 
   return apiKey;
@@ -93,7 +100,10 @@ async function getApiKey(env: Env): Promise<string> {
 /**
  * Fetch cover data from ISBNdb API
  */
-async function fetchFromISBNdb(isbn: string, env: Env): Promise<CoverData | null> {
+async function fetchFromISBNdb(
+  isbn: string,
+  env: Env,
+): Promise<CoverData | null> {
   try {
     // Enforce rate limit (1000ms between requests)
     await enforceRateLimit(env);
@@ -103,8 +113,8 @@ async function fetchFromISBNdb(isbn: string, env: Env): Promise<CoverData | null
     const url = `https://api2.isbndb.com/book/${isbn}`;
     const response = await fetch(url, {
       headers: {
-        'Authorization': apiKey,
-        'Accept': 'application/json',
+        Authorization: apiKey,
+        Accept: "application/json",
       },
     });
 
@@ -124,11 +134,13 @@ async function fetchFromISBNdb(isbn: string, env: Env): Promise<CoverData | null
 
     return {
       url: coverUrl,
-      source: 'isbndb',
+      source: "isbndb",
       isbn,
     };
   } catch (error) {
-    console.error(`ISBNdb error for ${isbn}: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `ISBNdb error for ${isbn}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 }
@@ -136,7 +148,7 @@ async function fetchFromISBNdb(isbn: string, env: Env): Promise<CoverData | null
 /**
  * Rate limiting: 1 second between ISBNdb requests
  */
-const RATE_LIMIT_KEY = 'harvest_isbndb_last_request';
+const RATE_LIMIT_KEY = "harvest_isbndb_last_request";
 const RATE_LIMIT_INTERVAL = 1000; // 1 second
 
 async function enforceRateLimit(env: Env): Promise<void> {
@@ -146,12 +158,12 @@ async function enforceRateLimit(env: Env): Promise<void> {
     const timeDiff = Date.now() - parseInt(lastRequest);
     if (timeDiff < RATE_LIMIT_INTERVAL) {
       const waitTime = RATE_LIMIT_INTERVAL - timeDiff;
-      await new Promise(resolve => setTimeout(resolve, waitTime));
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
   }
 
   await env.KV_CACHE.put(RATE_LIMIT_KEY, Date.now().toString(), {
-    expirationTtl: 60
+    expirationTtl: 60,
   });
 }
 
@@ -161,7 +173,7 @@ async function enforceRateLimit(env: Env): Promise<void> {
  */
 async function fetchFromGoogleBooks(
   title: string,
-  author: string
+  author: string,
 ): Promise<CoverData | null> {
   try {
     // Build search query: intitle + inauthor
@@ -192,8 +204,9 @@ async function fetchFromGoogleBooks(
       }
     }
 
-    const coverUrl = bestEdition.volumeInfo?.imageLinks?.thumbnail
-      || bestEdition.volumeInfo?.imageLinks?.smallThumbnail;
+    const coverUrl =
+      bestEdition.volumeInfo?.imageLinks?.thumbnail ||
+      bestEdition.volumeInfo?.imageLinks?.smallThumbnail;
 
     if (!coverUrl) {
       return null; // No cover available
@@ -201,19 +214,21 @@ async function fetchFromGoogleBooks(
 
     // Extract ISBN-13 from identifiers
     const identifiers = bestEdition.volumeInfo?.industryIdentifiers || [];
-    const isbn13 = identifiers.find(id => id.type === 'ISBN_13')?.identifier;
+    const isbn13 = identifiers.find((id) => id.type === "ISBN_13")?.identifier;
 
     if (!isbn13) {
       return null; // Can't use without ISBN
     }
 
     return {
-      url: coverUrl.replace('http://', 'https://'), // Force HTTPS
-      source: 'google-books',
+      url: coverUrl.replace("http://", "https://"), // Force HTTPS
+      source: "google-books",
       isbn: isbn13,
     };
   } catch (error) {
-    console.error(`Google Books error for "${title}" by ${author}: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Google Books error for "${title}" by ${author}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 }
@@ -224,7 +239,7 @@ async function fetchFromGoogleBooks(
 async function downloadAndStoreImage(
   coverUrl: string,
   isbn: string,
-  env: Env
+  env: Env,
 ): Promise<void> {
   // Download image
   const response = await fetch(coverUrl);
@@ -241,7 +256,7 @@ async function downloadAndStoreImage(
   // Upload to R2
   await env.LIBRARY_DATA.put(r2Key, imageBlob, {
     httpMetadata: {
-      contentType: response.headers.get('Content-Type') || 'image/jpeg',
+      contentType: response.headers.get("Content-Type") || "image/jpeg",
     },
   });
 
@@ -254,9 +269,9 @@ async function downloadAndStoreImage(
 async function storeMetadata(
   isbn: string,
   metadata: CoverMetadata,
-  env: Env
+  env: Env,
 ): Promise<void> {
-  const kvKey = `cover:${isbn}`;
+  const kvKey = CacheKeyFactory.coverImage(isbn);
   await env.KV_CACHE.put(kvKey, JSON.stringify(metadata));
   console.log(`  💾 Stored KV metadata: ${kvKey}`);
 }
@@ -267,7 +282,7 @@ async function storeMetadata(
 async function harvestSingleBook(
   entry: BookEntry,
   env: Env,
-  isDryRun: boolean = false
+  isDryRun: boolean = false,
 ): Promise<HarvestResult> {
   const { isbn, title, author } = entry;
 
@@ -275,11 +290,11 @@ async function harvestSingleBook(
     // Dry run mode - skip actual work
     if (isDryRun) {
       console.log(`  [DRY RUN] Would fetch cover for: ${isbn}`);
-      return { isbn, title, author, success: true, source: 'isbndb' };
+      return { isbn, title, author, success: true, source: "isbndb" };
     }
 
     // Check if already cached
-    const kvKey = `cover:${isbn}`;
+    const kvKey = CacheKeyFactory.coverImage(isbn);
     const existing = await env.KV_CACHE.get(kvKey);
 
     if (existing) {
@@ -289,7 +304,7 @@ async function harvestSingleBook(
         return { isbn, title, author, success: true, source: metadata.source };
       } catch {
         // If parsing fails, assume isbndb
-        return { isbn, title, author, success: true, source: 'isbndb' };
+        return { isbn, title, author, success: true, source: "isbndb" };
       }
     }
 
@@ -310,7 +325,7 @@ async function harvestSingleBook(
         title,
         author,
         success: false,
-        error: 'No cover found in ISBNdb or Google Books',
+        error: "No cover found in ISBNdb or Google Books",
       };
     }
 
@@ -354,15 +369,19 @@ function logProgress(
   total: number,
   isbndbCount: number,
   googleCount: number,
-  failedCount: number
+  failedCount: number,
 ): void {
   if (current % 10 === 0 || current === total) {
     const percent = Math.round((current / total) * 100);
-    const bar = '━'.repeat(Math.floor(percent / 2.5));
-    const empty = ' '.repeat(40 - bar.length);
+    const bar = "━".repeat(Math.floor(percent / 2.5));
+    const empty = " ".repeat(40 - bar.length);
 
-    console.log(`\n📊 Progress: [${bar}${empty}] ${current}/${total} (${percent}%)`);
-    console.log(`   ✓ ISBNdb: ${isbndbCount} | ↻ Google: ${googleCount} | ✗ Failed: ${failedCount}`);
+    console.log(
+      `\n📊 Progress: [${bar}${empty}] ${current}/${total} (${percent}%)`,
+    );
+    console.log(
+      `   ✓ ISBNdb: ${isbndbCount} | ↻ Google: ${googleCount} | ✗ Failed: ${failedCount}`,
+    );
   }
 }
 
@@ -372,39 +391,42 @@ function logProgress(
  * Usage: npx wrangler dev --remote --task harvest-covers
  */
 export async function harvestCovers(env: Env): Promise<HarvestReport> {
-  console.log('🚀 ISBNdb Cover Harvest Starting...');
-  console.log('━'.repeat(60));
+  console.log("🚀 ISBNdb Cover Harvest Starting...");
+  console.log("━".repeat(60));
 
   const startTime = Date.now();
 
   // Pre-flight checks
-  console.log('🔍 Running pre-flight checks...');
+  console.log("🔍 Running pre-flight checks...");
 
   try {
     // Check ISBNDB_API_KEY
     await getApiKey(env);
-    console.log('  ✓ ISBNDB_API_KEY accessible');
+    console.log("  ✓ ISBNDB_API_KEY accessible");
 
     // Test R2 write
-    await env.LIBRARY_DATA.put('test_harvest_write', 'test');
-    await env.LIBRARY_DATA.delete('test_harvest_write');
-    console.log('  ✓ R2 write permissions OK');
+    await env.LIBRARY_DATA.put("test_harvest_write", "test");
+    await env.LIBRARY_DATA.delete("test_harvest_write");
+    console.log("  ✓ R2 write permissions OK");
 
     // Test KV write
-    await env.KV_CACHE.put('test_harvest_kv', 'test', { expirationTtl: 60 });
-    await env.KV_CACHE.delete('test_harvest_kv');
-    console.log('  ✓ KV write permissions OK');
+    await env.KV_CACHE.put("test_harvest_kv", "test", { expirationTtl: 60 });
+    await env.KV_CACHE.delete("test_harvest_kv");
+    console.log("  ✓ KV write permissions OK");
 
-    console.log('✅ Pre-flight checks passed\n');
+    console.log("✅ Pre-flight checks passed\n");
   } catch (error) {
-    console.error('❌ Pre-flight check failed:', error instanceof Error ? error.message : String(error));
+    console.error(
+      "❌ Pre-flight check failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     throw error;
   }
 
-  const isDryRun = process.env.DRY_RUN === 'true';
+  const isDryRun = process.env.DRY_RUN === "true";
 
   if (isDryRun) {
-    console.log('⚠️  DRY RUN MODE - No API calls or uploads will be made\n');
+    console.log("⚠️  DRY RUN MODE - No API calls or uploads will be made\n");
   }
 
   // Load and deduplicate books from CSVs
@@ -428,8 +450,8 @@ export async function harvestCovers(env: Env): Promise<HarvestReport> {
     results.push(result);
 
     if (result.success) {
-      if (result.source === 'isbndb') isbndbCount++;
-      else if (result.source === 'google-books') googleCount++;
+      if (result.source === "isbndb") isbndbCount++;
+      else if (result.source === "google-books") googleCount++;
       console.log(`  ✓ SUCCESS (${result.source})`);
     } else {
       failedCount++;
@@ -442,14 +464,14 @@ export async function harvestCovers(env: Env): Promise<HarvestReport> {
   // Generate final report
   const report: HarvestReport = {
     totalBooks: books.length,
-    successCount: results.filter(r => r.success).length,
+    successCount: results.filter((r) => r.success).length,
     isbndbCount,
     googleBooksCount: googleCount,
     failureCount: failedCount,
     executionTimeMs: Date.now() - startTime,
     failures: results
-      .filter(r => !r.success)
-      .map(r => ({
+      .filter((r) => !r.success)
+      .map((r) => ({
         isbn: r.isbn,
         title: r.title,
         author: r.author,
@@ -457,22 +479,33 @@ export async function harvestCovers(env: Env): Promise<HarvestReport> {
       })),
   };
 
-  console.log('\n✅ Harvest Complete!');
-  console.log('━'.repeat(60));
-  console.log(`✓ Total Harvested: ${report.successCount} / ${report.totalBooks}`);
+  console.log("\n✅ Harvest Complete!");
+  console.log("━".repeat(60));
+  console.log(
+    `✓ Total Harvested: ${report.successCount} / ${report.totalBooks}`,
+  );
   console.log(`✓ ISBNdb Covers: ${report.isbndbCount}`);
   console.log(`↻ Google Fallback: ${report.googleBooksCount}`);
   console.log(`✗ Failed: ${report.failureCount}`);
-  console.log(`⏱ Execution Time: ${(report.executionTimeMs / 1000 / 60).toFixed(1)} minutes`);
+  console.log(
+    `⏱ Execution Time: ${(report.executionTimeMs / 1000 / 60).toFixed(1)} minutes`,
+  );
 
   // Write failures to local file
   if (report.failures.length > 0) {
-    const failuresPath = path.join(process.cwd(), 'failed_isbns.json');
-    fs.writeFileSync(failuresPath, JSON.stringify({
-      timestamp: new Date().toISOString(),
-      totalFailed: report.failureCount,
-      failures: report.failures,
-    }, null, 2));
+    const failuresPath = path.join(process.cwd(), "failed_isbns.json");
+    fs.writeFileSync(
+      failuresPath,
+      JSON.stringify(
+        {
+          timestamp: new Date().toISOString(),
+          totalFailed: report.failureCount,
+          failures: report.failures,
+        },
+        null,
+        2,
+      ),
+    );
     console.log(`\n📄 Failed ISBNs logged to: ${failuresPath}`);
   }
 

@@ -11,7 +11,7 @@
  */
 export async function getCached(key, env) {
   try {
-    const cached = await env.CACHE.get(key, 'json');
+    const cached = await env.CACHE.get(key, "json");
     if (cached) {
       console.log(`Cache HIT: ${key}`);
 
@@ -26,8 +26,8 @@ export async function getCached(key, env) {
           cacheMetadata: {
             hit: true,
             age: age,
-            ttl: ttl
-          }
+            ttl: ttl,
+          },
         };
       } else {
         // Old format (direct data) - backward compatibility
@@ -36,13 +36,13 @@ export async function getCached(key, env) {
           cacheMetadata: {
             hit: true,
             age: 0,
-            ttl: 0
-          }
+            ttl: 0,
+          },
         };
       }
     }
   } catch (error) {
-    console.error('Cache read error:', error);
+    console.error("Cache read error:", error);
   }
 
   console.log(`Cache MISS: ${key}`);
@@ -61,20 +61,24 @@ export async function setCached(key, value, ttl, env) {
   try {
     const cachedWithMeta = {
       data: value,
-      cachedAt: Date.now(),  // Timestamp for age calculation
-      ttl: ttl                // Original TTL for headers
+      cachedAt: Date.now(), // Timestamp for age calculation
+      ttl: ttl, // Original TTL for headers
     };
 
     await env.CACHE.put(key, JSON.stringify(cachedWithMeta), {
-      expirationTtl: ttl
+      expirationTtl: ttl,
     });
     console.log(`Cache SET: ${key} (TTL: ${ttl}s)`);
   } catch (error) {
-    console.error('Cache write error:', error);
+    console.error("Cache write error:", error);
   }
 }
 
 /**
+ *
+ * @deprecated Use CacheKeyFactory from '../services/cache-key-factory.js' instead.
+ * This function is kept for backward compatibility but should not be used in new code.
+ *
  * Generate cache key from prefix and parameters
  * @param {string} prefix - Cache key prefix (e.g., 'search:title', 'search:isbn')
  * @param {Object} params - Key-value pairs to include in cache key
@@ -83,7 +87,7 @@ export async function setCached(key, value, ttl, env) {
 export function generateCacheKey(prefix, params) {
   const sortedParams = Object.keys(params)
     .sort()
-    .map(k => `${k}=${params[k]}`)
-    .join('&');
+    .map((k) => `${k}=${params[k]}`)
+    .join("&");
   return `${prefix}:${sortedParams}`;
 }

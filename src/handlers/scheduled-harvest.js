@@ -1,3 +1,4 @@
+import { CacheKeyFactory } from "../services/cache-key-factory.js";
 /**
  * Scheduled ISBNdb Cover Harvest Handler
  *
@@ -340,7 +341,7 @@ async function discoverMultiEditionISBNs(seedISBNs, env, editionsPerWork = 3) {
  * Check if cover already harvested
  */
 async function isCoverHarvested(isbn, env) {
-  const kvKey = `cover:${isbn}`;
+  const kvKey = CacheKeyFactory.coverImage(isbn);
   const existing = await env.KV_CACHE.get(kvKey);
   return existing !== null;
 }
@@ -410,7 +411,7 @@ async function harvestISBN(isbn, isbndbApi, env, stats) {
     });
 
     // Index in KV
-    const kvKey = `cover:${isbn}`;
+    const kvKey = CacheKeyFactory.coverImage(isbn);
     await env.KV_CACHE.put(
       kvKey,
       JSON.stringify({
