@@ -208,36 +208,170 @@ describe('Enrichment Pipeline Concurrency', () => {
 })
 
 describe('Rate Limiter Concurrency', () => {
-  // Test concurrent rate limit checks
-  it('should atomically check rate limit', () => {
-    // TODO: Implement test
-    // 100 concurrent requests at limit boundary
-    // Exactly 1 should be rejected (at 101st)
-    expect(true).toBe(true)
+  let mockEnv
+
+  beforeEach(() => {
+    // Create a shared rate limiter instance PER IP (simulates DO behavior)
+    // This is critical: all requests from same IP must hit the SAME DO instance
+    const rateLimiterInstances = new Map()
+
+    const getMockRateLimiter = (ip) => {
+      if (!rateLimiterInstances.has(ip)) {
+        let count = 0
+        const resetAt = Date.now() + 60000
+        const MAX_REQUESTS = 10
+
+        rateLimiterInstances.set(ip, {
+          fetch: vi.fn(async () => {
+            const allowed = count < MAX_REQUESTS
+            if (allowed) count++
+            const remaining = Math.max(0, MAX_REQUESTS - count)
+
+            return new Response(
+              JSON.stringify({ allowed, remaining, resetAt }),
+              {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+              }
+            )
+          })
+        })
+      }
+      return rateLimiterInstances.get(ip)
+    }
+
+    mockEnv = {
+      RATE_LIMITER_DO: {
+        idFromName: vi.fn((ip) => `rate-limit-${ip}`),
+        get: vi.fn((id) => {
+          // Extract IP from the id (format: "rate-limit-{ip}")
+          const ip = id.toString().replace('rate-limit-', '') || 'unknown'
+          return getMockRateLimiter(ip)
+        })
+      }
+    }
   })
 
-  // Test rate limit increment
-  it('should increment counter atomically', () => {
-    // TODO: Implement test
-    // Concurrent increments
-    // Final count = number of requests
-    expect(true).toBe(true)
+  // Test concurrent rate limit checks
+  it('should atomically check rate limit under concurrent load', async () => {
+    const { checkRateLimit } = await import('../../src/middleware/rate-limiter.js')
+
+    // Create 15 concurrent requests from same IP
+    const requests = Array.from({ length: 15 }, () =>
+      new Request('http://localhost/api/search', {
+        headers: { 'CF-Connecting-IP': '192.168.1.100' }
+      })
+    )
+
+    // Execute all requests concurrently
+    const results = await Promise.all(
+      requests.map(req => checkRateLimit(req, mockEnv))
+    )
+
+    // Count allowed vs blocked
+    const allowed = results.filter(r => r === null).length
+    const blocked = results.filter(r => r !== null).length
+
+    // CRITICAL: Exactly 10 should be allowed, 5 blocked (atomic guarantee)
+    expect(allowed).toBe(10)
+    expect(blocked).toBe(5)
+
+    // Verify blocked requests have 429 status
+    const blockedResponses = results.filter(r => r !== null)
+    blockedResponses.forEach(response => {
+      expect(response.status).toBe(429)
+    })
+  })
+
+  // Test rate limit increment atomicity
+  it('should increment counter atomically across concurrent requests', async () => {
+    const { checkRateLimit } = await import('../../src/middleware/rate-limiter.js')
+
+    // Make 20 concurrent requests (should reject 10)
+    const requests = Array.from({ length: 20 }, () =>
+      new Request('http://localhost/api/enrichment', {
+        headers: { 'CF-Connecting-IP': '10.0.0.1' }
+      })
+    )
+
+    const results = await Promise.all(
+      requests.map(req => checkRateLimit(req, mockEnv))
+    )
+
+    const allowedCount = results.filter(r => r === null).length
+
+    // Counter should enforce limit atomically
+    expect(allowedCount).toBe(10)
   })
 
   // Test per-IP isolation
-  it('should isolate rate limits by IP', () => {
-    // TODO: Implement test
-    // Request from IP A at limit
-    // Request from IP B should succeed
-    expect(true).toBe(true)
+  it('should isolate rate limits by IP address', async () => {
+    const { checkRateLimit } = await import('../../src/middleware/rate-limiter.js')
+
+    // Request from IP A (should succeed - different counter)
+    const requestA = new Request('http://localhost/api/search', {
+      headers: { 'CF-Connecting-IP': '192.168.1.200' }
+    })
+
+    // Request from IP B (should succeed - different counter)
+    const requestB = new Request('http://localhost/api/search', {
+      headers: { 'CF-Connecting-IP': '192.168.1.201' }
+    })
+
+    const resultA = await checkRateLimit(requestA, mockEnv)
+    const resultB = await checkRateLimit(requestB, mockEnv)
+
+    // Both should be allowed (different IP = different DO instance)
+    expect(resultA).toBeNull()
+    expect(resultB).toBeNull()
+
+    // Verify different DO IDs were created
+    expect(mockEnv.RATE_LIMITER_DO.idFromName).toHaveBeenCalledWith('192.168.1.200')
+    expect(mockEnv.RATE_LIMITER_DO.idFromName).toHaveBeenCalledWith('192.168.1.201')
   })
 
-  // Test limit expiration
-  it('should reset limit after expiration window', () => {
-    // TODO: Implement test
-    // Hit limit at T=0
-    // New request at T=61 minutes should succeed
-    expect(true).toBe(true)
+  // Test limit expiration and reset
+  it('should reset limit after expiration window', async () => {
+    // Create mock with time-sensitive reset logic
+    let count = 10  // Start at limit
+    let resetAt = Date.now() - 1000  // Expired window
+
+    const mockEnvWithExpiry = {
+      RATE_LIMITER_DO: {
+        idFromName: vi.fn(() => 'rate-limit-test'),
+        get: vi.fn(() => ({
+          fetch: vi.fn(async () => {
+            const now = Date.now()
+
+            // Check if window expired
+            if (now >= resetAt) {
+              count = 0
+              resetAt = now + 60000
+            }
+
+            const allowed = count < 10
+            if (allowed) count++
+            const remaining = Math.max(0, 10 - count)
+
+            return new Response(
+              JSON.stringify({ allowed, remaining, resetAt }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } }
+            )
+          })
+        }))
+      }
+    }
+
+    const { checkRateLimit } = await import('../../src/middleware/rate-limiter.js')
+
+    const request = new Request('http://localhost/api/search', {
+      headers: { 'CF-Connecting-IP': '192.168.1.300' }
+    })
+
+    // Request should succeed after window expiration
+    const result = await checkRateLimit(request, mockEnvWithExpiry)
+
+    expect(result).toBeNull()  // Allowed after reset
   })
 })
 

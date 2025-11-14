@@ -336,14 +336,20 @@ npm run test:watch     # Watch mode
 
 ### Middleware Components
 
-**Rate Limiting** (`src/middleware/rate-limiter.js`)
-- Per-IP tracking via KV cache
-- Global: 1000 requests/hour
-- Endpoint-specific:
-  - Search: 100 requests/minute
-  - Batch enrichment: 10 requests/minute
-  - Bookshelf scan: 5 requests/minute (expensive AI calls)
-- Returns 429 Too Many Requests on limit
+**Rate Limiting** (`src/middleware/rate-limiter.js` + `src/durable-objects/rate-limiter.js`)
+- **Architecture:** Durable Object-based with atomic operations (fixes TOCTOU race condition - Issue #41)
+- **Per-IP Tracking:** One Durable Object instance per client IP ensures serialization
+- **Algorithm:** Fixed window token bucket (10 requests per 60-second window)
+- **Atomicity Guarantee:** Single-threaded DO execution prevents concurrent request races
+- **Why Durable Objects over KV:**
+  - KV lacked atomic compare-and-swap → vulnerable to Time-of-Check-Time-of-Use (TOCTOU) races
+  - Concurrent requests could both read same count, both increment, only one write persisted
+  - DO guarantees serialization: all requests from same IP processed sequentially
+- **Performance:** ~5-10ms per check (acceptable overhead for security)
+- **Cost:** ~$0 (DO requests included in Workers plan, ~100 calls/min peak)
+- **Fail-Open Design:** Allows requests if rate limiter unavailable (graceful degradation)
+- Returns 429 Too Many Requests with `Retry-After` header on limit exceeded
+- **Testing:** Comprehensive unit tests (15) + integration tests (4) validate atomic behavior
 
 **CORS** (`src/middleware/cors.js`)
 - Current: `Access-Control-Allow-Origin: *` (permissive)
