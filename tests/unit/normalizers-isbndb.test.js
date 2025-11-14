@@ -22,27 +22,19 @@ import {
   normalizeISBNdbToEdition,
   normalizeISBNdbToAuthor,
 } from "../../src/services/normalizers/isbndb.js";
+import {
+  completeIsbndbBook,
+  minimalIsbndbBook,
+  isbn10OnlyBook,
+  noIsbnBook,
+} from "../fixtures/isbndb-samples.js";
 
 /**
  * WorkDTO Normalization Tests
  */
 describe("ISBNdb → WorkDTO Normalization", () => {
   it("should normalize complete ISBNdb book to WorkDTO", () => {
-    const isbndbBook = {
-      title: "Harry Potter and the Philosopher's Stone",
-      isbn13: "9780439708180",
-      isbn: "0439708184",
-      language: "en",
-      date_published: "1998-09-01",
-      synopsis: "Harry Potter has never been the star of a Quidditch team...",
-      subjects: ["Fiction", "Fantasy", "Magic"],
-      authors: ["J.K. Rowling"],
-      publisher: "Scholastic",
-      pages: 320,
-      image: "https://images.isbndb.com/covers/08/18/9780439708180.jpg",
-    };
-
-    const work = normalizeISBNdbToWork(isbndbBook);
+    const work = normalizeISBNdbToWork(completeIsbndbBook);
 
     // Required fields
     expect(work.title).toBe("Harry Potter and the Philosopher's Stone");
@@ -62,18 +54,12 @@ describe("ISBNdb → WorkDTO Normalization", () => {
     expect(work.isbndbID).toBe("9780439708180");
     expect(work.reviewStatus).toBe("verified");
 
-    // Quality score should be high for complete data
+    // Quality score: Base 50 + image(20) + synopsis>50(10) + pages(5) + publisher(5) + subjects(5) + authors(5) = 100
     expect(work.isbndbQuality).toBeGreaterThanOrEqual(85);
   });
 
   it("should handle missing optional fields gracefully", () => {
-    const isbndbBook = {
-      title: "Minimal Book Data",
-      isbn13: "9781234567890",
-      // Missing: language, date_published, synopsis, subjects, etc.
-    };
-
-    const work = normalizeISBNdbToWork(isbndbBook);
+    const work = normalizeISBNdbToWork(minimalIsbndbBook);
 
     expect(work.title).toBe("Minimal Book Data");
     expect(work.originalLanguage).toBeUndefined();
@@ -82,7 +68,7 @@ describe("ISBNdb → WorkDTO Normalization", () => {
     expect(work.subjectTags).toEqual([]); // Genre normalizer returns empty array
     expect(work.isbndbID).toBe("9781234567890");
 
-    // Quality score should be lower for minimal data
+    // Quality score: Base 50 only (no additional fields)
     expect(work.isbndbQuality).toBeLessThan(70);
   });
 
@@ -657,5 +643,79 @@ describe("ISBNdb Normalizer Edge Cases", () => {
     const work = normalizeISBNdbToWork(isbndbBook);
 
     expect(work.firstPublicationYear).toBe(1);
+  });
+
+  // Additional edge cases from Grok-4 code review
+  it("should handle NaN pages in quality score calculation", () => {
+    const isbndbBook = {
+      title: "Book with NaN pages",
+      isbn13: "9781234567890",
+      pages: NaN, // Invalid page count
+    };
+
+    const work = normalizeISBNdbToWork(isbndbBook);
+
+    // Quality score should handle NaN gracefully and return base score
+    expect(work.isbndbQuality).toBeGreaterThanOrEqual(0);
+    expect(work.isbndbQuality).toBeLessThanOrEqual(100);
+    expect(Number.isNaN(work.isbndbQuality)).toBe(false);
+  });
+
+  it("should normalize mixed-case binding formats", () => {
+    const testCases = [
+      { binding: "HardCover", expected: "Hardcover" },
+      { binding: "PAPERBACK", expected: "Paperback" },
+      { binding: "eBook Edition", expected: "E-book" },
+      { binding: "AUDIOBOOK", expected: "Audiobook" },
+    ];
+
+    testCases.forEach(({ binding, expected }) => {
+      const edition = normalizeISBNdbToEdition({
+        title: "Test",
+        isbn13: "9781234567890",
+        publisher: "Test",
+        binding,
+      });
+      expect(edition.format).toBe(expected);
+    });
+  });
+
+  it("should handle non-matching year patterns", () => {
+    const testCases = [
+      { date_published: "abc-2020", expected: undefined }, // No year at start
+      { date_published: "in 2020", expected: undefined }, // Year not at start
+      { date_published: "", expected: undefined }, // Empty string
+    ];
+
+    testCases.forEach(({ date_published, expected }) => {
+      const work = normalizeISBNdbToWork({
+        title: "Test",
+        date_published,
+      });
+      expect(work.firstPublicationYear).toBe(expected);
+    });
+  });
+
+  it("should handle exact 50-character synopsis for quality score", () => {
+    const exactly50 = "X".repeat(50); // Exactly 50 characters
+    const exactly51 = "X".repeat(51); // 51 characters (should get bonus)
+
+    const work50 = normalizeISBNdbToWork({
+      title: "Book",
+      isbn13: "9781234567890",
+      synopsis: exactly50,
+    });
+
+    const work51 = normalizeISBNdbToWork({
+      title: "Book",
+      isbn13: "9781234567890",
+      synopsis: exactly51,
+    });
+
+    // Quality score: Base 50 only (synopsis must be > 50 chars for +10 bonus)
+    expect(work50.isbndbQuality).toBe(50);
+
+    // Quality score: Base 50 + synopsis bonus(10) = 60
+    expect(work51.isbndbQuality).toBe(60);
   });
 });

@@ -21,24 +21,8 @@ process.env.NODE_ENV = "test";
 // POLYFILLS FOR NODE ENVIRONMENT
 // ============================================================================
 
-// MSW requires localStorage to be available
-// Provide a minimal polyfill for Node.js environment
-if (typeof globalThis.localStorage === "undefined") {
-  const storage = new Map();
-  globalThis.localStorage = {
-    getItem: (key) => storage.get(key) || null,
-    setItem: (key, value) => storage.set(key, String(value)),
-    removeItem: (key) => storage.delete(key),
-    clear: () => storage.clear(),
-    get length() {
-      return storage.size;
-    },
-    key: (index) => {
-      const keys = Array.from(storage.keys());
-      return keys[index] || null;
-    },
-  };
-}
+// Note: localStorage polyfill is now in tests/helpers/msw-server.js
+// This avoids duplication and keeps it with MSW-specific setup
 
 // ============================================================================
 // GLOBAL MOCKS
