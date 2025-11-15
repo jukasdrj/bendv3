@@ -109,8 +109,8 @@ if [ -n "$INVOKE_AGENT" ]; then
 
     # Invoke each agent in the list
     for agent in $(echo "$INVOKE_AGENT" | tr ',' ' '); do
-      echo "   ⚡ Launching skill: $agent"
-      echo "<user-prompt-submit-hook>/skill $agent</user-prompt-submit-hook>"
+      echo "   ⚡ Launching agent: @$agent"
+      echo "<user-prompt-submit-hook>@$agent</user-prompt-submit-hook>"
     done
 
     echo ""
@@ -120,11 +120,11 @@ if [ -n "$INVOKE_AGENT" ]; then
     # SUGGESTION MODE: Only notify user
     echo ""
     echo "🤖 Agent Trigger: $AGENT_CONTEXT"
-    echo "   Relevant Skills: $INVOKE_AGENT"
+    echo "   Relevant Agents: $INVOKE_AGENT"
     echo ""
     echo "   To invoke manually, use:"
     for agent in $(echo "$INVOKE_AGENT" | tr ',' ' '); do
-      echo "   /skill $agent"
+      echo "   @$agent"
     done
     echo ""
     echo "   💡 Tip: Set AUTO_INVOKE_AGENTS=true in your shell to enable auto-invoke"

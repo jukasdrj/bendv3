@@ -1,12 +1,36 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash(wrangler deploy*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-deploy.sh",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -15,7 +39,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -24,7 +49,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -33,7 +59,30 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/subagent-stop.sh",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-end.sh",
+            "timeout": 3000
           }
         ]
       }

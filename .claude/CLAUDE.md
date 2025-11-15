@@ -403,8 +403,9 @@ throw new Error('External API call failed')
 ### Autonomous Project Agents
 
 #### 🚀 cf-ops-monitor (Deployment & Observability)
-**Location:** `.claude/skills/cf-ops-monitor/`
-**Invoke with:** `/skill cf-ops-monitor` or automatically via hooks
+**Location:** `.claude/agents/cf-ops-monitor/`
+**Invoke with:** `@cf-ops-monitor` or automatically via hooks
+**Slash commands:** `/deploy`, `/logs`, `/rollback`, `/cache-check`
 
 **Capabilities:**
 - Execute `wrangler deploy` with health checks
@@ -426,8 +427,9 @@ throw new Error('External API call failed')
 ---
 
 #### ✅ cf-code-reviewer (Code Quality & Best Practices)
-**Location:** `.claude/skills/cf-code-reviewer/`
-**Invoke with:** `/skill cf-code-reviewer` or automatically on code changes
+**Location:** `.claude/agents/cf-code-reviewer/`
+**Invoke with:** `@cf-code-reviewer` or automatically on code changes
+**Slash commands:** `/review`
 
 **Capabilities:**
 - Review Workers-specific patterns (env bindings, KV cache, Durable Objects)
@@ -506,6 +508,18 @@ throw new Error('External API call failed')
 - `wrangler tail` streaming → `cf-ops-monitor`
 
 **Hook Location:** `.claude/hooks/post-tool-use.sh`
+
+### Custom Slash Commands
+
+BooksTrack backend includes productivity slash commands for common operations:
+
+- `/deploy` - Deploy to Cloudflare Workers with health monitoring
+- `/review` - Review code for Workers best practices
+- `/logs [filter]` - Stream and analyze production logs
+- `/rollback` - Rollback to previous deployment
+- `/cache-check` - Inspect KV cache performance
+
+All commands are defined in `.claude/commands/` and automatically invoke the appropriate agents.
 
 ---
 

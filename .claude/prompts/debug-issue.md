@@ -135,9 +135,11 @@ curl https://staging-api.oooefam.net/v1/search/isbn?isbn=TEST
 
 ## Models to Use
 
-- **Simple issues:** Haiku (local, fast)
-- **Complex debugging:** Gemini 2.5 Pro (best reasoning)
-- **Multi-model consensus:** O3 Pro + Grok 4 + Gemini 2.5 Pro
+- **Simple issues:** Haiku (fast, cost-effective)
+- **Complex debugging:** Sonnet 4.5 (excellent reasoning, good cost)
+- **Deep investigation via Zen MCP:** Grok 4 (cheapest external model, excellent reasoning)
+- **Alternative external model:** Gemini 2.5 Pro (more expensive, use when Grok insufficient)
+- **Critical production issues only:** Multi-model consensus (expensive!)
 
 ## Cloudflare-Specific Debugging
 
@@ -180,7 +182,21 @@ Use **multi-model consensus** for:
 - Mysterious errors with no clear cause
 
 ```bash
-mcp zen consensus \
-  --models "gemini-2.5-pro,o3-pro,grok-4" \
+# ONLY use consensus for critical issues - it's expensive!
+# For most debugging, use single model (Grok is cheapest):
+mcp zen debug \
+  --model "grok-4" \
+  --thinking-mode high \
   --prompt "Analyze this production error pattern..."
+
+# Use Gemini only when Grok insufficient:
+# mcp zen debug \
+#   --model "gemini-2.5-pro" \
+#   --thinking-mode high \
+#   --prompt "Complex issue requiring multi-modal reasoning..."
+
+# Multi-model consensus (use sparingly):
+# mcp zen consensus \
+#   --models "grok-4,gemini-2.5-pro" \
+#   --prompt "Critical security issue analysis..."
 ```

@@ -108,10 +108,11 @@ src/
 
 ## Models to Use
 
-- **Simple features (< 3 files):** Haiku
-- **Complex features (3-10 files):** Gemini 2.5 Pro
-- **Major refactors (> 10 files):** O3 Pro
-- **Multi-option decision:** Consensus with 3+ models
+- **Simple features (< 3 files):** Haiku (fast, cheap)
+- **Complex features (3-10 files):** Sonnet 4.5 (best balance)
+- **Major refactors via Zen MCP:** Grok 4 (cheapest external model, excellent for planning)
+- **Alternative external model:** Gemini 2.5 Pro (more expensive, better for large context)
+- **Architecture decisions:** Consensus with 2 models (use sparingly - expensive!)
 
 ## Planning Workflow
 
@@ -124,18 +125,31 @@ src/
 ### Step 2: Detailed Planning
 ```bash
 # Use Zen MCP Planner for comprehensive plan
+# Start with Grok (cheapest), escalate to Gemini only if needed
 mcp zen planner \
   --feature "Feature name" \
-  --thinking-mode high \
-  --models "gemini-2.5-pro"
+  --thinking-mode medium \
+  --model "grok-4"
+
+# Use Gemini for large context or multi-modal needs:
+# mcp zen planner \
+#   --feature "Feature name" \
+#   --thinking-mode medium \
+#   --model "gemini-2.5-pro"
 ```
 
 ### Step 3: Architecture Review
 ```bash
-# Get consensus on best approach
-mcp zen consensus \
-  --models "gemini-2.5-pro,o3-pro" \
-  --prompt "Which architecture is better for [feature]? Option A: [desc] Option B: [desc]"
+# Get consensus on best approach (use sparingly - expensive!)
+# Try single model first (Grok is cheapest):
+mcp zen planner \
+  --model "grok-4" \
+  --prompt "Evaluate architecture options for [feature]..."
+
+# Only use consensus for critical architectural decisions:
+# mcp zen consensus \
+#   --models "grok-4,gemini-2.5-pro" \
+#   --prompt "Which architecture is better for [feature]? Option A: [desc] Option B: [desc]"
 ```
 
 ### Step 4: Create Issues
