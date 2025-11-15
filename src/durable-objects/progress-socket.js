@@ -51,6 +51,8 @@ const THROTTLE_CONFIG = {
   ai_scan: { updateCount: 1, timeSeconds: 60 }       // Minimal writes
 };
 
+// See .claude/CLAUDE.md for Durable Object architecture details
+// Related: Issue #68 (Durable Object refactoring)
 export class ProgressWebSocketDO extends DurableObject {
   constructor(state, env) {
     super(state, env);
