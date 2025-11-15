@@ -20,7 +20,16 @@ import { CacheKeyFactory } from "../services/cache-key-factory.js";
  * @param {number} options.maxResults - Maximum results to return (default: 20)
  * @param {Object} env - Worker environment bindings
  * @param {Object} ctx - Execution context
- * @returns {Promise<Object>} Search results in Google Books format
+ * @returns {Promise<{
+ *   kind: string,
+ *   totalItems: number,
+ *   items: Array<any>,
+ *   provider: string,
+ *   cached: boolean,
+ *   cacheSource?: string,
+ *   responseTime: number,
+ *   _cacheHeaders: Record<string, string>
+ * }>} Search results in Google Books format with cache metadata
  */
 export async function searchByTitle(title, options, env, ctx) {
   const { maxResults = 20 } = options;
@@ -101,6 +110,17 @@ export async function searchByTitle(title, options, env, ctx) {
     // Simple deduplication by title
     const dedupedItems = deduplicateByTitle(finalItems);
 
+    /**
+     * @type {{
+     *   kind: string,
+     *   totalItems: number,
+     *   items: Array<any>,
+     *   provider: string,
+     *   cached: boolean,
+     *   responseTime: number,
+     *   _cacheHeaders: Record<string, string>
+     * }}
+     */
     const responseData = {
       kind: "books#volumes",
       totalItems: dedupedItems.length,

@@ -1,17 +1,48 @@
 /**
- * Unified WebSocket Message Schema (v1.0.0)
+ * Unified WebSocket Message Schema (v1.0.0) - Canonical Contract
  *
- * Provides consistent message structure across all pipelines:
- * - batch_enrichment (background book metadata enrichment)
- * - csv_import (Gemini-powered CSV parsing)
- * - ai_scan (bookshelf image scanning with Gemini)
+ * **This is the ONLY supported WebSocket message format.**
+ * Legacy v1 methods (updateProgress, complete, fail) have been removed.
  *
- * Design Principles:
- * 1. Discriminated unions for type safety
- * 2. Version field for schema evolution
- * 3. Pipeline field for multi-job tracking
- * 4. Timestamp for client-side latency monitoring
- * 5. Backward compatibility via optional fields
+ * Provides consistent message structure across all asynchronous job pipelines:
+ * - **batch_enrichment**: Background book metadata enrichment from external APIs
+ * - **csv_import**: AI-powered CSV parsing with Gemini
+ * - **ai_scan**: Bookshelf image scanning and book detection with Gemini Vision
+ *
+ * ## Design Principles
+ *
+ * 1. **Discriminated Unions**: TypeScript can narrow message types based on `type` field
+ * 2. **Schema Versioning**: `version` field enables future schema evolution without breaking clients
+ * 3. **Pipeline Tracking**: `pipeline` field enables multi-job tracking in client UIs
+ * 4. **Latency Monitoring**: `timestamp` enables client-side latency measurement
+ * 5. **Type Safety**: Payload types are strictly defined per message type
+ *
+ * ## Message Flow Example
+ *
+ * ```
+ * Client                    Server (Durable Object)
+ *   |                              |
+ *   |--- WebSocket Upgrade ------->|
+ *   |<---- 101 Switching ---------|
+ *   |                              |
+ *   |<---- job_started ------------|  { type: "job_started", totalCount: 50 }
+ *   |<---- job_progress -----------|  { type: "job_progress", progress: 0.2 }
+ *   |<---- job_progress -----------|  { type: "job_progress", progress: 0.4 }
+ *   |<---- job_complete -----------|  { type: "job_complete", enrichedBooks: [...] }
+ *   |                              |
+ *   |<---- Close (1000) -----------|
+ * ```
+ *
+ * ## Migration Note
+ *
+ * The legacy v1 RPC methods have been removed:
+ * - ❌ `updateProgress(progress, status, keepAlive)` - Use `updateProgress(pipeline, payload)` instead
+ * - ❌ `complete(data)` - Use `complete(pipeline, payload)` instead
+ * - ❌ `fail(errorData)` - Send error via `error` message type instead
+ *
+ * All methods now require `pipeline` parameter and follow the unified schema.
+ *
+ * @module types/websocket-messages
  */
 
 import type { SingleEnrichmentResult } from '../services/enrichment.ts';

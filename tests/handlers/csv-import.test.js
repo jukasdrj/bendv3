@@ -259,7 +259,7 @@ describe('handleCSVImport', () => {
 
       const body = await response.json();
       expect(body).toHaveProperty('error');
-      expect(body.error).toHaveProperty('code', 'E_FILE_TOO_LARGE');
+      expect(body.error).toHaveProperty('code', 'FILE_TOO_LARGE');
     });
   });
 

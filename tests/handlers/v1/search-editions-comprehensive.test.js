@@ -30,12 +30,12 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
       expect(response).toBeDefined();
       expect(response).toHaveProperty('success');
       expect(response).toHaveProperty('meta');
-      expect(response.meta).toHaveProperty('timestamp');
-      expect(response.meta).toHaveProperty('processingTime');
-      expect(response.meta.processingTime).toBeTypeOf('number');
-      expect(response.meta.processingTime).toBeGreaterThan(0);
+      expect(response.metadata).toHaveProperty('timestamp');
+      expect(response.metadata).toHaveProperty('processingTime');
+      expect(response.metadata.processingTime).toBeTypeOf('number');
+      expect(response.metadata.processingTime).toBeGreaterThan(0);
 
-      if (response.success) {
+      if (response.data !== null) {
         // Verify data structure
         expect(response.data).toBeDefined();
         expect(response.data).toHaveProperty('works');
@@ -69,9 +69,9 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
       const response = await handleSearchEditions('1984', 'George Orwell', 20, mockEnv, mockCtx);
 
       // Provider metadata should be present (either in success or error response)
-      expect(response.meta).toBeDefined();
-      expect(response.meta).toHaveProperty('timestamp');
-      expect(response.meta).toHaveProperty('processingTime');
+      expect(response.metadata).toBeDefined();
+      expect(response.metadata).toHaveProperty('timestamp');
+      expect(response.metadata).toHaveProperty('processingTime');
     });
   });
 
@@ -169,7 +169,7 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
       );
 
       expect(response).toBeDefined();
-      expect(response.meta).toBeDefined();
+      expect(response.metadata).toBeDefined();
     });
 
     it('should handle author names with various formats', async () => {
@@ -197,7 +197,7 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
       );
 
       expect(response).toBeDefined();
-      expect(response.meta).toBeDefined();
+      expect(response.metadata).toBeDefined();
     });
 
     it('should handle whitespace in query parameters', async () => {
@@ -224,7 +224,7 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
       );
 
       expect(response).toBeDefined();
-      expect(response.meta).toBeDefined();
+      expect(response.metadata).toBeDefined();
     });
   });
 
@@ -290,7 +290,7 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('1984', 'George Orwell', 0, mockEnv, mockCtx);
 
-      if (response.success) {
+      if (response.data !== null) {
         expect(response.data.editions.length).toBe(0);
       }
     });
@@ -303,8 +303,8 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('', 'Andy Weir', 20, mockEnv, mockCtx);
 
-      expect(response.success).toBe(false);
-      if (!response.success) {
+      expect(response.error).toBeDefined();
+      if (response.error) {
         expect(response.error.code).toBe('INVALID_QUERY');
         expect(response.error.message).toContain('workTitle');
       }
@@ -316,8 +316,8 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('The Martian', '', 20, mockEnv, mockCtx);
 
-      expect(response.success).toBe(false);
-      if (!response.success) {
+      expect(response.error).toBeDefined();
+      if (response.error) {
         expect(response.error.code).toBe('INVALID_QUERY');
         expect(response.error.message).toContain('author');
       }
@@ -329,8 +329,8 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('', '', 20, mockEnv, mockCtx);
 
-      expect(response.success).toBe(false);
-      if (!response.success) {
+      expect(response.error).toBeDefined();
+      if (response.error) {
         expect(response.error).toHaveProperty('details');
       }
     });
@@ -354,9 +354,9 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('1984', 'George Orwell', 20, mockEnv, mockCtx);
 
-      expect(response.meta).toHaveProperty('processingTime');
-      expect(typeof response.meta.processingTime).toBe('number');
-      expect(response.meta.processingTime).toBeGreaterThan(0);
+      expect(response.metadata).toHaveProperty('processingTime');
+      expect(typeof response.metadata.processingTime).toBe('number');
+      expect(response.metadata.processingTime).toBeGreaterThan(0);
     });
 
     it('should have reasonable processing time for cached results', async () => {

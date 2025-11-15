@@ -5,19 +5,13 @@
  * Returns up to 20 results for iOS search UI
  */
 
-import type { ApiResponse, BookSearchResponse } from "../../types/responses.js";
-import {
-  createSuccessResponseObject,
-  createErrorResponseObject,
-} from "../../types/responses.js";
-import { enrichMultipleBooks } from "../../services/enrichment.ts";
-import { normalizeTitle, normalizeAuthor } from "../../utils/normalization.js";
-import { setCached } from "../../utils/cache.js";
-import { UnifiedCacheService } from "../../services/unified-cache.js";
-import {
-  extractUniqueAuthors,
-  removeAuthorsFromWorks,
-} from "../../utils/response-transformer.js";
+import type { ApiResponse, BookSearchResponse } from '../../types/responses.js';
+import { createSuccessResponseObject, createErrorResponseObject } from '../../utils/response-builder.js';
+import { enrichMultipleBooks } from '../../services/enrichment.ts';
+import { normalizeTitle, normalizeAuthor } from '../../utils/normalization.js';
+import { setCached } from '../../utils/cache.js';
+import { UnifiedCacheService } from '../../services/unified-cache.js';
+import { extractUniqueAuthors, removeAuthorsFromWorks } from '../../utils/response-transformer.js';
 import { CacheKeyFactory } from "../../services/cache-key-factory.js";
 
 export async function handleSearchAdvanced(
@@ -98,7 +92,6 @@ export async function handleSearchAdvanced(
 
     // Extract all unique authors from works
     const authors = extractUniqueAuthors(result.works);
-    import { CacheKeyFactory } from "../../services/cache-key-factory.js";
 
     // Remove authors property from works (not part of canonical WorkDTO)
     const cleanWorks = removeAuthorsFromWorks(result.works);

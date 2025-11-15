@@ -1,6 +1,20 @@
-import type { ResponseEnvelope, ResponseMetadata, ApiError } from '../types/responses';
+/**
+ * API Response Utilities - DEPRECATED
+ * 
+ * @deprecated This entire file is deprecated. Use `src/utils/response-builder.ts` instead.
+ * 
+ * All functions in this file have been moved to response-builder.ts for consolidation:
+ * - createSuccessResponse() → use from response-builder.ts
+ * - createErrorResponse() → use from response-builder.ts
+ * 
+ * This file is kept temporarily for backward compatibility and will be removed in a future version.
+ */
+
+import type { ResponseEnvelope, ResponseMetadata, ApiError } from '../types/responses.js';
 
 /**
+ * @deprecated Use `createSuccessResponse` from `src/utils/response-builder.ts` instead.
+ * 
  * Creates a standardized successful JSON response using the ResponseEnvelope.
  *
  * @param data The payload to send
@@ -28,6 +42,8 @@ export function createSuccessResponse<T>(
 }
 
 /**
+ * @deprecated Use `createErrorResponse` from `src/utils/response-builder.ts` instead.
+ * 
  * Creates a standardized error JSON response using the ResponseEnvelope.
  *
  * @param message The error message

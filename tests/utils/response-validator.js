@@ -6,37 +6,33 @@
  */
 
 /**
- * Validate canonical success envelope structure
+ * Validate canonical success envelope structure (API Contract v2.0)
  * @param {Object} response - Response object to validate
  * @returns {Object} Validation result { valid: boolean, errors: string[] }
  */
 export function validateSuccessEnvelope(response) {
   const errors = []
 
-  // Check top-level success field
-  if (typeof response.success !== 'boolean') {
-    errors.push('Missing or invalid "success" field (must be boolean)')
+  // Check data field exists (nullable pattern)
+  if (response.data === undefined) {
+    errors.push('Missing "data" field in response envelope')
   }
 
-  if (response.success !== true) {
-    errors.push('Success envelope must have success=true')
-  }
-
-  // Check data field exists
-  if (!response.data) {
-    errors.push('Missing "data" field in success response')
-  }
-
-  // Check meta field
-  if (!response.meta) {
-    errors.push('Missing "meta" field')
+  // Check metadata field (renamed from meta)
+  if (!response.metadata) {
+    errors.push('Missing "metadata" field')
   } else {
-    if (!response.meta.timestamp) {
-      errors.push('Missing "meta.timestamp"')
+    if (!response.metadata.timestamp) {
+      errors.push('Missing "metadata.timestamp"')
     }
-    if (typeof response.meta.processingTime !== 'number') {
-      errors.push('Missing or invalid "meta.processingTime" (must be number)')
+    if (response.metadata.processingTime !== undefined && typeof response.metadata.processingTime !== 'number') {
+      errors.push('Invalid "metadata.processingTime" (must be number)')
     }
+  }
+
+  // Error field should NOT be present in success response
+  if (response.error !== undefined) {
+    errors.push('Success envelope should not have "error" field')
   }
 
   return {
@@ -46,36 +42,34 @@ export function validateSuccessEnvelope(response) {
 }
 
 /**
- * Validate canonical error envelope structure
+ * Validate canonical error envelope structure (API Contract v2.0)
  * @param {Object} response - Response object to validate
  * @returns {Object} Validation result
  */
 export function validateErrorEnvelope(response) {
   const errors = []
 
-  // Check top-level success field
-  if (response.success !== false) {
-    errors.push('Error envelope must have success=false')
+  // Check data field is null (error responses have null data)
+  if (response.data !== null) {
+    errors.push('Error envelope must have data=null')
   }
 
-  // Check error field
+  // Check error field exists
   if (!response.error) {
     errors.push('Missing "error" field in error response')
   } else {
-    if (!response.error.code) {
-      errors.push('Missing "error.code"')
-    }
     if (!response.error.message) {
       errors.push('Missing "error.message"')
     }
+    // code is optional but commonly used
   }
 
-  // Check meta field
-  if (!response.meta) {
-    errors.push('Missing "meta" field')
+  // Check metadata field (renamed from meta)
+  if (!response.metadata) {
+    errors.push('Missing "metadata" field')
   } else {
-    if (!response.meta.timestamp) {
-      errors.push('Missing "meta.timestamp"')
+    if (!response.metadata.timestamp) {
+      errors.push('Missing "metadata.timestamp"')
     }
   }
 
@@ -158,16 +152,15 @@ export function validateAuthor(author) {
 }
 
 /**
- * Validate v1 search response structure
+ * Validate v1 search response structure (API Contract v2.0)
  * Expected format:
  * {
- *   success: true,
  *   data: {
  *     works: [...],
  *     editions: [...],
  *     authors: [...]
  *   },
- *   meta: { timestamp, processingTime }
+ *   metadata: { timestamp, processingTime }
  * }
  */
 export function validateV1SearchResponse(response) {
@@ -179,14 +172,18 @@ export function validateV1SearchResponse(response) {
   const errors = []
 
   // Check v1 search-specific structure
-  if (!response.data.works || !Array.isArray(response.data.works)) {
-    errors.push('"data.works" must be an array')
-  }
-  if (!response.data.editions || !Array.isArray(response.data.editions)) {
-    errors.push('"data.editions" must be an array')
-  }
-  if (!response.data.authors || !Array.isArray(response.data.authors)) {
-    errors.push('"data.authors" must be an array')
+  if (!response.data || typeof response.data !== 'object') {
+    errors.push('"data" must be an object')
+  } else {
+    if (!Array.isArray(response.data.works)) {
+      errors.push('"data.works" must be an array')
+    }
+    if (!Array.isArray(response.data.editions)) {
+      errors.push('"data.editions" must be an array')
+    }
+    if (!Array.isArray(response.data.authors)) {
+      errors.push('"data.authors" must be an array')
+    }
   }
 
   return {

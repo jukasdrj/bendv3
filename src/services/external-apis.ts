@@ -70,35 +70,18 @@ export interface NormalizedResponse {
 }
 
 /**
- * Successful search response
+ * Search result metadata (for logging/analytics)
  */
-export interface SearchSuccess extends NormalizedResponse {
-  success: true;
+export interface SearchMetadata {
   provider: string;
   processingTime: number;
   totalResults?: number;
 }
 
 /**
- * Failed search response
- */
-export interface SearchFailure {
-  success: false;
-  error: string;
-  processingTime?: number;
-}
-
-/**
- * Generic search result (success or failure)
- */
-export type SearchResult = SearchSuccess | SearchFailure;
-
-/**
  * Author works response (OpenLibrary specific)
  */
-export interface AuthorWorksSuccess {
-  success: true;
-  provider: string;
+export interface AuthorWorksData {
   author: {
     name: string;
     openLibraryKey: string;
@@ -111,20 +94,15 @@ export interface AuthorWorksSuccess {
   }>;
 }
 
-export type AuthorWorksResult = AuthorWorksSuccess | SearchFailure;
-
 /**
  * ISBNdb book detail response
  */
-export interface ISBNdbBookSuccess {
-  success: true;
+export interface ISBNdbBookData {
   work: WorkDTO;
   edition: EditionDTO;
   authors: AuthorDTO[];
   book: any; // Raw ISBNdb book data (backward compatibility)
 }
-
-export type ISBNdbBookResult = ISBNdbBookSuccess | SearchFailure;
 
 /**
  * Google Books raw API response structure
@@ -176,7 +154,7 @@ const GOOGLE_BOOKS_USER_AGENT =
 export async function searchGoogleBooksById(
   volumeId: string,
   env: ExternalAPIEnv,
-): Promise<SearchResult> {
+): Promise<NormalizedResponse | null> {
   const startTime = Date.now();
   try {
     console.log(`GoogleBooks ID search for "${volumeId}"`);
@@ -186,10 +164,8 @@ export async function searchGoogleBooksById(
       : env.GOOGLE_BOOKS_API_KEY;
 
     if (!apiKey) {
-      return {
-        success: false,
-        error: "Google Books API key not configured.",
-      };
+      console.error("Google Books API key not configured.");
+      return null;
     }
 
     const searchUrl = `https://www.googleapis.com/books/v1/volumes/${volumeId}?key=${apiKey}`;
@@ -212,21 +188,18 @@ export async function searchGoogleBooksById(
     const normalizedData = normalizeGoogleBooksResponse({ items: [data] });
 
     const processingTime = Date.now() - startTime;
+    console.log(`GoogleBooks ID search completed in ${processingTime}ms`);
 
-    return {
-      success: true,
-      provider: "google-books",
-      processingTime,
-      ...normalizedData,
-    };
+    // Return empty result if no works found
+    if (!normalizedData.works || normalizedData.works.length === 0) {
+      return null;
+    }
+
+    return normalizedData;
   } catch (error) {
     const processingTime = Date.now() - startTime;
     console.error(`Error in GoogleBooks ID search:`, error);
-    return {
-      success: false,
-      error: (error as Error).message,
-      processingTime,
-    };
+    throw error; // Let exceptions bubble up
   }
 }
 
@@ -234,7 +207,7 @@ export async function searchGoogleBooks(
   query: string,
   params: SearchParams = {},
   env: ExternalAPIEnv,
-): Promise<SearchResult> {
+): Promise<NormalizedResponse | null> {
   const startTime = Date.now();
   try {
     console.log(`GoogleBooks search for "${query}"`);
@@ -245,10 +218,8 @@ export async function searchGoogleBooks(
       : env.GOOGLE_BOOKS_API_KEY;
 
     if (!apiKey) {
-      return {
-        success: false,
-        error: "Google Books API key not configured.",
-      };
+      console.error("Google Books API key not configured.");
+      return null;
     }
 
     const maxResults = params.maxResults || 20;
@@ -280,12 +251,12 @@ export async function searchGoogleBooks(
       });
     }
 
-    return {
-      success: true,
-      provider: "google-books",
-      processingTime,
-      ...normalizedData,
-    };
+    // Return null if no works found
+    if (!normalizedData.works || normalizedData.works.length === 0) {
+      return null;
+    }
+
+    return normalizedData;
   } catch (error) {
     const processingTime = Date.now() - startTime;
     console.error(`Error in GoogleBooks search:`, error);
@@ -298,18 +269,14 @@ export async function searchGoogleBooks(
       });
     }
 
-    return {
-      success: false,
-      error: (error as Error).message,
-      processingTime,
-    };
+    throw error; // Let exceptions bubble up
   }
 }
 
 export async function searchGoogleBooksByISBN(
   isbn: string,
   env: ExternalAPIEnv,
-): Promise<SearchResult> {
+): Promise<NormalizedResponse | null> {
   const startTime = Date.now();
   try {
     console.log(`GoogleBooks ISBN search for "${isbn}"`);
@@ -320,10 +287,8 @@ export async function searchGoogleBooksByISBN(
       : env.GOOGLE_BOOKS_API_KEY;
 
     if (!apiKey) {
-      return {
-        success: false,
-        error: "Google Books API key not configured.",
-      };
+      console.error("Google Books API key not configured.");
+      return null;
     }
 
     const searchUrl = `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&key=${apiKey}`;
@@ -354,12 +319,12 @@ export async function searchGoogleBooksByISBN(
       });
     }
 
-    return {
-      success: true,
-      provider: "google-books",
-      processingTime,
-      ...normalizedData,
-    };
+    // Return null if no works found
+    if (!normalizedData.works || normalizedData.works.length === 0) {
+      return null;
+    }
+
+    return normalizedData;
   } catch (error) {
     const processingTime = Date.now() - startTime;
     console.error(`Error in GoogleBooks ISBN search:`, error);
@@ -372,11 +337,7 @@ export async function searchGoogleBooksByISBN(
       });
     }
 
-    return {
-      success: false,
-      error: (error as Error).message,
-      processingTime,
-    };
+    throw error; // Let exceptions bubble up
   }
 }
 
@@ -449,7 +410,7 @@ const OPENLIBRARY_USER_AGENT =
 export async function searchOpenLibraryByGoodreadsId(
   goodreadsId: string,
   env: ExternalAPIEnv,
-): Promise<SearchResult> {
+): Promise<NormalizedResponse | null> {
   const startTime = Date.now();
   try {
     console.log(`OpenLibrary Goodreads ID search for "${goodreadsId}"`);
@@ -466,42 +427,31 @@ export async function searchOpenLibraryByGoodreadsId(
 
     const data = await response.json();
     if (!data.docs || data.docs.length === 0) {
-      return {
-        success: true,
-        provider: "openlibrary",
-        processingTime: Date.now() - startTime,
-        works: [],
-        editions: [],
-        authors: [],
-      };
+      return null; // No results found
     }
 
     // We get a search result, not a direct work, so we normalize the search result
     const normalized = normalizeOpenLibrarySearchResults(data.docs);
 
-    return {
-      success: true,
-      provider: "openlibrary",
-      processingTime: Date.now() - startTime,
-      ...normalized,
-    };
+    // Return null if no works found
+    if (!normalized.works || normalized.works.length === 0) {
+      return null;
+    }
+
+    return normalized;
   } catch (error) {
     console.error(
       `Error in OpenLibrary Goodreads ID search for "${goodreadsId}":`,
       error,
     );
-    return {
-      success: false,
-      error: (error as Error).message,
-      processingTime: Date.now() - startTime,
-    };
+    throw error; // Let exceptions bubble up
   }
 }
 
 export async function searchOpenLibraryById(
   workId: string,
   env: ExternalAPIEnv,
-): Promise<SearchResult> {
+): Promise<NormalizedResponse | null> {
   const startTime = Date.now();
   try {
     console.log(`OpenLibrary ID search for "${workId}"`);
@@ -518,21 +468,15 @@ export async function searchOpenLibraryById(
     const workData = await workResponse.json();
     const normalized = normalizeOpenLibrarySearchResults([workData]);
 
-    return {
-      success: true,
-      provider: "openlibrary",
-      processingTime: Date.now() - startTime,
-      works: normalized.works,
-      editions: normalized.editions,
-      authors: normalized.authors,
-    };
+    // Return null if no works found
+    if (!normalized.works || normalized.works.length === 0) {
+      return null;
+    }
+
+    return normalized;
   } catch (error) {
     console.error(`Error in OpenLibrary ID search for "${workId}":`, error);
-    return {
-      success: false,
-      error: (error as Error).message,
-      processingTime: Date.now() - startTime,
-    };
+    throw error; // Let exceptions bubble up
   }
 }
 
@@ -540,7 +484,7 @@ export async function searchOpenLibrary(
   query: string,
   params: SearchParams = {},
   env: ExternalAPIEnv,
-): Promise<SearchResult> {
+): Promise<NormalizedResponse | null> {
   const startTime = Date.now();
   try {
     console.log(`OpenLibrary general search for "${query}"`);
@@ -559,53 +503,43 @@ export async function searchOpenLibrary(
     const data = await response.json();
     const normalized = normalizeOpenLibrarySearchResults(data.docs || []);
 
-    return {
-      success: true,
-      provider: "openlibrary",
-      processingTime: Date.now() - startTime,
-      works: normalized.works,
-      editions: normalized.editions,
-      authors: normalized.authors,
-      totalResults: data.numFound || 0,
-    };
+    // Return null if no works found
+    if (!normalized.works || normalized.works.length === 0) {
+      return null;
+    }
+
+    return normalized;
   } catch (error) {
     console.error(`Error in OpenLibrary search for "${query}":`, error);
-    return {
-      success: false,
-      error: (error as Error).message,
-      processingTime: Date.now() - startTime,
-    };
+    throw error; // Let exceptions bubble up
   }
 }
 
 export async function getOpenLibraryAuthorWorks(
   authorName: string,
   env: ExternalAPIEnv,
-): Promise<AuthorWorksResult> {
+): Promise<AuthorWorksData | null> {
   try {
     console.log(`OpenLibrary getAuthorWorks("${authorName}")`);
 
     const authorKey = await findAuthorKeyByName(authorName);
     if (!authorKey) {
-      return { success: false, error: "Author not found in OpenLibrary" };
+      console.log("Author not found in OpenLibrary");
+      return null;
     }
 
     const works = await getWorksByAuthorKey(authorKey);
 
-    const response: AuthorWorksSuccess = {
-      success: true,
-      provider: "openlibrary",
+    return {
       author: {
         name: authorName,
         openLibraryKey: authorKey,
       },
       works: works,
     };
-
-    return response;
   } catch (error) {
     console.error(`Error in getAuthorWorks for "${authorName}":`, error);
-    return { success: false, error: (error as Error).message };
+    throw error; // Let exceptions bubble up
   }
 }
 
@@ -712,7 +646,7 @@ export async function searchISBNdb(
   title: string,
   authorName: string | null,
   env: ExternalAPIEnv,
-): Promise<SearchResult> {
+): Promise<NormalizedResponse | null> {
   try {
     console.log(
       `ISBNdb search for "${title}" by "${authorName || "any author"}"`,
@@ -728,38 +662,38 @@ export async function searchISBNdb(
     const searchResponse = await fetchWithAuth(searchUrl, env);
 
     if (!searchResponse.books || searchResponse.books.length === 0) {
-      return {
-        success: true,
-        provider: "isbndb",
-        processingTime: 0,
-        works: [],
-        editions: [],
-        authors: [],
-        totalResults: 0,
-      };
+      return null; // No results found
     }
 
     // Use canonical normalizers for ISBNdb data
-    const works: WorkDTO[] = [];
+    const works: WorkDTOWithAuthors[] = [];
     const editions: EditionDTO[] = [];
     const authorsSet = new Set<string>();
 
     for (const book of searchResponse.books) {
       // Normalize to canonical WorkDTO
       const work = normalizeISBNdbToWork(book);
-      works.push(work);
+
+      // Extract and normalize authors
+      const authorNames = book.authors || [];
+      const workAuthors: AuthorDTO[] = [];
+      authorNames.forEach((name) => {
+        if (name) {
+          const author = normalizeISBNdbToAuthor(name);
+          workAuthors.push(author);
+          if (!authorsSet.has(name)) {
+            authorsSet.add(name);
+          }
+        }
+      });
+
+      // Attach authors to work for enrichment service compatibility
+      (work as WorkDTOWithAuthors).authors = workAuthors;
+      works.push(work as WorkDTOWithAuthors);
 
       // Normalize to canonical EditionDTO
       const edition = normalizeISBNdbToEdition(book);
       editions.push(edition);
-
-      // Extract and normalize authors
-      const authorNames = book.authors || [];
-      authorNames.forEach((name) => {
-        if (name && !authorsSet.has(name)) {
-          authorsSet.add(name);
-        }
-      });
     }
 
     // Convert author names to AuthorDTOs
@@ -768,17 +702,13 @@ export async function searchISBNdb(
     );
 
     return {
-      success: true,
-      provider: "isbndb",
-      processingTime: 0,
       works,
       editions,
       authors,
-      totalResults: searchResponse.total || works.length,
     };
   } catch (error) {
     console.error(`Error in ISBNdb search for "${title}":`, error);
-    return { success: false, error: (error as Error).message };
+    throw error; // Let exceptions bubble up
   }
 }
 
@@ -786,7 +716,7 @@ export async function getISBNdbEditionsForWork(
   title: string,
   authorName: string,
   env: ExternalAPIEnv,
-): Promise<{ success: true; editions: EditionDTO[] } | SearchFailure> {
+): Promise<EditionDTO[] | null> {
   try {
     console.log(`ISBNdb getEditionsForWork ("${title}", "${authorName}")`);
     const searchUrl = `https://api2.isbndb.com/books/${encodeURIComponent(title)}?column=title&language=en&shouldMatchAll=1&pageSize=100`;
@@ -795,7 +725,7 @@ export async function getISBNdbEditionsForWork(
     const searchResponse = await fetchWithAuth(searchUrl, env);
 
     if (!searchResponse.books || searchResponse.books.length === 0) {
-      return { success: true, editions: [] };
+      return null; // No results found
     }
 
     const relevantBooks = searchResponse.books.filter((book: ISBNdbBook) =>
@@ -804,22 +734,26 @@ export async function getISBNdbEditionsForWork(
       ),
     );
 
+    if (relevantBooks.length === 0) {
+      return null; // No relevant books found
+    }
+
     // Use canonical normalizer for editions
     const editions = relevantBooks
       .map((book) => normalizeISBNdbToEdition(book))
       .sort((a, b) => b.isbndbQuality - a.isbndbQuality); // Sort by quality score
 
-    return { success: true, editions };
+    return editions;
   } catch (error) {
     console.error(`Error in getEditionsForWork for "${title}":`, error);
-    return { success: false, error: (error as Error).message };
+    throw error; // Let exceptions bubble up
   }
 }
 
 export async function getISBNdbBookByISBN(
   isbn: string,
   env: ExternalAPIEnv,
-): Promise<ISBNdbBookResult> {
+): Promise<ISBNdbBookData | null> {
   try {
     console.log(`ISBNdb getBookByISBN("${isbn}")`);
     const url = `https://api2.isbndb.com/book/${isbn}?with_prices=0`;
@@ -827,7 +761,7 @@ export async function getISBNdbBookByISBN(
     const response = await fetchWithAuth(url, env);
 
     if (!response.book) {
-      return { success: false, error: "Book not found" };
+      return null; // Book not found
     }
 
     const book = response.book;
@@ -843,7 +777,6 @@ export async function getISBNdbBookByISBN(
     );
 
     return {
-      success: true,
       work,
       edition,
       authors,
@@ -851,7 +784,7 @@ export async function getISBNdbBookByISBN(
     };
   } catch (error) {
     console.error(`Error in getBookByISBN for "${isbn}":`, error);
-    return { success: false, error: (error as Error).message };
+    throw error; // Let exceptions bubble up
   }
 }
 

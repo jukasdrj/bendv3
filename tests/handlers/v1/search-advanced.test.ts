@@ -22,10 +22,10 @@ describe('GET /v1/search/advanced', () => {
 
     // Should return proper envelope structure
     expect(response).toBeDefined();
-    expect(response.success).toBeDefined();
-    expect(response.meta).toBeDefined();
-    expect(response.meta.timestamp).toBeDefined();
-    expect(response.meta.processingTime).toBeTypeOf('number');
+    expect(response.data).toBeDefined();
+    expect(response.metadata).toBeDefined();
+    expect(response.metadata.timestamp).toBeDefined();
+    expect(response.metadata.processingTime).toBeTypeOf('number');
   });
 
   it('should return error when both title and author are missing', async () => {
@@ -34,11 +34,11 @@ describe('GET /v1/search/advanced', () => {
 
     const response = await handleSearchAdvanced('', '', mockEnv, mockCtx);
 
-    expect(response.success).toBe(false);
-    if (!response.success) {
+    expect(response.error).toBeDefined();
+    if (response.error) {
       expect(response.error.code).toBe('INVALID_QUERY');
       expect(response.error.message).toContain('title or author');
-      expect(response.meta.timestamp).toBeDefined();
+      expect(response.metadata.timestamp).toBeDefined();
     }
   });
 
@@ -55,8 +55,8 @@ describe('GET /v1/search/advanced', () => {
     const response = await handleSearchAdvanced('1984', '', mockEnv, mockCtx);
 
     expect(response).toBeDefined();
-    expect(response.success).toBeDefined();
-    expect(response.meta).toBeDefined();
+    expect(response.data).toBeDefined();
+    expect(response.metadata).toBeDefined();
   });
 
   it('should accept author only', async () => {
@@ -72,7 +72,7 @@ describe('GET /v1/search/advanced', () => {
     const response = await handleSearchAdvanced('', 'George Orwell', mockEnv, mockCtx);
 
     expect(response).toBeDefined();
-    expect(response.success).toBeDefined();
-    expect(response.meta).toBeDefined();
+    expect(response.data).toBeDefined();
+    expect(response.metadata).toBeDefined();
   });
 });

@@ -13,13 +13,13 @@ describe('GET /v1/search/title', () => {
 
     // Should return proper envelope structure even on error
     expect(response).toBeDefined();
-    expect(response.success).toBeDefined();
-    expect(response.meta).toBeDefined();
-    expect(response.meta.timestamp).toBeDefined();
-    expect(response.meta.processingTime).toBeTypeOf('number');
+    expect(response.data).toBeDefined();
+    expect(response.metadata).toBeDefined();
+    expect(response.metadata.timestamp).toBeDefined();
+    expect(response.metadata.processingTime).toBeTypeOf('number');
 
     // With fake key, we expect error
-    if (!response.success) {
+    if (response.error) {
       expect(response.error).toBeDefined();
       expect(response.error.message).toBeDefined();
       expect(response.error.code).toBe('PROVIDER_ERROR');
@@ -31,11 +31,11 @@ describe('GET /v1/search/title', () => {
 
     const response = await handleSearchTitle('', mockEnv);
 
-    expect(response.success).toBe(false);
-    if (!response.success) {
+    expect(response.error).toBeDefined();
+    if (response.error) {
       expect(response.error.code).toBe('INVALID_QUERY');
       expect(response.error.message).toContain('query is required');
-      expect(response.meta.timestamp).toBeDefined();
+      expect(response.metadata.timestamp).toBeDefined();
     }
   });
 
@@ -48,8 +48,8 @@ describe('GET /v1/search/title', () => {
     const response = await handleSearchTitle('test query', mockEnv);
 
     // Should still return proper error envelope
-    expect(response.success).toBeDefined();
-    expect(response.meta).toBeDefined();
-    expect(response.meta.timestamp).toBeDefined();
+    expect(response.data).toBeDefined();
+    expect(response.metadata).toBeDefined();
+    expect(response.metadata.timestamp).toBeDefined();
   });
 });

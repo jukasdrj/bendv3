@@ -43,7 +43,7 @@ describe('searchByTitle with UnifiedCache', () => {
     const result = await searchByTitle('hamlet', { maxResults: 20 }, mockEnv, mockCtx);
 
     expect(result.cached).toBe(true);
-    expect(result.cacheSource).toBe('EDGE');
+    expect(result.cacheSource).toBe('EDGE_FRESH');
     expect(result.items).toBeDefined();
   });
 });
@@ -89,6 +89,6 @@ describe('searchByISBN with UnifiedCache', () => {
     const result = await searchByISBN('9780743273565', { maxResults: 1 }, mockEnv, mockCtx);
 
     expect(result.cached).toBe(true);
-    expect(result.cacheSource).toBe('EDGE');
+    expect(result.cacheSource).toBe('EDGE_FRESH');
   });
 });

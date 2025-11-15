@@ -77,14 +77,12 @@ interface SearchOptions {
 type WorkDTOWithAuthors = WorkDTO & { authors?: AuthorDTO[] };
 
 /**
- * Generic API response for external API calls
+ * Normalized API response from external API calls
  */
 interface ApiResponse {
-  success: boolean;
-  works?: WorkDTOWithAuthors[];
-  editions?: EditionDTO[];
-  authors?: AuthorDTO[];
-  error?: string;
+  works: WorkDTOWithAuthors[];
+  editions: EditionDTO[];
+  authors: AuthorDTO[];
 }
 
 /**
@@ -134,14 +132,10 @@ export async function enrichMultipleBooks(
       console.log(
         `enrichMultipleBooks: Searching Google Books by ISBN "${isbn}"`,
       );
-      const googleResult: ApiResponse =
+      const googleResult =
         await externalApis.searchGoogleBooksByISBN(isbn, env);
 
-      if (
-        googleResult.success &&
-        googleResult.works &&
-        googleResult.works.length > 0
-      ) {
+      if (googleResult && googleResult.works && googleResult.works.length > 0) {
         // Add provenance fields to all works
         return {
           works: googleResult.works.map((work: WorkDTO) =>
@@ -156,13 +150,13 @@ export async function enrichMultipleBooks(
       console.log(
         `enrichMultipleBooks: Google Books returned no results, trying OpenLibrary`,
       );
-      const olResult: ApiResponse = await externalApis.searchOpenLibrary(
+      const olResult = await externalApis.searchOpenLibrary(
         isbn,
         { maxResults: 1, isbn },
         env,
       );
 
-      if (olResult.success && olResult.works && olResult.works.length > 0) {
+      if (olResult && olResult.works && olResult.works.length > 0) {
         // Add provenance fields to all works
         return {
           works: olResult.works.map((work: WorkDTO) =>
@@ -196,14 +190,14 @@ export async function enrichMultipleBooks(
     console.log(
       `enrichMultipleBooks: Searching Google Books for "${searchQuery}" (maxResults: ${maxResults})`,
     );
-    const googleResult: ApiResponse = await externalApis.searchGoogleBooks(
+    const googleResult = await externalApis.searchGoogleBooks(
       searchQuery,
       { maxResults },
       env,
     );
 
     if (
-      googleResult.success &&
+      googleResult &&
       googleResult.works &&
       googleResult.works.length > 0
     ) {
@@ -221,13 +215,13 @@ export async function enrichMultipleBooks(
     console.log(
       `enrichMultipleBooks: Google Books returned no results, trying OpenLibrary`,
     );
-    const olResult: ApiResponse = await externalApis.searchOpenLibrary(
+    const olResult = await externalApis.searchOpenLibrary(
       searchQuery,
       { maxResults },
       env,
     );
 
-    if (olResult.success && olResult.works && olResult.works.length > 0) {
+    if (olResult && olResult.works && olResult.works.length > 0) {
       // Add provenance fields to all works
       return {
         works: olResult.works.map((work: WorkDTO) =>
@@ -243,14 +237,14 @@ export async function enrichMultipleBooks(
       console.log(
         `enrichMultipleBooks: OpenLibrary returned no results, trying ISBNdb`,
       );
-      const isbndbResult: ApiResponse = await externalApis.searchISBNdb(
+      const isbndbResult = await externalApis.searchISBNdb(
         title,
         author,
         env,
       );
 
       if (
-        isbndbResult.success &&
+        isbndbResult &&
         isbndbResult.works &&
         isbndbResult.works.length > 0
       ) {
@@ -401,11 +395,11 @@ async function searchGoogleBooks(
     ? isbn
     : [title, author].filter(Boolean).join(" ");
 
-  const result: ApiResponse = isbn
+  const result = isbn
     ? await externalApis.searchGoogleBooksByISBN(searchQuery, env)
     : await externalApis.searchGoogleBooks(searchQuery, { maxResults: 1 }, env);
 
-  if (!result.success || !result.works || result.works.length === 0) {
+  if (!result || !result.works || result.works.length === 0) {
     return null;
   }
 
@@ -433,13 +427,13 @@ async function searchOpenLibrary(
   const { title, author } = query;
 
   const searchQuery: string = [title, author].filter(Boolean).join(" ");
-  const result: ApiResponse = await externalApis.searchOpenLibrary(
+  const result = await externalApis.searchOpenLibrary(
     searchQuery,
     { maxResults: 1 },
     env,
   );
 
-  if (!result.success || !result.works || result.works.length === 0) {
+  if (!result || !result.works || result.works.length === 0) {
     return null;
   }
 

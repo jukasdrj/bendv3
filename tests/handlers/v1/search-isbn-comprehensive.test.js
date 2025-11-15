@@ -65,7 +65,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const validation = validateSuccessEnvelope(response);
       expect(validation.valid).toBe(true);
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
     });
 
     it("should accept valid ISBN-10 format", async () => {
@@ -79,7 +79,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(isbn10, mockEnv);
 
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       validateSuccessEnvelope(response);
     });
 
@@ -94,7 +94,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(isbnWithHyphens, mockEnv);
 
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       // Verify fetch was called with normalized ISBN (no hyphens)
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining("9780439708180"),
@@ -113,7 +113,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
       async (invalidISBN) => {
         const response = await handleSearchISBN(invalidISBN, mockEnv);
 
-        expect(response.success).toBe(false);
+        expect(response.error).toBeDefined();
         const validation = validateErrorEnvelope(response);
         expect(validation.valid).toBe(true);
         expect(response.error.code).toBe("INVALID_ISBN");
@@ -123,7 +123,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
     it("should return error for empty ISBN", async () => {
       const response = await handleSearchISBN("", mockEnv);
 
-      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
       expect(response.error.code).toBe("INVALID_ISBN");
       expect(response.error.message).toContain("required");
     });
@@ -131,7 +131,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
     it("should return error for null ISBN", async () => {
       const response = await handleSearchISBN(null, mockEnv);
 
-      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
       expect(response.error.code).toBe("INVALID_ISBN");
     });
   });
@@ -158,8 +158,8 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
         mockEnv,
       );
 
-      expect(response.success).toBe(true);
-      expect(response.meta.provider).toBe("openlibrary");
+      expect(response.data).toBeDefined();
+      expect(response.metadata.provider).toBe("openlibrary");
       expect(global.fetch).toHaveBeenCalledTimes(2);
     });
 
@@ -172,7 +172,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
       // Best-effort: provider errors return empty results, not errors
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       expect(response.data.works).toEqual([]);
       expect(response.data.editions).toEqual([]);
       expect(response.data.authors).toEqual([]);
@@ -186,7 +186,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
       // Best-effort: timeouts return empty results, not errors
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       expect(response.data.works).toEqual([]);
     });
   });
@@ -224,23 +224,23 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
     it("should include meta.timestamp", async () => {
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
-      expect(response.meta.timestamp).toBeDefined();
-      expect(new Date(response.meta.timestamp).getTime()).toBeGreaterThan(0);
+      expect(response.metadata.timestamp).toBeDefined();
+      expect(new Date(response.metadata.timestamp).getTime()).toBeGreaterThan(0);
     });
 
     it("should include meta.processingTime", async () => {
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
-      expect(response.meta.processingTime).toBeTypeOf("number");
-      expect(response.meta.processingTime).toBeGreaterThanOrEqual(0);
+      expect(response.metadata.processingTime).toBeTypeOf("number");
+      expect(response.metadata.processingTime).toBeGreaterThanOrEqual(0);
     });
 
     it("should include meta.provider (data source)", async () => {
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
-      expect(response.meta.provider).toBeDefined();
+      expect(response.metadata.provider).toBeDefined();
       expect(["google-books", "openlibrary", "isbndb", "none"]).toContain(
-        response.meta.provider,
+        response.metadata.provider,
       );
     });
   });
@@ -301,7 +301,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(isbn, mockEnv);
 
-      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
 
       // Verify error was not cached
       const cacheKey = `isbn:${isbn}`;
@@ -331,7 +331,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
-      if (response.success) {
+      if (response.data !== null) {
         expect(response.data.editions.length).toBeGreaterThan(1);
       }
     });
@@ -350,8 +350,8 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
       // Should handle gracefully
-      expect(response.success).toBeDefined();
-      expect(response.meta).toBeDefined();
+      expect(response.data).toBeDefined();
+      expect(response.metadata).toBeDefined();
     });
 
     it("should handle missing API key", async () => {
@@ -360,8 +360,8 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
       const response = await handleSearchISBN(validISBNs[0], envNoKey);
 
       // Should either use free tier or return error
-      expect(response.success).toBeDefined();
-      expect(response.meta).toBeDefined();
+      expect(response.data).toBeDefined();
+      expect(response.metadata).toBeDefined();
     });
 
     it("should return empty results for provider errors (best-effort)", async () => {
@@ -370,9 +370,9 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
       // Best-effort: provider errors return success with empty results
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       expect(response.data.works).toEqual([]);
-      expect(response.meta).toBeDefined();
+      expect(response.metadata).toBeDefined();
     });
   });
 });

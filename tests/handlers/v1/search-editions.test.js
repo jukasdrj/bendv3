@@ -27,13 +27,13 @@ describe('GET /v1/editions/search', () => {
 
     // Should return proper envelope structure
     expect(response).toBeDefined();
-    expect(response.success).toBeDefined();
-    expect(response.meta).toBeDefined();
-    expect(response.meta.timestamp).toBeDefined();
-    expect(response.meta.processingTime).toBeTypeOf('number');
+    expect(response.data).toBeDefined();
+    expect(response.metadata).toBeDefined();
+    expect(response.metadata.timestamp).toBeDefined();
+    expect(response.metadata.processingTime).toBeTypeOf('number');
     
     // For editions endpoint, works and authors should be empty arrays
-    if (response.success) {
+    if (response.data !== null) {
       expect(response.data.works).toEqual([]);
       expect(response.data.authors).toEqual([]);
       expect(response.data.editions).toBeDefined();
@@ -46,11 +46,11 @@ describe('GET /v1/editions/search', () => {
 
     const response = await handleSearchEditions('', 'Andy Weir', 20, mockEnv, mockCtx);
 
-    expect(response.success).toBe(false);
-    if (!response.success) {
+    expect(response.error).toBeDefined();
+    if (response.error) {
       expect(response.error.code).toBe('INVALID_QUERY');
       expect(response.error.message).toContain('workTitle');
-      expect(response.meta.timestamp).toBeDefined();
+      expect(response.metadata.timestamp).toBeDefined();
     }
   });
 
@@ -60,11 +60,11 @@ describe('GET /v1/editions/search', () => {
 
     const response = await handleSearchEditions('The Martian', '', 20, mockEnv, mockCtx);
 
-    expect(response.success).toBe(false);
-    if (!response.success) {
+    expect(response.error).toBeDefined();
+    if (response.error) {
       expect(response.error.code).toBe('INVALID_QUERY');
       expect(response.error.message).toContain('author');
-      expect(response.meta.timestamp).toBeDefined();
+      expect(response.metadata.timestamp).toBeDefined();
     }
   });
 
@@ -74,10 +74,10 @@ describe('GET /v1/editions/search', () => {
 
     const response = await handleSearchEditions('', '', 20, mockEnv, mockCtx);
 
-    expect(response.success).toBe(false);
-    if (!response.success) {
+    expect(response.error).toBeDefined();
+    if (response.error) {
       expect(response.error.code).toBe('INVALID_QUERY');
-      expect(response.meta.timestamp).toBeDefined();
+      expect(response.metadata.timestamp).toBeDefined();
     }
   });
 
@@ -99,8 +99,8 @@ describe('GET /v1/editions/search', () => {
     const response = await handleSearchEditions('Harry Potter', 'J.K. Rowling', 5, mockEnv, mockCtx);
 
     expect(response).toBeDefined();
-    expect(response.success).toBeDefined();
-    expect(response.meta).toBeDefined();
+    expect(response.data).toBeDefined();
+    expect(response.metadata).toBeDefined();
     
     // If successful, should not exceed limit
     if (response.success && response.data.editions.length > 0) {
@@ -126,7 +126,7 @@ describe('GET /v1/editions/search', () => {
     const response = await handleSearchEditions('1984', 'George Orwell', undefined, mockEnv, mockCtx);
 
     expect(response).toBeDefined();
-    expect(response.success).toBeDefined();
+    expect(response.data).toBeDefined();
     
     // If successful, should not exceed default limit of 20
     if (response.success && response.data.editions.length > 0) {
@@ -153,8 +153,8 @@ describe('GET /v1/editions/search', () => {
 
     // Should return a response (either success with no results or error)
     expect(response).toBeDefined();
-    expect(response.meta).toBeDefined();
-    expect(response.meta.timestamp).toBeDefined();
+    expect(response.metadata).toBeDefined();
+    expect(response.metadata.timestamp).toBeDefined();
   });
 
   it('should return NOT_FOUND error when no editions found', async () => {
@@ -186,7 +186,7 @@ describe('GET /v1/editions/search', () => {
     // - NOT_FOUND error (desired behavior)
     // - PROVIDER_ERROR (acceptable in test environment)
     expect(response).toBeDefined();
-    if (!response.success) {
+    if (response.error) {
       expect(['NOT_FOUND', 'PROVIDER_ERROR', 'INTERNAL_ERROR']).toContain(response.error.code);
     }
   });

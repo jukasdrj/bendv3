@@ -44,10 +44,6 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // Feature flag for unified response envelope (Issue #399)
-    // Computed once per request at fetch scope for reuse across all v1 handlers
-    const useUnifiedEnvelope = env.ENABLE_UNIFIED_ENVELOPE === "true";
-
     // Custom domain routing: harvest.oooefam.net root → Dashboard
     if (url.hostname === "harvest.oooefam.net" && url.pathname === "/") {
       return await handleHarvestDashboard(request, env);
@@ -550,14 +546,14 @@ export default {
     if (url.pathname === "/v1/search/title" && request.method === "GET") {
       const query = url.searchParams.get("q");
       const response = await handleSearchTitle(query, env);
-      return adaptToUnifiedEnvelope(response, useUnifiedEnvelope);
+      return adaptToUnifiedEnvelope(response, true);
     }
 
     // GET /v1/search/isbn - Search books by ISBN (canonical response)
     if (url.pathname === "/v1/search/isbn" && request.method === "GET") {
       const isbn = url.searchParams.get("isbn");
       const response = await handleSearchISBN(isbn, env);
-      return adaptToUnifiedEnvelope(response, useUnifiedEnvelope);
+      return adaptToUnifiedEnvelope(response, true);
     }
 
     // GET /v1/search/advanced - Advanced search by title and/or author (canonical response)
@@ -565,7 +561,7 @@ export default {
       const title = url.searchParams.get("title") || "";
       const author = url.searchParams.get("author") || "";
       const response = await handleSearchAdvanced(title, author, env, ctx);
-      return adaptToUnifiedEnvelope(response, useUnifiedEnvelope);
+      return adaptToUnifiedEnvelope(response, true);
     }
 
     // GET /v1/editions/search - Search for all editions of a specific work

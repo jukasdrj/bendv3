@@ -53,12 +53,12 @@ describe('GET /v1/search/advanced - Cache Behavior', () => {
     const mockCtx = createMockContext();
     const response = await handleSearchAdvanced('1984', 'George Orwell', mockEnv, mockCtx);
 
-    expect(response.success).toBe(true);
-    if (response.success) {
+    expect(response.data).toBeDefined();
+    if (response.data !== null) {
       expect(response.data.works).toHaveLength(1);
       expect(response.data.works[0].title).toBe('1984');
-      expect(response.meta.cached).toBe(true);
-      expect(response.meta.cacheSource).toBeDefined();
+      expect(response.metadata.cached).toBe(true);
+      expect(response.metadata.cacheSource).toBeDefined();
     }
   });
 
@@ -215,9 +215,9 @@ describe('GET /v1/search/advanced - ISBNdb Fallback', () => {
     const response = await handleSearchAdvanced('Obscure Test Book', 'Unknown Author', mockEnv, mockCtx);
 
     expect(response).toBeDefined();
-    expect(response.success).toBeDefined();
+    expect(response.data).toBeDefined();
     // If ISBNdb is working, it may return results. Otherwise, empty results are OK.
-    if (response.success) {
+    if (response.data !== null) {
       expect(response.data).toBeDefined();
       expect(response.data.works).toBeDefined();
       expect(Array.isArray(response.data.works)).toBe(true);

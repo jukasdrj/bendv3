@@ -25,19 +25,15 @@ describe('GET /v1/search/title (integration)', () => {
 
     expect(response.status).toBe(200);
 
-    // Validate envelope structure (required regardless of success/error)
-    expect(json.success).toBeDefined();
-    expect(json.meta).toBeDefined();
-    expect(json.meta.timestamp).toBeDefined();
+    // Validate unified envelope structure
+    expect(json.data).toBeDefined();
+    expect(json.metadata).toBeDefined();
+    expect(json.metadata.timestamp).toBeDefined();
 
-    if (json.success) {
+    if (json.data) {
       // Success path: validate full canonical response
-      // Validate envelope structure
-      expect(json.data).toBeDefined();
-      expect(json.meta).toBeDefined();
-      expect(json.meta.timestamp).toBeDefined();
-      expect(json.meta.provider).toBe('google-books');
-      expect(json.meta.processingTime).toBeTypeOf('number');
+      expect(json.metadata.provider).toBe('google-books');
+      expect(json.metadata.processingTime).toBeTypeOf('number');
 
       // Validate BookSearchResponse structure
       expect(json.data.works).toBeInstanceOf(Array);
@@ -76,9 +72,8 @@ describe('GET /v1/search/title (integration)', () => {
         expect(author.name).toBeTypeOf('string');
         expect(author.gender).toBeDefined();
       }
-    } else {
+    } else if (json.error) {
       // Error path: validate error envelope
-      expect(json.error).toBeDefined();
       expect(json.error.message).toBeDefined();
       expect(json.error.code).toBeDefined();
       console.log('⚠️  Integration test running without real API credentials');
@@ -92,14 +87,11 @@ describe('GET /v1/search/title (integration)', () => {
     const json = await response.json();
 
     expect(response.status).toBe(200); // Still 200, error in JSON
-    expect(json.success).toBe(false);
-
-    if (!json.success) {
-      expect(json.error).toBeDefined();
-      expect(json.error.code).toBe('INVALID_QUERY');
-      expect(json.error.message).toContain('query is required');
-      expect(json.meta.timestamp).toBeDefined();
-    }
+    expect(json.data).toBeNull();
+    expect(json.error).toBeDefined();
+    expect(json.error.code).toBe('INVALID_QUERY');
+    expect(json.error.message).toContain('query is required');
+    expect(json.metadata.timestamp).toBeDefined();
   });
 
   it('should handle special characters in query', async () => {
@@ -107,13 +99,12 @@ describe('GET /v1/search/title (integration)', () => {
     const json = await response.json();
 
     expect(response.status).toBe(200);
-    expect(json.success).toBeDefined();
-    expect(json.meta).toBeDefined();
+    expect(json.metadata).toBeDefined();
 
     // Should either succeed or fail gracefully
-    if (json.success) {
+    if (json.data) {
       expect(json.data.works).toBeInstanceOf(Array);
-    } else {
+    } else if (json.error) {
       expect(json.error).toBeDefined();
     }
   });

@@ -9,7 +9,7 @@
 
 import { enrichBooksParallel } from '../services/parallel-enrichment.js';
 import { enrichSingleBook } from '../services/enrichment.ts';
-import { createSuccessResponse, createErrorResponse } from '../utils/api-responses.js';
+import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../utils/response-builder.js';
 import type { EnrichmentJobInitResponse, EnrichedBookDTO } from '../types/responses.js';
 
 
@@ -35,23 +35,23 @@ export async function handleBatchEnrichment(request, env, ctx) {
 
     // Validate request structure
     if (!books || !Array.isArray(books)) {
-      return createErrorResponse('Invalid books array', 400, 'E_INVALID_REQUEST');
+      return createErrorResponse('Invalid books array', 400, ErrorCodes.INVALID_REQUEST);
     }
 
     if (!jobId) {
-      return createErrorResponse('Missing jobId', 400, 'E_INVALID_REQUEST');
+      return createErrorResponse('Missing jobId', 400, ErrorCodes.INVALID_REQUEST);
     }
 
     // DoS Protection: Limit batch size to prevent cost explosion
     if (books.length === 0) {
-      return createErrorResponse('Empty books array', 400, 'E_EMPTY_BATCH');
+      return createErrorResponse('Empty books array', 400, ErrorCodes.EMPTY_BATCH);
     }
 
     if (books.length > 100) {
       return createErrorResponse(
         'Batch size exceeds maximum of 100 books',
         400,
-        'E_BATCH_TOO_LARGE'
+        ErrorCodes.BATCH_TOO_LARGE
       );
     }
 
@@ -64,7 +64,7 @@ export async function handleBatchEnrichment(request, env, ctx) {
         return createErrorResponse(
           `Invalid title for book at index ${i}`,
           400,
-          'E_INVALID_BOOK'
+          ErrorCodes.INVALID_REQUEST
         );
       }
 
@@ -73,7 +73,7 @@ export async function handleBatchEnrichment(request, env, ctx) {
         return createErrorResponse(
           `Title exceeds maximum length of 500 characters at index ${i}`,
           400,
-          'E_TITLE_TOO_LONG'
+          ErrorCodes.INVALID_REQUEST
         );
       }
 
@@ -82,7 +82,7 @@ export async function handleBatchEnrichment(request, env, ctx) {
         return createErrorResponse(
           `Invalid author for book at index ${i}`,
           400,
-          'E_INVALID_BOOK'
+          ErrorCodes.INVALID_REQUEST
         );
       }
 
@@ -90,7 +90,7 @@ export async function handleBatchEnrichment(request, env, ctx) {
         return createErrorResponse(
           `Author exceeds maximum length of 300 characters at index ${i}`,
           400,
-          'E_AUTHOR_TOO_LONG'
+          ErrorCodes.INVALID_REQUEST
         );
       }
 
@@ -98,7 +98,7 @@ export async function handleBatchEnrichment(request, env, ctx) {
         return createErrorResponse(
           `Invalid ISBN for book at index ${i}`,
           400,
-          'E_INVALID_BOOK'
+          ErrorCodes.INVALID_ISBN
         );
       }
 
@@ -106,7 +106,7 @@ export async function handleBatchEnrichment(request, env, ctx) {
         return createErrorResponse(
           `ISBN exceeds maximum length of 17 characters at index ${i}`,
           400,
-          'E_ISBN_TOO_LONG'
+          ErrorCodes.INVALID_ISBN
         );
       }
 
@@ -152,7 +152,7 @@ export async function handleBatchEnrichment(request, env, ctx) {
     return createSuccessResponse(initResponse, {}, 202);
 
   } catch (error) {
-    return createErrorResponse(error.message, 500, 'E_INTERNAL');
+    return createErrorResponse(error.message, 500, ErrorCodes.INTERNAL_ERROR);
   }
 }
 
@@ -212,7 +212,7 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
           : `Enriching (${completed}/${total}): ${title}`;
 
         // Call DO with pipeline and payload (DO constructs the message envelope)
-        await doStub.updateProgressV2('batch_enrichment', {
+        await doStub.updateProgress('batch_enrichment', {
           progress,
           status,
           processedCount: completed,
@@ -228,7 +228,7 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
     const duration = Date.now() - startTime;
 
     // Call DO with pipeline and payload (DO constructs the message envelope)
-    await doStub.completeV2('batch_enrichment', {
+    await doStub.complete('batch_enrichment', {
       totalProcessed,
       successCount,
       failureCount,

@@ -8,7 +8,7 @@
  */
 
 import { scanImageWithGemini } from '../providers/gemini-provider.js';
-import { createSuccessResponse, createErrorResponse } from '../utils/api-responses.js';
+import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../utils/response-builder.js';
 import { enrichBooksParallel } from '../services/parallel-enrichment.js';
 import { handleSearchAdvanced } from './v1/search-advanced.js';
 import type { DetectedBookDTO, BookshelfScanInitResponse, BoundingBox } from '../types/responses.js';
@@ -61,33 +61,33 @@ export async function handleBatchScan(request, env, ctx) {
 
     // Validation
     if (!jobId || !images || !Array.isArray(images)) {
-      return createErrorResponse('Invalid request: jobId and images array required', 400, 'E_INVALID_REQUEST');
+      return createErrorResponse('Invalid request: jobId and images array required', 400, ErrorCodes.INVALID_REQUEST);
     }
 
     if (images.length === 0) {
-      return createErrorResponse('At least one image required', 400, 'E_INVALID_IMAGES');
+      return createErrorResponse('At least one image required', 400, ErrorCodes.INVALID_REQUEST);
     }
 
     if (images.length > MAX_PHOTOS_PER_BATCH) {
-      return createErrorResponse(`Batch size exceeds maximum ${MAX_PHOTOS_PER_BATCH} photos`, 400, 'E_INVALID_IMAGES');
+      return createErrorResponse(`Batch size exceeds maximum ${MAX_PHOTOS_PER_BATCH} photos`, 400, ErrorCodes.BATCH_TOO_LARGE);
     }
 
     // Validate R2 binding
     if (!env.BOOKSHELF_IMAGES) {
       console.error('R2 binding BOOKSHELF_IMAGES not configured');
-      return createErrorResponse('Storage not configured', 500, 'E_INTERNAL');
+      return createErrorResponse('Storage not configured', 500, ErrorCodes.INTERNAL_ERROR);
     }
 
     // Validate image structure and size
     for (const img of images) {
       if (typeof img.index !== 'number' || !img.data) {
-        return createErrorResponse('Each image must have index and data fields', 400, 'E_INVALID_IMAGES');
+        return createErrorResponse('Each image must have index and data fields', 400, ErrorCodes.INVALID_REQUEST);
       }
 
       // Validate base64 image size (4/3 of decoded size due to base64 encoding)
       const estimatedSize = (img.data.length * 3) / 4;
       if (estimatedSize > MAX_IMAGE_SIZE) {
-        return createErrorResponse(`Image ${img.index} exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB`, 413, 'E_INVALID_IMAGES');
+        return createErrorResponse(`Image ${img.index} exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB`, 413, ErrorCodes.FILE_TOO_LARGE);
       }
     }
 
@@ -119,7 +119,7 @@ export async function handleBatchScan(request, env, ctx) {
 
   } catch (error) {
     console.error('Batch scan error:', error);
-    return createErrorResponse('Internal server error', 500, 'E_INTERNAL');
+    return createErrorResponse('Internal server error', 500, ErrorCodes.INTERNAL_ERROR);
   }
 }
 
@@ -148,7 +148,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
     const uploadResults = await Promise.all(uploadPromises);
 
     // Update progress after uploads - send initial processing status
-    await doStub.updateProgressV2('ai_scan', {
+    await doStub.updateProgress('ai_scan', {
       progress: 0.1,
       status: 'Photos uploaded, starting AI processing...',
       processedCount: 0,
@@ -177,7 +177,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
         const partialBooks = deduplicateBooks(allBooks);
 
         // Enrich partial results before returning
-        await doStub.updateProgressV2('ai_scan', {
+        await doStub.updateProgress('ai_scan', {
           progress: 0.8,
           status: `Job canceled, enriching ${partialBooks.length} partial results...`,
           processedCount: i,
@@ -227,7 +227,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
           async (completed, total, title, hasError) => {
             // Progress callback: update progress after each book
             const enrichProgress = 0.8 + (0.2 * (completed / total));
-            await doStub.updateProgressV2('ai_scan', {
+            await doStub.updateProgress('ai_scan', {
               progress: enrichProgress,
               status: hasError
                 ? `Enriching canceled job results... (${completed}/${total}, ${title} failed)`
@@ -243,7 +243,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
         const reviewCount = enrichedPartialBooks.filter(b => b.confidence < 0.6).length;
 
         // Final progress update before completion
-        await doStub.updateProgressV2('ai_scan', {
+        await doStub.updateProgress('ai_scan', {
           progress: 1.0,
           status: 'Job canceled, returning partial results...',
           processedCount: enrichedPartialBooks.length,
@@ -252,7 +252,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
 
         // FIX: Removed non-standard 'canceled: true' field (not in AIScanCompletePayload schema)
         // Client will know about cancellation from progress messages showing partial results
-        await doStub.completeV2('ai_scan', {
+        await doStub.complete('ai_scan', {
           totalDetected: enrichedPartialBooks.length,
           approved: approvedCount,
           needsReview: reviewCount,
@@ -264,7 +264,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
 
       // Update progress: processing this photo
       const progress = (i + 0.5) / uploadResults.length;
-      await doStub.updateProgressV2('ai_scan', {
+      await doStub.updateProgress('ai_scan', {
         progress,
         status: `Processing photo ${i + 1} of ${uploadResults.length}...`,
         processedCount: i,
@@ -288,7 +288,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
 
         // Update progress: photo complete
         const completionProgress = (i + 1) / uploadResults.length;
-        await doStub.updateProgressV2('ai_scan', {
+        await doStub.updateProgress('ai_scan', {
           progress: completionProgress,
           status: `Completed photo ${i + 1} of ${uploadResults.length} - Found ${result.books.length} books`,
           processedCount: i + 1,
@@ -305,7 +305,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
 
         // Update progress: photo error
         const errorProgress = (i + 1) / uploadResults.length;
-        await doStub.updateProgressV2('ai_scan', {
+        await doStub.updateProgress('ai_scan', {
           progress: errorProgress,
           status: `Error processing photo ${i + 1}: ${error.message}`,
           processedCount: i + 1,
@@ -319,7 +319,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
 
     // Phase 4: Enrich books with metadata (parallel)
     // Update progress to show enrichment phase starting
-    await doStub.updateProgressV2('ai_scan', {
+    await doStub.updateProgress('ai_scan', {
       progress: 0.8,
       status: `Enriching ${uniqueBooks.length} books with metadata...`,
       processedCount: uploadResults.length,
@@ -369,7 +369,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
       async (completed, total, title, hasError) => {
         // Progress callback: update progress after each book
         const enrichProgress = 0.8 + (0.2 * (completed / total));
-        await doStub.updateProgressV2('ai_scan', {
+        await doStub.updateProgress('ai_scan', {
           progress: enrichProgress,
           status: hasError
             ? `Enriching books... (${completed}/${total}, ${title} failed)`
@@ -386,7 +386,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
     const reviewCount = enrichedBooks.filter(b => b.confidence < 0.6).length;
 
     // Final progress update before completion (100%)
-    await doStub.updateProgressV2('ai_scan', {
+    await doStub.updateProgress('ai_scan', {
       progress: 1.0,
       status: 'Batch scan complete, finalizing results...',
       processedCount: uniqueBooks.length,
@@ -394,7 +394,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
     });
 
     // Send final completion using V2 schema with enriched data
-    await doStub.completeV2('ai_scan', {
+    await doStub.complete('ai_scan', {
       totalDetected: enrichedBooks.length,
       approved: approvedCount,
       needsReview: reviewCount,

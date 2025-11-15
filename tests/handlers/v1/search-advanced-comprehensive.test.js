@@ -71,7 +71,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         mockCtx,
       );
 
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       const validation = validateV1SearchResponse(response);
       expect(validation.valid).toBe(true);
 
@@ -87,7 +87,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         mockCtx,
       );
 
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       validateSuccessEnvelope(response);
     });
 
@@ -99,14 +99,14 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         mockCtx,
       );
 
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       validateSuccessEnvelope(response);
     });
 
     it("should return error when both title and author are missing", async () => {
       const response = await handleSearchAdvanced("", "", mockEnv, mockCtx);
 
-      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
       const validation = validateErrorEnvelope(response);
       expect(validation.valid).toBe(true);
       expect(response.error.code).toBe("INVALID_QUERY");
@@ -137,8 +137,8 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         { year: 1949 },
       );
 
-      expect(response.success).toBeDefined();
-      expect(response.meta).toBeDefined();
+      expect(response.data).toBeDefined();
+      expect(response.metadata).toBeDefined();
     });
 
     it("should filter by year range if supported", async () => {
@@ -150,7 +150,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         { yearFrom: 1900, yearTo: 1950 },
       );
 
-      expect(response.success).toBeDefined();
+      expect(response.data).toBeDefined();
     });
   });
 
@@ -172,7 +172,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         { publisher: "Bloomsbury" },
       );
 
-      expect(response.success).toBeDefined();
+      expect(response.data).toBeDefined();
     });
   });
 
@@ -195,7 +195,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         mockCtx,
       );
 
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       expect(response.data.works).toHaveLength(0);
       expect(response.data.editions).toHaveLength(0);
       expect(response.data.authors).toHaveLength(0);
@@ -218,9 +218,9 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         mockCtx,
       );
 
-      if (response.success) {
+      if (response.data !== null) {
         // May include metadata about empty results
-        expect(response.meta).toBeDefined();
+        expect(response.metadata).toBeDefined();
       }
     });
   });
@@ -233,7 +233,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
     it("should handle null parameters", async () => {
       const response = await handleSearchAdvanced(null, null, mockEnv, mockCtx);
 
-      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
       expect(response.error.code).toBe("INVALID_QUERY");
     });
 
@@ -245,7 +245,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         mockCtx,
       );
 
-      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
       expect(response.error.code).toBe("INVALID_QUERY");
     });
 
@@ -263,7 +263,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         mockCtx,
       );
 
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       // Verify trimmed values were used
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining("test"),
@@ -285,7 +285,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         mockCtx,
       );
 
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       // Verify proper URL encoding
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining("%"),
@@ -314,7 +314,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
       );
 
       // Best-effort: provider errors return empty results
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       expect(response.data.works).toEqual([]);
       expect(response.data.editions).toEqual([]);
       expect(response.data.authors).toEqual([]);
@@ -331,7 +331,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
       );
 
       // Best-effort: network failures return empty results
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       expect(response.data.works).toEqual([]);
     });
 
@@ -348,7 +348,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
       );
 
       // Best-effort: timeouts return empty results
-      expect(response.success).toBe(true);
+      expect(response.data).toBeDefined();
       expect(response.data.works).toEqual([]);
     });
 
@@ -365,8 +365,8 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
       );
 
       // Should handle gracefully
-      expect(response.success).toBeDefined();
-      expect(response.meta).toBeDefined();
+      expect(response.data).toBeDefined();
+      expect(response.metadata).toBeDefined();
     });
   });
 
@@ -403,10 +403,10 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         mockCtx,
       );
 
-      expect(response.success).toBeTypeOf("boolean");
-      expect(response.meta).toBeDefined();
-      expect(response.meta.timestamp).toBeDefined();
-      expect(response.meta.processingTime).toBeTypeOf("number");
+      expect(response.data).toBeDefined();
+      expect(response.metadata).toBeDefined();
+      expect(response.metadata.timestamp).toBeDefined();
+      expect(response.metadata.processingTime).toBeTypeOf("number");
     });
 
     it("should include data arrays for successful responses", async () => {
@@ -417,7 +417,7 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         mockCtx,
       );
 
-      if (response.success) {
+      if (response.data !== null) {
         expect(response.data.works).toBeInstanceOf(Array);
         expect(response.data.editions).toBeInstanceOf(Array);
         expect(response.data.authors).toBeInstanceOf(Array);
@@ -462,9 +462,9 @@ describe("GET /v1/search/advanced - Comprehensive", () => {
         mockCtx,
       );
 
-      expect(response.meta.processingTime).toBeTypeOf("number");
-      expect(response.meta.processingTime).toBeGreaterThanOrEqual(0);
-      expect(response.meta.processingTime).toBeLessThan(1000);
+      expect(response.metadata.processingTime).toBeTypeOf("number");
+      expect(response.metadata.processingTime).toBeGreaterThanOrEqual(0);
+      expect(response.metadata.processingTime).toBeLessThan(1000);
     });
   });
 });

@@ -18,7 +18,26 @@ import { CacheKeyFactory } from "../services/cache-key-factory.js";
  * @param {string} options.sortBy - Sort order (publicationYear, title, popularity)
  * @param {Object} env - Worker environment bindings
  * @param {Object} ctx - Execution context
- * @returns {Promise<Object>} Author bibliography with pagination
+ * @returns {Promise<{
+ *   success: boolean,
+ *   provider: string,
+ *   author: {
+ *     name: string,
+ *     openLibraryKey: string | null,
+ *     totalWorks: number
+ *   },
+ *   works: Array<any>,
+ *   pagination: {
+ *     total: number,
+ *     limit: number,
+ *     offset: number,
+ *     hasMore: boolean,
+ *     nextOffset: number | null
+ *   },
+ *   cached: boolean,
+ *   cacheSource?: string,
+ *   responseTime: number
+ * }>} Author bibliography with pagination and cache metadata
  */
 export async function searchByAuthor(authorName, options, env, ctx) {
   const { limit = 50, offset = 0, sortBy = "publicationYear" } = options;
@@ -95,6 +114,27 @@ export async function searchByAuthor(authorName, options, env, ctx) {
       validatedOffset + validatedLimit,
     );
 
+    /**
+     * @type {{
+     *   success: boolean,
+     *   provider: string,
+     *   author: {
+     *     name: string,
+     *     openLibraryKey: string | null,
+     *     totalWorks: number
+     *   },
+     *   works: Array<any>,
+     *   pagination: {
+     *     total: number,
+     *     limit: number,
+     *     offset: number,
+     *     hasMore: boolean,
+     *     nextOffset: number | null
+     *   },
+     *   cached: boolean,
+     *   responseTime: number
+     * }}
+     */
     const responseData = {
       success: true,
       provider: "openlibrary",

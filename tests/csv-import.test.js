@@ -34,8 +34,8 @@ describe('CSV Import Handler', () => {
     expect(response.status).toBe(202);
     expect(body.data).toBeDefined();
     expect(body.data.jobId).toBeDefined();
-    expect(body.meta).toBeDefined();
-    expect(body.meta.timestamp).toBeDefined();
+    expect(body.metadata).toBeDefined();
+    expect(body.metadata.timestamp).toBeDefined();
     expect(body.error).toBeUndefined();
   });
 
@@ -53,10 +53,10 @@ describe('CSV Import Handler', () => {
     const body = await response.json();
 
     expect(response.status).toBe(413);
-    expect(body.data).toBeUndefined();
+    expect(body.data).toBeNull();
     expect(body.error).toBeDefined();
     expect(body.error.message).toContain('too large');
-    expect(body.error.code).toBe('E_FILE_TOO_LARGE');
-    expect(body.meta.timestamp).toBeDefined();
+    expect(body.error.code).toBe('FILE_TOO_LARGE');
+    expect(body.metadata.timestamp).toBeDefined();
   });
 });
