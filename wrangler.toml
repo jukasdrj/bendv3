@@ -209,6 +209,10 @@ dataset = "books_api_provider_performance"
 binding = "AI_ANALYTICS"
 dataset = "bookshelf_ai_performance"
 
+[[analytics_engine_datasets]]
+binding = "SAMPLING_ANALYTICS"
+dataset = "books_api_sampling_metrics"
+
 # Observability (from books-api-proxy and bookshelf-ai-worker)
 [observability]
 enabled = true
@@ -315,6 +319,10 @@ dataset = "books_api_provider_performance_staging"
 [[env.staging.analytics_engine_datasets]]
 binding = "AI_ANALYTICS"
 dataset = "bookshelf_ai_performance_staging"
+
+[[env.staging.analytics_engine_datasets]]
+binding = "SAMPLING_ANALYTICS"
+dataset = "books_api_sampling_metrics_staging"
 
 [[env.staging.queues.producers]]
 binding = "AUTHOR_WARMING_QUEUE"

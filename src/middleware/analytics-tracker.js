@@ -40,6 +40,8 @@ const SAMPLING_RATES = {
  * @example
  * anonymizeIP('192.168.1.100') // Returns '192.168.1.0'
  * anonymizeIP('2001:0db8:85a3::8a2e:0370:7334') // Returns '2001:db8:85a3:0:0:0:0:0'
+ * anonymizeIP('::1') // Returns '0:0:0:0:0:0:0:0'
+ * anonymizeIP('fe80::1') // Returns 'fe80:0:0:0:0:0:0:0'
  */
 function anonymizeIP(ip) {
   if (!ip) return "unknown";
@@ -51,9 +53,56 @@ function anonymizeIP(ip) {
 
   // IPv6: Zero out last 80 bits (keep first 48 bits)
   if (ip.includes(":")) {
+    // Handle IPv6 compressed notation (::)
+    // Expand :: to full notation before anonymizing
+    let segments = [];
     const parts = ip.split(":");
+
+    // Handle leading/trailing :: edge cases
+    const hasLeadingDoubleColon = ip.startsWith("::");
+    const hasTrailingDoubleColon = ip.endsWith("::");
+
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i] === "") {
+        // Empty string indicates :: compression
+        // Calculate how many zero segments to insert
+        const nonEmptyParts = parts.filter((p) => p !== "").length;
+        const zerosNeeded = 8 - nonEmptyParts;
+
+        // Add zero segments
+        for (let j = 0; j < zerosNeeded; j++) {
+          segments.push("0");
+        }
+
+        // Skip consecutive empty parts (from ::)
+        while (i + 1 < parts.length && parts[i + 1] === "") {
+          i++;
+        }
+      } else {
+        // Normalize segment: remove leading zeros (0db8 → db8, 0000 → 0)
+        const normalized = parseInt(parts[i], 16).toString(16);
+        segments.push(normalized);
+      }
+    }
+
+    // Handle edge case: pure :: results in no segments
+    if (segments.length === 0) {
+      segments = ["0", "0", "0", "0", "0", "0", "0", "0"];
+    }
+
+    // Ensure we have exactly 8 segments (pad if needed)
+    while (segments.length < 8) {
+      if (hasTrailingDoubleColon) {
+        segments.push("0");
+      } else if (hasLeadingDoubleColon) {
+        segments.unshift("0");
+      } else {
+        segments.push("0");
+      }
+    }
+
     // Keep first 3 segments (48 bits), zero out the rest
-    return parts.slice(0, 3).join(":") + ":0:0:0:0:0";
+    return segments.slice(0, 3).join(":") + ":0:0:0:0:0";
   }
 
   return "unknown";
@@ -226,7 +275,24 @@ export async function trackAnalytics(request, response, env, ctx, startTime) {
       }),
     );
   } else if (!shouldWriteAnalytics) {
-    // Log sampling skip (debug mode only)
+    // Track sampling skip metrics (production-safe)
+    // Use Analytics Engine to track sampling behavior without verbose logging
+    if (env.SAMPLING_ANALYTICS && ctx) {
+      ctx.waitUntil(
+        env.SAMPLING_ANALYTICS.writeDataPoint({
+          blobs: [url.pathname, "SAMPLED_OUT"],
+          doubles: [samplingRate],
+          indexes: [url.pathname],
+        }).catch((err) => {
+          // Silently fail - sampling metrics are informational only
+          if (env.LOG_LEVEL === "DEBUG") {
+            console.error("[Analytics] Failed to write sampling metric:", err);
+          }
+        }),
+      );
+    }
+
+    // Log sampling skip (debug mode only, for development)
     if (env.LOG_LEVEL === "DEBUG") {
       console.log(
         `[Analytics] Skipped write for ${url.pathname} (sampling rate: ${samplingRate})`,
