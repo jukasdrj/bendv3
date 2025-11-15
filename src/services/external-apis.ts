@@ -29,6 +29,7 @@ import {
 
 import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js";
 import type { DataProvider } from "../types/enums.js";
+import { logExternalApiCall } from "../utils/analytics-logger.ts";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -175,7 +176,6 @@ export async function searchGoogleBooksById(
         "User-Agent": GOOGLE_BOOKS_USER_AGENT,
         Accept: "application/json",
       },
-      cache: 'no-cache', // Force revalidation with Google Books API
     });
 
     if (!response.ok) {
@@ -209,139 +209,97 @@ export async function searchGoogleBooks(
   params: SearchParams = {},
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
-  const startTime = Date.now();
-  try {
-    console.log(`GoogleBooks search for "${query}"`);
+  return logExternalApiCall(
+    "GoogleBooks",
+    async () => {
+      console.log(`GoogleBooks search for "${query}"`);
 
-    // Handle both secrets store (has .get() method) and direct env var
-    const apiKey = env.GOOGLE_BOOKS_API_KEY?.get
-      ? await env.GOOGLE_BOOKS_API_KEY.get()
-      : env.GOOGLE_BOOKS_API_KEY;
+      const apiKey = env.GOOGLE_BOOKS_API_KEY?.get
+        ? await env.GOOGLE_BOOKS_API_KEY.get()
+        : env.GOOGLE_BOOKS_API_KEY;
 
-    if (!apiKey) {
-      console.error("Google Books API key not configured.");
-      return null;
-    }
+      if (!apiKey) {
+        console.error("Google Books API key not configured.");
+        return null;
+      }
 
-    const maxResults = params.maxResults || 20;
-    const searchUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=${maxResults}&key=${apiKey}`;
+      const maxResults = params.maxResults || 20;
+      const searchUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=${maxResults}&key=${apiKey}`;
 
-    const response = await fetch(searchUrl, {
-      headers: {
-        "User-Agent": GOOGLE_BOOKS_USER_AGENT,
-        Accept: "application/json",
-      },
-      cache: 'no-cache', // Force revalidation with Google Books API
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Google Books API error: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const data = await response.json();
-    const normalizedData = normalizeGoogleBooksResponse(data);
-
-    const processingTime = Date.now() - startTime;
-
-    if (env.GOOGLE_BOOKS_ANALYTICS) {
-      env.GOOGLE_BOOKS_ANALYTICS.writeDataPoint({
-        blobs: [query, "search"],
-        doubles: [processingTime, normalizedData.works.length],
-        indexes: ["google-books-search"],
+      const response = await fetch(searchUrl, {
+        headers: {
+          "User-Agent": GOOGLE_BOOKS_USER_AGENT,
+          Accept: "application/json",
+        },
+        cache: 'no-cache', // Force revalidation with Google Books API
       });
-    }
 
-    // Return null if no works found
-    if (!normalizedData.works || normalizedData.works.length === 0) {
-      return null;
-    }
+      if (!response.ok) {
+        throw new Error(
+          `Google Books API error: ${response.status} ${response.statusText}`,
+        );
+      }
 
-    return normalizedData;
-  } catch (error) {
-    const processingTime = Date.now() - startTime;
-    console.error(`Error in GoogleBooks search:`, error);
+      const data = await response.json();
+      const normalizedData = normalizeGoogleBooksResponse(data);
 
-    if (env.GOOGLE_BOOKS_ANALYTICS) {
-      env.GOOGLE_BOOKS_ANALYTICS.writeDataPoint({
-        blobs: [query, "search_error"],
-        doubles: [processingTime, 0],
-        indexes: ["google-books-error"],
-      });
-    }
+      if (!normalizedData.works || normalizedData.works.length === 0) {
+        return null;
+      }
 
-    throw error; // Let exceptions bubble up
-  }
+      return normalizedData;
+    },
+    { query },
+    env,
+  );
 }
 
 export async function searchGoogleBooksByISBN(
   isbn: string,
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
-  const startTime = Date.now();
-  try {
-    console.log(`GoogleBooks ISBN search for "${isbn}"`);
+  return logExternalApiCall(
+    "GoogleBooks",
+    async () => {
+      console.log(`GoogleBooks ISBN search for "${isbn}"`);
 
-    // Handle both secrets store (has .get() method) and direct env var
-    const apiKey = env.GOOGLE_BOOKS_API_KEY?.get
-      ? await env.GOOGLE_BOOKS_API_KEY.get()
-      : env.GOOGLE_BOOKS_API_KEY;
+      const apiKey = env.GOOGLE_BOOKS_API_KEY?.get
+        ? await env.GOOGLE_BOOKS_API_KEY.get()
+        : env.GOOGLE_BOOKS_API_KEY;
 
-    if (!apiKey) {
-      console.error("Google Books API key not configured.");
-      return null;
-    }
+      if (!apiKey) {
+        console.error("Google Books API key not configured.");
+        return null;
+      }
 
-    const searchUrl = `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&key=${apiKey}`;
+      const searchUrl = `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&key=${apiKey}`;
 
-    const response = await fetch(searchUrl, {
-      headers: {
-        "User-Agent": GOOGLE_BOOKS_USER_AGENT,
-        Accept: "application/json",
-      },
-      cache: 'no-cache', // Force revalidation with Google Books API
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Google Books API error: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const data = await response.json();
-    const normalizedData = normalizeGoogleBooksResponse(data);
-
-    const processingTime = Date.now() - startTime;
-
-    if (env.GOOGLE_BOOKS_ANALYTICS) {
-      env.GOOGLE_BOOKS_ANALYTICS.writeDataPoint({
-        blobs: [isbn, "isbn_search"],
-        doubles: [processingTime, normalizedData.works.length],
-        indexes: ["google-books-isbn"],
+      const response = await fetch(searchUrl, {
+        headers: {
+          "User-Agent": GOOGLE_BOOKS_USER_AGENT,
+          Accept: "application/json",
+        },
+        cache: 'no-cache', // Force revalidation with Google Books API
       });
-    }
 
-    // Return null if no works found
-    if (!normalizedData.works || normalizedData.works.length === 0) {
-      return null;
-    }
+      if (!response.ok) {
+        throw new Error(
+          `Google Books API error: ${response.status} ${response.statusText}`,
+        );
+      }
 
-    return normalizedData;
-  } catch (error) {
-    const processingTime = Date.now() - startTime;
-    console.error(`Error in GoogleBooks ISBN search:`, error);
+      const data = await response.json();
+      const normalizedData = normalizeGoogleBooksResponse(data);
 
-    if (env.GOOGLE_BOOKS_ANALYTICS) {
-      env.GOOGLE_BOOKS_ANALYTICS.writeDataPoint({
-        blobs: [isbn, "isbn_search_error"],
-        doubles: [processingTime, 0],
-        indexes: ["google-books-error"],
-      });
-    }
+      if (!normalizedData.works || normalizedData.works.length === 0) {
+        return null;
+      }
 
-    throw error; // Let exceptions bubble up
-  }
+      return normalizedData;
+    },
+    { isbn },
+    env,
+  );
 }
 
 /**
@@ -488,34 +446,34 @@ export async function searchOpenLibrary(
   params: SearchParams = {},
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
-  const startTime = Date.now();
-  try {
-    console.log(`OpenLibrary general search for "${query}"`);
+  return logExternalApiCall(
+    "OpenLibrary",
+    async () => {
+      console.log(`OpenLibrary general search for "${query}"`);
 
-    const maxResults = params.maxResults || 20;
+      const maxResults = params.maxResults || 20;
 
-    const searchUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=${maxResults}`;
-    const response = await fetch(searchUrl, {
-      headers: { "User-Agent": OPENLIBRARY_USER_AGENT },
-    });
+      const searchUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=${maxResults}`;
+      const response = await fetch(searchUrl, {
+        headers: { "User-Agent": OPENLIBRARY_USER_AGENT },
+      });
 
-    if (!response.ok) {
-      throw new Error(`OpenLibrary search API failed: ${response.status}`);
-    }
+      if (!response.ok) {
+        throw new Error(`OpenLibrary search API failed: ${response.status}`);
+      }
 
-    const data = await response.json();
-    const normalized = normalizeOpenLibrarySearchResults(data.docs || []);
+      const data = await response.json();
+      const normalized = normalizeOpenLibrarySearchResults(data.docs || []);
 
-    // Return null if no works found
-    if (!normalized.works || normalized.works.length === 0) {
-      return null;
-    }
+      if (!normalized.works || normalized.works.length === 0) {
+        return null;
+      }
 
-    return normalized;
-  } catch (error) {
-    console.error(`Error in OpenLibrary search for "${query}":`, error);
-    throw error; // Let exceptions bubble up
-  }
+      return normalized;
+    },
+    { query },
+    env,
+  );
 }
 
 export async function getOpenLibraryAuthorWorks(
@@ -650,69 +608,62 @@ export async function searchISBNdb(
   authorName: string | null,
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
-  try {
-    console.log(
-      `ISBNdb search for "${title}" by "${authorName || "any author"}"`,
-    );
+  return logExternalApiCall(
+    "ISBNdb",
+    async () => {
+      console.log(
+        `ISBNdb search for "${title}" by "${authorName || "any author"}"`,
+      );
 
-    // Build search URL with author and text parameters
-    let searchUrl = `https://api2.isbndb.com/search/books?page=1&pageSize=20&text=${encodeURIComponent(title)}`;
-    if (authorName) {
-      searchUrl += `&author=${encodeURIComponent(authorName)}`;
-    }
+      let searchUrl = `https://api2.isbndb.com/search/books?page=1&pageSize=20&text=${encodeURIComponent(title)}`;
+      if (authorName) {
+        searchUrl += `&author=${encodeURIComponent(authorName)}`;
+      }
 
-    await enforceRateLimit(env);
-    const searchResponse = await fetchWithAuth(searchUrl, env);
+      await enforceRateLimit(env);
+      const searchResponse = await fetchWithAuth(searchUrl, env);
 
-    if (!searchResponse.books || searchResponse.books.length === 0) {
-      return null; // No results found
-    }
+      if (!searchResponse.books || searchResponse.books.length === 0) {
+        return null;
+      }
 
-    // Use canonical normalizers for ISBNdb data
-    const works: WorkDTOWithAuthors[] = [];
-    const editions: EditionDTO[] = [];
-    const authorsSet = new Set<string>();
+      const works: WorkDTOWithAuthors[] = [];
+      const editions: EditionDTO[] = [];
+      const authorsSet = new Set<string>();
 
-    for (const book of searchResponse.books) {
-      // Normalize to canonical WorkDTO
-      const work = normalizeISBNdbToWork(book);
-
-      // Extract and normalize authors
-      const authorNames = book.authors || [];
-      const workAuthors: AuthorDTO[] = [];
-      authorNames.forEach((name) => {
-        if (name) {
-          const author = normalizeISBNdbToAuthor(name);
-          workAuthors.push(author);
-          if (!authorsSet.has(name)) {
-            authorsSet.add(name);
+      for (const book of searchResponse.books) {
+        const work = normalizeISBNdbToWork(book);
+        const authorNames = book.authors || [];
+        const workAuthors: AuthorDTO[] = [];
+        authorNames.forEach((name) => {
+          if (name) {
+            const author = normalizeISBNdbToAuthor(name);
+            workAuthors.push(author);
+            if (!authorsSet.has(name)) {
+              authorsSet.add(name);
+            }
           }
-        }
-      });
+        });
 
-      // Attach authors to work for enrichment service compatibility
-      (work as WorkDTOWithAuthors).authors = workAuthors;
-      works.push(work as WorkDTOWithAuthors);
+        (work as WorkDTOWithAuthors).authors = workAuthors;
+        works.push(work as WorkDTOWithAuthors);
+        const edition = normalizeISBNdbToEdition(book);
+        editions.push(edition);
+      }
 
-      // Normalize to canonical EditionDTO
-      const edition = normalizeISBNdbToEdition(book);
-      editions.push(edition);
-    }
+      const authors = Array.from(authorsSet).map((name) =>
+        normalizeISBNdbToAuthor(name),
+      );
 
-    // Convert author names to AuthorDTOs
-    const authors = Array.from(authorsSet).map((name) =>
-      normalizeISBNdbToAuthor(name),
-    );
-
-    return {
-      works,
-      editions,
-      authors,
-    };
-  } catch (error) {
-    console.error(`Error in ISBNdb search for "${title}":`, error);
-    throw error; // Let exceptions bubble up
-  }
+      return {
+        works,
+        editions,
+        authors,
+      };
+    },
+    { query: title },
+    env,
+  );
 }
 
 export async function getISBNdbEditionsForWork(
@@ -757,38 +708,36 @@ export async function getISBNdbBookByISBN(
   isbn: string,
   env: ExternalAPIEnv,
 ): Promise<ISBNdbBookData | null> {
-  try {
-    console.log(`ISBNdb getBookByISBN("${isbn}")`);
-    const url = `https://api2.isbndb.com/book/${isbn}?with_prices=0`;
-    await enforceRateLimit(env);
-    const response = await fetchWithAuth(url, env);
+  return logExternalApiCall(
+    "ISBNdb",
+    async () => {
+      console.log(`ISBNdb getBookByISBN("${isbn}")`);
+      const url = `https://api2.isbndb.com/book/${isbn}?with_prices=0`;
+      await enforceRateLimit(env);
+      const response = await fetchWithAuth(url, env);
 
-    if (!response.book) {
-      return null; // Book not found
-    }
+      if (!response.book) {
+        return null;
+      }
 
-    const book = response.book;
+      const book = response.book;
+      const work = normalizeISBNdbToWork(book);
+      const edition = normalizeISBNdbToEdition(book);
+      const authorNames = book.authors || [];
+      const authors = authorNames.map((name: string) =>
+        normalizeISBNdbToAuthor(name),
+      );
 
-    // Use canonical normalizers
-    const work = normalizeISBNdbToWork(book);
-    const edition = normalizeISBNdbToEdition(book);
-
-    // Extract authors
-    const authorNames = book.authors || [];
-    const authors = authorNames.map((name: string) =>
-      normalizeISBNdbToAuthor(name),
-    );
-
-    return {
-      work,
-      edition,
-      authors,
-      book: response.book, // Keep raw book data for backward compatibility
-    };
-  } catch (error) {
-    console.error(`Error in getBookByISBN for "${isbn}":`, error);
-    throw error; // Let exceptions bubble up
-  }
+      return {
+        work,
+        edition,
+        authors,
+        book: response.book,
+      };
+    },
+    { isbn },
+    env,
+  );
 }
 
 async function fetchWithAuth(

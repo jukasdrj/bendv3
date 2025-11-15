@@ -202,7 +202,7 @@ binding = "CACHE_ANALYTICS"
 dataset = "books_api_cache_metrics"
 
 [[analytics_engine_datasets]]
-binding = "PROVIDER_ANALYTICS"
+binding = "ANALYTICS_ENGINE"
 dataset = "books_api_provider_performance"
 
 [[analytics_engine_datasets]]
