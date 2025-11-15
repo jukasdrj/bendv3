@@ -57,7 +57,6 @@ Keep in sync with: github.com/jukasdrj/bookstrack-backend/docs/"
 
   sync-to-flutter:
     runs-on: ubuntu-latest
-    if: vars.FLUTTER_REPO_ENABLED == 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,7 +71,7 @@ Keep in sync with: github.com/jukasdrj/bookstrack-backend/docs/"
           git config --global user.name "Claude Code"
           
           # Clone Flutter repo (shallow)
-          git clone --depth 1 https://github.com/jukasdrj/bookstrack-flutter.git /tmp/flutter-repo 2>&1 || {
+          git clone --depth 1 https://github.com/jukasdrj/books-flutter.git /tmp/flutter-repo 2>&1 || {
             echo "⚠️  Could not clone Flutter repo (may not exist yet)"
             exit 0
           }
