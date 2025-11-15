@@ -28,15 +28,20 @@
 │   ├── normalizers/          # Data normalization tests
 │   ├── utils/                # Utility function tests
 │   └── assets/               # Test images and fixtures
-├── docs/                     # Documentation
-│   ├── deployment/           # Deployment guides (DEPLOYMENT.md, SECRETS_SETUP.md)
-│   ├── guides/               # Feature guides (Metrics, Verification, etc.)
-│   ├── plans/                # Implementation plans and architecture docs
+├── docs/                     # Active documentation
+│   ├── deployment/           # Deployment guides, monitoring, alerting
+│   ├── guides/               # Feature implementation guides
 │   ├── workflows/            # Workflow diagrams and processes
 │   ├── robit/                # AI automation setup docs
-│   ├── archives/             # Historical documentation
+│   ├── archives/             # Completed deployments and historical notes
 │   ├── API_README.md         # **START HERE** - API contracts and integration guide
-│   └── FRONTEND_HANDOFF.md   # Frontend integration guide (iOS, Flutter)
+│   ├── STAGING_TESTING_GUIDE.md  # Staging environment testing
+│   └── WEBSOCKET_MIGRATION_IOS.md # WebSocket client migration
+├── archive/                  # Completed plans and outdated documentation
+│   ├── 2025-11-archive/      # November 2025 completed work
+│   ├── plans/                # Completed implementation plans
+│   ├── docs/                 # Superseded documentation
+│   └── claude-config/        # Historical Claude Code configuration
 ├── scripts/                  # Utility and development scripts
 │   ├── dev/                  # Development scripts (test image generation)
 │   └── utils/                # Production utilities (cache warming, harvesting)
@@ -57,7 +62,7 @@ Single monolith worker with direct function calls (no RPC service bindings):
 - **WebSocket Progress**: Real-time updates for all background jobs
 - **Cover Harvest**: Automated ISBNdb cover caching (5000 req/day)
 
-See `MONOLITH_ARCHITECTURE.md` for architecture details.
+See `ARCHITECTURE_OVERVIEW.md` for architecture details.
 
 ## API Endpoints
 
@@ -193,24 +198,26 @@ npx wrangler tail --remote --format pretty
 
 ### Quick Links (Start Here)
 - **[API Reference](docs/API_README.md)** - Canonical contracts, endpoints, and integration patterns
-- **[Frontend Integration Guide](docs/FRONTEND_HANDOFF.md)** - iOS and Flutter integration guidance
+- **[Architecture Overview](ARCHITECTURE_OVERVIEW.md)** - Backend architecture and design principles
+- **[Quick Start Guide](docs/QUICK_START.md)** - Fast setup and development workflow
 
 ### Deployment & Operations
 - **[Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Complete deployment guide with rollback procedures
+- **[Staging Testing Guide](docs/STAGING_TESTING_GUIDE.md)** - Staging environment testing procedures
 - **[Secrets Setup](docs/deployment/SECRETS_SETUP.md)** - Step-by-step guide for configuring GitHub secrets
+- **[Monitoring Dashboard](docs/deployment/MONITORING_DASHBOARD.md)** - Cloudflare monitoring setup
+- **[Alerting Rules](docs/deployment/ALERTING_RULES.md)** - Production alerting configuration
+- **[Troubleshooting Runbook](docs/deployment/TROUBLESHOOTING_RUNBOOK.md)** - Common issue resolutions
 
 ### Feature Guides
 - **[Cover Harvest System](docs/guides/ISBNDB-HARVEST-IMPLEMENTATION.md)** - ISBNdb cover caching (5000 req/day)
 - **[Metrics & Monitoring](docs/guides/METRICS.md)** - Performance targets and monitoring
-- **[Verification Guide](docs/guides/VERIFICATION.md)** - Testing and validation procedures
-
-### Implementation Plans
-- **[Canonical API Contracts](docs/plans/2025-11-11-canonical-api-contract-implementation.md)** - TypeScript/Swift data contracts
-- **[Architecture Workflow](docs/workflows/canonical-contracts-workflow.md)** - Visual process diagrams
+- **[WebSocket Migration](docs/WEBSOCKET_MIGRATION_IOS.md)** - iOS WebSocket client integration
 
 ### Reference
-- **[Architecture Overview](MONOLITH_ARCHITECTURE.md)** - Backend architecture and design principles
-- **[Historical Docs](docs/archives/)** - Archived deployment notes and completed initiatives
+- **[Canonical API Workflows](docs/workflows/canonical-contracts-workflow.md)** - Visual process diagrams
+- **[Historical Docs](docs/archives/)** - Completed deployments and historical notes
+- **[Archived Plans](archive/plans/)** - Completed implementation plans and strategies
 
 ## License
 
