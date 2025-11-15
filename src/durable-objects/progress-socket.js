@@ -837,9 +837,16 @@ export class ProgressWebSocketDO extends DurableObject {
   /**
    * Internal cleanup
    */
-  cleanup() {
+  async cleanup() {
+    // Clear in-memory state
     this.webSocket = null;
     this.jobId = null;
+
+    // CRITICAL: Delete auth tokens from storage to prevent memory leak (Issue #101)
+    // Tokens accumulate indefinitely if not cleaned up, causing storage bloat
+    await this.storage.delete('authToken');
+    await this.storage.delete('authTokenExpiration');
+
     // IMPORTANT: Do NOT clear "canceled" status from storage
     // Worker needs to check cancellation state after socket closes
   }
