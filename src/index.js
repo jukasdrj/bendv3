@@ -40,7 +40,12 @@ import {
 import { getProgressDOStub } from "./utils/durable-object-helpers.ts";
 
 // Export the Durable Object classes for Cloudflare Workers runtime
-export { ProgressWebSocketDO, RateLimiterDO, WebSocketConnectionDO, JobStateManagerDO };
+export {
+  ProgressWebSocketDO,
+  RateLimiterDO,
+  WebSocketConnectionDO,
+  JobStateManagerDO,
+};
 
 export default {
   async fetch(request, env, ctx) {
@@ -470,16 +475,17 @@ export default {
           );
         }
 
-        // Start AI scan in background (NOW guaranteed WebSocket is listening)
-        ctx.waitUntil(
-          aiScanner.processBookshelfScan(
-            jobId,
-            imageData,
-            request,
-            env,
-            doStub,
-            ctx,
-          ),
+        // Schedule AI scan via Durable Object alarm (avoids Worker CPU time limits)
+        // Gemini AI processing can take 20-60s, which would exceed default 30s CPU limit
+        // Alarm-based processing runs in separate context with 15-minute CPU limit
+        const requestHeaders = {
+          "X-AI-Provider": request.headers.get("X-AI-Provider"),
+          "CF-Connecting-IP": request.headers.get("CF-Connecting-IP"),
+        };
+
+        await doStub.scheduleBookshelfScan(imageData, jobId, requestHeaders);
+        console.log(
+          `[API] Bookshelf scan scheduled via alarm for job ${jobId}`,
         );
 
         // Define stages metadata for iOS client (used for progress estimation)
@@ -571,7 +577,13 @@ export default {
       const workTitle = url.searchParams.get("workTitle") || "";
       const author = url.searchParams.get("author") || "";
       const limit = parseInt(url.searchParams.get("limit") || "20");
-      const response = await handleSearchEditions(workTitle, author, limit, env, ctx);
+      const response = await handleSearchEditions(
+        workTitle,
+        author,
+        limit,
+        env,
+        ctx,
+      );
       return adaptToUnifiedEnvelope(response, useUnifiedEnvelope);
     }
 
