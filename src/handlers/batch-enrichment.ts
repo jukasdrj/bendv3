@@ -227,13 +227,23 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
     const failureCount = totalProcessed - successCount;
     const duration = Date.now() - startTime;
 
-    // Call DO with pipeline and payload (DO constructs the message envelope)
+    // Store full results in KV for HTTP retrieval (1-hour TTL)
+    const resourceId = `job-results:${jobId}`;
+    await env.KV_CACHE.put(
+      resourceId,
+      JSON.stringify(enrichedBooks),
+      { expirationTtl: 3600 } // 1 hour
+    );
+
+    // Send summary-only payload to DO (mobile-optimized)
     await doStub.complete('batch_enrichment', {
-      totalProcessed,
-      successCount,
-      failureCount,
-      duration,
-      enrichedBooks,
+      summary: {
+        totalProcessed,
+        successCount,
+        failureCount,
+        duration,
+        resourceId,
+      }
     });
 
   } catch (error) {

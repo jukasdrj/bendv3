@@ -208,11 +208,23 @@ export async function processCSVImportCore(csvText, jobId, doStub, env) {
         isbn: book.isbn ? String(book.isbn).trim() : undefined
       }));
 
-    // Complete immediately (no enrichment, no manual validation)
+    // Store full results in KV for HTTP retrieval (1-hour TTL)
+    const resourceId = `job-results:${jobId}`;
+    await env.KV_CACHE.put(
+      resourceId,
+      JSON.stringify({ books: validatedBooks, errors: [] }),
+      { expirationTtl: 3600 } // 1 hour
+    );
+
+    // Send summary-only payload (mobile-optimized)
     await doStub.complete('csv_import', {
-      books: validatedBooks,
-      errors: [],
-      successRate: `${validatedBooks.length}/${parsedBooks.length}`
+      summary: {
+        totalProcessed: parsedBooks.length,
+        successCount: validatedBooks.length,
+        failureCount: parsedBooks.length - validatedBooks.length,
+        duration: Date.now() - startTime,
+        resourceId
+      }
     });
 
   } catch (error) {

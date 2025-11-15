@@ -121,8 +121,25 @@ export interface JobProgressPayload {
 }
 
 // =============================================================================
-// Job Complete Payload (Pipeline-Specific)
+// Job Complete Payload (Pipeline-Specific) - Summary-Only Format
 // =============================================================================
+
+/**
+ * Job completion summary (mobile-optimized)
+ *
+ * **Design:** Sends lightweight summary (< 1 KB) instead of full result arrays.
+ * Full results are stored in KV with 1-hour TTL and retrieved via HTTP pagination.
+ *
+ * **Why:** Large JSON payloads (5-10 MB) cause UI stutters and battery drain on mobile.
+ * Cloudflare limit is 32 MiB/message, but parsing huge payloads freezes mobile UIs.
+ */
+export interface JobCompletionSummary {
+  totalProcessed: number;
+  successCount: number;
+  failureCount: number;
+  duration: number;          // Milliseconds
+  resourceId?: string;       // Optional: KV key for full results (e.g., "job-results:uuid")
+}
 
 export type JobCompletePayload =
   | BatchEnrichmentCompletePayload
@@ -143,27 +160,27 @@ export interface EnrichedBookPayload {
 }
 
 /**
- * Batch Enrichment Completion
+ * Batch Enrichment Completion (Summary-Only)
+ *
+ * **Old format (removed):** `enrichedBooks: EnrichedBookPayload[]` (could be 5-10 MB)
+ * **New format:** Lightweight summary with resourceId for HTTP retrieval
  */
 export interface BatchEnrichmentCompletePayload {
   type: "job_complete";
   pipeline: "batch_enrichment";
-  totalProcessed: number;
-  successCount: number;
-  failureCount: number;
-  duration: number;         // Milliseconds
-  enrichedBooks: EnrichedBookPayload[];
+  summary: JobCompletionSummary;
 }
 
 /**
- * CSV Import Completion
+ * CSV Import Completion (Summary-Only)
+ *
+ * **Old format (removed):** `books: ParsedBook[]`, `errors: ImportError[]` (multi-MB for large CSVs)
+ * **New format:** Lightweight summary with resourceId for HTTP retrieval
  */
 export interface CSVImportCompletePayload {
   type: "job_complete";
   pipeline: "csv_import";
-  books: ParsedBook[];
-  errors: ImportError[];
-  successRate: string;      // e.g., "45/50"
+  summary: JobCompletionSummary;
 }
 
 export interface ParsedBook {
@@ -182,15 +199,21 @@ export interface ImportError {
 }
 
 /**
- * AI Scan Completion
+ * AI Scan Completion (Summary-Only)
+ *
+ * **Old format (removed):** `books: DetectedBook[]` (5-10 MB for bookshelf with 200+ books)
+ * **New format:** Lightweight summary with resourceId for HTTP retrieval
+ *
+ * **Mobile Impact:** Bookshelf scans with 200+ books previously caused UI freezes (10+ seconds)
  */
 export interface AIScanCompletePayload {
   type: "job_complete";
   pipeline: "ai_scan";
-  totalDetected: number;
-  approved: number;
-  needsReview: number;
-  books: DetectedBook[];
+  summary: JobCompletionSummary & {
+    totalDetected?: number;  // Optional: AI-specific stat
+    approved?: number;       // Optional: Books auto-approved
+    needsReview?: number;    // Optional: Books requiring manual review
+  };
 }
 
 export interface DetectedBook {

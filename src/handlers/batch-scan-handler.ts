@@ -263,13 +263,26 @@ async function processBatchPhotos(jobId, images, env, doStub) {
           currentItem: 'Finalizing'
         });
 
-        // FIX: Removed non-standard 'canceled: true' field (not in AIScanCompletePayload schema)
-        // Client will know about cancellation from progress messages showing partial results
+        // Store partial results in KV (canceled job)
+        const resourceId = `job-results:${jobId}`;
+        await env.KV_CACHE.put(
+          resourceId,
+          JSON.stringify(enrichedPartialBooks.map(mapToDetectedBook)),
+          { expirationTtl: 3600 } // 1 hour
+        );
+
+        // Send summary-only payload (mobile-optimized)
         await doStub.complete('ai_scan', {
-          totalDetected: enrichedPartialBooks.length,
-          approved: approvedCount,
-          needsReview: reviewCount,
-          books: enrichedPartialBooks.map(mapToDetectedBook)
+          summary: {
+            totalProcessed: enrichedPartialBooks.length,
+            successCount: approvedCount,
+            failureCount: reviewCount,
+            duration: Date.now() - startTime,
+            resourceId,
+            totalDetected: enrichedPartialBooks.length,
+            approved: approvedCount,
+            needsReview: reviewCount
+          }
         });
 
         return; // Exit early with partial results
@@ -398,6 +411,14 @@ async function processBatchPhotos(jobId, images, env, doStub) {
     const approvedCount = enrichedBooks.filter(b => b.confidence >= 0.6).length;
     const reviewCount = enrichedBooks.filter(b => b.confidence < 0.6).length;
 
+    // Store full results in KV for HTTP retrieval (1-hour TTL)
+    const resourceId = `job-results:${jobId}`;
+    await env.KV_CACHE.put(
+      resourceId,
+      JSON.stringify(enrichedBooks.map(mapToDetectedBook)),
+      { expirationTtl: 3600 } // 1 hour
+    );
+
     // Final progress update before completion (100%)
     await doStub.updateProgress('ai_scan', {
       progress: 1.0,
@@ -406,12 +427,18 @@ async function processBatchPhotos(jobId, images, env, doStub) {
       currentItem: 'Finalizing'
     });
 
-    // Send final completion using V2 schema with enriched data
+    // Send summary-only payload (mobile-optimized)
     await doStub.complete('ai_scan', {
-      totalDetected: enrichedBooks.length,
-      approved: approvedCount,
-      needsReview: reviewCount,
-      books: enrichedBooks.map(mapToDetectedBook)
+      summary: {
+        totalProcessed: enrichedBooks.length,
+        successCount: approvedCount,
+        failureCount: reviewCount,
+        duration: Date.now() - startTime,
+        resourceId,
+        totalDetected: enrichedBooks.length,
+        approved: approvedCount,
+        needsReview: reviewCount
+      }
     });
 
   } catch (error) {
