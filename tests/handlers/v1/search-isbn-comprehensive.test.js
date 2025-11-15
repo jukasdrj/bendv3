@@ -25,6 +25,19 @@ import {
   validateV1SearchResponse,
 } from "../../utils/response-validator.js";
 
+/**
+ * Parse v2 Response object and extract body + status
+ * Handlers now return Response objects (issue #117)
+ */
+async function parseV2Response(response) {
+  const body = await response.json();
+  return {
+    body,
+    status: response.status,
+    headers: response.headers,
+  };
+}
+
 describe("GET /v1/search/isbn - Comprehensive", () => {
   let mockEnv;
   let originalFetch;
@@ -63,9 +76,12 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(isbn13, mockEnv);
 
-      const validation = validateSuccessEnvelope(response);
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      const validation = validateSuccessEnvelope(body);
       expect(validation.valid).toBe(true);
-      expect(response.data).toBeDefined();
+      expect(body.data).toBeDefined();
     });
 
     it("should accept valid ISBN-10 format", async () => {
@@ -79,8 +95,11 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(isbn10, mockEnv);
 
-      expect(response.data).toBeDefined();
-      validateSuccessEnvelope(response);
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      expect(body.data).toBeDefined();
+      validateSuccessEnvelope(body);
     });
 
     it("should normalize ISBN with hyphens", async () => {
@@ -94,7 +113,10 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(isbnWithHyphens, mockEnv);
 
-      expect(response.data).toBeDefined();
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      expect(body.data).toBeDefined();
       // Verify fetch was called with normalized ISBN (no hyphens)
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining("9780439708180"),
@@ -113,26 +135,35 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
       async (invalidISBN) => {
         const response = await handleSearchISBN(invalidISBN, mockEnv);
 
-        expect(response.error).toBeDefined();
-        const validation = validateErrorEnvelope(response);
+        const { body, status } = await parseV2Response(response);
+
+        expect(status).toBe(400);
+        expect(body.error).toBeDefined();
+        const validation = validateErrorEnvelope(body);
         expect(validation.valid).toBe(true);
-        expect(response.error.code).toBe("INVALID_ISBN");
+        expect(body.error.code).toBe("INVALID_ISBN");
       },
     );
 
     it("should return error for empty ISBN", async () => {
       const response = await handleSearchISBN("", mockEnv);
 
-      expect(response.error).toBeDefined();
-      expect(response.error.code).toBe("INVALID_ISBN");
-      expect(response.error.message).toContain("required");
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(400);
+      expect(body.error).toBeDefined();
+      expect(body.error.code).toBe("INVALID_ISBN");
+      expect(body.error.message).toContain("required");
     });
 
     it("should return error for null ISBN", async () => {
       const response = await handleSearchISBN(null, mockEnv);
 
-      expect(response.error).toBeDefined();
-      expect(response.error.code).toBe("INVALID_ISBN");
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(400);
+      expect(body.error).toBeDefined();
+      expect(body.error.code).toBe("INVALID_ISBN");
     });
   });
 
@@ -158,8 +189,11 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
         mockEnv,
       );
 
-      expect(response.data).toBeDefined();
-      expect(response.metadata.provider).toBe("openlibrary");
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      expect(body.data).toBeDefined();
+      expect(body.metadata.provider).toBe("openlibrary");
       expect(global.fetch).toHaveBeenCalledTimes(2);
     });
 
@@ -171,11 +205,14 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
+      const { body, status } = await parseV2Response(response);
+
       // Best-effort: provider errors return empty results, not errors
-      expect(response.data).toBeDefined();
-      expect(response.data.works).toEqual([]);
-      expect(response.data.editions).toEqual([]);
-      expect(response.data.authors).toEqual([]);
+      expect(status).toBe(200);
+      expect(body.data).toBeDefined();
+      expect(body.data.works).toEqual([]);
+      expect(body.data.editions).toEqual([]);
+      expect(body.data.authors).toEqual([]);
     });
 
     it("should handle provider timeout gracefully (best-effort)", async () => {
@@ -185,9 +222,12 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
+      const { body, status } = await parseV2Response(response);
+
       // Best-effort: timeouts return empty results, not errors
-      expect(response.data).toBeDefined();
-      expect(response.data.works).toEqual([]);
+      expect(status).toBe(200);
+      expect(body.data).toBeDefined();
+      expect(body.data.works).toEqual([]);
     });
   });
 
@@ -207,40 +247,52 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
     it("should return canonical v1 search response structure", async () => {
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
+      const { body, status } = await parseV2Response(response);
+
       // Validate canonical envelope
-      const envelopeValidation = validateSuccessEnvelope(response);
+      expect(status).toBe(200);
+      const envelopeValidation = validateSuccessEnvelope(body);
       expect(envelopeValidation.valid).toBe(true);
 
       // Validate v1 search structure
-      const v1Validation = validateV1SearchResponse(response);
+      const v1Validation = validateV1SearchResponse(body);
       expect(v1Validation.valid).toBe(true);
 
       // Check required arrays
-      expect(response.data.works).toBeInstanceOf(Array);
-      expect(response.data.editions).toBeInstanceOf(Array);
-      expect(response.data.authors).toBeInstanceOf(Array);
+      expect(body.data.works).toBeInstanceOf(Array);
+      expect(body.data.editions).toBeInstanceOf(Array);
+      expect(body.data.authors).toBeInstanceOf(Array);
     });
 
     it("should include meta.timestamp", async () => {
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
-      expect(response.metadata.timestamp).toBeDefined();
-      expect(new Date(response.metadata.timestamp).getTime()).toBeGreaterThan(0);
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      expect(body.metadata.timestamp).toBeDefined();
+      expect(new Date(body.metadata.timestamp).getTime()).toBeGreaterThan(0);
     });
 
     it("should include meta.processingTime", async () => {
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
-      expect(response.metadata.processingTime).toBeTypeOf("number");
-      expect(response.metadata.processingTime).toBeGreaterThanOrEqual(0);
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      expect(body.metadata.processingTime).toBeTypeOf("number");
+      expect(body.metadata.processingTime).toBeGreaterThanOrEqual(0);
     });
 
     it("should include meta.provider (data source)", async () => {
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
-      expect(response.metadata.provider).toBeDefined();
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      expect(body.metadata.provider).toBeDefined();
       expect(["google-books", "openlibrary", "isbndb", "none"]).toContain(
-        response.metadata.provider,
+        body.metadata.provider,
       );
     });
   });
@@ -331,8 +383,11 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
-      if (response.data !== null) {
-        expect(response.data.editions.length).toBeGreaterThan(1);
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      if (body.data !== null) {
+        expect(body.data.editions.length).toBeGreaterThan(1);
       }
     });
   });
@@ -349,9 +404,12 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
+      const { body, status } = await parseV2Response(response);
+
       // Should handle gracefully
-      expect(response.data).toBeDefined();
-      expect(response.metadata).toBeDefined();
+      expect(status).toBe(200);
+      expect(body.data).toBeDefined();
+      expect(body.metadata).toBeDefined();
     });
 
     it("should handle missing API key", async () => {
@@ -359,9 +417,12 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(validISBNs[0], envNoKey);
 
+      const { body, status } = await parseV2Response(response);
+
       // Should either use free tier or return error
-      expect(response.data).toBeDefined();
-      expect(response.metadata).toBeDefined();
+      expect(status).toBe(200);
+      expect(body.data).toBeDefined();
+      expect(body.metadata).toBeDefined();
     });
 
     it("should return empty results for provider errors (best-effort)", async () => {
@@ -369,10 +430,13 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       const response = await handleSearchISBN(validISBNs[0], mockEnv);
 
+      const { body, status } = await parseV2Response(response);
+
       // Best-effort: provider errors return success with empty results
-      expect(response.data).toBeDefined();
-      expect(response.data.works).toEqual([]);
-      expect(response.metadata).toBeDefined();
+      expect(status).toBe(200);
+      expect(body.data).toBeDefined();
+      expect(body.data.works).toEqual([]);
+      expect(body.metadata).toBeDefined();
     });
   });
 });

@@ -37,6 +37,9 @@ describe('AI Scanner Metadata', () => {
       pushProgress: async (data) => {
         progressUpdates.push(data);
       },
+      sendError: async (pipeline, payload) => {
+        progressUpdates.push({ type: 'error', pipeline, payload });
+      },
       closeConnection: async (code, reason) => {
         // Track close calls
       }

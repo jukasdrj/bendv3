@@ -128,9 +128,9 @@ describe('handleCSVImport', () => {
       const response = await handleCSVImport(request, mockEnv, mockCtx);
       const body = await response.json();
 
-      expect(body.meta).toBeDefined();
-      expect(body.meta.timestamp).toBeDefined();
-      expect(typeof body.meta.timestamp).toBe('string');
+      expect(body.metadata).toBeDefined();
+      expect(body.metadata.timestamp).toBeDefined();
+      expect(typeof body.metadata.timestamp).toBe('string');
     });
 
     it('should generate unique jobId for each import', async () => {

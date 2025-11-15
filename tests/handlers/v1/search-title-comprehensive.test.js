@@ -24,6 +24,19 @@ import {
   validateV1SearchResponse,
 } from "../../utils/response-validator.js";
 
+/**
+ * Parse v2 Response object and extract body + status
+ * Handlers now return Response objects (issue #117)
+ */
+async function parseV2Response(response) {
+  const body = await response.json();
+  return {
+    body,
+    status: response.status,
+    headers: response.headers,
+  };
+}
+
 describe("GET /v1/search/title - Comprehensive", () => {
   let mockEnv;
   let originalFetch;
@@ -58,21 +71,25 @@ describe("GET /v1/search/title - Comprehensive", () => {
     it("should return canonical WorkDTO for valid title", async () => {
       const response = await handleSearchTitle(harryPotterBook.title, mockEnv);
 
-      expect(response.data).toBeDefined();
-      const validation = validateV1SearchResponse(response);
+      const { body, status } = await parseV2Response(response);
+
+      expect(body.data).toBeDefined();
+      const validation = validateV1SearchResponse(body);
       expect(validation.valid).toBe(true);
 
       // Verify data structure
-      expect(response.data.works).toBeInstanceOf(Array);
-      expect(response.data.editions).toBeInstanceOf(Array);
-      expect(response.data.authors).toBeInstanceOf(Array);
+      expect(body.data.works).toBeInstanceOf(Array);
+      expect(body.data.editions).toBeInstanceOf(Array);
+      expect(body.data.authors).toBeInstanceOf(Array);
     });
 
     it("should handle short titles (single word)", async () => {
       const response = await handleSearchTitle("1984", mockEnv);
 
-      expect(response.data).toBeDefined();
-      validateSuccessEnvelope(response);
+      const { body, status } = await parseV2Response(response);
+
+      expect(body.data).toBeDefined();
+      validateSuccessEnvelope(body);
     });
 
     it("should handle long titles", async () => {
@@ -81,8 +98,10 @@ describe("GET /v1/search/title - Comprehensive", () => {
 
       const response = await handleSearchTitle(longTitle, mockEnv);
 
-      expect(response.data).toBeDefined();
-      expect(response.metadata).toBeDefined();
+      const { body, status } = await parseV2Response(response);
+
+      expect(body.data).toBeDefined();
+      expect(body.metadata).toBeDefined();
     });
 
     it("should handle titles with special characters (normalized)", async () => {
@@ -90,7 +109,9 @@ describe("GET /v1/search/title - Comprehensive", () => {
 
       const response = await handleSearchTitle(titleWithSpecialChars, mockEnv);
 
-      expect(response.data).toBeDefined();
+      const { body, status } = await parseV2Response(response);
+
+      expect(body.data).toBeDefined();
       // Note: Handler normalizes special characters for simpler search queries
       // "C++ Programming: The #1 Guide" becomes "c programming the 1 guide"
       expect(global.fetch).toHaveBeenCalled();
@@ -101,7 +122,9 @@ describe("GET /v1/search/title - Comprehensive", () => {
 
       const response = await handleSearchTitle(titleWithWhitespace, mockEnv);
 
-      expect(response.data).toBeDefined();
+      const { body, status } = await parseV2Response(response);
+
+      expect(body.data).toBeDefined();
       // Verify fetch was called with trimmed query
       expect(global.fetch).toHaveBeenCalledWith(
         expect.not.stringContaining("%20%20"), // No double spaces
@@ -118,25 +141,31 @@ describe("GET /v1/search/title - Comprehensive", () => {
     it("should return error for empty query", async () => {
       const response = await handleSearchTitle("", mockEnv);
 
-      expect(response.error).toBeDefined();
-      const validation = validateErrorEnvelope(response);
+      const { body, status } = await parseV2Response(response);
+
+      expect(body.error).toBeDefined();
+      const validation = validateErrorEnvelope(body);
       expect(validation.valid).toBe(true);
-      expect(response.error.code).toBe("INVALID_QUERY");
-      expect(response.error.message).toContain("required");
+      expect(body.error.code).toBe("INVALID_QUERY");
+      expect(body.error.message).toContain("required");
     });
 
     it("should return error for null query", async () => {
       const response = await handleSearchTitle(null, mockEnv);
 
-      expect(response.error).toBeDefined();
-      expect(response.error.code).toBe("INVALID_QUERY");
+      const { body, status } = await parseV2Response(response);
+
+      expect(body.error).toBeDefined();
+      expect(body.error.code).toBe("INVALID_QUERY");
     });
 
     it("should return error for undefined query", async () => {
       const response = await handleSearchTitle(undefined, mockEnv);
 
-      expect(response.error).toBeDefined();
-      expect(response.error.code).toBe("INVALID_QUERY");
+      const { body, status } = await parseV2Response(response);
+
+      expect(body.error).toBeDefined();
+      expect(body.error.code).toBe("INVALID_QUERY");
     });
 
     it("should reject excessively long queries (>200 chars)", async () => {
@@ -144,10 +173,12 @@ describe("GET /v1/search/title - Comprehensive", () => {
 
       const response = await handleSearchTitle(longQuery, mockEnv);
 
+      const { body, status } = await parseV2Response(response);
+
       // Should either truncate or reject
-      expect(response.data).toBeDefined();
-      if (response.error) {
-        expect(response.error.code).toMatch(/INVALID_QUERY|VALIDATION_ERROR/);
+      expect(body.data).toBeDefined();
+      if (body.error) {
+        expect(body.error.code).toMatch(/INVALID_QUERY|VALIDATION_ERROR/);
       }
     });
   });
@@ -166,9 +197,12 @@ describe("GET /v1/search/title - Comprehensive", () => {
 
       const response = await handleSearchTitle("test query", mockEnv);
 
+      const { body, status } = await parseV2Response(response);
+
       // Best-effort: provider errors return empty results
-      expect(response.data).toBeDefined();
-      expect(response.data.works).toEqual([]);
+      expect(status).toBe(200);
+      expect(body.data).toBeDefined();
+      expect(body.data.works).toEqual([]);
     });
 
     it("should handle network errors (best-effort)", async () => {
@@ -176,9 +210,12 @@ describe("GET /v1/search/title - Comprehensive", () => {
 
       const response = await handleSearchTitle("test query", mockEnv);
 
+      const { body, status } = await parseV2Response(response);
+
       // Best-effort: network errors return empty results
-      expect(response.data).toBeDefined();
-      expect(response.data.works).toEqual([]);
+      expect(status).toBe(200);
+      expect(body.data).toBeDefined();
+      expect(body.data.works).toEqual([]);
     });
 
     it("should handle empty results gracefully", async () => {
@@ -193,9 +230,11 @@ describe("GET /v1/search/title - Comprehensive", () => {
         mockEnv,
       );
 
-      expect(response.data).toBeDefined();
-      expect(response.data.works).toHaveLength(0);
-      expect(response.data.editions).toHaveLength(0);
+      const { body, status } = await parseV2Response(response);
+
+      expect(body.data).toBeDefined();
+      expect(body.data.works).toHaveLength(0);
+      expect(body.data.editions).toHaveLength(0);
     });
 
     it("should handle malformed API responses", async () => {
@@ -205,9 +244,12 @@ describe("GET /v1/search/title - Comprehensive", () => {
 
       const response = await handleSearchTitle("test", mockEnv);
 
+      const { body, status } = await parseV2Response(response);
+
       // Should handle gracefully without crashing
-      expect(response.data).toBeDefined();
-      expect(response.metadata).toBeDefined();
+      expect(status).toBe(200);
+      expect(body.data).toBeDefined();
+      expect(body.metadata).toBeDefined();
     });
   });
 
@@ -227,30 +269,38 @@ describe("GET /v1/search/title - Comprehensive", () => {
     it("should include success field", async () => {
       const response = await handleSearchTitle(book1984.title, mockEnv);
 
-      expect(response.data).toBeDefined();
+      const { body, status } = await parseV2Response(response);
+
+      expect(body.data).toBeDefined();
     });
 
     it("should include meta.timestamp", async () => {
       const response = await handleSearchTitle(book1984.title, mockEnv);
 
-      expect(response.metadata.timestamp).toBeDefined();
-      const timestamp = new Date(response.metadata.timestamp);
+      const { body, status } = await parseV2Response(response);
+
+      expect(body.metadata.timestamp).toBeDefined();
+      const timestamp = new Date(body.metadata.timestamp);
       expect(timestamp.getTime()).toBeGreaterThan(0);
     });
 
     it("should include meta.processingTime", async () => {
       const response = await handleSearchTitle(book1984.title, mockEnv);
 
-      expect(response.metadata.processingTime).toBeTypeOf("number");
-      expect(response.metadata.processingTime).toBeGreaterThanOrEqual(0);
+      const { body, status } = await parseV2Response(response);
+
+      expect(body.metadata.processingTime).toBeTypeOf("number");
+      expect(body.metadata.processingTime).toBeGreaterThanOrEqual(0);
     });
 
     it("should include meta.provider", async () => {
       const response = await handleSearchTitle(book1984.title, mockEnv);
 
-      if (response.data !== null) {
-        expect(response.metadata.provider).toBeDefined();
-        expect(typeof response.metadata.provider).toBe("string");
+      const { body, status } = await parseV2Response(response);
+
+      if (body.data !== null) {
+        expect(body.metadata.provider).toBeDefined();
+        expect(typeof body.metadata.provider).toBe("string");
       }
     });
   });
@@ -321,12 +371,14 @@ describe("GET /v1/search/title - Comprehensive", () => {
         10,
       );
 
-      if (response.data !== null) {
+      const { body, status } = await parseV2Response(response);
+
+      if (body.data !== null) {
         // Should limit results
         const totalResults =
-          response.data.works.length +
-          response.data.editions.length +
-          response.data.authors.length;
+          body.data.works.length +
+          body.data.editions.length +
+          body.data.authors.length;
 
         expect(totalResults).toBeLessThanOrEqual(10);
       }
@@ -335,8 +387,11 @@ describe("GET /v1/search/title - Comprehensive", () => {
     it("should default maxResults to 20", async () => {
       const response = await handleSearchTitle(harryPotterBook.title, mockEnv);
 
+      const { body, status } = await parseV2Response(response);
+
       // Default pagination behavior
-      expect(response.data).toBeDefined();
+      expect(status).toBe(200);
+      expect(body.data).toBeDefined();
     });
   });
 });

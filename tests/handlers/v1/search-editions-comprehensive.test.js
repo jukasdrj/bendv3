@@ -1,6 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { handleSearchEditions } from '../../../src/handlers/v1/search-editions.ts';
 
+/**
+ * Parse v2 Response object and extract body + status
+ * Handlers now return Response objects (issue #117)
+ */
+async function parseV2Response(response) {
+  const body = await response.json();
+  return {
+    body,
+    status: response.status,
+    headers: response.headers,
+  };
+}
+
 // Mock ExecutionContext
 const createMockContext = () => ({
   waitUntil: () => {},
@@ -26,28 +39,31 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('The Martian', 'Andy Weir', 20, mockEnv, mockCtx);
 
-      // Verify canonical response envelope
-      expect(response).toBeDefined();
-      expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('meta');
-      expect(response.metadata).toHaveProperty('timestamp');
-      expect(response.metadata).toHaveProperty('processingTime');
-      expect(response.metadata.processingTime).toBeTypeOf('number');
-      expect(response.metadata.processingTime).toBeGreaterThan(0);
+      const { body, status } = await parseV2Response(response);
 
-      if (response.data !== null) {
+      // Verify canonical response envelope
+      expect(status).toBe(200);
+      expect(body).toBeDefined();
+      expect(body).toHaveProperty('data');
+      expect(body).toHaveProperty('metadata');
+      expect(body.metadata).toHaveProperty('timestamp');
+      expect(body.metadata).toHaveProperty('processingTime');
+      expect(body.metadata.processingTime).toBeTypeOf('number');
+      expect(body.metadata.processingTime).toBeGreaterThan(0);
+
+      if (body.data !== null) {
         // Verify data structure
-        expect(response.data).toBeDefined();
-        expect(response.data).toHaveProperty('works');
-        expect(response.data).toHaveProperty('editions');
-        expect(response.data).toHaveProperty('authors');
-        
+        expect(body.data).toBeDefined();
+        expect(body.data).toHaveProperty('works');
+        expect(body.data).toHaveProperty('editions');
+        expect(body.data).toHaveProperty('authors');
+
         // Verify works and authors are empty (as per spec)
-        expect(response.data.works).toEqual([]);
-        expect(response.data.authors).toEqual([]);
-        
+        expect(body.data.works).toEqual([]);
+        expect(body.data.authors).toEqual([]);
+
         // Verify editions is an array
-        expect(Array.isArray(response.data.editions)).toBe(true);
+        expect(Array.isArray(body.data.editions)).toBe(true);
       }
     });
 
@@ -68,10 +84,13 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('1984', 'George Orwell', 20, mockEnv, mockCtx);
 
+      const { body, status } = await parseV2Response(response);
+
       // Provider metadata should be present (either in success or error response)
-      expect(response.metadata).toBeDefined();
-      expect(response.metadata).toHaveProperty('timestamp');
-      expect(response.metadata).toHaveProperty('processingTime');
+      expect(status).toBe(200);
+      expect(body.metadata).toBeDefined();
+      expect(body.metadata).toHaveProperty('timestamp');
+      expect(body.metadata).toHaveProperty('processingTime');
     });
   });
 
@@ -93,16 +112,19 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('Harry Potter', 'J.K. Rowling', 20, mockEnv, mockCtx);
 
-      if (response.success && response.data.editions.length > 0) {
-        const edition = response.data.editions[0];
-        
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      if (body.data && body.data.editions.length > 0) {
+        const edition = body.data.editions[0];
+
         // Verify EditionDTO structure
         expect(edition).toHaveProperty('isbns');
         expect(Array.isArray(edition.isbns)).toBe(true);
         expect(edition).toHaveProperty('format');
         expect(edition).toHaveProperty('isbndbQuality');
         expect(typeof edition.isbndbQuality).toBe('number');
-        
+
         // Optional fields
         if (edition.isbn) {
           expect(typeof edition.isbn).toBe('string');
@@ -133,8 +155,11 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('The Hobbit', 'J.R.R. Tolkien', 20, mockEnv, mockCtx);
 
-      if (response.success && response.data.editions.length > 0) {
-        for (const edition of response.data.editions) {
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      if (body.data && body.data.editions.length > 0) {
+        for (const edition of body.data.editions) {
           expect(edition).toHaveProperty('format');
           expect(typeof edition.format).toBe('string');
           // Format should be one of the valid values
@@ -168,8 +193,11 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
         mockCtx
       );
 
-      expect(response).toBeDefined();
-      expect(response.metadata).toBeDefined();
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      expect(body).toBeDefined();
+      expect(body.metadata).toBeDefined();
     });
 
     it('should handle author names with various formats', async () => {
@@ -196,8 +224,11 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
         mockCtx
       );
 
-      expect(response).toBeDefined();
-      expect(response.metadata).toBeDefined();
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      expect(body).toBeDefined();
+      expect(body.metadata).toBeDefined();
     });
 
     it('should handle whitespace in query parameters', async () => {
@@ -223,8 +254,11 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
         mockCtx
       );
 
-      expect(response).toBeDefined();
-      expect(response.metadata).toBeDefined();
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      expect(body).toBeDefined();
+      expect(body.metadata).toBeDefined();
     });
   });
 
@@ -246,8 +280,11 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('The Martian', 'Andy Weir', 1, mockEnv, mockCtx);
 
-      if (response.success && response.data.editions.length > 0) {
-        expect(response.data.editions.length).toBeLessThanOrEqual(1);
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      if (body.data && body.data.editions.length > 0) {
+        expect(body.data.editions.length).toBeLessThanOrEqual(1);
       }
     });
 
@@ -268,8 +305,11 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('Harry Potter', 'J.K. Rowling', 100, mockEnv, mockCtx);
 
-      if (response.success && response.data.editions.length > 0) {
-        expect(response.data.editions.length).toBeLessThanOrEqual(100);
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      if (body.data && body.data.editions.length > 0) {
+        expect(body.data.editions.length).toBeLessThanOrEqual(100);
       }
     });
 
@@ -290,8 +330,11 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('1984', 'George Orwell', 0, mockEnv, mockCtx);
 
-      if (response.data !== null) {
-        expect(response.data.editions.length).toBe(0);
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      if (body.data !== null) {
+        expect(body.data.editions.length).toBe(0);
       }
     });
   });
@@ -303,10 +346,13 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('', 'Andy Weir', 20, mockEnv, mockCtx);
 
-      expect(response.error).toBeDefined();
-      if (response.error) {
-        expect(response.error.code).toBe('INVALID_QUERY');
-        expect(response.error.message).toContain('workTitle');
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(400);
+      expect(body.error).toBeDefined();
+      if (body.error) {
+        expect(body.error.code).toBe('INVALID_QUERY');
+        expect(body.error.message).toContain('workTitle');
       }
     });
 
@@ -316,10 +362,13 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('The Martian', '', 20, mockEnv, mockCtx);
 
-      expect(response.error).toBeDefined();
-      if (response.error) {
-        expect(response.error.code).toBe('INVALID_QUERY');
-        expect(response.error.message).toContain('author');
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(400);
+      expect(body.error).toBeDefined();
+      if (body.error) {
+        expect(body.error.code).toBe('INVALID_QUERY');
+        expect(body.error.message).toContain('author');
       }
     });
 
@@ -329,9 +378,12 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('', '', 20, mockEnv, mockCtx);
 
-      expect(response.error).toBeDefined();
-      if (response.error) {
-        expect(response.error).toHaveProperty('details');
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(400);
+      expect(body.error).toBeDefined();
+      if (body.error) {
+        expect(body.error).toHaveProperty('details');
       }
     });
   });
@@ -354,14 +406,16 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
 
       const response = await handleSearchEditions('1984', 'George Orwell', 20, mockEnv, mockCtx);
 
-      expect(response.metadata).toHaveProperty('processingTime');
-      expect(typeof response.metadata.processingTime).toBe('number');
-      expect(response.metadata.processingTime).toBeGreaterThan(0);
+      const { body, status } = await parseV2Response(response);
+
+      expect(status).toBe(200);
+      expect(body.metadata).toHaveProperty('processingTime');
+      expect(typeof body.metadata.processingTime).toBe('number');
+      expect(body.metadata.processingTime).toBeGreaterThan(0);
     });
 
     it('should have reasonable processing time for cached results', async () => {
       const cachedData = {
-        success: true,
         data: {
           works: [],
           editions: [
@@ -375,12 +429,13 @@ describe('GET /v1/editions/search - Comprehensive Integration Tests', () => {
           ],
           authors: []
         },
-        meta: {
+        metadata: {
           timestamp: new Date().toISOString(),
           processingTime: 50,
           provider: 'isbndb',
           cached: false
-        }
+        },
+        error: null
       };
 
       const mockEnv = {

@@ -17,6 +17,7 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.9",
     "@vitest/ui": "^4.0.9",
+    "msw": "^2.12.2",
     "typescript": "^5.9.3",
     "vitest": "^4.0.9",
     "wrangler": "^4.48.0"
