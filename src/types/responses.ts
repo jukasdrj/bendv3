@@ -312,10 +312,12 @@ export interface EnrichedBookDTO {
 }
 
 // ============================================================================
-// HELPER FUNCTIONS
+// HELPER FUNCTIONS - DEPRECATED
 // ============================================================================
 
 /**
+ * @deprecated Use `createSuccessResponseObject` from `src/utils/response-builder.ts` instead.
+ *
  * Create success response object (legacy format)
  * Returns SuccessResponse<T> object, not Response
  */
@@ -334,6 +336,8 @@ export function createSuccessResponseObject<T>(
 }
 
 /**
+ * @deprecated Use `createErrorResponseObject` from `src/utils/response-builder.ts` instead.
+ *
  * Create error response object (legacy format)
  * Returns ErrorResponse object, not Response
  */
