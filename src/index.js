@@ -20,6 +20,7 @@ import { handleMetricsRequest } from "./handlers/metrics-handler.js";
 import { handleSearchTitle } from "./handlers/v1/search-title.js";
 import { handleSearchISBN } from "./handlers/v1/search-isbn.js";
 import { handleSearchAdvanced } from "./handlers/v1/search-advanced.js";
+import { handleSearchEditions } from "./handlers/v1/search-editions.ts";
 import { adaptToUnifiedEnvelope } from "./utils/envelope-helpers.ts";
 import { handleImageProxy } from "./handlers/image-proxy.js";
 import { checkRateLimit } from "./middleware/rate-limiter.js";
@@ -564,6 +565,15 @@ export default {
       const title = url.searchParams.get("title") || "";
       const author = url.searchParams.get("author") || "";
       const response = await handleSearchAdvanced(title, author, env, ctx);
+      return adaptToUnifiedEnvelope(response, useUnifiedEnvelope);
+    }
+
+    // GET /v1/editions/search - Search for all editions of a specific work
+    if (url.pathname === "/v1/editions/search" && request.method === "GET") {
+      const workTitle = url.searchParams.get("workTitle") || "";
+      const author = url.searchParams.get("author") || "";
+      const limit = parseInt(url.searchParams.get("limit") || "20");
+      const response = await handleSearchEditions(workTitle, author, limit, env, ctx);
       return adaptToUnifiedEnvelope(response, useUnifiedEnvelope);
     }
 

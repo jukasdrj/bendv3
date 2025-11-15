@@ -38,6 +38,7 @@ TypeScript-first API contracts ensure consistency across all data providers. All
 - `GET /v1/search/title?q={query}` - Title search (canonical response)
 - `GET /v1/search/isbn?isbn={isbn}` - ISBN lookup with validation (ISBN-10/ISBN-13)
 - `GET /v1/search/advanced?title={title}&author={author}` - Flexible search (title, author, or both)
+- `GET /v1/editions/search?workTitle={title}&author={author}&limit={limit}` - Find all editions of a specific work
 
 **Enrichment Endpoints:**
 - `POST /v1/enrichment/batch` - Batch enrichment with WebSocket progress
@@ -45,7 +46,8 @@ TypeScript-first API contracts ensure consistency across all data providers. All
 **Error Codes:**
 - `INVALID_QUERY` - Empty/invalid search parameters
 - `INVALID_ISBN` - Malformed ISBN format
-- `PROVIDER_ERROR` - Upstream API failure (Google Books, etc.)
+- `NOT_FOUND` - No editions found for the specified work
+- `PROVIDER_ERROR` - Upstream API failure (Google Books, ISBNdb, etc.)
 - `INTERNAL_ERROR` - Unexpected server error
 
 ### Provenance Tracking
@@ -251,3 +253,126 @@ public struct ApiResponse<T: Codable>: Codable { /* ... */ }
 **Last Updated:** November 13, 2025
 **API Version:** v1.0.0
 **Maintainer:** Claude Code
+
+### Editions Search Endpoint
+
+**GET /v1/editions/search**
+
+Find all editions of a specific work by title and author. Useful for the iOS "Find Different Edition" feature.
+
+**Query Parameters:**
+- `workTitle` (required) - Exact or approximate title of the work
+- `author` (required) - Author name (handles various formats: "First Last" or "Last, First")
+- `limit` (optional) - Maximum number of editions to return (default: 20)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "works": [],     // Empty - not needed for this endpoint
+    "editions": [
+      {
+        "isbn": "9780553418026",
+        "isbns": ["9780553418026", "0553418025"],
+        "title": "The Martian",
+        "format": "Hardcover",
+        "publisher": "Crown Publishing",
+        "publicationDate": "2014-02-11",
+        "pageCount": 369,
+        "coverImageURL": "https://...",
+        "primaryProvider": "isbndb",
+        "isbndbQuality": 95
+      },
+      {
+        "isbn": "9780553418026",
+        "format": "Paperback",
+        ...
+      },
+      {
+        "isbn": "B00EMXBDMA",
+        "format": "E-book",
+        ...
+      }
+    ],
+    "authors": []    // Empty - not needed for this endpoint
+  },
+  "meta": {
+    "timestamp": "2025-11-14T23:00:00.000Z",
+    "processingTime": 234.5,
+    "provider": "orchestrated:isbndb+google-books",
+    "cached": false
+  }
+}
+```
+
+**Features:**
+- **Fuzzy Title Matching** - Handles variations like "The Martian" vs "Martian, The" (Levenshtein distance)
+- **Author Matching** - Supports "Andy Weir" and "Weir, Andy" formats
+- **ISBN Deduplication** - Automatically merges ISBN-10/ISBN-13 equivalents
+- **Smart Sorting** - Hardcover → Paperback → E-book → Audiobook, then by publication date (newest first)
+- **Multi-Provider** - Orchestrates ISBNdb and Google Books for comprehensive coverage
+- **Caching** - 7-day TTL for fast repeated queries
+
+**Error Responses:**
+```json
+// Missing parameters
+{
+  "success": false,
+  "error": {
+    "message": "workTitle parameter is required",
+    "code": "INVALID_QUERY",
+    "details": { "workTitle": "", "author": "Andy Weir" }
+  },
+  "meta": { ... }
+}
+
+// No editions found
+{
+  "success": false,
+  "error": {
+    "message": "No editions found for \"Unknown Book\" by Unknown Author",
+    "code": "NOT_FOUND",
+    "details": { "workTitle": "Unknown Book", "author": "Unknown Author" }
+  },
+  "meta": { ... }
+}
+
+// Provider failure
+{
+  "success": false,
+  "error": {
+    "message": "All book data providers failed",
+    "code": "PROVIDER_ERROR",
+    "details": { "error": "..." }
+  },
+  "meta": { ... }
+}
+```
+
+**Example Requests:**
+```bash
+# Find all editions of The Martian
+curl "https://api.bookstrack.app/v1/editions/search?workTitle=The%20Martian&author=Andy%20Weir"
+
+# Limit to 5 editions
+curl "https://api.bookstrack.app/v1/editions/search?workTitle=Harry%20Potter&author=J.K.%20Rowling&limit=5"
+
+# Handle special characters
+curl "https://api.bookstrack.app/v1/editions/search?workTitle=The%20Lord%20of%20the%20Rings&author=J.R.R.%20Tolkien"
+```
+
+**Performance:**
+- Cached results: < 50ms
+- Fresh searches: < 2s (depends on provider response times)
+- Cache TTL: 7 days
+
+**iOS Integration:**
+```swift
+// BookSearchAPIService.swift
+func searchEditions(workTitle: String, author: String, limit: Int = 20) async throws -> [EditionDTO] {
+    let response = try await fetch("/v1/editions/search?workTitle=\(workTitle)&author=\(author)&limit=\(limit)")
+    return response.data.editions
+}
+```
+

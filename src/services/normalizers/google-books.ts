@@ -73,7 +73,7 @@ export function normalizeGoogleBooksToEdition(item: any): EditionDTO {
     publisher: volumeInfo.publisher,
     publicationDate: volumeInfo.publishedDate,
     pageCount: volumeInfo.pageCount,
-    format: 'Hardcover', // Google Books doesn't provide format
+    format: 'Other', // Google Books doesn't provide format data
     coverImageURL: getHighResCoverURL(volumeInfo.imageLinks),
     editionTitle: undefined,
     editionDescription: volumeInfo.description,
