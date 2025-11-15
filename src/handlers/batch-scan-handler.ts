@@ -57,6 +57,13 @@ function mapToDetectedBook(book): DetectedBookDTO {
 
 export async function handleBatchScan(request, env, ctx) {
   try {
+    // Set up abort listener for early client disconnect detection
+    let clientDisconnected = false;
+    request.signal?.addEventListener('abort', () => {
+      clientDisconnected = true;
+      console.log('[Batch Scan] Client disconnected during job initialization');
+    });
+
     const { jobId, images } = await request.json();
 
     // Validation
@@ -100,6 +107,12 @@ export async function handleBatchScan(request, env, ctx) {
     await doStub.setAuthToken(authToken);
 
     console.log(`[Batch Scan] Auth token generated for job ${jobId}`);
+
+    // Check if client disconnected during validation
+    if (clientDisconnected) {
+      console.log(`[Batch Scan] Skipping job ${jobId} - client disconnected before processing started`);
+      return createErrorResponse('Client disconnected', 499, ErrorCodes.CLIENT_DISCONNECTED);
+    }
 
     // Initialize job state for batch scan
     await doStub.initializeJobState('ai_scan', images.length);

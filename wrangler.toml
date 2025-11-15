@@ -29,9 +29,14 @@
 
 name = "api-worker"
 main = "src/index.js"
-compatibility_date = "2024-10-01"
+compatibility_date = "2025-11-14"  # Use latest available date (2025-11-17 not yet released)
 workers_dev = true
-compatibility_flags = ["nodejs_compat"]
+compatibility_flags = [
+  "nodejs_compat",         # Node.js APIs (already enabled)
+  "enable_request_signal", # Cancel requests on client disconnect
+  "cache_no_cache_enabled" # Better cache control
+  # Note: fixup-transform-stream-backpressure became default as of 2024-12-16
+]
 
 # Custom domain routes (oooefam.net)
 routes = [
