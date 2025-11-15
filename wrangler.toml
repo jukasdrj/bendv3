@@ -214,9 +214,13 @@ dataset = "bookshelf_ai_performance"
 enabled = true
 head_sampling_rate = 1.0
 
-# Resource limits (Paid Plan: 5 minutes max for HTTP, 15 minutes for Cron/Queue)
+# Resource limits (Paid Plan)
 # CPU time is actual computation time, not wall-clock duration
 # Network I/O and waiting for external APIs does NOT count toward CPU time
+# - HTTP requests: 5 minutes max CPU time
+# - Durable Object alarms: 15 minutes max CPU time
+# - Cron triggers: 15 minutes max CPU time
+# - Queue consumers: 15 minutes max CPU time
 [limits]
 cpu_ms = 300000  # 5 minutes (300,000ms) - maximum for HTTP requests on Paid Plan
 memory_mb = 128  # Standard: 128 MB per isolate (not configurable)

@@ -47,6 +47,17 @@ const ALLOWED_ORIGINS = [
  * @returns {object} - CORS headers object
  */
 export function getCorsHeaders(request) {
+  // Handle null request (when no request object is available)
+  if (!request || !request.headers) {
+    return {
+      'Access-Control-Allow-Origin': '*', // Permissive fallback for non-browser clients
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-AI-Provider',
+      'Access-Control-Max-Age': '86400' // 24 hours preflight cache
+    };
+  }
+
   const origin = request.headers.get('Origin');
   const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : null;
 
@@ -56,7 +67,7 @@ export function getCorsHeaders(request) {
   }
 
   return {
-    'Access-Control-Allow-Origin': allowedOrigin || 'null', // 'null' = blocked
+    'Access-Control-Allow-Origin': allowedOrigin || '*', // Fallback to permissive for iOS app (no Origin header)
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-AI-Provider',
