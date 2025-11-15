@@ -5,8 +5,8 @@
  * Used by iOS "Find Different Edition" feature
  */
 
-import type { ApiResponse, BookSearchResponse } from '../../types/responses.js';
-import { createSuccessResponseObject, createErrorResponseObject } from '../../types/responses.js';
+import type { BookSearchResponse } from '../../types/responses.js';
+import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../../utils/response-builder.js';
 import { normalizeTitle, normalizeAuthor, normalizeISBN } from '../../utils/normalization.js';
 import { setCached, generateCacheKey } from '../../utils/cache.js';
 import { UnifiedCacheService } from '../../services/unified-cache.js';
@@ -202,24 +202,29 @@ export async function handleSearchEditions(
   author: string,
   limit: number = 20,
   env: any,
-  ctx: ExecutionContext
-): Promise<ApiResponse<BookSearchResponse>> {
+  ctx: ExecutionContext,
+  request: Request | null = null
+): Promise<Response> {
   const startTime = Date.now();
 
   // Validation
   if (!workTitle || workTitle.trim().length === 0) {
-    return createErrorResponseObject(
+    return createErrorResponse(
       'workTitle parameter is required',
-      'INVALID_QUERY',
-      { workTitle, author }
+      400,
+      ErrorCodes.INVALID_QUERY,
+      { workTitle, author },
+      request
     );
   }
 
   if (!author || author.trim().length === 0) {
-    return createErrorResponseObject(
+    return createErrorResponse(
       'author parameter is required',
-      'INVALID_QUERY',
-      { workTitle, author }
+      400,
+      ErrorCodes.INVALID_QUERY,
+      { workTitle, author },
+      request
     );
   }
 
@@ -241,14 +246,16 @@ export async function handleSearchEditions(
 
     if (cachedResult?.data) {
       console.log(`✅ Cache HIT: /v1/editions/search (${cacheKey})`);
-      return {
-        ...cachedResult.data,
-        meta: {
+      return createSuccessResponse(
+        cachedResult.data.data,
+        {
           ...cachedResult.data.meta,
           cached: true,
           cacheSource: cachedResult.source // EDGE or KV
-        }
-      };
+        },
+        200,
+        request
+      );
     }
 
     console.log(
@@ -320,53 +327,70 @@ export async function handleSearchEditions(
       }
     }
 
-    const response = createSuccessResponseObject(
-      {
-        works: [], // Empty - not needed for editions endpoint
-        editions: limitedEditions,
-        authors: [] // Empty - not needed for editions endpoint
-      },
+    // If we found no editions, return NOT_FOUND error (as specified)
+    if (limitedEditions.length === 0) {
+      return createErrorResponse(
+        `No editions found for "${workTitle}" by ${author}`,
+        404,
+        ErrorCodes.NOT_FOUND,
+        { workTitle, author, processingTime: Date.now() - startTime },
+        request
+      );
+    }
+
+    const responseData = {
+      works: [], // Empty - not needed for editions endpoint
+      editions: limitedEditions,
+      authors: [] // Empty - not needed for editions endpoint
+    };
+
+    const response = createSuccessResponse(
+      responseData,
       {
         processingTime: Date.now() - startTime,
         provider,
         cached: false,
-      }
+      },
+      200,
+      request
     );
 
-    // If we found no editions, return NOT_FOUND error (as specified)
-    if (limitedEditions.length === 0) {
-      return createErrorResponseObject(
-        `No editions found for "${workTitle}" by ${author}`,
-        'NOT_FOUND',
-        { workTitle, author },
-        { processingTime: Date.now() - startTime }
-      );
-    }
-
-    // Write to cache (7-day TTL as specified)
+    // Write to cache (7-day TTL as specified) - save legacy format for compatibility
+    const legacyResponseObject = {
+      success: true,
+      data: responseData,
+      meta: {
+        timestamp: new Date().toISOString(),
+        processingTime: Date.now() - startTime,
+        provider,
+        cached: false,
+      }
+    };
     const ttl = 7 * 24 * 60 * 60; // 604800 seconds
-    ctx.waitUntil(setCached(cacheKey, response, ttl, env));
+    ctx.waitUntil(setCached(cacheKey, legacyResponseObject, ttl, env));
     console.log(`💾 Cache WRITE: /v1/editions/search (${cacheKey}, TTL: ${ttl}s)`);
 
     return response;
   } catch (error: any) {
     console.error('Error in v1 editions search:', error);
-    
+
     // Check if all providers failed
     if (error.message?.includes('API') || error.message?.includes('fetch')) {
-      return createErrorResponseObject(
+      return createErrorResponse(
         'All book data providers failed',
-        'PROVIDER_ERROR',
-        { error: error.toString() },
-        { processingTime: Date.now() - startTime }
+        503,
+        ErrorCodes.PROVIDER_ERROR,
+        { error: error.toString(), processingTime: Date.now() - startTime },
+        request
       );
     }
-    
-    return createErrorResponseObject(
+
+    return createErrorResponse(
       error.message || 'Internal server error',
-      'INTERNAL_ERROR',
-      { error: error.toString() },
-      { processingTime: Date.now() - startTime }
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      { error: error.toString(), processingTime: Date.now() - startTime },
+      request
     );
   }
 }

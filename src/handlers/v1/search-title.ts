@@ -5,24 +5,27 @@
  * Returns up to 20 results for iOS search UI
  */
 
-import type { ApiResponse, BookSearchResponse } from '../../types/responses.js';
-import { createSuccessResponseObject, createErrorResponseObject } from '../../utils/response-builder.js';
+import type { BookSearchResponse } from '../../types/responses.js';
+import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../../utils/response-builder.js';
 import { enrichMultipleBooks } from '../../services/enrichment.ts';
 import { normalizeTitle } from '../../utils/normalization.js';
 import { extractUniqueAuthors, removeAuthorsFromWorks } from '../../utils/response-transformer.js';
 
 export async function handleSearchTitle(
   query: string,
-  env: any
-): Promise<ApiResponse<BookSearchResponse>> {
+  env: any,
+  request: Request | null = null
+): Promise<Response> {
   const startTime = Date.now();
 
   // Validation
   if (!query || query.trim().length === 0) {
-    return createErrorResponseObject(
+    return createErrorResponse(
       'Search query is required',
-      'INVALID_QUERY',
-      { query }
+      400,
+      ErrorCodes.INVALID_QUERY,
+      { query },
+      request
     );
   }
 
@@ -36,13 +39,15 @@ export async function handleSearchTitle(
 
     if (!result || !result.works || result.works.length === 0) {
       // No books found in any provider
-      return createSuccessResponseObject(
+      return createSuccessResponse(
         { works: [], editions: [], authors: [] },
         {
           processingTime: Date.now() - startTime,
           provider: 'none',
           cached: false,
-        }
+        },
+        200,
+        request
       );
     }
 
@@ -52,21 +57,24 @@ export async function handleSearchTitle(
     // Remove authors property from works (not part of canonical WorkDTO)
     const cleanWorks = removeAuthorsFromWorks(result.works);
 
-    return createSuccessResponseObject(
+    return createSuccessResponse(
       { works: cleanWorks, editions: result.editions, authors },
       {
         processingTime: Date.now() - startTime,
         provider: cleanWorks[0]?.primaryProvider, // Use actual provider from enriched work
         cached: false,
-      }
+      },
+      200,
+      request
     );
   } catch (error: any) {
     console.error('Error in v1 title search:', error);
-    return createErrorResponseObject(
+    return createErrorResponse(
       error.message || 'Internal server error',
-      'INTERNAL_ERROR',
-      { error: error.toString() },
-      { processingTime: Date.now() - startTime }
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      { error: error.toString(), processingTime: Date.now() - startTime },
+      request
     );
   }
 }

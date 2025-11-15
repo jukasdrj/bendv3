@@ -5,8 +5,8 @@
  * Refactored to use shared enrichMultipleBooks() service for consistency
  */
 
-import type { ApiResponse, BookSearchResponse } from '../../types/responses.js';
-import { createSuccessResponseObject, createErrorResponseObject } from '../../utils/response-builder.js';
+import type { BookSearchResponse } from '../../types/responses.js';
+import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../../utils/response-builder.js';
 import { enrichMultipleBooks } from '../../services/enrichment.ts';
 import { normalizeISBN } from '../../utils/normalization.js';
 import { extractUniqueAuthors, removeAuthorsFromWorks } from '../../utils/response-transformer.js';
@@ -33,24 +33,29 @@ function isValidISBN(isbn: string): boolean {
 
 export async function handleSearchISBN(
   isbn: string,
-  env: any
-): Promise<ApiResponse<BookSearchResponse>> {
+  env: any,
+  request: Request | null = null
+): Promise<Response> {
   const startTime = Date.now();
 
   // Validation
   if (!isbn || isbn.trim().length === 0) {
-    return createErrorResponseObject(
+    return createErrorResponse(
       'ISBN is required',
-      'INVALID_ISBN',
-      { isbn }
+      400,
+      ErrorCodes.INVALID_ISBN,
+      { isbn },
+      request
     );
   }
 
   if (!isValidISBN(isbn)) {
-    return createErrorResponseObject(
+    return createErrorResponse(
       'Invalid ISBN format. Must be valid ISBN-10 or ISBN-13',
-      'INVALID_ISBN',
-      { isbn }
+      400,
+      ErrorCodes.INVALID_ISBN,
+      { isbn },
+      request
     );
   }
 
@@ -77,13 +82,15 @@ export async function handleSearchISBN(
         itemCount: 0
       });
 
-      return createSuccessResponseObject(
+      return createSuccessResponse(
         { works: [], editions: [], authors: [] },
         {
           processingTime,
           provider: 'none',
           cached: false,
-        }
+        },
+        200,
+        request
       );
     }
 
@@ -106,21 +113,24 @@ export async function handleSearchISBN(
       itemCount: cleanWorks.length
     });
 
-    return createSuccessResponseObject(
+    return createSuccessResponse(
       { works: cleanWorks, editions: result.editions, authors },
       {
         processingTime,
         provider: work?.primaryProvider, // Use actual provider from enriched work
         cached: false,
-      }
+      },
+      200,
+      request
     );
   } catch (error: any) {
     console.error('Error in v1 ISBN search:', error);
-    return createErrorResponseObject(
+    return createErrorResponse(
       error.message || 'Internal server error',
-      'INTERNAL_ERROR',
-      { error: error.toString() },
-      { processingTime: Date.now() - startTime }
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      { error: error.toString(), processingTime: Date.now() - startTime },
+      request
     );
   }
 }

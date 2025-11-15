@@ -23,7 +23,6 @@ import { handleSearchTitle } from "./handlers/v1/search-title.js";
 import { handleSearchISBN } from "./handlers/v1/search-isbn.js";
 import { handleSearchAdvanced } from "./handlers/v1/search-advanced.js";
 import { handleSearchEditions } from "./handlers/v1/search-editions.ts";
-import { adaptToUnifiedEnvelope } from "./utils/envelope-helpers.ts";
 import { handleImageProxy } from "./handlers/image-proxy.js";
 import { checkRateLimit } from "./middleware/rate-limiter.js";
 import {
@@ -553,23 +552,20 @@ export default {
     // GET /v1/search/title - Search books by title (canonical response)
     if (url.pathname === "/v1/search/title" && request.method === "GET") {
       const query = url.searchParams.get("q");
-      const response = await handleSearchTitle(query, env);
-      return adaptToUnifiedEnvelope(response, true);
+      return await handleSearchTitle(query, env, request);
     }
 
     // GET /v1/search/isbn - Search books by ISBN (canonical response)
     if (url.pathname === "/v1/search/isbn" && request.method === "GET") {
       const isbn = url.searchParams.get("isbn");
-      const response = await handleSearchISBN(isbn, env);
-      return adaptToUnifiedEnvelope(response, true);
+      return await handleSearchISBN(isbn, env, request);
     }
 
     // GET /v1/search/advanced - Advanced search by title and/or author (canonical response)
     if (url.pathname === "/v1/search/advanced" && request.method === "GET") {
       const title = url.searchParams.get("title") || "";
       const author = url.searchParams.get("author") || "";
-      const response = await handleSearchAdvanced(title, author, env, ctx);
-      return adaptToUnifiedEnvelope(response, true);
+      return await handleSearchAdvanced(title, author, env, ctx, request);
     }
 
     // GET /v1/editions/search - Search for all editions of a specific work
@@ -577,14 +573,14 @@ export default {
       const workTitle = url.searchParams.get("workTitle") || "";
       const author = url.searchParams.get("author") || "";
       const limit = parseInt(url.searchParams.get("limit") || "20");
-      const response = await handleSearchEditions(
+      return await handleSearchEditions(
         workTitle,
         author,
         limit,
         env,
         ctx,
+        request
       );
-      return adaptToUnifiedEnvelope(response, useUnifiedEnvelope);
     }
 
     // ========================================================================

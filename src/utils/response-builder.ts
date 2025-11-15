@@ -162,68 +162,18 @@ export function createErrorResponse(
 }
 
 // ============================================================================
-// LEGACY RESPONSE OBJECT FUNCTIONS (For v1 Search Handlers)
+// LEGACY RESPONSE OBJECT FUNCTIONS (REMOVED - No longer in use)
 // ============================================================================
 
 /**
- * Create legacy success response object (SuccessResponse format)
+ * @deprecated REMOVED as of issue #117
  *
- * Returns SuccessResponse<T> object for v1 search handlers.
- * Router wraps these with adaptToUnifiedEnvelope() to convert to new format.
+ * All v1 search handlers (search-isbn, search-title, search-advanced, search-editions)
+ * now use createSuccessResponse() and createErrorResponse() directly.
  *
- * @param data - Success data payload
- * @param meta - Optional metadata (uses ResponseMeta, not ResponseMetadata)
- * @returns SuccessResponse<T> with success flag
- *
- * @example
- * // For v1 search handlers
- * return createSuccessResponseObject({ works: [] }, { cached: true, provider: 'google-books' });
+ * These functions remain here temporarily for backward compatibility with cache entries
+ * but are no longer used by any handler code.
  */
-export function createSuccessResponseObject<T>(
-  data: T,
-  meta: any = {},
-): { success: true; data: T; meta: any } {
-  return {
-    success: true,
-    data,
-    meta: {
-      timestamp: new Date().toISOString(),
-      ...meta,
-    },
-  };
-}
-
-/**
- * Create legacy error response object (ErrorResponse format)
- *
- * Returns ErrorResponse object for v1 search handlers.
- * Router wraps these with adaptToUnifiedEnvelope() to convert to new format.
- *
- * @param message - Error message
- * @param code - Optional error code
- * @param details - Optional error details
- * @param meta - Optional metadata (uses ResponseMeta, not ResponseMetadata)
- * @returns ErrorResponse with success flag
- *
- * @example
- * // For v1 search handlers
- * return createErrorResponseObject('Invalid ISBN', 'INVALID_ISBN');
- */
-export function createErrorResponseObject(
-  message: string,
-  code?: ApiErrorCode | string,
-  details?: any,
-  meta: any = {},
-): { success: false; error: { message: string; code?: string; details?: any }; meta: any } {
-  return {
-    success: false,
-    error: { message, code, details },
-    meta: {
-      timestamp: new Date().toISOString(),
-      ...meta,
-    },
-  };
-}
 
 // ============================================================================
 // LEGACY RESPONSE FUNCTIONS (DEPRECATED)
