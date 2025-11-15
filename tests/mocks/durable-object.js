@@ -67,24 +67,20 @@ export function createMockDOStub() {
       return { success: true }
     }),
 
-    // Progress Updates
+    // Progress Updates (Unified Schema v1.0.0)
     pushProgress: vi.fn(async (progressData) => {
       return { success: true }
     }),
 
-    updateProgress: vi.fn(async (progress, status) => {
+    updateProgress: vi.fn(async (pipeline, payload) => {
       return { success: true }
     }),
 
-    updateProgressV2: vi.fn(async (pipeline, payload) => {
+    complete: vi.fn(async (pipeline, payload) => {
       return { success: true }
     }),
 
-    complete: vi.fn(async (data) => {
-      return { success: true }
-    }),
-
-    fail: vi.fn(async (errorData) => {
+    sendError: vi.fn(async (pipeline, payload) => {
       return { success: true }
     }),
 

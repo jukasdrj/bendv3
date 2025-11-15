@@ -16,11 +16,8 @@ const createMockEnv = () => ({
       setAuthToken: vi.fn().mockResolvedValue(undefined),
       initializeJobState: vi.fn().mockResolvedValue(undefined),
       updateProgress: vi.fn().mockResolvedValue(undefined),
-      updateProgressV2: vi.fn().mockResolvedValue(undefined),
       complete: vi.fn().mockResolvedValue(undefined),
-      completeV2: vi.fn().mockResolvedValue(undefined),
-      sendError: vi.fn().mockResolvedValue(undefined),
-      fail: vi.fn().mockResolvedValue(undefined)
+      sendError: vi.fn().mockResolvedValue(undefined)
     }))
   }
 });

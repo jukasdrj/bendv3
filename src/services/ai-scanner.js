@@ -36,7 +36,7 @@ export async function processBookshelfScan(jobId, imageData, request, env, doStu
     await doStub.initializeJobState('ai_scan', 3); // 3 stages total
 
     // Stage 1: Image quality analysis (10% progress)
-    await doStub.updateProgressV2('ai_scan', {
+    await doStub.updateProgress('ai_scan', {
       progress: 0.1,
       status: 'Analyzing image quality...',
       processedCount: 0,
@@ -45,7 +45,7 @@ export async function processBookshelfScan(jobId, imageData, request, env, doStu
     console.log(`[AI Scanner] Progress pushed: 10% (image quality analysis)`);
 
     // Stage 2: AI processing with Gemini 2.0 Flash
-    await doStub.updateProgressV2('ai_scan', {
+    await doStub.updateProgress('ai_scan', {
       progress: 0.3,
       status: 'Processing with Gemini AI...',
       processedCount: 1,
@@ -88,7 +88,7 @@ export async function processBookshelfScan(jobId, imageData, request, env, doStu
 
     console.log(`[AI Scanner] ${detectedBooks.length} books detected (${scanResult.metadata.processingTimeMs}ms)`);
 
-    await doStub.updateProgressV2('ai_scan', {
+    await doStub.updateProgress('ai_scan', {
       progress: 0.5,
       status: `Detected ${detectedBooks.length} books, enriching data...`,
       processedCount: 1,
@@ -145,7 +145,7 @@ export async function processBookshelfScan(jobId, imageData, request, env, doStu
       },
       async (completed, total, title, hasError) => {
         const progress = 0.7 + (0.25 * completed / total);
-        await doStub.updateProgressV2('ai_scan', {
+        await doStub.updateProgress('ai_scan', {
           progress,
           status: hasError
             ? `Enriched ${completed}/${total} books (${title} failed)`
@@ -183,34 +183,34 @@ export async function processBookshelfScan(jobId, imageData, request, env, doStu
     console.log(`[AI Scanner] Enrichment summary: ${enrichedBooks.filter(b => b.enrichment?.status === 'success').length} success, ${enrichedBooks.filter(b => b.enrichment?.status === 'not_found').length} not_found, ${enrichedBooks.filter(b => b.enrichment?.status === 'error').length} error`);
 
     // Final progress update before completion (100%)
-    await doStub.updateProgressV2('ai_scan', {
+    await doStub.updateProgress('ai_scan', {
       progress: 1.0,
       status: 'Scan complete, finalizing results...',
       processedCount: 3,
       currentItem: 'Finalizing'
     });
 
-    // Send completion using V2 schema
+    // Send completion using unified schema
     const completionPayload = {
       totalDetected: detectedBooks.length,
       approved: approved.length,
       needsReview: review.length,
       books
     };
-    console.log(`[AI Scanner] 📤 Sending completeV2 with payload:`, JSON.stringify({
+    console.log(`[AI Scanner] 📤 Sending complete with payload:`, JSON.stringify({
       totalDetected: completionPayload.totalDetected,
       approved: completionPayload.approved,
       needsReview: completionPayload.needsReview,
       booksCount: completionPayload.books.length
     }));
-    await doStub.completeV2('ai_scan', completionPayload);
+    await doStub.complete('ai_scan', completionPayload);
 
     console.log(`[AI Scanner] Scan complete for job ${jobId}: ${detectedBooks.length} books, ${processingTime}ms`);
 
   } catch (error) {
     console.error(`[AI Scanner] Scan failed for job ${jobId}:`, error);
 
-    // Send error using V2 schema
+    // Send error using unified schema
     await doStub.sendError('ai_scan', {
       code: 'E_AI_SCAN_FAILED',
       message: error.message,
@@ -221,5 +221,5 @@ export async function processBookshelfScan(jobId, imageData, request, env, doStu
       }
     });
   }
-  // NOTE: No finally block needed! completeV2() and sendError() handle WebSocket cleanup
+  // NOTE: No finally block needed! complete() and sendError() handle WebSocket cleanup
 }
