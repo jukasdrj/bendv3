@@ -858,12 +858,40 @@ export class ProgressWebSocketDO extends DurableObject {
   }
 
   /**
-   * Alarm handler: Process long-running background jobs or cleanup
-   * Runs outside ctx.waitUntil() timeout limits
+   * RPC Method: Schedule bookshelf scan processing via Durable Object alarm
+   * Called by index.js to avoid Worker CPU time limits for long AI operations
    *
-   * Handles two types of alarms:
+   * @param {ArrayBuffer} imageData - Raw image data
+   * @param {string} jobId - Job identifier
+   * @param {Object} requestHeaders - Headers from original request
+   * @returns {Promise<{success: boolean}>}
+   */
+  async scheduleBookshelfScan(imageData, jobId, requestHeaders) {
+    console.log(`[${jobId}] Scheduling bookshelf scan via alarm`);
+
+    // Store image data and job metadata in Durable Object storage
+    await this.storage.put('imageData', imageData);
+    await this.storage.put('requestHeaders', requestHeaders || {});
+    await this.storage.put('jobId', jobId);
+    await this.storage.put('jobType', 'bookshelf-scan');
+
+    // Schedule alarm with 2-second delay to ensure WebSocket connects
+    const alarmTime = Date.now() + 2000;
+    await this.storage.setAlarm(alarmTime);
+
+    console.log(`[${jobId}] Bookshelf scan alarm scheduled for ${new Date(alarmTime).toISOString()}`);
+
+    return { success: true };
+  }
+
+  /**
+   * Alarm handler: Process long-running background jobs or cleanup
+   * Runs outside Worker CPU time limits (5min for HTTP, 15min for alarms)
+   *
+   * Handles three types of alarms:
    * 1. CSV Import Processing - jobType='csv-import', scheduled 2s after upload
-   * 2. State Cleanup - No jobType, scheduled 24h after job completion
+   * 2. Bookshelf Scan Processing - jobType='bookshelf-scan', scheduled 2s after upload
+   * 3. State Cleanup - No jobType, scheduled 24h after job completion
    */
   async alarm() {
     const jobType = await this.storage.get('jobType');
@@ -873,6 +901,10 @@ export class ProgressWebSocketDO extends DurableObject {
       // CSV processing alarm (scheduled at 2s by scheduleCSVProcessing)
       console.log(`[${jobId}] Alarm triggered for CSV import processing`);
       await this.processCSVImportAlarm();
+    } else if (jobType === 'bookshelf-scan') {
+      // Bookshelf scan processing alarm (scheduled at 2s by scheduleBookshelfScan)
+      console.log(`[${jobId}] Alarm triggered for bookshelf scan processing`);
+      await this.processBookshelfScanAlarm();
     } else {
       // Cleanup alarm (scheduled at 24h by completeJobState/failJobState)
       console.log(`[${jobId || 'unknown'}] Cleanup alarm triggered - removing old state`);
@@ -884,7 +916,7 @@ export class ProgressWebSocketDO extends DurableObject {
 
   /**
    * Process CSV import inside Durable Object alarm
-   * No ctx.waitUntil() timeout - can run indefinitely
+   * No Worker CPU time limits apply in alarm context
    */
   async processCSVImportAlarm() {
     const csvText = await this.storage.get('csvData');
@@ -923,6 +955,61 @@ export class ProgressWebSocketDO extends DurableObject {
 
       // Clean up storage even on error
       await this.storage.delete('csvData');
+      await this.storage.delete('jobId');
+      await this.storage.delete('jobType');
+    }
+  }
+
+  /**
+   * Process bookshelf scan inside Durable Object alarm
+   * No Worker CPU time limits apply in alarm context (can handle 20-60s AI processing)
+   */
+  async processBookshelfScanAlarm() {
+    const imageData = await this.storage.get('imageData');
+    const requestHeaders = await this.storage.get('requestHeaders');
+    const jobId = await this.storage.get('jobId');
+
+    console.log(`[${jobId}] Starting bookshelf scan in alarm (no CPU time limits)`);
+
+    try {
+      // Import AI scanner service
+      const { processBookshelfScan } = await import('../services/ai-scanner.js');
+
+      // Create mock request object with headers
+      const mockRequest = {
+        headers: {
+          get: (key) => requestHeaders[key] || null
+        }
+      };
+
+      // Process bookshelf scan with access to this (DO stub methods)
+      // Pass null for ctx since we're in alarm context (no ctx.waitUntil needed)
+      await processBookshelfScan(jobId, imageData, mockRequest, this.env, this, null);
+
+      console.log(`[${jobId}] Bookshelf scan completed successfully`);
+
+      // Clean up storage
+      await this.storage.delete('imageData');
+      await this.storage.delete('requestHeaders');
+      await this.storage.delete('jobId');
+      await this.storage.delete('jobType');
+
+    } catch (error) {
+      console.error(`[${jobId}] Bookshelf scan processing failed in alarm:`, error);
+
+      await this.sendError('ai_scan', {
+        code: 'BOOKSHELF_SCAN_ERROR',
+        message: error.message,
+        details: {
+          fallbackAvailable: false,
+          suggestion: 'Try uploading a clearer photo or contact support'
+        },
+        retryable: true
+      });
+
+      // Clean up storage even on error
+      await this.storage.delete('imageData');
+      await this.storage.delete('requestHeaders');
       await this.storage.delete('jobId');
       await this.storage.delete('jobType');
     }

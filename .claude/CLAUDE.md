@@ -343,6 +343,22 @@ export async function findByISBN(isbn, env) {
 
 ## Common Mistakes to Avoid
 
+### ❌ Don't Exceed CPU Time Limits
+```javascript
+// Paid Plan Limits:
+// - HTTP Requests: 5 minutes max CPU time (default: 30 seconds)
+// - Cron Triggers: 15 minutes max CPU time
+// - Queue Consumers: 15 minutes max CPU time
+
+// ❌ BAD - Long CPU-intensive operation in Worker context
+ctx.waitUntil(
+  processLargeCSV(data)  // May timeout if >5min CPU time
+)
+
+// ✅ GOOD - Use Durable Object alarm for long operations
+await doStub.scheduleProcessing(data)  // Alarm runs independently
+```
+
 ### ❌ Don't Block Event Loop
 ```javascript
 // Bad - synchronous blocking

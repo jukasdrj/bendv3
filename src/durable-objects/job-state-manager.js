@@ -313,11 +313,33 @@ export class JobStateManagerDO extends DurableObject {
   }
 
   /**
-   * Alarm handler: Process CSV or cleanup old job state
+   * RPC Method: Schedule bookshelf scan processing via alarm
    *
-   * Handles two scenarios:
+   * Avoids Worker CPU time limits for long-running Gemini AI calls (20-60s)
+   * Similar to CSV import, this delegates work to Durable Object alarm context
+   *
+   * @param {ArrayBuffer} imageData - Raw image data
+   * @param {string} jobId - Job identifier
+   * @param {Object} requestHeaders - Headers from original request (X-AI-Provider, etc.)
+   * @returns {Promise<{success: boolean}>}
+   */
+  async scheduleBookshelfScan(imageData, jobId, requestHeaders) {
+    // Store image data as ArrayBuffer
+    await this.storage.put("imageData", imageData);
+    await this.storage.put("requestHeaders", requestHeaders || {});
+    await this.storage.put("processingType", "bookshelf_scan");
+    await this.storage.setAlarm(Date.now()); // Trigger immediately
+    console.log(`[JobStateManager] Scheduled bookshelf scan for job ${jobId}`);
+    return { success: true };
+  }
+
+  /**
+   * Alarm handler: Process CSV, bookshelf scan, or cleanup old job state
+   *
+   * Handles three scenarios:
    * 1. CSV processing (triggered immediately after scheduling)
-   * 2. Cleanup after 24 hours (triggered after job completion/failure)
+   * 2. Bookshelf scan processing (triggered immediately after scheduling)
+   * 3. Cleanup after 24 hours (triggered after job completion/failure)
    */
   async alarm() {
     const processingType = await this.storage.get("processingType");
@@ -369,6 +391,68 @@ export class JobStateManagerDO extends DurableObject {
       // Clean up temporary storage
       await this.storage.delete("csvText");
       await this.storage.delete("processingType");
+
+    } else if (processingType === "bookshelf_scan") {
+      // Bookshelf scan processing path
+      console.log("[JobStateManager] Alarm triggered for bookshelf scan processing");
+
+      const imageData = await this.storage.get("imageData");
+      const requestHeaders = await this.storage.get("requestHeaders");
+      const jobState = await this.storage.get("jobState");
+
+      if (!imageData || !jobState) {
+        console.error(
+          "[JobStateManager] Missing image data or job state in alarm handler",
+        );
+        return;
+      }
+
+      // Import AI scanner service (in DO context to avoid Worker CPU timeout)
+      const { processBookshelfScan } = await import("../services/ai-scanner.js");
+      const { ProgressReporter } = await import("../utils/progress-reporter.js");
+
+      const reporter = new ProgressReporter(jobState.jobId, this.env);
+
+      try {
+        // Create a mock request object with headers (for X-AI-Provider support)
+        const mockRequest = {
+          headers: {
+            get: (key) => requestHeaders[key] || null
+          }
+        };
+
+        // Call the AI scanner with reporter instead of doStub
+        // We pass null for ctx since we're in alarm context (no ctx.waitUntil needed)
+        await processBookshelfScan(
+          jobState.jobId,
+          imageData,
+          mockRequest,
+          this.env,
+          reporter, // Use reporter instead of doStub
+          null      // No execution context in alarm
+        );
+      } catch (error) {
+        console.error(
+          "[JobStateManager] Bookshelf scan processing failed in alarm:",
+          error,
+        );
+
+        await reporter.sendError("ai_scan", {
+          code: "E_ALARM_PROCESSING_FAILED",
+          message: error.message || "Bookshelf scan processing failed",
+          retryable: true,
+          details: {
+            fallbackAvailable: false,
+            suggestion: "Try uploading a clearer photo or contact support if issue persists",
+          },
+        });
+      }
+
+      // Clean up temporary storage
+      await this.storage.delete("imageData");
+      await this.storage.delete("requestHeaders");
+      await this.storage.delete("processingType");
+
     } else {
       // Cleanup path (24 hour cleanup after job completion/failure)
       console.log(

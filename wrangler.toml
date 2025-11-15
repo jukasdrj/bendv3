@@ -209,10 +209,12 @@ dataset = "bookshelf_ai_performance"
 enabled = true
 head_sampling_rate = 1.0
 
-# Resource limits (from books-api-proxy and bookshelf-ai-worker)
+# Resource limits (Paid Plan: 5 minutes max for HTTP, 15 minutes for Cron/Queue)
+# CPU time is actual computation time, not wall-clock duration
+# Network I/O and waiting for external APIs does NOT count toward CPU time
 [limits]
-cpu_ms = 180000  # 3 minutes - increased from 30s to handle large enrichment batches
-memory_mb = 256
+cpu_ms = 300000  # 5 minutes (300,000ms) - maximum for HTTP requests on Paid Plan
+memory_mb = 128  # Standard: 128 MB per isolate (not configurable)
 
 # Placement (from books-api-proxy and bookshelf-ai-worker)
 [placement]
@@ -280,6 +282,14 @@ class_name = "ProgressWebSocketDO"
 [[env.staging.durable_objects.bindings]]
 name = "RATE_LIMITER_DO"
 class_name = "RateLimiterDO"
+
+[[env.staging.durable_objects.bindings]]
+name = "WEBSOCKET_CONNECTION_DO"
+class_name = "WebSocketConnectionDO"
+
+[[env.staging.durable_objects.bindings]]
+name = "JOB_STATE_MANAGER_DO"
+class_name = "JobStateManagerDO"
 
 [[env.staging.analytics_engine_datasets]]
 binding = "PERFORMANCE_ANALYTICS"
