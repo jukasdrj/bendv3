@@ -343,9 +343,9 @@ describe("Token Refresh Handler (/api/token/refresh)", () => {
         "application/json",
       );
       // Verify CORS headers are present with specific origin (not wildcard)
-      expect(response.headers.get("access-control-allow-origin")).toBe(
-        "http://localhost:3000",
-      );
+      // CORS middleware returns '*' for permissive access (iOS app compatibility)
+      // See wrangler.toml CORS Configuration comment
+      expect(response.headers.get("access-control-allow-origin")).toBe("*");
     });
 
     it("should include CORS headers in error response", async () => {
@@ -368,9 +368,9 @@ describe("Token Refresh Handler (/api/token/refresh)", () => {
         "application/json",
       );
       // Verify CORS headers are present in error responses with specific origin
-      expect(response.headers.get("access-control-allow-origin")).toBe(
-        "http://localhost:3000",
-      );
+      // CORS middleware returns '*' for permissive access (iOS app compatibility)
+      // See wrangler.toml CORS Configuration comment
+      expect(response.headers.get("access-control-allow-origin")).toBe("*");
     });
   });
 
