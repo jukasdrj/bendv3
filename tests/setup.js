@@ -149,18 +149,43 @@ export function createMockKV() {
 }
 
 export function createMockR2Bucket() {
-  return mockR2;
+  const bucket = mockR2;
+  // Add backward-compatible helpers for existing tests
+  if (!bucket.head) {
+    bucket.head = vi.fn(async (key) => {
+      const data = r2Store.get(key);
+      return data ? { key, size: data.length } : null;
+    });
+  }
+  if (!bucket.__getAll) {
+    bucket.__getAll = () => Object.fromEntries(r2Store);
+  }
+  return bucket;
 }
 
 export function createMockQueue() {
   // The old factory returned a queue object directly. The new mock is a
   // namespace. We'll return a default queue instance for tests that need it.
-  return mockQueues.get('default-test-queue');
+  const queueName = 'default-test-queue';
+  const queue = mockQueues.get(queueName);
+
+  // Add backward-compatible helpers for existing tests
+  queue.__getMessages = () => mockQueues.getMessages(queueName);
+  queue.__clear = () => mockQueues.clear(); // Note: this clears ALL queues
+
+  return queue;
 }
 
 export function createMockAnalyticsDataset() {
   // Same pattern as queues.
-  return mockAnalyticsEngine.get('default-test-dataset');
+  const datasetName = 'default-test-dataset';
+  const dataset = mockAnalyticsEngine.get(datasetName);
+
+  // Add backward-compatible helpers for existing tests
+  dataset.__getData = () => mockAnalyticsEngine.getDataPoints(datasetName);
+  dataset.__clear = () => mockAnalyticsEngine.clear(); // Note: this clears ALL engines
+
+  return dataset;
 }
 
 /**

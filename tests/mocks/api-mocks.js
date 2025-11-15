@@ -16,15 +16,19 @@ import { vi } from 'vitest';
 // Mock API Endpoints
 // =============================================================================
 
+// Standardize all mock responses with consistent { data, status } structure
 const initialMockApiResponses = {
   'https://openlibrary.org/search.json': {
-    docs: [{ title: 'Mock Book' }],
+    data: { docs: [{ title: 'Mock Book' }] },
+    status: 200,
   },
   'https://www.googleapis.com/books/v1/volumes': {
-    items: [{ volumeInfo: { title: 'Mock Book' } }],
+    data: { items: [{ volumeInfo: { title: 'Mock Book' } }] },
+    status: 200,
   },
   'https://api.isbndb.com/book/978-0-321-76572-3': {
-    book: { title: 'Mock Book' },
+    data: { book: { title: 'Mock Book' } },
+    status: 200,
   },
 };
 
@@ -42,8 +46,9 @@ export const mockFetch = vi.fn(async (url, options) => {
 
   if (mockApiResponses[urlWithoutQuery]) {
     const mock = mockApiResponses[urlWithoutQuery];
-    return new Response(JSON.stringify(mock.data || mock), {
-      status: mock.status || 200,
+    // Now all responses have consistent structure
+    return new Response(JSON.stringify(mock.data), {
+      status: mock.status,
       headers: { 'Content-Type': 'application/json' },
     });
   }
