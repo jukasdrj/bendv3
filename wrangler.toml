@@ -244,9 +244,63 @@ crons = [
 # ====================================================================================
 
 [env.staging]
-name = "books-api-proxy-staging"
-workers_dev = true
+name = "api-worker-staging"
+routes = [
+  { pattern = "staging-api.oooefam.net/*", zone_name = "oooefam.net" }
+]
 
-[env.staging.vars]
-# Staging-specific log level (more verbose)
-LOG_LEVEL = "DEBUG"
+[[env.staging.kv_namespaces]]
+binding = "CACHE"
+id = "STAGING_KV_ID_1"
+
+[[env.staging.kv_namespaces]]
+binding = "KV_CACHE"
+id = "STAGING_KV_ID_1"
+
+[[env.staging.r2_buckets]]
+binding = "API_CACHE_COLD"
+bucket_name = "personal-library-data-staging"
+
+[[env.staging.r2_buckets]]
+binding = "LIBRARY_DATA"
+bucket_name = "personal-library-data-staging"
+
+[[env.staging.r2_buckets]]
+binding = "BOOKSHELF_IMAGES"
+bucket_name = "bookshelf-images-staging"
+
+[[env.staging.r2_buckets]]
+binding = "BOOK_COVERS"
+bucket_name = "bookstrack-covers-staging"
+
+[[env.staging.durable_objects.bindings]]
+name = "PROGRESS_WEBSOCKET_DO"
+class_name = "ProgressWebSocketDO"
+
+[[env.staging.durable_objects.bindings]]
+name = "RATE_LIMITER_DO"
+class_name = "RateLimiterDO"
+
+[[env.staging.analytics_engine_datasets]]
+binding = "PERFORMANCE_ANALYTICS"
+dataset = "books_api_performance_staging"
+
+[[env.staging.analytics_engine_datasets]]
+binding = "CACHE_ANALYTICS"
+dataset = "books_api_cache_metrics_staging"
+
+[[env.staging.analytics_engine_datasets]]
+binding = "PROVIDER_ANALYTICS"
+dataset = "books_api_provider_performance_staging"
+
+[[env.staging.analytics_engine_datasets]]
+binding = "AI_ANALYTICS"
+dataset = "bookshelf_ai_performance_staging"
+
+[[env.staging.queues.producers]]
+binding = "AUTHOR_WARMING_QUEUE"
+queue = "author-warming-queue-staging"
+
+[[env.staging.queues.consumers]]
+queue = "author-warming-queue-staging"
+dead_letter_queue = "author-warming-dlq-staging"
