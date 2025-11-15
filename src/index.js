@@ -1,5 +1,7 @@
 import { ProgressWebSocketDO } from "./durable-objects/progress-socket.js";
 import { RateLimiterDO } from "./durable-objects/rate-limiter.js";
+import { WebSocketConnectionDO } from "./durable-objects/websocket-connection.js";
+import { JobStateManagerDO } from "./durable-objects/job-state-manager.js";
 import * as externalApis from "./services/external-apis.ts";
 import * as enrichment from "./services/enrichment.ts";
 import * as aiScanner from "./services/ai-scanner.js";
@@ -38,7 +40,7 @@ import {
 import { getProgressDOStub } from "./utils/durable-object-helpers.ts";
 
 // Export the Durable Object classes for Cloudflare Workers runtime
-export { ProgressWebSocketDO, RateLimiterDO };
+export { ProgressWebSocketDO, RateLimiterDO, WebSocketConnectionDO, JobStateManagerDO };
 
 export default {
   async fetch(request, env, ctx) {

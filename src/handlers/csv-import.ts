@@ -22,6 +22,10 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
  * Uses Durable Object alarm to avoid ctx.waitUntil() timeout (Issue #249)
  * Long-running Gemini API calls (20-60s) exceed Workers inactivity limits
  *
+ * Feature Flag: ENABLE_REFACTORED_DOS (new architecture with separated concerns)
+ * - When true: Uses WebSocketConnectionDO + JobStateManagerDO + CSV Processor Service
+ * - When false: Uses legacy ProgressWebSocketDO (default for backward compatibility)
+ *
  * @param {Request} request - Incoming request with FormData containing CSV file
  * @param {Object} env - Worker environment bindings
  * @param {ExecutionContext} ctx - Execution context (not used for processing)
@@ -52,25 +56,49 @@ export async function handleCSVImport(request, env, ctx) {
     // Generate jobId
     const jobId = crypto.randomUUID();
 
-    // Get WebSocket DO stub
-    const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-    const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
-
     // SECURITY: Generate authentication token for WebSocket connection
     const authToken = crypto.randomUUID();
-    await doStub.setAuthToken(authToken);
 
-    console.log(`[CSV Import] Auth token generated for job ${jobId}`);
+    // Feature flag: Use new refactored architecture or legacy monolithic DO
+    const useRefactoredDOs = env.ENABLE_REFACTORED_DOS === 'true';
 
-    // Initialize job state for CSV import (CRITICAL: Must be done BEFORE returning response)
-    // This sets currentPipeline so ready_ack messages will have the correct pipeline field
-    // Note: totalCount is unknown at this stage (Gemini parses CSV in alarm), so pass 0
-    await doStub.initializeJobState('csv_import', 0);
+    if (useRefactoredDOs) {
+      // NEW ARCHITECTURE: Separated concerns
+      // Get Durable Object stubs
+      const wsDoId = env.WEBSOCKET_CONNECTION_DO.idFromName(jobId);
+      const wsDoStub = env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
 
-    // Read CSV content and schedule processing via Durable Object alarm
-    // This avoids ctx.waitUntil() timeout for long-running Gemini API calls
-    const csvText = await csvFile.text();
-    await doStub.scheduleCSVProcessing(csvText, jobId);
+      const stateDoId = env.JOB_STATE_MANAGER_DO.idFromName(jobId);
+      const stateDoStub = env.JOB_STATE_MANAGER_DO.get(stateDoId);
+
+      // Set authentication token and initialize job state
+      await wsDoStub.setAuthToken(authToken);
+      await stateDoStub.initializeJobState(jobId, 'csv_import', 0);
+
+      console.log(`[CSV Import] Using new architecture for job ${jobId}`);
+
+      // Read CSV content and schedule processing via Durable Object alarm
+      // This avoids ctx.waitUntil() timeout for long-running Gemini API calls (20-60s)
+      const csvText = await csvFile.text();
+      await stateDoStub.scheduleCSVProcessing(csvText, jobId);
+
+    } else {
+      // LEGACY ARCHITECTURE: Monolithic ProgressWebSocketDO
+      const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
+      const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+
+      await doStub.setAuthToken(authToken);
+      console.log(`[CSV Import] Auth token generated for job ${jobId}`);
+
+      // Initialize job state for CSV import
+      await doStub.initializeJobState('csv_import', 0);
+
+      // Read CSV content and schedule processing via Durable Object alarm
+      const csvText = await csvFile.text();
+      await doStub.scheduleCSVProcessing(csvText, jobId);
+
+      console.log(`[CSV Import] Using legacy architecture for job ${jobId}`);
+    }
 
     // Return typed CSVImportInitResponse
     const initResponse: CSVImportInitResponse = {

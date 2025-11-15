@@ -33,6 +33,14 @@ import { DurableObject } from 'cloudflare:workers';
  * (updateProgress, complete, fail) have been removed. Only the unified
  * schema methods remain (without V2 suffix).
  *
+ * ⚠️ **DEPRECATION NOTICE** (Phase 2 - Architectural Refactoring)
+ * This monolithic DO is being replaced by a refactored architecture. Set
+ * ENABLE_REFACTORED_DOS=true in wrangler.toml to use the new architecture:
+ * - WebSocketConnectionDO - Connection management only
+ * - JobStateManagerDO - State persistence only
+ * - Services (csv-processor.js) - Business logic extracted from DOs
+ * See: ARCHITECTURE_OVERVIEW.md for migration guide
+ *
  * @see types/websocket-messages.ts - Unified message schema definitions
  * @see handlers/batch-enrichment.ts - Example usage from job processor
  */

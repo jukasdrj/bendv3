@@ -73,6 +73,11 @@ MAX_SCAN_FILE_SIZE = "10485760"
 # Legacy format with success discriminator has been deprecated.
 ENABLE_UNIFIED_ENVELOPE = "true"
 
+# Durable Object Architecture Refactoring (Phase 2 - Architectural Cleanup)
+# When true: Uses refactored architecture (WebSocketConnectionDO + JobStateManagerDO + Services)
+# When false: Uses legacy monolithic ProgressWebSocketDO (default for backward compatibility)
+ENABLE_REFACTORED_DOS = "false"  # Default: legacy architecture
+
 # KV Namespaces (consolidated from books-api-proxy and external-apis-worker)
 # Note: Set remote = true to access production KV during local development (Wrangler v4.37+)
 [[kv_namespaces]]
@@ -160,6 +165,15 @@ class_name = "ProgressWebSocketDO"
 name = "RATE_LIMITER_DO"
 class_name = "RateLimiterDO"
 
+# New refactored Durable Objects (Phase 2: Architectural Refactoring)
+[[durable_objects.bindings]]
+name = "WEBSOCKET_CONNECTION_DO"
+class_name = "WebSocketConnectionDO"
+
+[[durable_objects.bindings]]
+name = "JOB_STATE_MANAGER_DO"
+class_name = "JobStateManagerDO"
+
 # Durable Object migrations
 [[migrations]]
 tag = "v1"
@@ -168,6 +182,10 @@ new_classes = ["ProgressWebSocketDO"]
 [[migrations]]
 tag = "v2"
 new_classes = ["RateLimiterDO"]
+
+[[migrations]]
+tag = "v3"
+new_classes = ["WebSocketConnectionDO", "JobStateManagerDO"]
 
 # Analytics Engine (merged from books-api-proxy and bookshelf-ai-worker)
 [[analytics_engine_datasets]]

@@ -183,7 +183,11 @@ Services (src/services/)
 
 ### Durable Objects (Stateful)
 
-**File:** `/src/durable-objects/progress-socket.js`
+#### Legacy Architecture (ProgressWebSocketDO)
+
+**⚠️ DEPRECATED - Being replaced by refactored architecture**
+
+**File:** `/src/durable-objects/progress-socket.js` (1,222 lines - monolithic)
 
 ```typescript
 class ProgressWebSocketDO {
@@ -193,10 +197,127 @@ class ProgressWebSocketDO {
   // - Job status & progress
   // - Authentication tokens
   // - Batch processing state
+  // - Business logic (CSV processing via alarm)
 }
 ```
 
-**Key Methods:**
+**Issues:**
+- Violates Single Responsibility Principle
+- Mixes connection management, state persistence, and business logic
+- Hard to test and maintain
+- Business logic in Durable Object alarms
+
+---
+
+#### Refactored Architecture (New - Feature Flag: `ENABLE_REFACTORED_DOS`)
+
+**Separation of Concerns - Three focused components:**
+
+##### 1. WebSocketConnectionDO
+**File:** `/src/durable-objects/websocket-connection.js` (~300 lines)
+
+**Responsibility:** WebSocket connection management ONLY
+
+```typescript
+class WebSocketConnectionDO {
+  // WebSocket lifecycle
+  async fetch(request)           // Upgrade & authenticate
+  async setAuthToken(token)      // Set auth token
+  async waitForReady(timeout)    // Wait for client ready signal
+  async send(message)            // Send message to client
+  async closeConnection(reason)  // Close connection
+}
+```
+
+**Features:**
+- Token-based authentication (2-hour expiration)
+- Client ready signal coordination
+- Message broadcasting to connected clients
+- Clean lifecycle management
+
+**Tests:** 20 unit tests covering authentication, lifecycle, RPC methods
+
+---
+
+##### 2. JobStateManagerDO
+**File:** `/src/durable-objects/job-state-manager.js` (~260 lines)
+
+**Responsibility:** Job state persistence ONLY
+
+```typescript
+class JobStateManagerDO {
+  // State management
+  async initializeJobState(jobId, pipeline, totalCount)
+  async updateProgress(pipeline, payload)
+  async complete(pipeline, payload)
+  async sendError(pipeline, payload)
+  async cancelJob(reason)
+  async isCanceled()
+  async getJobState()
+  async alarm()  // Cleanup after 24 hours
+}
+```
+
+**Features:**
+- Persistent job state storage
+- Throttled writes (configurable per pipeline)
+  - CSV import: 20 updates or 30 seconds
+  - Batch enrichment: 5 updates or 10 seconds
+  - AI scan: 1 update or 60 seconds
+- Coordinates with WebSocketConnectionDO for broadcasts
+- Automatic cleanup after 24 hours
+
+**Tests:** 22 unit tests covering initialization, progress, completion, errors, throttling
+
+---
+
+##### 3. CSV Processor Service
+**File:** `/src/services/csv-processor.js`
+
+**Responsibility:** Business logic ONLY (no DO coupling)
+
+```typescript
+async function processCSVImport(csvText, progressReporter, env) {
+  // Pure business logic
+  // Uses progressReporter interface (adapter pattern)
+  // No direct DO dependencies
+}
+```
+
+**Features:**
+- Pure business logic extraction
+- Progress reporter interface for decoupling
+- Easier to test in isolation
+- No Durable Object alarm dependency
+
+---
+
+##### 4. Progress Reporter Adapter
+**File:** `/src/utils/progress-reporter.js`
+
+**Responsibility:** Unified interface to new DOs
+
+```typescript
+class ProgressReporter {
+  constructor(jobId, env)
+  async setAuthToken(token)
+  async initialize(pipeline, totalCount)
+  async waitForReady(timeout)
+  async updateProgress(pipeline, payload)
+  async complete(pipeline, payload)
+  async sendError(pipeline, payload)
+  // ... coordinates between WebSocketConnectionDO and JobStateManagerDO
+}
+```
+
+**Migration:**
+- Set `ENABLE_REFACTORED_DOS=true` in wrangler.toml
+- Handlers automatically switch to new architecture
+- Backward compatible during transition
+
+---
+
+**Key Methods (Legacy ProgressWebSocketDO):**
 - `fetch(request)` - WebSocket upgrade handler
 - `setAuthToken()` - Store auth token for WebSocket
 - `waitForReady()` - Wait for client connection signal
