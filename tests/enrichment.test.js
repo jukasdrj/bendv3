@@ -14,7 +14,18 @@ import {
 import * as externalApis from "../src/services/external-apis.ts";
 
 // Mock external APIs module
-vi.mock("../src/services/external-apis.ts");
+vi.mock("../src/services/external-apis.ts", () => ({
+  searchGoogleBooks: vi.fn(),
+  searchGoogleBooksById: vi.fn(),
+  searchGoogleBooksByISBN: vi.fn(),
+  searchOpenLibrary: vi.fn(),
+  searchOpenLibraryById: vi.fn(),
+  searchOpenLibraryByGoodreadsId: vi.fn(),
+  getOpenLibraryAuthorWorks: vi.fn(),
+  searchISBNdb: vi.fn(),
+  getISBNdbEditionsForWork: vi.fn(),
+  getISBNdbBookByISBN: vi.fn(),
+}));
 
 describe("enrichSingleBook()", () => {
   let mockEnv;
@@ -34,35 +45,36 @@ describe("enrichSingleBook()", () => {
 
   test("returns WorkDTO for valid book (Google Books)", async () => {
     // Mock successful Google Books response
-    externalApis.searchGoogleBooksByISBN.mockResolvedValue({
+    const mockWork = {
+      work: {
+        title: "1984",
+        authors: [{ name: "George Orwell" }],
+        primaryProvider: "google-books",
+        contributors: ["google-books"],
+        synthetic: false,
+      },
+      edition: { isbn13: "9780451524935" },
+      authors: [{ name: "George Orwell" }],
+    };
+    const searchByISBNSpy = vi.spyOn(externalApis, 'searchGoogleBooksByISBN').mockResolvedValue({
       success: true,
-      works: [
-        {
-          title: "1984",
-          authors: [{ name: "George Orwell" }],
-          editions: [{ isbn13: "9780451524935" }],
-          subjectTags: ["Fiction", "Dystopian"],
-          goodreadsWorkIDs: [],
-          amazonASINs: [],
-          librarythingIDs: [],
-          googleBooksVolumeIDs: ["abc123"],
-          isbndbQuality: 0.95,
-          reviewStatus: "approved",
-          synthetic: false,
-        },
-      ],
+      works: [mockWork.work],
+      editions: [mockWork.edition],
+      authors: mockWork.authors,
     });
 
     const result = await enrichSingleBook({ isbn: "9780451524935" }, mockEnv);
 
     expect(result).toMatchObject({
-      title: "1984",
-      authors: [{ name: "George Orwell" }],
-      primaryProvider: "google-books",
-      contributors: ["google-books"],
-      synthetic: false,
+      work: {
+        title: "1984",
+        authors: [{ name: "George Orwell" }],
+        primaryProvider: "google-books",
+        contributors: ["google-books"],
+        synthetic: false,
+      },
     });
-    expect(externalApis.searchGoogleBooksByISBN).toHaveBeenCalledWith(
+    expect(searchByISBNSpy).toHaveBeenCalledWith(
       "9780451524935",
       mockEnv,
     );
@@ -70,24 +82,23 @@ describe("enrichSingleBook()", () => {
 
   test("returns WorkDTO for title+author search (Google Books)", async () => {
     // Mock successful Google Books response
-    externalApis.searchGoogleBooks.mockResolvedValue({
+    const mockWork = {
+      work: {
+        title: "Pride and Prejudice",
+        authors: [{ name: "Jane Austen" }],
+        primaryProvider: "google-books",
+        contributors: ["google-books"],
+      },
+      edition: null,
+      authors: [{ name: "Jane Austen" }],
+    };
+    const searchGoogleBooksSpy = vi.spyOn(externalApis, 'searchGoogleBooks').mockResolvedValue({
       success: true,
-      works: [
-        {
-          title: "Pride and Prejudice",
-          authors: [{ name: "Jane Austen" }],
-          editions: [],
-          subjectTags: ["Classic", "Romance"],
-          goodreadsWorkIDs: [],
-          amazonASINs: [],
-          librarythingIDs: [],
-          googleBooksVolumeIDs: ["xyz789"],
-          isbndbQuality: 0.9,
-          reviewStatus: "approved",
-          synthetic: false,
-        },
-      ],
+      works: [mockWork.work],
+      authors: mockWork.authors,
     });
+    externalApis.searchGoogleBooksByISBN.mockResolvedValue({ success: false });
+
 
     const result = await enrichSingleBook(
       { title: "Pride and Prejudice", author: "Jane Austen" },
@@ -95,12 +106,14 @@ describe("enrichSingleBook()", () => {
     );
 
     expect(result).toMatchObject({
-      title: "Pride and Prejudice",
-      authors: [{ name: "Jane Austen" }],
-      primaryProvider: "google-books",
-      contributors: ["google-books"],
+      work: {
+        title: "Pride and Prejudice",
+        authors: [{ name: "Jane Austen" }],
+        primaryProvider: "google-books",
+        contributors: ["google-books"],
+      },
     });
-    expect(externalApis.searchGoogleBooks).toHaveBeenCalledWith(
+    expect(searchGoogleBooksSpy).toHaveBeenCalledWith(
       "Pride and Prejudice Jane Austen",
       { maxResults: 1 },
       mockEnv,
@@ -132,30 +145,29 @@ describe("enrichSingleBook()", () => {
 
   test("tries Google Books first, OpenLibrary as fallback", async () => {
     // Mock: Google Books returns nothing
-    externalApis.searchGoogleBooks.mockResolvedValue({
+    const searchGoogleBooksSpy = vi.spyOn(externalApis, 'searchGoogleBooks').mockResolvedValue({
       success: true,
       works: [],
     });
 
     // Mock: OpenLibrary returns result
-    externalApis.searchOpenLibrary.mockResolvedValue({
+    const mockWork = {
+      work: {
+        title: "Obscure Indie Book",
+        authors: [{ name: "Unknown Author" }],
+        primaryProvider: "openlibrary",
+        contributors: ["openlibrary"],
+      },
+      edition: null,
+      authors: [{ name: "Unknown Author" }],
+    };
+    const searchOpenLibrarySpy = vi.spyOn(externalApis, 'searchOpenLibrary').mockResolvedValue({
       success: true,
-      works: [
-        {
-          title: "Obscure Indie Book",
-          authors: [{ name: "Unknown Author" }],
-          editions: [],
-          subjectTags: [],
-          goodreadsWorkIDs: [],
-          amazonASINs: [],
-          librarythingIDs: [],
-          googleBooksVolumeIDs: [],
-          isbndbQuality: 0,
-          reviewStatus: "pending",
-          synthetic: false,
-        },
-      ],
+      works: [mockWork.work],
+      authors: mockWork.authors,
     });
+    externalApis.searchGoogleBooksByISBN.mockResolvedValue({ success: false });
+
 
     const result = await enrichSingleBook(
       { title: "Obscure Indie Book" },
@@ -163,10 +175,10 @@ describe("enrichSingleBook()", () => {
     );
 
     expect(result).not.toBeNull();
-    expect(result.primaryProvider).toBe("openlibrary");
-    expect(result.contributors).toEqual(["openlibrary"]);
-    expect(externalApis.searchGoogleBooks).toHaveBeenCalled();
-    expect(externalApis.searchOpenLibrary).toHaveBeenCalled();
+    expect(result.work.primaryProvider).toBe("openlibrary");
+    expect(result.work.contributors).toEqual(["openlibrary"]);
+    expect(searchGoogleBooksSpy).toHaveBeenCalled();
+    expect(searchOpenLibrarySpy).toHaveBeenCalled();
   });
 
   test("handles API errors gracefully (returns null)", async () => {
@@ -197,24 +209,16 @@ describe("enrichSingleBook()", () => {
 
   test("prioritizes ISBN search over title search", async () => {
     // Mock: ISBN search succeeds
-    externalApis.searchGoogleBooksByISBN.mockResolvedValue({
+    const mockWork = {
+      work: {
+        title: "The Great Gatsby",
+      },
+    };
+    const searchByISBNSpy = vi.spyOn(externalApis, 'searchGoogleBooksByISBN').mockResolvedValue({
       success: true,
-      works: [
-        {
-          title: "The Great Gatsby",
-          authors: [{ name: "F. Scott Fitzgerald" }],
-          editions: [{ isbn13: "9780743273565" }],
-          subjectTags: [],
-          goodreadsWorkIDs: [],
-          amazonASINs: [],
-          librarythingIDs: [],
-          googleBooksVolumeIDs: [],
-          isbndbQuality: 0,
-          reviewStatus: "approved",
-          synthetic: false,
-        },
-      ],
+      works: [mockWork.work],
     });
+    const searchGoogleBooksSpy = vi.spyOn(externalApis, 'searchGoogleBooks');
 
     const result = await enrichSingleBook(
       { isbn: "9780743273565", title: "The Great Gatsby" },
@@ -222,39 +226,33 @@ describe("enrichSingleBook()", () => {
     );
 
     expect(result).not.toBeNull();
-    expect(result.title).toBe("The Great Gatsby");
+    expect(result.work.title).toBe("The Great Gatsby");
 
     // Should use ISBN search, not title search
-    expect(externalApis.searchGoogleBooksByISBN).toHaveBeenCalled();
-    expect(externalApis.searchGoogleBooks).not.toHaveBeenCalled();
+    expect(searchByISBNSpy).toHaveBeenCalled();
+    expect(searchGoogleBooksSpy).not.toHaveBeenCalled();
   });
 
   test("falls back to OpenLibrary if Google Books title search fails", async () => {
     // Mock: Google Books title search returns no results
-    externalApis.searchGoogleBooks.mockResolvedValue({
+    const searchGoogleBooksSpy = vi.spyOn(externalApis, 'searchGoogleBooks').mockResolvedValue({
       success: true,
       works: [],
     });
 
     // Mock: OpenLibrary title search succeeds
-    externalApis.searchOpenLibrary.mockResolvedValue({
+    const mockWork = {
+      work: {
+        title: "Obscure Indie Book",
+        primaryProvider: "openlibrary",
+      },
+    };
+    const searchOpenLibrarySpy = vi.spyOn(externalApis, 'searchOpenLibrary').mockResolvedValue({
       success: true,
-      works: [
-        {
-          title: "Obscure Indie Book",
-          authors: [{ name: "Independent Author" }],
-          editions: [],
-          subjectTags: [],
-          goodreadsWorkIDs: [],
-          amazonASINs: [],
-          librarythingIDs: [],
-          googleBooksVolumeIDs: [],
-          isbndbQuality: 0,
-          reviewStatus: "pending",
-          synthetic: false,
-        },
-      ],
+      works: [mockWork.work],
     });
+    externalApis.searchGoogleBooksByISBN.mockResolvedValue({ success: false });
+
 
     const result = await enrichSingleBook(
       { title: "Obscure Indie Book", author: "Independent Author" },
@@ -262,12 +260,12 @@ describe("enrichSingleBook()", () => {
     );
 
     expect(result).not.toBeNull();
-    expect(result.title).toBe("Obscure Indie Book");
-    expect(result.primaryProvider).toBe("openlibrary");
+    expect(result.work.title).toBe("Obscure Indie Book");
+    expect(result.work.primaryProvider).toBe("openlibrary");
 
     // Should try Google Books first, then fall back to OpenLibrary
-    expect(externalApis.searchGoogleBooks).toHaveBeenCalled();
-    expect(externalApis.searchOpenLibrary).toHaveBeenCalled();
+    expect(searchGoogleBooksSpy).toHaveBeenCalled();
+    expect(searchOpenLibrarySpy).toHaveBeenCalled();
   });
 });
 

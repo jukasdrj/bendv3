@@ -141,38 +141,38 @@ Configure these in GitHub repository settings → Settings → Secrets and varia
 
 ## Testing
 
-### Health Check
+This project uses [Vitest](https://vitest.dev/) for testing. The following commands are available:
 
-```bash
-curl https://api.oooefam.net/health
-```
+- `npm test`: Run all tests once.
+- `npm run test:watch`: Run tests in watch mode.
+- `npm run test:coverage`: Run tests and generate a coverage report.
+- `npm run test:ui`: Run tests in the Vitest UI.
 
-### Search Endpoints
+### Test Structure
 
-```bash
-# Title search
-curl "https://api.oooefam.net/v1/search/title?q=hamlet"
+- `tests/unit`: Unit tests for individual modules.
+- `tests/integration`: Integration tests for services and providers.
+- `tests/handlers`: Tests for request handlers.
 
-# ISBN search
-curl "https://api.oooefam.net/v1/search/isbn?isbn=9780743273565"
+### Code Coverage
 
-# Advanced search
-curl "https://api.oooefam.net/v1/search/advanced?title=1984&author=Orwell"
-```
+We aim to maintain a high level of test coverage across the codebase. The following are our minimum coverage goals by component:
 
-### WebSocket Flow
+- **Validators**: 100%
+- **Normalizers**: 100%
+- **Auth**: 100%
+- **Cache**: 90%+
+- **External APIs**: 85%+
+- **Enrichment**: 85%+
+- **WebSocket DO**: 80%+
+- **Handlers**: 75%+
+- **Services**: 70%+
 
-1. Connect to WebSocket:
-```bash
-wscat -c "wss://api.oooefam.net/ws/progress?jobId=test-123"
-```
+The overall project coverage target is **75%**.
 
-2. Trigger background job:
-```bash
-curl -X POST https://api.oooefam.net/v1/enrichment/batch \
-  -H "Content-Type: application/json" \
-  -d '{"jobId":"test-123","workIds":["9780439708180"]}'
-```
+### Contributing
+
+We welcome contributions! Please see our [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for detailed guidelines on how to contribute to this project, including our testing requirements. All new code must be accompanied by tests.
 
 ## Monitoring
 

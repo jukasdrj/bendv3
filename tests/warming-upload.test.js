@@ -56,7 +56,7 @@ describe('handleWarmingUpload', () => {
     env.GEMINI_API_KEY = 'test-api-key';
 
     // Mock Gemini API fetch call
-    global.fetch = async () => ({
+    vi.spyOn(global, 'fetch').mockImplementation(async () => ({
       ok: true,
       json: async () => ({
         candidates: [{
@@ -71,7 +71,7 @@ describe('handleWarmingUpload', () => {
           }
         }]
       })
-    });
+    }));
 
     const response = await handleWarmingUpload(request, env, ctx);
 
@@ -89,7 +89,7 @@ describe('handleWarmingUpload', () => {
     };
 
     env.GEMINI_API_KEY = 'test-api-key';
-    global.fetch = async () => ({
+    vi.spyOn(global, 'fetch').mockImplementation(async () => ({
       ok: true,
       json: async () => ({
         candidates: [{
@@ -102,7 +102,7 @@ describe('handleWarmingUpload', () => {
           }
         }]
       })
-    });
+    }));
 
     const csvData = btoa('title,author,isbn\nBook1,Author A,123');
     const request = new Request('https://api.example.com/api/warming/upload', {

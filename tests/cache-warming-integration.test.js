@@ -11,7 +11,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { processAuthorBatch } from '../src/consumers/author-warming-consumer.js';
 import { generateCacheKey } from '../src/utils/cache.js';
+import { searchByAuthor } from '../src/handlers/author-search.js';
+import { searchByTitle } from '../src/handlers/book-search.js';
 import { normalizeTitle } from '../src/utils/normalization.ts';
+
+vi.mock('../src/handlers/author-search.js', () => ({
+  searchByAuthor: vi.fn(),
+}));
+
+vi.mock('../src/handlers/book-search.js', () => ({
+  searchByTitle: vi.fn(),
+}));
 
 describe('Cache Warming Integration - DTO Normalization Compatibility', () => {
   let env, ctx;
@@ -178,7 +188,6 @@ describe('Cache Warming Integration - DTO Normalization Compatibility', () => {
 
   describe('Error Handling', () => {
     it('should retry on rate limit errors', async () => {
-      const { searchByAuthor } = await import('../src/handlers/author-search.js');
       searchByAuthor.mockRejectedValueOnce(new Error('429 Too Many Requests'));
 
       const batch = {
@@ -196,9 +205,6 @@ describe('Cache Warming Integration - DTO Normalization Compatibility', () => {
     });
 
     it('should continue warming other titles if one title fails', async () => {
-      const { searchByAuthor } = await import('../src/handlers/author-search.js');
-      const { searchByTitle } = await import('../src/handlers/book-search.js');
-
       // searchByAuthor succeeds, returns 3 works
       searchByAuthor.mockResolvedValueOnce({
         success: true,

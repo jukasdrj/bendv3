@@ -22,7 +22,7 @@ describe('CSV Import E2E Integration Test', () => {
 
   beforeEach(() => {
     // Load test CSV file
-    const csvPath = join(process.cwd(), '../../docs/testImages/sample-books.csv');
+    const csvPath = join(process.cwd(), 'docs/testImages/sample-books.csv');
     testCSV = readFileSync(csvPath, 'utf-8');
   });
 
