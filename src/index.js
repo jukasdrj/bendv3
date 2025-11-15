@@ -38,6 +38,60 @@ import {
 } from "./utils/response-builder.ts";
 import { getProgressDOStub } from "./utils/durable-object-helpers.ts";
 
+/**
+ * Analytics Helper Functions
+ * Tracks request metrics for monitoring dashboard
+ */
+
+/**
+ * Write analytics data point to Analytics Engine
+ * @param {Object} env - Worker environment bindings
+ * @param {string} endpoint - Endpoint path (e.g., "/v1/search/title")
+ * @param {number} statusCode - HTTP status code
+ * @param {number} processingTime - Request processing time in ms
+ * @param {string} errorCode - Error code if request failed (optional)
+ * @param {string} cacheStatus - Cache status: HIT, MISS, BYPASS (optional)
+ */
+function trackRequestMetrics(env, endpoint, statusCode, processingTime, errorCode = null, cacheStatus = "MISS") {
+  try {
+    if (!env.PERFORMANCE_ANALYTICS) return;
+    
+    env.PERFORMANCE_ANALYTICS.writeDataPoint({
+      blobs: [endpoint, errorCode || "N/A", cacheStatus],
+      doubles: [statusCode, processingTime],
+      indexes: [endpoint] // For efficient querying by endpoint
+    });
+  } catch (error) {
+    console.error("[Analytics] Failed to track metrics:", error);
+  }
+}
+
+/**
+ * Add analytics headers to response for debugging
+ * @param {Response} response - Original response
+ * @param {number} startTime - Request start timestamp
+ * @param {string} cacheStatus - Cache status
+ * @param {string} errorCode - Error code if applicable
+ * @returns {Response} Response with added headers
+ */
+function addAnalyticsHeaders(response, startTime, cacheStatus = "MISS", errorCode = null) {
+  const processingTime = Date.now() - startTime;
+  const headers = new Headers(response.headers);
+  
+  headers.set("X-Response-Time", `${processingTime}ms`);
+  headers.set("X-Cache-Status", cacheStatus);
+  
+  if (errorCode) {
+    headers.set("X-Error-Code", errorCode);
+  }
+  
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
 // Export the Durable Object classes for Cloudflare Workers runtime
 export {
   ProgressWebSocketDO,
@@ -48,12 +102,18 @@ export {
 
 export default {
   async fetch(request, env, ctx) {
+    const startTime = Date.now();
     const url = new URL(request.url);
+    let response;
+    let cacheStatus = "MISS";
+    let errorCode = null;
 
-    // Custom domain routing: harvest.oooefam.net root → Dashboard
-    if (url.hostname === "harvest.oooefam.net" && url.pathname === "/") {
-      return await handleHarvestDashboard(request, env);
-    }
+    try {
+      // Custom domain routing: harvest.oooefam.net root → Dashboard
+      if (url.hostname === "harvest.oooefam.net" && url.pathname === "/") {
+        response = await handleHarvestDashboard(request, env);
+        return addAnalyticsHeaders(response, startTime, cacheStatus, errorCode);
+      }
 
     // Handle OPTIONS preflight requests (CORS)
     if (request.method === "OPTIONS") {
@@ -1165,10 +1225,40 @@ export default {
     }
 
     // Default 404
-    return notFoundResponse(
+    response = notFoundResponse(
       "The requested endpoint does not exist. Use /health to see available endpoints.",
       null,
     );
+    errorCode = "NOT_FOUND";
+    
+    } catch (error) {
+      console.error("[Worker] Unhandled error:", error);
+      response = errorResponse(
+        "INTERNAL_ERROR",
+        `Internal server error: ${error.message}`,
+        500,
+        request
+      );
+      errorCode = "INTERNAL_ERROR";
+    } finally {
+      // Track analytics for this request
+      const processingTime = Date.now() - startTime;
+      trackRequestMetrics(
+        env,
+        url.pathname,
+        response?.status || 500,
+        processingTime,
+        errorCode,
+        cacheStatus
+      );
+      
+      // Add analytics headers to response
+      if (response) {
+        response = addAnalyticsHeaders(response, startTime, cacheStatus, errorCode);
+      }
+    }
+    
+    return response;
   },
 
   async queue(batch, env, ctx) {

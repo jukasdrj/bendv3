@@ -1,0 +1,216 @@
+# ====================================================================================
+# BooksTrack Backend - Staging Environment Configuration
+# ====================================================================================
+#
+# Purpose: Isolated staging environment for testing API v2.0 migration
+# Route: staging-api.oooefam.net
+# Use Case: Pre-production testing for iOS/Flutter teams
+#
+# Deployment:
+#   wrangler deploy --config wrangler.staging.toml
+#
+# ====================================================================================
+
+name = "api-worker-staging"
+main = "src/index.js"
+compatibility_date = "2024-10-01"
+workers_dev = false
+compatibility_flags = ["nodejs_compat"]
+
+# Staging domain route
+routes = [
+  { pattern = "staging-api.oooefam.net/*", zone_name = "oooefam.net" }
+]
+
+# Environment variables for staging
+[vars]
+# Environment identification
+ENVIRONMENT = "staging"
+API_VERSION = "2.0"
+
+# Cache configuration (more aggressive for testing)
+CACHE_HOT_TTL = "7200"         # 2 hours
+CACHE_COLD_TTL = "1209600"     # 14 days
+MAX_RESULTS_DEFAULT = "40"
+RATE_LIMIT_MS = "50"
+CONCURRENCY_LIMIT = "10"
+AGGRESSIVE_CACHING = "true"
+
+# Logging configuration (verbose for debugging)
+LOG_LEVEL = "DEBUG"
+ENABLE_PERFORMANCE_LOGGING = "true"
+ENABLE_CACHE_ANALYTICS = "true"
+ENABLE_PROVIDER_METRICS = "true"
+ENABLE_RATE_LIMIT_TRACKING = "true"
+STRUCTURED_LOGGING = "true"
+
+# External API configuration
+OPENLIBRARY_BASE_URL = "https://openlibrary.org"
+USER_AGENT = "BooksTracker-Staging/1.0 (nerd@ooheynerds.com) StagingWorker/2.0.0"
+
+# AI configuration
+AI_PROVIDER = "gemini"
+MAX_IMAGE_SIZE_MB = "10"
+REQUEST_TIMEOUT_MS = "50000"
+CONFIDENCE_THRESHOLD = "0.7"
+MAX_SCAN_FILE_SIZE = "10485760"
+
+# Response Envelope Format (v2.0)
+ENABLE_UNIFIED_ENVELOPE = "true"
+
+# ====================================================================================
+# KV Namespaces - Staging-specific namespace
+# ====================================================================================
+# NOTE: Actual namespace IDs will be created by DevOps team
+# Placeholder IDs used here - must be replaced with actual staging namespace IDs
+# Create staging namespaces with: wrangler kv:namespace create CACHE --env staging
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "STAGING_KV_NAMESPACE_ID_PLACEHOLDER"
+# TODO: Replace with actual staging KV namespace ID created by DevOps
+
+[[kv_namespaces]]
+binding = "KV_CACHE"
+id = "STAGING_KV_NAMESPACE_ID_PLACEHOLDER"
+# TODO: Replace with actual staging KV namespace ID created by DevOps
+
+# ====================================================================================
+# Secrets Store - Shared with production
+# ====================================================================================
+# Staging uses the same secrets store as production
+# API keys are managed centrally by DevOps team
+
+[[secrets_store_secrets]]
+binding = "GOOGLE_BOOKS_API_KEY"
+store_id = "b0562ac16fde468c8af12717a6c88400"
+secret_name = "Google_books_hardoooe"
+
+[[secrets_store_secrets]]
+binding = "ISBNDB_API_KEY"
+store_id = "b0562ac16fde468c8af12717a6c88400"
+secret_name = "ISBNDB_API_KEY"
+
+[[secrets_store_secrets]]
+binding = "GEMINI_API_KEY"
+store_id = "b0562ac16fde468c8af12717a6c88400"
+secret_name = "google_gemini_oooebooks"
+
+# ====================================================================================
+# R2 Buckets - Staging-specific buckets
+# ====================================================================================
+# NOTE: Actual bucket names will be created by DevOps team
+# Using staging-specific buckets to isolate test data
+
+[[r2_buckets]]
+binding = "API_CACHE_COLD"
+bucket_name = "personal-library-data-staging"
+# TODO: DevOps to create staging R2 bucket
+
+[[r2_buckets]]
+binding = "LIBRARY_DATA"
+bucket_name = "personal-library-data-staging"
+# TODO: DevOps to create staging R2 bucket
+
+[[r2_buckets]]
+binding = "BOOKSHELF_IMAGES"
+bucket_name = "bookshelf-images-staging"
+# TODO: DevOps to create staging R2 bucket
+
+[[r2_buckets]]
+binding = "BOOK_COVERS"
+bucket_name = "bookstrack-covers-staging"
+# TODO: DevOps to create staging R2 bucket
+
+# ====================================================================================
+# Workers AI binding
+# ====================================================================================
+[ai]
+binding = "AI"
+
+# ====================================================================================
+# Durable Objects - Shared classes, staging instances
+# ====================================================================================
+[[durable_objects.bindings]]
+name = "PROGRESS_WEBSOCKET_DO"
+class_name = "ProgressWebSocketDO"
+
+[[durable_objects.bindings]]
+name = "RATE_LIMITER_DO"
+class_name = "RateLimiterDO"
+
+# Durable Object migrations (same as production)
+[[migrations]]
+tag = "v1"
+new_classes = ["ProgressWebSocketDO"]
+
+[[migrations]]
+tag = "v2"
+new_classes = ["RateLimiterDO"]
+
+# ====================================================================================
+# Analytics Engine - Staging-specific datasets
+# ====================================================================================
+[[analytics_engine_datasets]]
+binding = "PERFORMANCE_ANALYTICS"
+dataset = "books_api_performance_staging"
+
+[[analytics_engine_datasets]]
+binding = "CACHE_ANALYTICS"
+dataset = "books_api_cache_metrics_staging"
+
+[[analytics_engine_datasets]]
+binding = "PROVIDER_ANALYTICS"
+dataset = "books_api_provider_performance_staging"
+
+[[analytics_engine_datasets]]
+binding = "AI_ANALYTICS"
+dataset = "bookshelf_ai_performance_staging"
+
+# ====================================================================================
+# Observability
+# ====================================================================================
+[observability]
+enabled = true
+head_sampling_rate = 1.0
+
+# ====================================================================================
+# Resource limits
+# ====================================================================================
+[limits]
+cpu_ms = 180000  # 3 minutes
+memory_mb = 256
+
+# ====================================================================================
+# Placement
+# ====================================================================================
+[placement]
+mode = "smart"
+
+# ====================================================================================
+# Queues for cache warming (staging queues)
+# ====================================================================================
+[[queues.producers]]
+binding = "AUTHOR_WARMING_QUEUE"
+queue = "author-warming-queue-staging"
+
+[[queues.consumers]]
+queue = "author-warming-queue-staging"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "author-warming-dlq-staging"
+max_concurrency = 5
+
+# ====================================================================================
+# Scheduled tasks - Disabled in staging
+# ====================================================================================
+# Cron triggers are intentionally commented out for staging to prevent
+# automated tasks from running. Enable manually if needed for testing.
+#
+# [triggers]
+# crons = [
+#   "0 2 * * *",      # Daily archival
+#   "*/15 * * * *",   # Alert checks
+#   "0 3 * * *"       # ISBNdb harvest
+# ]
