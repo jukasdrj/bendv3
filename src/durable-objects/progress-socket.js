@@ -184,14 +184,18 @@ export class ProgressWebSocketDO extends DurableObject {
       try {
         const msg = JSON.parse(event.data);
 
-        // Validate message structure
+        // Validate message structure (RFC 6455: Protocol error requires connection close)
         if (!msg || typeof msg !== 'object') {
-          console.warn(`[${this.jobId}] Invalid message structure: not an object`);
+          console.warn(`[${this.jobId}] Protocol error: Invalid message structure (not an object)`);
+          this.webSocket.close(WebSocketCloseCodes.PROTOCOL_ERROR, 'Invalid message format');
+          this.cleanup();
           return;
         }
 
         if (!msg.type || typeof msg.type !== 'string') {
-          console.warn(`[${this.jobId}] Invalid message structure: missing or invalid 'type' field`, msg);
+          console.warn(`[${this.jobId}] Protocol error: Missing or invalid 'type' field`, msg);
+          this.webSocket.close(WebSocketCloseCodes.PROTOCOL_ERROR, 'Missing message type');
+          this.cleanup();
           return;
         }
 
@@ -219,10 +223,16 @@ export class ProgressWebSocketDO extends DurableObject {
             }
           }));
         } else {
-          console.log(`[${this.jobId}] Unknown message type: ${msg.type}`);
+          // Unknown message type is a protocol violation
+          console.warn(`[${this.jobId}] Protocol error: Unknown message type '${msg.type}'`);
+          this.webSocket.close(WebSocketCloseCodes.PROTOCOL_ERROR, `Unknown message type: ${msg.type}`);
+          this.cleanup();
         }
       } catch (error) {
-        console.error(`[${this.jobId}] Failed to parse message:`, error);
+        // JSON parse failure is a protocol violation (RFC 6455)
+        console.error(`[${this.jobId}] Protocol error: Failed to parse message`, error);
+        this.webSocket.close(WebSocketCloseCodes.PROTOCOL_ERROR, 'Invalid JSON');
+        this.cleanup();
       }
     });
 
