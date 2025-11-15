@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
+import { WebSocketCloseCodes } from '../types/websocket-messages.js';
 
 /**
  * ProgressWebSocketDO - Durable Object for Real-Time Job Progress via WebSocket
@@ -627,7 +628,7 @@ export class ProgressWebSocketDO extends DurableObject {
     await this.storage.put("status", "canceled");
 
     if (this.webSocket) {
-      this.webSocket.close(1001, reason); // 1001 = Going Away
+      this.webSocket.close(WebSocketCloseCodes.GOING_AWAY, reason);
     }
     this.cleanup();
     return { success: true, status: "canceled" };
@@ -647,7 +648,7 @@ export class ProgressWebSocketDO extends DurableObject {
    */
   async closeConnection(reason = 'Job completed') {
     if (this.webSocket) {
-      this.webSocket.close(1000, reason);
+      this.webSocket.close(WebSocketCloseCodes.NORMAL_CLOSURE, reason);
       this.cleanup();
     }
     return { success: true };
@@ -767,7 +768,7 @@ export class ProgressWebSocketDO extends DurableObject {
       // Close connection after completion
       setTimeout(() => {
         if (this.webSocket) {
-          this.webSocket.close(1000, 'Job completed');
+          this.webSocket.close(WebSocketCloseCodes.NORMAL_CLOSURE, 'Job completed');
           this.cleanup();
         }
       }, 1000); // 1 second delay to ensure message is delivered
@@ -808,10 +809,10 @@ export class ProgressWebSocketDO extends DurableObject {
       this.webSocket.send(JSON.stringify(message));
       console.log(`[${this.jobId}] Error message sent (v2 schema): ${payload.code}`);
 
-      // Close connection after error
+      // Close connection after error with appropriate code
       setTimeout(() => {
         if (this.webSocket) {
-          this.webSocket.close(1000, 'Job failed');
+          this.webSocket.close(WebSocketCloseCodes.INTERNAL_ERROR, 'Job failed');
           this.cleanup();
         }
       }, 1000); // 1 second delay to ensure message is delivered

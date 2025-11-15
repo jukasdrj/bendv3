@@ -48,6 +48,50 @@
 import type { SingleEnrichmentResult } from '../services/enrichment.ts';
 
 // =============================================================================
+// WebSocket Close Codes (RFC 6455)
+// =============================================================================
+
+/**
+ * Standard WebSocket close codes following RFC 6455
+ *
+ * These codes help clients distinguish between different disconnect scenarios
+ * and implement appropriate reconnection logic.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/code
+ */
+export const WebSocketCloseCodes = {
+  /** Normal closure; session completed successfully */
+  NORMAL_CLOSURE: 1000,
+
+  /** Going away (e.g., server shutting down, client navigating away) */
+  GOING_AWAY: 1001,
+
+  /** Protocol error (malformed message, invalid handshake) */
+  PROTOCOL_ERROR: 1002,
+
+  /** Policy violation (auth failure, invalid token, rate limit) */
+  POLICY_VIOLATION: 1008,
+
+  /** Message too large (exceeds 32 MiB Cloudflare limit) */
+  MESSAGE_TOO_BIG: 1009,
+
+  /** Internal server error (unhandled exception, DO failure) */
+  INTERNAL_ERROR: 1011,
+
+  /** Service restart (deployment, DO eviction, maintenance) */
+  SERVICE_RESTART: 1012,
+
+  /** Try again later (temporary overload, resource exhaustion) */
+  TRY_AGAIN_LATER: 1013
+} as const;
+
+/**
+ * Type for WebSocket close codes
+ */
+export type WebSocketCloseCode = typeof WebSocketCloseCodes[keyof typeof WebSocketCloseCodes];
+
+// =============================================================================
 // Core Types & Enums
 // =============================================================================
 
