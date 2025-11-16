@@ -174,6 +174,60 @@ function getErrorCode(response) {
 }
 
 /**
+ * Detect response format version (v2.0 vs legacy)
+ * @param {Response} response - HTTP response object
+ * @returns {Promise<string>} Response format version (v2.0, legacy, or unknown)
+ */
+async function detectResponseFormat(response) {
+  // Skip format detection for non-JSON responses
+  const contentType = response.headers.get("Content-Type") || "";
+  if (!contentType.includes("application/json")) {
+    return "non-json";
+  }
+
+  // Check for format version header (if added by response builder)
+  const formatHeader = response.headers.get("X-Response-Format");
+  if (formatHeader) {
+    return formatHeader;
+  }
+
+  // Clone response to inspect body without consuming it
+  try {
+    const clonedResponse = response.clone();
+    const body = await clonedResponse.json();
+
+    // v2.0 format: { data, metadata, error? }
+    // Legacy format: { success, data?, error? }
+
+    if (body && typeof body === "object") {
+      const hasDataField = "data" in body;
+      const hasMetadataField = "metadata" in body;
+      const hasSuccessField = "success" in body;
+
+      // v2.0 canonical format
+      if (hasDataField && hasMetadataField) {
+        return "v2.0";
+      }
+
+      // Legacy format with success discriminator
+      if (hasSuccessField && !hasMetadataField) {
+        return "legacy";
+      }
+
+      // Hybrid/malformed format (has both success and metadata)
+      if (hasSuccessField && hasMetadataField) {
+        return "hybrid-malformed";
+      }
+    }
+
+    return "unknown";
+  } catch (err) {
+    // Body parsing failed - likely not JSON or already consumed
+    return "parse-error";
+  }
+}
+
+/**
  * Track analytics for API request
  *
  * @param {Request} request - Original request object
@@ -211,6 +265,9 @@ export async function trackAnalytics(request, response, env, ctx, startTime) {
   const processingTime = Date.now() - startTime;
   const cacheStatus = getCacheStatus(response);
   const errorCode = getErrorCode(response);
+
+  // Detect response format version (v2.0 vs legacy)
+  const responseFormat = await detectResponseFormat(response);
 
   // Sampling: Probabilistic sampling for high-volume endpoints
   const samplingRate = SAMPLING_RATES[url.pathname] || 1.0;
@@ -264,6 +321,8 @@ export async function trackAnalytics(request, response, env, ctx, startTime) {
           errorCode || "SUCCESS", // Error code or success
           anonymizedIP, // Anonymized client IP (GDPR compliant)
           request.cf?.colo || "unknown", // Cloudflare datacenter
+          cacheStatus, // Cache hit/miss status
+          responseFormat, // v2.0, legacy, or unknown
         ],
         // Doubles: Numeric metrics for aggregation
         doubles: [processingTime],

@@ -111,6 +111,7 @@ export function createSuccessResponse<T>(
     headers: {
       ...getCorsHeaders(corsRequest),
       "Content-Type": "application/json",
+      "X-Response-Format": "v2.0", // For monitoring compliance (Issue #93)
     },
   });
 }
@@ -157,6 +158,8 @@ export function createErrorResponse(
     headers: {
       ...getCorsHeaders(corsRequest),
       "Content-Type": "application/json",
+      "X-Response-Format": "v2.0", // For monitoring compliance (Issue #93)
+      "X-Error-Type": code || "UNKNOWN", // For analytics tracking
     },
   });
 }
