@@ -24,6 +24,8 @@ import { handleSearchISBN } from "./handlers/v1/search-isbn.js";
 import { handleSearchAdvanced } from "./handlers/v1/search-advanced.js";
 import { handleSearchEditions } from "./handlers/v1/search-editions.ts";
 import { handleImageProxy } from "./handlers/image-proxy.js";
+import { handleWarmingUpload } from "./handlers/warming-upload.js";
+import { handleDLQMonitor } from "./handlers/dlq-monitor.js";
 import { checkRateLimit } from "./middleware/rate-limiter.js";
 import {
   validateRequestSize,
@@ -434,15 +436,11 @@ export default {
 
     // POST /api/warming/upload - Cache warming via CSV upload
     if (url.pathname === "/api/warming/upload" && request.method === "POST") {
-      const { handleWarmingUpload } = await import(
-        "./handlers/warming-upload.js"
-      );
       return handleWarmingUpload(request, env, ctx);
     }
 
     // GET /api/warming/dlq - Monitor dead letter queue
     if (url.pathname === "/api/warming/dlq" && request.method === "GET") {
-      const { handleDLQMonitor } = await import("./handlers/dlq-monitor.js");
       return handleDLQMonitor(request, env);
     }
 

@@ -11,6 +11,19 @@ import { scanImageWithGemini } from "../providers/gemini-provider.js";
 import { enrichBooksParallel } from "./parallel-enrichment.js";
 
 /**
+ * Debug logging helper - only logs verbose details in DEBUG mode
+ * Prevents production log spam (Issue #114)
+ *
+ * @param {Object} env - Worker environment
+ * @param {Function} logFn - Function to execute for logging
+ */
+function debugLog(env, logFn) {
+  if (env.LOG_LEVEL === "DEBUG") {
+    logFn();
+  }
+}
+
+/**
  * AI Scanner Progress Stages
  * Defines progress percentages for each stage of the AI scanning pipeline
  */
@@ -66,9 +79,12 @@ export async function processBookshelfScan(
       processedCount: 0,
       currentItem: "Image quality check",
     });
-    console.log(
-      `[AI Scanner] Progress pushed: ${PROGRESS_STAGES.QUALITY_ANALYSIS * 100}% (image quality analysis)`,
-    );
+    // ISSUE #114: Guard verbose logging - only in DEBUG mode
+    debugLog(env, () => {
+      console.log(
+        `[AI Scanner] Progress pushed: ${PROGRESS_STAGES.QUALITY_ANALYSIS * 100}% (image quality analysis)`,
+      );
+    });
 
     // Stage 2: AI processing with Gemini 2.0 Flash
     await doStub.updateProgress("ai_scan", {
@@ -130,9 +146,12 @@ export async function processBookshelfScan(
       async (book) => {
         // Direct function call - NO RPC, no circular dependency!
         // Use v1 canonical handler
-        console.log(
-          `[AI Scanner] Enriching book: "${book.title}" by ${book.author || "unknown"}`,
-        );
+        // ISSUE #114: Guard verbose logging - only in DEBUG mode
+        debugLog(env, () => {
+          console.log(
+            `[AI Scanner] Enriching book: "${book.title}" by ${book.author || "unknown"}`,
+          );
+        });
         const apiResponse = await handleSearchAdvanced(
           book.title || "",
           book.author || "",
@@ -146,9 +165,12 @@ export async function processBookshelfScan(
           const editions = apiResponse.data.editions || []; // FIX: Editions are at top level, not nested in works
           const authors = apiResponse.data.authors || [];
 
-          console.log(
-            `[AI Scanner] ✅ Enrichment ${work ? "found" : "not found"} for "${book.title}": work=${!!work}, editions=${editions.length}, authors=${authors.length}`,
-          );
+          // ISSUE #114: Guard verbose logging - only in DEBUG mode
+          debugLog(env, () => {
+            console.log(
+              `[AI Scanner] ✅ Enrichment ${work ? "found" : "not found"} for "${book.title}": work=${!!work}, editions=${editions.length}, authors=${authors.length}`,
+            );
+          });
 
           return {
             ...book,
@@ -214,16 +236,19 @@ export async function processBookshelfScan(
       publicationYear: b.enrichment?.editions?.[0]?.publicationYear || null,
     }));
 
-    console.log(
-      `[AI Scanner] 📦 Built books array with ${books.length} books:`,
-    );
-    console.log(
-      `[AI Scanner] Sample book 0:`,
-      JSON.stringify(books[0], null, 2),
-    );
-    console.log(
-      `[AI Scanner] Enrichment summary: ${enrichedBooks.filter((b) => b.enrichment?.status === "success").length} success, ${enrichedBooks.filter((b) => b.enrichment?.status === "not_found").length} not_found, ${enrichedBooks.filter((b) => b.enrichment?.status === "error").length} error`,
-    );
+    // ISSUE #114: Guard verbose logging - only in DEBUG mode
+    debugLog(env, () => {
+      console.log(
+        `[AI Scanner] 📦 Built books array with ${books.length} books:`,
+      );
+      console.log(
+        `[AI Scanner] Sample book 0:`,
+        JSON.stringify(books[0], null, 2),
+      );
+      console.log(
+        `[AI Scanner] Enrichment summary: ${enrichedBooks.filter((b) => b.enrichment?.status === "success").length} success, ${enrichedBooks.filter((b) => b.enrichment?.status === "not_found").length} not_found, ${enrichedBooks.filter((b) => b.enrichment?.status === "error").length} error`,
+      );
+    });
 
     // Final progress update before completion (100%)
     await doStub.updateProgress("ai_scan", {
@@ -252,9 +277,12 @@ export async function processBookshelfScan(
       expirationTtl: 86400, // 24 hours
     });
 
-    console.log(
-      `[AI Scanner] 💾 Stored full results in KV: ${resultsKey} (${books.length} books)`,
-    );
+    // ISSUE #114: Guard verbose logging - only in DEBUG mode
+    debugLog(env, () => {
+      console.log(
+        `[AI Scanner] 💾 Stored full results in KV: ${resultsKey} (${books.length} books)`,
+      );
+    });
 
     // Send summary-only completion via WebSocket
     const completionPayload = {
@@ -268,10 +296,13 @@ export async function processBookshelfScan(
       },
     };
 
-    console.log(
-      `[AI Scanner] 📤 Sending summary-only completion:`,
-      JSON.stringify(completionPayload),
-    );
+    // ISSUE #114: Guard verbose logging - only in DEBUG mode
+    debugLog(env, () => {
+      console.log(
+        `[AI Scanner] 📤 Sending summary-only completion:`,
+        JSON.stringify(completionPayload),
+      );
+    });
     await doStub.complete("ai_scan", completionPayload);
 
     console.log(

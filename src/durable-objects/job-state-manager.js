@@ -1,4 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
+import { processCSVImport } from "../services/csv-processor.js";
+import { processBookshelfScan } from "../services/ai-scanner.js";
+import { ProgressReporter } from "../utils/progress-reporter.js";
 
 /**
  * Job State Manager Durable Object
@@ -358,12 +361,7 @@ export class JobStateManagerDO extends DurableObject {
         return;
       }
 
-      // Import CSV processor and progress reporter (in DO context to avoid handler timeout)
-      const { processCSVImport } = await import("../services/csv-processor.js");
-      const { ProgressReporter } = await import(
-        "../utils/progress-reporter.js"
-      );
-
+      // CSV processor and progress reporter (top-level imports for performance)
       const reporter = new ProgressReporter(jobState.jobId, this.env);
 
       try {
@@ -408,14 +406,7 @@ export class JobStateManagerDO extends DurableObject {
         return;
       }
 
-      // Import AI scanner service (in DO context to avoid Worker CPU timeout)
-      const { processBookshelfScan } = await import(
-        "../services/ai-scanner.js"
-      );
-      const { ProgressReporter } = await import(
-        "../utils/progress-reporter.js"
-      );
-
+      // AI scanner service and progress reporter (top-level imports for performance)
       const reporter = new ProgressReporter(jobState.jobId, this.env);
 
       try {

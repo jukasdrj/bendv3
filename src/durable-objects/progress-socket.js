@@ -1,6 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { WebSocketCloseCodes } from "../types/websocket-messages.js";
 import { getCorsHeaders } from "../middleware/cors.js";
+import { processCSVImportCore } from "../handlers/csv-import.ts";
+import { processBookshelfScan } from "../services/ai-scanner.js";
 
 /**
  * ProgressWebSocketDO - Durable Object for Real-Time Job Progress via WebSocket
@@ -1183,11 +1185,6 @@ export class ProgressWebSocketDO extends DurableObject {
     );
 
     try {
-      // Import processing logic (need to inline or import)
-      const { processCSVImportCore } = await import(
-        "../handlers/csv-import.ts"
-      );
-
       // Process CSV with access to this (DO stub methods)
       await processCSVImportCore(csvText, jobId, this, this.env);
 
@@ -1233,11 +1230,6 @@ export class ProgressWebSocketDO extends DurableObject {
     );
 
     try {
-      // Import AI scanner service
-      const { processBookshelfScan } = await import(
-        "../services/ai-scanner.js"
-      );
-
       // Create mock request object with headers
       const mockRequest = {
         headers: {

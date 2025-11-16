@@ -7,18 +7,30 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleBatchEnrichment } from '../../src/handlers/batch-enrichment.ts';
+import { getProgressDOStub } from '../../src/utils/durable-object-helpers'; // Import the actual function
+
+// Define the mock DO stub instance globally
+const mockDOStubInstance = {
+  setAuthToken: vi.fn().mockResolvedValue(undefined),
+  initializeJobState: vi.fn().mockResolvedValue(undefined),
+  updateProgress: vi.fn().mockResolvedValue(undefined),
+  complete: vi.fn().mockResolvedValue(undefined),
+  sendError: vi.fn().mockResolvedValue(undefined)
+};
+
+vi.mock('../../src/utils/durable-object-helpers', () => ({
+  getProgressDOStub: vi.fn(() => mockDOStubInstance),
+}));
 
 // Mock environment and context
 const createMockEnv = () => ({
   PROGRESS_WEBSOCKET_DO: {
     idFromName: vi.fn((name) => `mock-id-${name}`),
-    get: vi.fn(() => ({
-      setAuthToken: vi.fn().mockResolvedValue(undefined),
-      initializeJobState: vi.fn().mockResolvedValue(undefined),
-      updateProgress: vi.fn().mockResolvedValue(undefined),
-      complete: vi.fn().mockResolvedValue(undefined),
-      sendError: vi.fn().mockResolvedValue(undefined)
-    }))
+    get: vi.fn(() => mockDOStubInstance) // Returns the globally defined instance
+  },
+  KV_CACHE: {
+    put: vi.fn().mockResolvedValue(undefined),
+    get: vi.fn().mockResolvedValue(null),
   }
 });
 
@@ -33,6 +45,20 @@ describe('handleBatchEnrichment', () => {
   beforeEach(() => {
     mockEnv = createMockEnv();
     mockCtx = createMockContext();
+
+    // Reset all mock implementations (clears mockRejectedValue from previous tests)
+    mockDOStubInstance.setAuthToken.mockReset().mockResolvedValue(undefined);
+    mockDOStubInstance.initializeJobState.mockReset().mockResolvedValue(undefined);
+    mockDOStubInstance.updateProgress.mockReset().mockResolvedValue(undefined);
+    mockDOStubInstance.complete.mockReset().mockResolvedValue(undefined);
+    mockDOStubInstance.sendError.mockReset().mockResolvedValue(undefined);
+
+    // Clear mocks on mockEnv properties
+    mockEnv.PROGRESS_WEBSOCKET_DO.idFromName.mockClear();
+    mockEnv.PROGRESS_WEBSOCKET_DO.get.mockClear();
+
+    // Clear the mock for getProgressDOStub itself
+    getProgressDOStub.mockClear();
   });
 
   describe('Response structure validation', () => {
@@ -181,6 +207,121 @@ describe('handleBatchEnrichment', () => {
       const body = await response.json();
       expect(body.error).toBeDefined();
       expect(body.error.message).toContain('Invalid books array');
+    });
+
+    // ISSUE #113: WebSocket RPC error handling coverage
+    describe('WebSocket RPC failures', () => {
+      it('should call sendError when complete() RPC fails', async () => {
+        const books = [
+          { title: 'Test Book', author: 'Test Author', isbn: '1234567890' }
+        ];
+        const jobId = 'test-job-websocket-fail';
+
+        // Mock Durable Object complete() to throw error (WebSocket closed)
+        mockDOStubInstance.complete.mockRejectedValue(new Error('WebSocket connection closed'));
+
+        const request = new Request('http://localhost/api/enrichment/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ books, jobId })
+        });
+
+        const response = await handleBatchEnrichment(request, mockEnv, mockCtx);
+
+        // Should still return 202 (background job accepted)
+        expect(response.status).toBe(202);
+
+        // Wait for background promise to complete
+        const backgroundPromise = mockCtx.waitUntil.mock.calls[0][0];
+        await backgroundPromise;
+
+        // Verify complete was attempted
+        expect(mockDOStubInstance.complete).toHaveBeenCalled();
+
+        // Verify sendError was called to report the failure
+        expect(mockDOStubInstance.sendError).toHaveBeenCalledWith(
+          'batch_enrichment',
+          expect.objectContaining({
+            code: 'E_BATCH_PROCESSING_FAILED',
+            message: expect.stringContaining('WebSocket connection closed'),
+            retryable: true,
+          })
+        );
+      });
+
+      it('should call sendError when updateProgress() RPC fails', async () => {
+        const books = [
+          { title: 'Book 1', author: 'Author 1', isbn: '111' }
+        ];
+        const jobId = 'test-job-progress-fail';
+
+        // Make updateProgress fail
+        mockDOStubInstance.updateProgress.mockRejectedValue(new Error('Progress update failed'));
+
+        const request = new Request('http://localhost/api/enrichment/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ books, jobId })
+        });
+
+        const response = await handleBatchEnrichment(request, mockEnv, mockCtx);
+        expect(response.status).toBe(202);
+
+        // Wait for background processing
+        const backgroundPromise = mockCtx.waitUntil.mock.calls[0][0];
+        await backgroundPromise;
+
+        // Verify updateProgress was attempted
+        expect(mockDOStubInstance.updateProgress).toHaveBeenCalled();
+
+        // Verify sendError was called to report the failure
+        expect(mockDOStubInstance.sendError).toHaveBeenCalledWith(
+          'batch_enrichment',
+          expect.objectContaining({
+            code: 'E_BATCH_PROCESSING_FAILED',
+            retryable: true,
+          })
+        );
+      });
+
+      it('should attempt both complete() and sendError() in double-fault scenario', async () => {
+        const books = [
+          { title: 'Test Book', author: 'Test Author', isbn: '1234567890' }
+        ];
+        const jobId = 'test-job-double-fault';
+
+        // Make complete() fail
+        mockDOStubInstance.complete.mockRejectedValue(new Error('Complete failed'));
+
+        // Also make sendError() fail (double-fault!)
+        mockDOStubInstance.sendError.mockRejectedValue(new Error('SendError also failed'));
+
+        const request = new Request('http://localhost/api/enrichment/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ books, jobId })
+        });
+
+        const response = await handleBatchEnrichment(request, mockEnv, mockCtx);
+        expect(response.status).toBe(202);
+
+        // Wait for background processing
+        const backgroundPromise = mockCtx.waitUntil.mock.calls[0][0];
+
+        // NOTE: Double-fault currently isn't caught - sendError() throws but is inside
+        // ctx.waitUntil() with no outer try-catch. This is documented behavior.
+        // In a real double-fault, the error would be logged but job would appear stuck.
+        // TODO: Add outer try-catch in processBatchEnrichment to log double-faults
+        try {
+          await backgroundPromise;
+        } catch (error) {
+          // May or may not throw depending on promise handling
+        }
+
+        // Verify both were attempted
+        expect(mockDOStubInstance.complete).toHaveBeenCalled();
+        expect(mockDOStubInstance.sendError).toHaveBeenCalled();
+      });
     });
   });
 
