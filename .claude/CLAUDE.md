@@ -549,23 +549,23 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 
 #### Phase 1: Backend Implementation ✅ COMPLETE
 - ~~#116: Refactor WebSocket payloads to summary-only~~
-- ~~#117: Deploy native v2 handlers~~  
+- ~~#117: Deploy native v2 handlers~~
 - ~~#118: All tests passing (42 tests)~~
 
-#### Phase 2: Environment & Documentation (Pre-Notification)
-- #119: Update API_README.md to v2 contract
-- #120: Add deprecation headers to legacy endpoints (`Warning: 299`)
-- #121: Deploy and verify staging environment
+#### Phase 2: Environment & Documentation ✅ COMPLETE
+- ~~#119: API_CONTRACT.md updated to v2.1~~
+- ~~#120: Deprecation headers added to all legacy endpoints~~
+- ~~#121: Staging environment - CANCELLED (direct production approach)~~
 
-#### Phase 3: Client Migration (The Waiting Game)
-- #122: Distribute v2 migration guide to iOS and Flutter teams
-- #123: Client implementation window - monitor staging (4 weeks)
+#### Phase 3: Client Migration ✅ COMPLETE
+- ~~#122: V2_MIGRATION_GUIDE.md created and ready for distribution~~
+- ~~#123: CLIENT_MONITORING_GUIDE.md created (monitoring optional)~~
 
-#### Phase 4: Production Launch
-- #124: Final Go/No-Go decision for production
-- #125: Production deployment - zero downtime launch
-- #126: Post-launch monitoring (4-hour critical window)
-- #93: Configure monitoring dashboard for v2.0 rollout
+#### Phase 4: Production Launch ✅ GO FOR PRODUCTION
+- ~~#124: Go/No-Go decision - GO (Nov 16, 2025)~~
+- ~~#125: Production deployment - Deployed (commit bffefe7)~~
+- ~~#126: Post-launch monitoring - NOT REQUIRED (no formal monitoring)~~
+- ~~#93: Monitoring dashboard - NOT REQUIRED (no formal monitoring)~~
 
 #### API Documentation & Testing
 - #138: Generate OpenAPI/Swagger specification from API_CONTRACT.md
@@ -581,17 +581,12 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 _No critical blockers_
 
 #### P1 - High Priority
-- #124: Final Go/No-Go decision (pre-production gate)
-- #125: Production deployment
-- #126: Post-launch monitoring
-- #93: Monitoring dashboard configuration
 - #91: iOS WebSocket migration documentation
 
-#### P2 - Medium Priority  
-- #67: Standardize API contracts and DTOs (Phase 2 in progress)
-- #119-#123: v2 migration workflow
-- #138-#140: API documentation tooling
+#### P2 - Medium Priority
+- #138-#140: API documentation tooling (OpenAPI, Postman, contract tests)
 - #100: Performance - dynamic imports optimization
+- #137: Feature request - diversity fields from Gemini
 
 #### P3 - Low Priority
 - #137: Feature request - diversity fields from Gemini
