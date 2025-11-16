@@ -1,9 +1,10 @@
-# API v2.0 Migration Guide
+# API v2.x Migration Guide
 
 **Target Audience:** iOS and Flutter Frontend Teams
+**Current API Version:** v2.1 (WebSocket enhancements)
 **Effective Date:** November 16, 2025
-**Migration Deadline:** March 1, 2026
-**Status:** Client Implementation Phase
+**Migration Deadline:** March 1, 2026 (legacy v1.x sunset)
+**Status:** Production Ready - Migrate Now
 
 ---
 
@@ -24,7 +25,7 @@
 
 ### 1.1 Why Migrate?
 
-API v1.x endpoints will be **sunset on March 1, 2026** (90 days notice). Migrating to v2.0 provides:
+Legacy API v1.x endpoints (like `/search/title`) will be **sunset on March 1, 2026** (90 days notice). Migrating to v2.x (endpoints under `/v1/*` path) provides:
 
 - ✅ **Unified response envelope** - Consistent error handling
 - ✅ **Cultural diversity data** - Gender, nationality, cultural region via Wikidata
@@ -50,17 +51,18 @@ API v1.x endpoints will be **sunset on March 1, 2026** (90 days notice). Migrati
 ```swift
 // iOS example
 enum APIVersion {
-    case v1, v2
+    case legacy, v2x  // Renamed for clarity
 }
 
-let apiVersion: APIVersion = FeatureFlags.useV2API ? .v2 : .v1
+let apiVersion: APIVersion = FeatureFlags.useV2API ? .v2x : .legacy
 
 switch apiVersion {
-case .v1:
-    // Legacy endpoint: /search/title
+case .legacy:
+    // Legacy endpoint (v1.x): /search/title
     let url = "https://api.oooefam.net/search/title?q=\(query)"
-case .v2:
-    // New endpoint: /v1/search/title (yes, URL path is /v1/ but it's v2.0 contract)
+case .v2x:
+    // New endpoint (v2.x): /v1/search/title
+    // NOTE: URL path is /v1/* but implements v2.x contract (not v1.x)
     let url = "https://api.oooefam.net/v1/search/title?q=\(query)"
 }
 ```

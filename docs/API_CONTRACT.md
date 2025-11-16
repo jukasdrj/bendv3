@@ -46,14 +46,16 @@ This document is the **single source of truth** for the BooksTrack API. All fron
 
 ### 1.3 Versioning
 
-**Current Version:** `v2.0`
-**API Version Header:** `X-API-Version: 2.0` (optional)
-**URL Versioning:** `/v1/*` endpoints (stable), `/v2/*` endpoints (future)
+**Current Version:** `v2.1`
+**API Version Header:** `X-API-Version: 2.1` (optional)
+**URL Versioning:** `/v1/*` endpoints (implements v2.x contract), `/v2/*` endpoints (reserved for future breaking changes)
 
 **Version Support Policy:**
-- `v1.*`: Supported until March 1, 2026 (deprecated)
-- `v2.*`: Current version (production ready)
+- `v1.*` (legacy endpoints like `/search/title`): Deprecated, sunset March 1, 2026
+- `v2.*` (new endpoints under `/v1/*` path): Current version (production ready)
 - `v3.*`: Not yet planned
+
+**IMPORTANT:** URL path `/v1/*` implements API contract v2.x (not v1.x). The path name is for URL stability while the contract version evolves.
 
 ---
 
@@ -86,26 +88,27 @@ This document is the **single source of truth** for the BooksTrack API. All fron
 
 **Token Refresh:**
 
-**Status:** ✅ **Production Ready** (via Durable Object RPC, no HTTP endpoint)
+**Status:** ✅ **Production Ready** (automatic, no client action required)
 
-**Implementation:** Token refresh is handled internally by the Durable Object, not via HTTP POST endpoint.
+**Implementation:** Token refresh is handled **automatically by the Durable Object** when the connection is active and approaching expiration (within 30 minutes of expiry).
 
 **Refresh Window:**
-- Tokens can be refreshed **only in the last 30 minutes** before expiration
-- Prevents infinite token extension attacks
+- Tokens are **automatically refreshed** in the last 30 minutes before expiration
+- No client-side code needed - handled server-side
 - New token extends expiration by another 2 hours
+- Client receives updated token via internal state (transparent)
 
 **Client Usage:**
 ```swift
-// iOS client calls refresh via WebSocket message (custom implementation)
-// OR relies on automatic refresh if connection is long-running
-// Token refresh happens transparently during WebSocket lifecycle
+// NO CLIENT ACTION REQUIRED
+// The Durable Object automatically extends tokens for active WebSocket connections
+// Clients only need to handle token expiration if connection is idle for 2+ hours
 ```
 
 **Security Notes:**
-- Concurrent refresh requests are prevented (race condition protection)
-- Old token must match stored token exactly
-- Expired tokens cannot be refreshed (must re-authenticate)
+- Automatic refresh only works for **active WebSocket connections**
+- Disconnected clients must reconnect with original token (within 60-second grace period)
+- Expired tokens cannot be refreshed (must start new job)
 
 ### 3.2 Rate Limiting
 
