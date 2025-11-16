@@ -21,3 +21,4 @@ coverage/
 scripts/dev/output/
 .wrangler-fixes-backup-*/
 rollback-wrangler-fixes.sh
+.DS_Store

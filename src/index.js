@@ -23,6 +23,8 @@ import { handleSearchTitle } from "./handlers/v1/search-title.js";
 import { handleSearchISBN } from "./handlers/v1/search-isbn.js";
 import { handleSearchAdvanced } from "./handlers/v1/search-advanced.js";
 import { handleSearchEditions } from "./handlers/v1/search-editions.ts";
+import { handleScanResults } from "./handlers/v1/scan-results.ts";
+import { handleCSVResults } from "./handlers/v1/csv-results.ts";
 import { handleImageProxy } from "./handlers/image-proxy.js";
 import { handleWarmingUpload } from "./handlers/warming-upload.js";
 import { handleDLQMonitor } from "./handlers/dlq-monitor.js";
@@ -639,6 +641,22 @@ export default {
         ctx,
         request
       );
+    }
+
+    // ========================================================================
+    // Results Retrieval Endpoints - V1
+    // ========================================================================
+
+    // GET /v1/scan/results - Retrieve AI scan results from KV cache
+    if (url.pathname.startsWith("/v1/scan/results/") && request.method === "GET") {
+      const jobId = url.pathname.split("/").pop();
+      return await handleScanResults(jobId, env, request);
+    }
+
+    // GET /v1/csv/results - Retrieve CSV import results from KV cache
+    if (url.pathname.startsWith("/v1/csv/results/") && request.method === "GET") {
+      const jobId = url.pathname.split("/").pop();
+      return await handleCSVResults(jobId, env, request);
     }
 
     // ========================================================================

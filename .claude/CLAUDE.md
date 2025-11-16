@@ -318,6 +318,24 @@ npx wrangler rollback --message "Rolling back due to error spike"
 
 ## Documentation
 
+### API Contract (Source of Truth)
+
+**PRIMARY DOCUMENTATION:** `docs/API_CONTRACT.md`
+
+This is the **authoritative contract** for the BooksTrack API. All frontend integrations MUST follow this contract.
+
+**When making API changes:**
+1. Update `docs/API_CONTRACT.md` first (this is the contract)
+2. Implement the changes in code
+3. Update OpenAPI spec if available (Issue #138)
+4. Notify frontend teams of breaking changes (90-day notice required)
+
+**Deprecated docs:**
+- ❌ `docs/API_CONTRACT_CURRENT.md` (superseded)
+- ❌ `docs/FRONTEND_INTEGRATION_GUIDE.md` (superseded)
+
+**See also:** `docs/README.md` for documentation navigation
+
 ### Code Comments
 - **Explain WHY, not WHAT:** Code should be self-documenting
 - **Document complex logic:** Rate limiting, caching strategies, AI prompts
@@ -335,7 +353,7 @@ export async function findByISBN(isbn, env) {
 ```
 
 ### README Updates
-- Update `README.md` when adding new endpoints
+- Update `docs/API_CONTRACT.md` when adding new endpoints or changing schemas
 - Document new environment variables in `SECRETS_SETUP.md`
 - Add deployment notes to `DEPLOYMENT.md`
 

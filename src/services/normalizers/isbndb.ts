@@ -100,11 +100,14 @@ export function normalizeISBNdbToEdition(book: any): EditionDTO {
 
 /**
  * Normalize ISBNdb author name to AuthorDTO
+ *
+ * Note: Returns base AuthorDTO with Unknown gender.
+ * Cultural diversity enrichment (Wikidata) happens later in enrichment pipeline.
  */
 export function normalizeISBNdbToAuthor(authorName: string): AuthorDTO {
   return {
     name: authorName,
-    gender: 'Unknown', // ISBNdb doesn't provide gender info
+    gender: 'Unknown', // Enriched via Wikidata in enrichment service
   };
 }
 

@@ -9,6 +9,7 @@
  */
 
 import type { WorkDTO, AuthorDTO } from '../types/canonical.js';
+import { enrichAuthorWithWikidata } from '../services/wikidata-enrichment.js';
 
 /**
  * Extended WorkDTO with authors property
@@ -73,4 +74,64 @@ export function removeAuthorsFromWorks(works: WorkDTOWithAuthors[]): WorkDTO[] {
     const { authors: _, ...cleanWork } = work;
     return cleanWork;
   });
+}
+
+/**
+ * Enrich authors with cultural diversity data from Wikidata
+ *
+ * Enriches AuthorDTOs with gender, nationality, and cultural region information.
+ * This enables the iOS Insights tab to display cultural diversity analytics.
+ *
+ * **Performance:**
+ * - Uses KV cache (7-day TTL) to avoid repeated Wikidata API calls
+ * - Processes authors in parallel for speed
+ * - Gracefully handles API failures (falls back to Unknown gender)
+ *
+ * **When to call:**
+ * - After `extractUniqueAuthors()` in v1 search endpoints
+ * - Before returning authors array to iOS
+ *
+ * @param authors - Array of base AuthorDTOs (with Unknown gender)
+ * @param env - Worker environment bindings (for KV cache)
+ * @returns Promise<AuthorDTO[]> - Enriched authors with cultural data
+ *
+ * @example
+ * const baseAuthors = extractUniqueAuthors(works);
+ * const enrichedAuthors = await enrichAuthorsWithCulturalData(baseAuthors, env);
+ * // Returns: [{ name: "Chimamanda Ngozi Adichie", gender: "Female", culturalRegion: "Africa", nationality: "Nigeria" }]
+ */
+export async function enrichAuthorsWithCulturalData(
+  authors: AuthorDTO[],
+  env: any
+): Promise<AuthorDTO[]> {
+  // Enrich authors in parallel for performance
+  const enrichmentPromises = authors.map(async (author) => {
+    // Skip enrichment if author already has gender data
+    if (author.gender && author.gender !== 'Unknown') {
+      return author;
+    }
+
+    try {
+      const wikidataData = await enrichAuthorWithWikidata(author.name, env);
+
+      if (!wikidataData) {
+        return author; // Keep original if Wikidata lookup fails
+      }
+
+      // Merge Wikidata enrichment with base author data
+      return {
+        ...author,
+        gender: wikidataData.gender,
+        culturalRegion: wikidataData.culturalRegion,
+        nationality: wikidataData.nationality,
+        birthYear: wikidataData.birthYear,
+        deathYear: wikidataData.deathYear,
+      };
+    } catch (error: any) {
+      console.error(`[Wikidata] Enrichment failed for "${author.name}":`, error.message);
+      return author; // Keep original on error
+    }
+  });
+
+  return await Promise.all(enrichmentPromises);
 }

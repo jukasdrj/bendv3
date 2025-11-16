@@ -215,16 +215,42 @@ fi
 
 ---
 
+## API Contract Compliance
+
+### Authoritative Documentation
+**ALL AGENTS MUST REFERENCE:** `docs/API_CONTRACT.md`
+
+This is the legal contract with frontend teams. Any API changes must honor this contract.
+
+**cf-code-reviewer responsibilities:**
+- ✅ Verify new endpoints match `API_CONTRACT.md` response format
+- ✅ Ensure DTOs (WorkDTO, EditionDTO, AuthorDTO) match documented schemas
+- ✅ Check error codes are from the approved list
+- ✅ Validate rate limiting behavior
+- ✅ Flag breaking changes (require 90-day notice)
+
+**cf-ops-monitor responsibilities:**
+- ✅ Monitor SLA compliance (99.9% uptime, <500ms P95 latency)
+- ✅ Track data quality metrics (ISBN match rate, cover availability)
+- ✅ Alert on contract violations (wrong response format, missing fields)
+
+**Related Issues:**
+- #138: OpenAPI spec generation
+- #139: Postman collection
+- #140: Contract testing (Pact)
+
+---
+
 ## Best Practices
 
 ### When to Use Agents
 - ✅ **cf-ops-monitor:** Production deployments, live debugging, metrics analysis
-- ✅ **cf-code-reviewer:** Pre-PR reviews, refactoring validation, pattern enforcement
+- ✅ **cf-code-reviewer:** Pre-PR reviews, refactoring validation, pattern enforcement, **API contract compliance**
 - ✅ **Zen MCP:** Deep investigations, security audits, complex architectural decisions
 
 ### When NOT to Use Agents
 - ❌ Simple one-line changes (use Claude Code directly)
-- ❌ Documentation updates (unless API changes)
+- ❌ Documentation updates (unless API changes - then update `API_CONTRACT.md` first!)
 - ❌ Non-Workers specific code (generic Node.js patterns)
 
 ### Agent Response Time

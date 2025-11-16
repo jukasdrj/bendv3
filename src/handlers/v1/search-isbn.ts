@@ -9,7 +9,7 @@ import type { BookSearchResponse } from '../../types/responses.js';
 import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../../utils/response-builder.js';
 import { enrichMultipleBooks } from '../../services/enrichment.ts';
 import { normalizeISBN } from '../../utils/normalization.js';
-import { extractUniqueAuthors, removeAuthorsFromWorks } from '../../utils/response-transformer.js';
+import { extractUniqueAuthors, removeAuthorsFromWorks, enrichAuthorsWithCulturalData } from '../../utils/response-transformer.js';
 import { writeCacheMetrics } from '../../utils/analytics.js';
 
 /**
@@ -95,7 +95,10 @@ export async function handleSearchISBN(
     }
 
     // Extract all unique authors from works
-    const authors = extractUniqueAuthors(result.works);
+    const baseAuthors = extractUniqueAuthors(result.works);
+
+    // Enrich authors with cultural diversity data from Wikidata
+    const authors = await enrichAuthorsWithCulturalData(baseAuthors, env);
 
     // Remove authors property from works (not part of canonical WorkDTO)
     const cleanWorks = removeAuthorsFromWorks(result.works);

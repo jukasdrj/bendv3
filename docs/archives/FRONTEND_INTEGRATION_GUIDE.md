@@ -1,9 +1,21 @@
+# ⚠️ DEPRECATED - USE API_CONTRACT.md INSTEAD
+
+**This guide is superseded by the authoritative API contract.**
+**Please refer to:** [`API_CONTRACT.md`](./API_CONTRACT.md)
+
+**Why the change?**
+- API_CONTRACT.md is the single source of truth maintained by the backend team
+- This guide contained some aspirational features that weren't fully implemented
+- The new contract reflects actual production behavior with SLAs and guarantees
+
+---
+
 # BooksTrack API - Frontend Integration Guide
 
 **Version:** 2.0
 **Last Updated:** November 15, 2025
 **Audience:** iOS and Flutter Development Teams
-**Status:** Production-Ready
+**Status:** ⚠️ DEPRECATED (use API_CONTRACT.md)
 
 ---
 

@@ -83,11 +83,14 @@ export function normalizeOpenLibraryToEdition(doc: any): EditionDTO {
 
 /**
  * Normalize OpenLibrary author to AuthorDTO
+ *
+ * Note: Returns base AuthorDTO with Unknown gender.
+ * Cultural diversity enrichment (Wikidata) happens later in enrichment pipeline.
  */
 export function normalizeOpenLibraryToAuthor(authorName: string): AuthorDTO {
   return {
     name: authorName,
-    gender: 'Unknown', // OpenLibrary doesn't provide gender info
+    gender: 'Unknown', // Enriched via Wikidata in enrichment service
   };
 }
 
