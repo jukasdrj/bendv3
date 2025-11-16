@@ -52,12 +52,12 @@ describe("enrichSingleBook()", () => {
         primaryProvider: "google-books",
         contributors: ["google-books"],
         synthetic: false,
+        coverImageURL: "https://example.com/cover.jpg",  // Required for enrichSingleBook to return result
       },
-      edition: { isbn13: "9780451524935" },
+      edition: { isbn13: "9780451524935", coverImageURL: "https://example.com/cover.jpg" },
       authors: [{ name: "George Orwell" }],
     };
     const searchByISBNSpy = vi.spyOn(externalApis, 'searchGoogleBooksByISBN').mockResolvedValue({
-      success: true,
       works: [mockWork.work],
       editions: [mockWork.edition],
       authors: mockWork.authors,
@@ -212,11 +212,15 @@ describe("enrichSingleBook()", () => {
     const mockWork = {
       work: {
         title: "The Great Gatsby",
+        coverImageURL: "https://example.com/gatsby.jpg",  // Required for enrichSingleBook to return result
       },
+      edition: { isbn13: "9780743273565", coverImageURL: "https://example.com/gatsby.jpg" },
+      authors: [],
     };
     const searchByISBNSpy = vi.spyOn(externalApis, 'searchGoogleBooksByISBN').mockResolvedValue({
-      success: true,
       works: [mockWork.work],
+      editions: [mockWork.edition],
+      authors: mockWork.authors,
     });
     const searchGoogleBooksSpy = vi.spyOn(externalApis, 'searchGoogleBooks');
 

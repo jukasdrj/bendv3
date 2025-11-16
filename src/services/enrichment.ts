@@ -127,8 +127,8 @@ export async function enrichMultipleBooks(
 
   // ISBN search returns single result (ISBNs are unique)
   if (isbn) {
+    // Try Google Books ISBN search first (with isolated error handling)
     try {
-      // Try Google Books ISBN search first
       console.log(
         `enrichMultipleBooks: Searching Google Books by ISBN "${isbn}"`,
       );
@@ -145,11 +145,21 @@ export async function enrichMultipleBooks(
           authors: googleResult.authors || [],
         };
       }
-
-      // Fallback to OpenLibrary ISBN search
+      // No results from Google Books, proceed to fallback
       console.log(
         `enrichMultipleBooks: Google Books returned no results, trying OpenLibrary`,
       );
+    } catch (error) {
+      // Google Books failed (network error, 500, etc.), proceed to fallback
+      console.error(
+        `enrichMultipleBooks: Google Books error for ISBN "${isbn}":`,
+        error,
+      );
+      console.log(`enrichMultipleBooks: Trying OpenLibrary fallback`);
+    }
+
+    // Fallback to OpenLibrary ISBN search (with isolated error handling)
+    try {
       const olResult = await externalApis.searchOpenLibrary(
         isbn,
         { maxResults: 1, isbn },
@@ -166,15 +176,19 @@ export async function enrichMultipleBooks(
           authors: olResult.authors || [],
         };
       }
-
-      // No results from any provider
-      console.log(`enrichMultipleBooks: No results for ISBN "${isbn}"`);
-      return { works: [], editions: [], authors: [] };
+      // No results from OpenLibrary either
+      console.log(`enrichMultipleBooks: OpenLibrary returned no results`);
     } catch (error) {
-      console.error("enrichMultipleBooks ISBN search error:", error);
-      // Best-effort: API errors = empty results (don't propagate errors)
-      return { works: [], editions: [], authors: [] };
+      // OpenLibrary failed too
+      console.error(
+        `enrichMultipleBooks: OpenLibrary error for ISBN "${isbn}":`,
+        error,
+      );
     }
+
+    // No results from any provider
+    console.log(`enrichMultipleBooks: No results for ISBN "${isbn}"`);
+    return { works: [], editions: [], authors: [] };
   }
 
   // Build search query for Google Books

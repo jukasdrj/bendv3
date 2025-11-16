@@ -8,6 +8,7 @@
 import { googleBooksHandlers } from './google-books.js'
 import { isbndbHandlers } from './isbndb.js'
 import { geminiHandlers } from './gemini.js'
+import { openLibraryHandlers } from './openlibrary.js'
 
 /**
  * All MSW handlers combined
@@ -16,7 +17,8 @@ import { geminiHandlers } from './gemini.js'
 export const handlers = [
   ...googleBooksHandlers,
   ...isbndbHandlers,
-  ...geminiHandlers
+  ...geminiHandlers,
+  ...openLibraryHandlers
 ]
 
 /**
@@ -25,7 +27,8 @@ export const handlers = [
 export {
   googleBooksHandlers,
   isbndbHandlers,
-  geminiHandlers
+  geminiHandlers,
+  openLibraryHandlers
 }
 
 /**
@@ -45,3 +48,8 @@ export {
   createGeminiResponse,
   createGeminiHandler
 } from './gemini.js'
+
+export {
+  createOpenLibraryResponse,
+  createOpenLibraryHandler
+} from './openlibrary.js'

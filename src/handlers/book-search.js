@@ -86,16 +86,21 @@ export async function searchByTitle(title, options, env, ctx) {
     let successfulProviders = [];
 
     // Process Google Books results
-    if (results[0].status === "fulfilled" && results[0].value.success) {
+    if (results[0].status === "fulfilled" && results[0].value) {
       const googleData = results[0].value;
-      if (googleData.items && googleData.items.length > 0) {
-        finalItems = [...finalItems, ...googleData.items];
+      // NormalizedResponse has works/editions structure, not items
+      if (googleData.works && googleData.works.length > 0) {
+        // Transform works to Google Books format
+        const transformedItems = googleData.works.map((work) =>
+          transformWorkToGoogleFormat(work),
+        );
+        finalItems = [...finalItems, ...transformedItems];
         successfulProviders.push("google");
       }
     }
 
     // Process OpenLibrary results
-    if (results[1].status === "fulfilled" && results[1].value.success) {
+    if (results[1].status === "fulfilled" && results[1].value) {
       const olData = results[1].value;
       if (olData.works && olData.works.length > 0) {
         // Transform OpenLibrary works to Google Books format
@@ -226,16 +231,20 @@ export async function searchByISBN(isbn, options, env, ctx) {
     let successfulProviders = [];
 
     // Process Google Books results
-    if (results[0].status === "fulfilled" && results[0].value.success) {
+    if (results[0].status === "fulfilled" && results[0].value) {
       const googleData = results[0].value;
-      if (googleData.items && googleData.items.length > 0) {
-        finalItems = [...finalItems, ...googleData.items];
+      // NormalizedResponse has works/editions structure, not items
+      if (googleData.works && googleData.works.length > 0) {
+        const transformedItems = googleData.works.map((work) =>
+          transformWorkToGoogleFormat(work),
+        );
+        finalItems = [...finalItems, ...transformedItems];
         successfulProviders.push("google");
       }
     }
 
     // Process OpenLibrary results
-    if (results[1].status === "fulfilled" && results[1].value.success) {
+    if (results[1].status === "fulfilled" && results[1].value) {
       const olData = results[1].value;
       if (olData.works && olData.works.length > 0) {
         const transformedItems = olData.works.map((work) =>

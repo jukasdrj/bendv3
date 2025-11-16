@@ -67,7 +67,7 @@ const mockEmptyResponse = {
  * Google Books API Handlers
  */
 export const googleBooksHandlers = [
-  // Search by ISBN - success case
+  // Search by ISBN or title - success case
   http.get('https://www.googleapis.com/books/v1/volumes', ({ request }) => {
     const url = new URL(request.url)
     const query = url.searchParams.get('q')
@@ -77,7 +77,13 @@ export const googleBooksHandlers = [
       return HttpResponse.json(mockBookResponse)
     }
 
-    // Return empty for unknown ISBNs
+    // Handle title searches (intitle:)
+    if (query?.includes('intitle:')) {
+      // Return mock book for any title search (for testing purposes)
+      return HttpResponse.json(mockBookResponse)
+    }
+
+    // Return empty for unknown ISBNs/queries
     return HttpResponse.json(mockEmptyResponse)
   }),
 

@@ -143,7 +143,7 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
       );
 
       if (
-        googleResult.success &&
+        googleResult &&
         googleResult.works &&
         googleResult.works.length > 0
       ) {
@@ -202,7 +202,7 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
         env,
       );
 
-      if (olResult.success && olResult.works && olResult.works.length > 0) {
+      if (olResult && olResult.works && olResult.works.length > 0) {
         // Convert OpenLibrary format to Google Books-compatible format
         const items = olResult.works.flatMap((work) =>
           work.editions.map((edition) => ({

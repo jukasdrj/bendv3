@@ -263,15 +263,15 @@ export async function handleSearchEditions(
       `author: "${author}" (normalized: "${normalizedAuthor}"), limit: ${limit}`
     );
 
-    // Primary: Query ISBNdb for editions
+    // Primary: Query ISBNdb for editions (trim to handle whitespace)
     const isbndbResult = await externalApis.getISBNdbEditionsForWork(
-      workTitle,
-      author,
+      workTitle.trim(),
+      author.trim(),
       env
     );
 
-    // Fallback: Query Google Books for additional coverage
-    const googleQuery = `intitle:"${workTitle}" inauthor:"${author}"`;
+    // Fallback: Query Google Books for additional coverage (trim to handle whitespace)
+    const googleQuery = `intitle:"${workTitle.trim()}" inauthor:"${author.trim()}"`;
     const googleResult = await externalApis.searchGoogleBooks(
       googleQuery,
       { maxResults: 40 }, // Request more to account for filtering
@@ -280,12 +280,14 @@ export async function handleSearchEditions(
 
     // Combine editions from both providers
     let allEditions: EditionDTO[] = [];
-    
-    if (isbndbResult.success && isbndbResult.editions) {
-      allEditions = allEditions.concat(isbndbResult.editions);
+
+    // ISBNdb returns EditionDTO[] | null
+    if (isbndbResult && Array.isArray(isbndbResult)) {
+      allEditions = allEditions.concat(isbndbResult);
     }
-    
-    if (googleResult.success && googleResult.editions) {
+
+    // Google Books returns NormalizedResponse | null (with {works, editions, authors})
+    if (googleResult && googleResult.editions) {
       allEditions = allEditions.concat(googleResult.editions);
     }
 
@@ -311,6 +313,17 @@ export async function handleSearchEditions(
     // Sort by format and date
     const sortedEditions = sortEditions(uniqueEditions);
 
+    // If we found no editions BEFORE applying limit, return NOT_FOUND error
+    if (sortedEditions.length === 0) {
+      return createErrorResponse(
+        `No editions found for "${workTitle}" by ${author}`,
+        404,
+        ErrorCodes.NOT_FOUND,
+        { workTitle, author, processingTime: Date.now() - startTime },
+        request
+      );
+    }
+
     // Apply limit
     const limitedEditions = sortedEditions.slice(0, limit);
 
@@ -325,17 +338,6 @@ export async function handleSearchEditions(
       } else if (providers.size > 1) {
         provider = 'orchestrated:' + Array.from(providers).join('+');
       }
-    }
-
-    // If we found no editions, return NOT_FOUND error (as specified)
-    if (limitedEditions.length === 0) {
-      return createErrorResponse(
-        `No editions found for "${workTitle}" by ${author}`,
-        404,
-        ErrorCodes.NOT_FOUND,
-        { workTitle, author, processingTime: Date.now() - startTime },
-        request
-      );
     }
 
     const responseData = {

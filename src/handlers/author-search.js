@@ -92,10 +92,10 @@ export async function searchByAuthor(authorName, options, env, ctx) {
       env,
     );
 
-    if (!olResult || !olResult.success) {
+    if (!olResult) {
       return {
         success: false,
-        error: olResult?.error || "Author not found in OpenLibrary",
+        error: "Author not found in OpenLibrary",
         works: [],
         pagination: null,
       };

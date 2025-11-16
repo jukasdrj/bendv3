@@ -220,7 +220,7 @@ describe('Token Usage Tracking - Bookshelf Scanner', () => {
 });
 
 describe('Stop Sequences Configuration', () => {
-  test('bookshelf scanner includes stop sequences', async () => {
+  test('bookshelf scanner uses schema-enforced JSON (no stop sequences)', async () => {
     const mockFetch = vi.fn(() => Promise.resolve({
       ok: true,
       json: () => Promise.resolve({
@@ -240,10 +240,12 @@ describe('Stop Sequences Configuration', () => {
     await scanImageWithGemini(imageData, env);
 
     const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-    
-    expect(requestBody.generationConfig.stopSequences).toEqual(['\n\n\n']);
+
+    // stopSequences removed - was causing premature truncation
+    expect(requestBody.generationConfig.stopSequences).toBeUndefined();
     expect(requestBody.generationConfig.temperature).toBe(0.4);
     expect(requestBody.generationConfig.responseMimeType).toBe('application/json');
+    expect(requestBody.generationConfig.responseSchema).toBeDefined();
   });
 
   test('CSV parser includes stop sequences', async () => {

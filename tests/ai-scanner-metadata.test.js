@@ -7,11 +7,11 @@
  * Run with: npm test -- ai-scanner-metadata.test.js
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { processBookshelfScan } from '../src/services/ai-scanner.js';
-import * as geminiProvider from '../src/providers/gemini-provider.js';
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { processBookshelfScan } from "../src/services/ai-scanner.js";
+import * as geminiProvider from "../src/providers/gemini-provider.js";
 
-describe('AI Scanner Metadata', () => {
+describe("AI Scanner Metadata", () => {
   let mockEnv;
   let mockDoStub;
   let progressUpdates;
@@ -20,125 +20,175 @@ describe('AI Scanner Metadata', () => {
     progressUpdates = [];
 
     mockEnv = {
-      GEMINI_API_KEY: 'test-api-key-123',
-      CONFIDENCE_THRESHOLD: '0.6',
+      GEMINI_API_KEY: "test-api-key-123",
+      CONFIDENCE_THRESHOLD: "0.6",
       BOOKS_API_PROXY: {
-        fetch: async () => new Response(JSON.stringify({
-          isbn: '9780743273565',
-          title: 'The Great Gatsby',
-          authors: [{ key: '/authors/OL123A', name: 'F. Scott Fitzgerald' }],
-          covers: [123456],
-          metadata: { provider: 'openlibrary' }
-        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
-      }
+        fetch: async () =>
+          new Response(
+            JSON.stringify({
+              isbn: "9780743273565",
+              title: "The Great Gatsby",
+              authors: [
+                { key: "/authors/OL123A", name: "F. Scott Fitzgerald" },
+              ],
+              covers: [123456],
+              metadata: { provider: "openlibrary" },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+      },
     };
 
     mockDoStub = {
+      initializeJobState: async (jobId, request) => {
+        // Initialize job state (no-op for test)
+      },
+      updateProgress: async (progress, message, result) => {
+        progressUpdates.push({ progress, message, result });
+      },
       pushProgress: async (data) => {
         progressUpdates.push(data);
       },
       sendError: async (pipeline, payload) => {
-        progressUpdates.push({ type: 'error', pipeline, payload });
+        progressUpdates.push({ type: "error", pipeline, payload });
       },
       closeConnection: async (code, reason) => {
         // Track close calls
-      }
+      },
+      complete: async (pipeline, payload) => {
+        progressUpdates.push({ progress: 1.0, pipeline, result: payload });
+      },
     };
   });
 
-  it('should include model name in completion metadata', async () => {
+  it("should include model name in completion metadata", async () => {
     // Mock Gemini API response
     global.fetch = vi.fn(async (url) => {
-      if (url.includes('generativelanguage.googleapis.com')) {
-        return new Response(JSON.stringify({
-          candidates: [{
-            content: {
-              parts: [{
-                text: JSON.stringify([{
-                  title: 'Test Book',
-                  author: 'Test Author',
-                  isbn: '9780743273565',
-                  format: 'hardcover',
-                  confidence: 0.85,
-                  boundingBox: { x1: 0.1, y1: 0.2, x2: 0.3, y2: 0.4 }
-                }])
-              }]
-            }
-          }]
-        }), { status: 200 });
+      if (url.includes("generativelanguage.googleapis.com")) {
+        return new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify([
+                        {
+                          title: "Test Book",
+                          author: "Test Author",
+                          isbn: "9780743273565",
+                          format: "hardcover",
+                          confidence: 0.85,
+                          boundingBox: { x1: 0.1, y1: 0.2, x2: 0.3, y2: 0.4 },
+                        },
+                      ]),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        );
       }
       // Enrichment API call
-      return new Response(JSON.stringify({
-        items: [{
-          isbn: '9780743273565',
-          title: 'Test Book',
-          authors: [{ name: 'Test Author' }]
-        }],
-        provider: 'openlibrary'
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return new Response(
+        JSON.stringify({
+          items: [
+            {
+              isbn: "9780743273565",
+              title: "Test Book",
+              authors: [{ name: "Test Author" }],
+            },
+          ],
+          provider: "openlibrary",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
     });
 
     const imageData = new ArrayBuffer(1024);
     const mockRequest = { headers: new Map() };
-    const jobId = 'test-job-123';
+    const jobId = "test-job-123";
 
-    await processBookshelfScan(jobId, imageData, mockRequest, mockEnv, mockDoStub);
+    await processBookshelfScan(
+      jobId,
+      imageData,
+      mockRequest,
+      mockEnv,
+      mockDoStub,
+    );
 
     // Find completion update (progress === 1.0)
-    const completionUpdate = progressUpdates.find(u => u.progress === 1.0);
+    const completionUpdate = progressUpdates.find((u) => u.progress === 1.0);
 
     expect(completionUpdate).toBeDefined();
     expect(completionUpdate.result).toBeDefined();
     expect(completionUpdate.result.metadata).toBeDefined();
-    expect(completionUpdate.result.metadata.modelUsed).toBe('gemini-2.5-flash');
+    expect(completionUpdate.result.metadata.modelUsed).toBe("gemini-2.5-flash");
   });
 
-  it('should handle missing model metadata gracefully', async () => {
+  it("should handle missing model metadata gracefully", async () => {
     // Spy on scanImageWithGemini to return incomplete metadata
     // This simulates future AI providers or API changes that omit the model field
-    const scanSpy = vi.spyOn(geminiProvider, 'scanImageWithGemini').mockResolvedValue({
-      books: [{
-        title: 'Test Book',
-        author: 'Test Author',
-        isbn: '9780743273565',
-        confidence: 0.85,
-        boundingBox: { x1: 0.1, y1: 0.2, x2: 0.3, y2: 0.4 }
-      }],
-      suggestions: [],
-      metadata: {
-        provider: 'gemini',
-        // model field is intentionally missing to test fallback!
-        timestamp: new Date().toISOString(),
-        processingTimeMs: 25000
-      }
-    });
+    const scanSpy = vi
+      .spyOn(geminiProvider, "scanImageWithGemini")
+      .mockResolvedValue({
+        books: [
+          {
+            title: "Test Book",
+            author: "Test Author",
+            isbn: "9780743273565",
+            confidence: 0.85,
+            boundingBox: { x1: 0.1, y1: 0.2, x2: 0.3, y2: 0.4 },
+          },
+        ],
+        suggestions: [],
+        metadata: {
+          provider: "gemini",
+          // model field is intentionally missing to test fallback!
+          timestamp: new Date().toISOString(),
+          processingTimeMs: 25000,
+        },
+      });
 
     // Mock enrichment API
     global.fetch = vi.fn(async () => {
-      return new Response(JSON.stringify({
-        items: [{
-          isbn: '9780743273565',
-          title: 'Test Book',
-          authors: [{ name: 'Test Author' }]
-        }],
-        provider: 'openlibrary'
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return new Response(
+        JSON.stringify({
+          items: [
+            {
+              isbn: "9780743273565",
+              title: "Test Book",
+              authors: [{ name: "Test Author" }],
+            },
+          ],
+          provider: "openlibrary",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
     });
 
     const imageData = new ArrayBuffer(1024);
     const mockRequest = { headers: new Map() };
-    const jobId = 'test-job-456';
+    const jobId = "test-job-456";
 
-    await processBookshelfScan(jobId, imageData, mockRequest, mockEnv, mockDoStub);
+    await processBookshelfScan(
+      jobId,
+      imageData,
+      mockRequest,
+      mockEnv,
+      mockDoStub,
+    );
 
     // Find completion update (progress === 1.0)
-    const completionUpdate = progressUpdates.find(u => u.progress === 1.0);
+    const completionUpdate = progressUpdates.find((u) => u.progress === 1.0);
 
     expect(completionUpdate).toBeDefined();
     expect(completionUpdate.result).toBeDefined();
     expect(completionUpdate.result.metadata).toBeDefined();
     // Should fall back to 'unknown' when model metadata is missing
-    expect(completionUpdate.result.metadata.modelUsed).toBe('unknown');
+    expect(completionUpdate.result.metadata.modelUsed).toBe("unknown");
 
     // Verify the spy was called
     expect(scanSpy).toHaveBeenCalledOnce();

@@ -1,7 +1,7 @@
 /**
- * Integration tests for api-worker monolith
+ * E2E Integration tests for api-worker monolith
  *
- * Tests all major endpoints:
+ * Tests all major endpoints against a running worker:
  * - Health check
  * - Title search
  * - ISBN search
@@ -9,15 +9,20 @@
  * - Enrichment start
  * - AI scan (basic validation)
  *
- * Run with: npm test
+ * REQUIREMENTS:
+ * - Worker must be running locally: npm run dev (in another terminal)
+ * - Run these tests with: npm run test:e2e
  *
- * Note: These tests require the worker to be running locally:
- * npm run dev (in another terminal)
+ * These tests are SKIPPED by default in the main test suite.
+ * They require a live worker at http://localhost:8787
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
 
-describe('API Worker Integration Tests', () => {
+// Only run E2E tests when explicitly requested via environment variable
+const isE2E = process.env.RUN_E2E_TESTS === 'true';
+
+describe.skipIf(!isE2E)('API Worker E2E Integration Tests', () => {
   const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:8787';
 
   // Test connection to local dev server
