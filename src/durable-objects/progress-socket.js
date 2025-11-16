@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { WebSocketCloseCodes } from "../types/websocket-messages.js";
+import { getCorsHeaders } from "../middleware/cors.js";
 
 /**
  * ProgressWebSocketDO - Durable Object for Real-Time Job Progress via WebSocket
@@ -102,7 +103,7 @@ export class ProgressWebSocketDO extends DurableObject {
       return new Response("Expected Upgrade: websocket", {
         status: 426,
         headers: {
-          "Access-Control-Allow-Origin": "*",
+          ...getCorsHeaders(request),
           "Content-Type": "text/plain",
         },
       });
@@ -112,7 +113,10 @@ export class ProgressWebSocketDO extends DurableObject {
     const jobId = url.searchParams.get("jobId");
     if (!jobId) {
       console.error("[ProgressDO] Missing jobId parameter");
-      return new Response("Missing jobId parameter", { status: 400 });
+      return new Response("Missing jobId parameter", {
+        status: 400,
+        headers: getCorsHeaders(request),
+      });
     }
 
     // Check if this is a reconnection attempt
@@ -140,7 +144,7 @@ export class ProgressWebSocketDO extends DurableObject {
       return new Response("Unauthorized", {
         status: 401,
         headers: {
-          "Access-Control-Allow-Origin": "*",
+          ...getCorsHeaders(request),
           "Content-Type": "text/plain",
         },
       });
@@ -153,7 +157,7 @@ export class ProgressWebSocketDO extends DurableObject {
       return new Response("Token expired", {
         status: 401,
         headers: {
-          "Access-Control-Allow-Origin": "*",
+          ...getCorsHeaders(request),
           "Content-Type": "text/plain",
         },
       });
@@ -365,9 +369,7 @@ export class ProgressWebSocketDO extends DurableObject {
     return new Response(null, {
       status: 101,
       webSocket: client,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-      },
+      headers: getCorsHeaders(request),
     });
   }
 
@@ -855,7 +857,9 @@ export class ProgressWebSocketDO extends DurableObject {
     };
 
     try {
-      this.webSocket.send(JSON.stringify(message));
+      const messageStr = JSON.stringify(message);
+      this.validateMessageSize(messageStr); // ISSUE #135: Validate size
+      this.webSocket.send(messageStr);
       console.log(`[${this.jobId}] Job started message sent`);
       return { success: true };
     } catch (error) {
@@ -890,7 +894,9 @@ export class ProgressWebSocketDO extends DurableObject {
     };
 
     try {
-      this.webSocket.send(JSON.stringify(message));
+      const messageStr = JSON.stringify(message);
+      this.validateMessageSize(messageStr); // ISSUE #135: Validate size
+      this.webSocket.send(messageStr);
       if (!payload.keepAlive) {
         console.log(
           `[${this.jobId}] Progress update sent: ${payload.progress}`,
@@ -930,7 +936,9 @@ export class ProgressWebSocketDO extends DurableObject {
     };
 
     try {
-      this.webSocket.send(JSON.stringify(message));
+      const messageStr = JSON.stringify(message);
+      this.validateMessageSize(messageStr); // ISSUE #135: Validate size
+      this.webSocket.send(messageStr);
       console.log(`[${this.jobId}] Job complete message sent`);
 
       // Close connection after completion
@@ -977,7 +985,9 @@ export class ProgressWebSocketDO extends DurableObject {
     };
 
     try {
-      this.webSocket.send(JSON.stringify(message));
+      const messageStr = JSON.stringify(message);
+      this.validateMessageSize(messageStr); // ISSUE #135: Validate size
+      this.webSocket.send(messageStr);
       console.log(
         `[${this.jobId}] Error message sent (v2 schema): ${payload.code}`,
       );
@@ -998,6 +1008,36 @@ export class ProgressWebSocketDO extends DurableObject {
       console.error(`[${this.jobId}] Failed to send error:`, error);
       return { success: false };
     }
+  }
+
+  /**
+   * ISSUE #135: Validate WebSocket message size
+   * Cloudflare WebSocket limit: 32 MiB per message
+   *
+   * @param {string} message - Serialized JSON message
+   * @throws {Error} If message exceeds 32 MiB limit
+   */
+  validateMessageSize(message) {
+    const sizeBytes = new Blob([message]).size;
+    const sizeMB = sizeBytes / (1024 * 1024);
+
+    // Cloudflare Workers WebSocket limit: 32 MiB
+    const MAX_SIZE_MB = 32;
+
+    if (sizeMB > MAX_SIZE_MB) {
+      const error = `WebSocket message too large: ${sizeMB.toFixed(2)} MB (max ${MAX_SIZE_MB} MB)`;
+      console.error(`[${this.jobId}] ${error}`);
+      throw new Error(error);
+    }
+
+    // Warn for large messages (>10 MB) that are approaching the limit
+    if (sizeMB > 10) {
+      console.warn(
+        `[${this.jobId}] ⚠️ Large WebSocket message: ${sizeMB.toFixed(2)} MB (consider using summary-only pattern)`,
+      );
+    }
+
+    return sizeMB;
   }
 
   /**
