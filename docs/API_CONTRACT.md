@@ -714,6 +714,32 @@ wss://api.oooefam.net/ws/progress?jobId={jobId}&token={token}
 - Server sends `ping` every 30 seconds
 - Client should respond with `pong` (optional)
 
+**Local Testing with Wrangler:**
+```bash
+# Start local dev server with remote Durable Objects
+npx wrangler dev --remote
+
+# WebSocket will be available at:
+# ws://localhost:8787/ws/progress?jobId={jobId}&token={token}
+
+# Note: --remote flag required for WebSocket functionality
+# Durable Objects must connect to production for WebSocket support
+```
+
+**Testing Tools:**
+```bash
+# wscat (install globally)
+npm install -g wscat
+
+# Connect to local dev
+wscat -c "ws://localhost:8787/ws/progress?jobId=test-123&token=test-token"
+
+# Connect to production
+wscat -c "wss://api.oooefam.net/ws/progress?jobId=test-123&token=test-token"
+
+# Expected: Connection upgrade, then "connected" message
+```
+
 ---
 
 ### 7.2 Message Format
