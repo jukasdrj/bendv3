@@ -541,6 +541,159 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 
 ---
 
-**Last Updated:** November 13, 2025
+---
+
+## Open Issues Organization
+
+### By Phase (API v2.0 Migration)
+
+#### Phase 1: Backend Implementation ✅ COMPLETE
+- ~~#116: Refactor WebSocket payloads to summary-only~~
+- ~~#117: Deploy native v2 handlers~~  
+- ~~#118: All tests passing (42 tests)~~
+
+#### Phase 2: Environment & Documentation (Pre-Notification)
+- #119: Update API_README.md to v2 contract
+- #120: Add deprecation headers to legacy endpoints (`Warning: 299`)
+- #121: Deploy and verify staging environment
+
+#### Phase 3: Client Migration (The Waiting Game)
+- #122: Distribute v2 migration guide to iOS and Flutter teams
+- #123: Client implementation window - monitor staging (4 weeks)
+
+#### Phase 4: Production Launch
+- #124: Final Go/No-Go decision for production
+- #125: Production deployment - zero downtime launch
+- #126: Post-launch monitoring (4-hour critical window)
+- #93: Configure monitoring dashboard for v2.0 rollout
+
+#### API Documentation & Testing
+- #138: Generate OpenAPI/Swagger specification from API_CONTRACT.md
+- #139: Create Postman collection for API_CONTRACT.md endpoints
+- #140: Set up contract testing with Pact for API compliance
+- #129: Update WebSocket testing instructions with `wrangler dev --remote`
+
+---
+
+### By Priority
+
+#### P0 - Critical (Blocking)
+_No critical blockers_
+
+#### P1 - High Priority
+- #124: Final Go/No-Go decision (pre-production gate)
+- #125: Production deployment
+- #126: Post-launch monitoring
+- #93: Monitoring dashboard configuration
+- #91: iOS WebSocket migration documentation
+
+#### P2 - Medium Priority  
+- #67: Standardize API contracts and DTOs (Phase 2 in progress)
+- #119-#123: v2 migration workflow
+- #138-#140: API documentation tooling
+- #100: Performance - dynamic imports optimization
+
+#### P3 - Low Priority
+- #137: Feature request - diversity fields from Gemini
+- #114: Refactor - debug flag guard for logging
+- #113: Test - error handling coverage for WebSocket
+- #112-#115: Code quality enhancements from Phase 1 review
+
+---
+
+### By Component
+
+#### API / Handlers
+- #67: API contract standardization
+- #119: API_README.md v2 update
+- #120: Deprecation headers
+- #138: OpenAPI specification
+- #139: Postman collection
+- #140: Contract testing (Pact)
+- #100: Dynamic import optimization
+
+#### WebSocket / Durable Objects
+- #67: WebSocket schema consolidation (Phase 1 ✅)
+- #91: iOS WebSocket migration docs
+- #113: Error handling test coverage
+- #129: WebSocket testing with `wrangler dev --remote`
+
+#### CI/CD / Deployment
+- #121: Staging environment
+- #124: Go/No-Go checklist
+- #125: Production deployment
+- #126: Post-launch monitoring
+- #87: Configure staging environment
+- #93: Monitoring dashboard
+
+#### Documentation
+- #122: v2 migration guide distribution
+- #88: iOS WebSocket migration documentation
+- #89: Notify API subscribers
+- #91: iOS WebSocket migration docs (duplicate of #88?)
+- #129: WebSocket testing instructions
+
+#### AI / Gemini Integration
+- #137: Diversity fields from author names
+- #114: Debug logging in AI scanner
+
+#### Testing
+- #140: Contract testing (Pact)
+- #113: WebSocket error handling tests
+- #12: Test suite overview (sprint-4)
+- #9: Phase 4 E2E tests
+- #47: Phase 2 test refactoring
+- #40: Sprint-based PR consolidation
+
+#### Code Quality / Refactoring  
+- #67: API/DTO standardization
+- #17: Extract router into modules
+- #18: Standardize analytics logging
+- #100: Dynamic imports performance
+- #114: Debug flag guards
+- #115: Mock payload validation (from #67 review)
+
+---
+
+### By Sprint
+
+#### Sprint 1 (Nov 13-27): Security + iOS Feature
+- #93: Monitoring dashboard
+
+#### Sprint 4 (Dec 29-Jan 8): E2E + Refactoring + Docs
+- #12: Test suite overview
+- #9: Phase 4 E2E tests  
+- #47: Phase 2 test refactoring
+- #40: Sprint-based PR consolidation
+- #2: Sync docs to iOS/Flutter repos
+- #17: Router extraction
+- #18: Analytics standardization
+
+---
+
+### Deprecated / Superseded Issues
+
+#### Closed or Archived
+- #21-#39: Individual PRs consolidated into sprint-based workflow (#40)
+- #87: Staging config (merged into #121)
+- #88: iOS WebSocket docs (duplicate of #91)
+- #89: Notify subscribers (covered by #122)
+
+---
+
+### Quick Issue Lookup
+
+**Need to deploy?** → #125 (Production deployment), #121 (Staging)  
+**Need API docs?** → #138 (OpenAPI), #139 (Postman), #119 (API_README)  
+**Mobile team integration?** → #122 (Migration guide), #91 (iOS WebSocket), #129 (Testing)  
+**Pre-launch checklist?** → #124 (Go/No-Go decision)  
+**Post-launch monitoring?** → #126 (4-hour window), #93 (Dashboard)  
+**Testing infrastructure?** → #12 (Overview), #9 (E2E), #140 (Contract tests)  
+**Code quality?** → #67 (API standardization), #17 (Router), #18 (Analytics)  
+**Performance?** → #100 (Dynamic imports), #93 (Monitoring)
+
+---
+
+**Last Updated:** November 16, 2025
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer, Jules, Zen MCP)
 **Human Owner:** @jukasdrj
