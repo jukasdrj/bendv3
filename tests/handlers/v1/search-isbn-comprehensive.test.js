@@ -182,6 +182,10 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
         // OpenLibrary succeeds
         .mockResolvedValueOnce(
           createMockFetchResponse(mockOpenLibrarySearchResponse),
+        )
+        // Wikidata cultural diversity enrichment (from enrichAuthorsWithCulturalData)
+        .mockResolvedValueOnce(
+          createMockFetchResponse({ results: { bindings: [] } }),
         );
 
       const response = await handleSearchISBN(
@@ -194,7 +198,8 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
       expect(status).toBe(200);
       expect(body.data).toBeDefined();
       expect(body.metadata.provider).toBe("openlibrary");
-      expect(global.fetch).toHaveBeenCalledTimes(2);
+      // 3 calls: Google Books (fail) + OpenLibrary (success) + Wikidata (diversity)
+      expect(global.fetch).toHaveBeenCalledTimes(3);
     });
 
     it("should return empty results if all providers fail (best-effort)", async () => {
