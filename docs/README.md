@@ -35,26 +35,36 @@ This is the **authoritative contract** maintained by the backend team. All front
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[API_CONTRACT.md](./API_CONTRACT.md)** | Authoritative API contract (v2.1) | **Frontend teams** |
+| **[API_CONTRACT.md](./API_CONTRACT.md)** | 📘 **THE SINGLE SOURCE OF TRUTH** - Authoritative API contract (v2.1) | **Frontend teams** |
 | **[V2_MIGRATION_GUIDE.md](./V2_MIGRATION_GUIDE.md)** | v1.x → v2.0 migration guide | **Frontend teams** |
-| **[CLIENT_MONITORING_GUIDE.md](./CLIENT_MONITORING_GUIDE.md)** | Client adoption tracking | Backend, DevOps |
-| [DEPLOYMENT.md](./DEPLOYMENT.md) | Deployment procedures and rollback | Backend, DevOps |
-| [SECRETS_SETUP.md](./SECRETS_SETUP.md) | Environment secrets configuration | Backend, DevOps |
-| [MONITORING_GUIDE.md](./MONITORING_GUIDE.md) | Dashboard and alert configuration | Backend, DevOps |
-| [ROLLBACK_PROCEDURES.md](./ROLLBACK_PROCEDURES.md) | Emergency rollback procedures | Backend, DevOps |
+| [CLIENT_MONITORING_GUIDE.md](./CLIENT_MONITORING_GUIDE.md) | Client adoption tracking | Backend, DevOps |
 | [TEST_COVERAGE_ANALYSIS.md](./TEST_COVERAGE_ANALYSIS.md) | Test coverage gaps and testing roadmap | Backend, QA |
+| [DEPLOYMENT.md](./deployment/DEPLOYMENT.md) | Deployment procedures and rollback | Backend, DevOps |
+| [ROLLBACK_PROCEDURES.md](./deployment/ROLLBACK_PROCEDURE.md) | Emergency rollback procedures | Backend, DevOps |
+| [MONITORING_GUIDE.md](./MONITORING_GUIDE.md) | Operational monitoring guide | Backend, DevOps |
+| [deployment/MONITORING_DASHBOARD.md](./deployment/MONITORING_DASHBOARD.md) | Analytics dashboard setup | DevOps |
+| [deployment/SECRETS_SETUP.md](./deployment/SECRETS_SETUP.md) | Environment secrets configuration | DevOps |
 
-### Deprecated Documents (Historical Reference Only)
+### Reference Documents
 
-| Document | Status | Replacement |
-|----------|--------|-------------|
-| [API_CONTRACT_CURRENT.md](./API_CONTRACT_CURRENT.md) | ⚠️ Deprecated | API_CONTRACT.md |
-| [FRONTEND_INTEGRATION_GUIDE.md](./FRONTEND_INTEGRATION_GUIDE.md) | ⚠️ Deprecated | API_CONTRACT.md, V2_MIGRATION_GUIDE.md |
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| [QUICK_START.md](./QUICK_START.md) | Quick start guide for new developers | Backend |
+| [CLOUDFLARE_WORKERS_LIMITS.md](./CLOUDFLARE_WORKERS_LIMITS.md) | Workers platform limits and quotas | Backend |
+| [HARVEST_COVERS.md](./HARVEST_COVERS.md) | Cover image harvesting system | Backend |
+| [COVER_HARVEST_SYSTEM.md](./COVER_HARVEST_SYSTEM.md) | Cover harvest implementation details | Backend |
+| [guides/ISBNDB-HARVEST-IMPLEMENTATION.md](./guides/ISBNDB-HARVEST-IMPLEMENTATION.md) | ISBNdb integration guide | Backend |
+| [guides/METRICS.md](./guides/METRICS.md) | Analytics and metrics reference | Backend, DevOps |
 
-**Why deprecated?**
-- Contained aspirational features not fully implemented
-- Mixed actual vs. planned behavior
-- Superseded by comprehensive API_CONTRACT.md and V2_MIGRATION_GUIDE.md
+### Archived Documents
+
+**All deprecated and historical docs moved to:** `docs/archives/`
+
+This includes:
+- Post-launch assessments (GO_NO_GO, MONITORING_IMPLEMENTATION_SUMMARY)
+- Historical audits (WEBSOCKET_AUDIT_67)
+- Deprecated guides (FRONTEND_INTEGRATION_GUIDE, API_CONTRACT_CURRENT)
+- Setup logs (robit/, ANALYTICS_DASHBOARD)
 
 ---
 
@@ -76,10 +86,11 @@ This is the **authoritative contract** maintained by the backend team. All front
 
 ### For Backend Developers
 
-1. **Deployment:** [DEPLOYMENT.md](./DEPLOYMENT.md)
-2. **Secrets Setup:** [SECRETS_SETUP.md](./SECRETS_SETUP.md)
-3. **Architecture:** [CLAUDE.md](../.claude/CLAUDE.md) (in `.claude/` directory)
-4. **Test Coverage:** [TEST_COVERAGE_ANALYSIS.md](./TEST_COVERAGE_ANALYSIS.md) - Coverage gaps and testing roadmap
+1. **Quick Start:** [QUICK_START.md](./QUICK_START.md)
+2. **Architecture:** [CLAUDE.md](../.claude/CLAUDE.md) (in `.claude/` directory)
+3. **Deployment:** [DEPLOYMENT.md](./deployment/DEPLOYMENT.md)
+4. **Monitoring:** [MONITORING_GUIDE.md](./MONITORING_GUIDE.md)
+5. **Test Coverage:** [TEST_COVERAGE_ANALYSIS.md](./TEST_COVERAGE_ANALYSIS.md)
 
 ---
 
@@ -133,5 +144,5 @@ This is the **authoritative contract** maintained by the backend team. All front
 
 ---
 
-**Last Review:** November 15, 2025
+**Last Review:** November 16, 2025 (Post-v2.0 launch cleanup)
 **Next Review:** February 15, 2026

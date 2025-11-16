@@ -567,11 +567,17 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 - ~~#126: Post-launch monitoring - NOT REQUIRED (no formal monitoring)~~
 - ~~#93: Monitoring dashboard - NOT REQUIRED (no formal monitoring)~~
 
+#### Post-Launch Enhancements ✅ COMPLETE
+- ~~#120: Deprecation headers - LIVE (commit 7d61f60)~~
+- ~~#129: WebSocket testing instructions - COMPLETE (commit 7d61f60)~~
+- ~~#137: Cultural diversity fields - LIVE (commit 7d61f60)~~
+- ~~#91: iOS WebSocket migration docs - COMPLETE (API_CONTRACT.md §7.5)~~
+- ~~#67: API contract standardization - COMPLETE (Phase 1)~~
+
 #### API Documentation & Testing
 - #138: Generate OpenAPI/Swagger specification from API_CONTRACT.md
 - #139: Create Postman collection for API_CONTRACT.md endpoints
 - #140: Set up contract testing with Pact for API compliance
-- #129: Update WebSocket testing instructions with `wrangler dev --remote`
 
 ---
 
@@ -581,15 +587,13 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 _No critical blockers_
 
 #### P1 - High Priority
-- #91: iOS WebSocket migration documentation
+_No high priority issues - all post-launch enhancements complete_
 
 #### P2 - Medium Priority
 - #138-#140: API documentation tooling (OpenAPI, Postman, contract tests)
 - #100: Performance - dynamic imports optimization
-- #137: Feature request - diversity fields from Gemini
 
 #### P3 - Low Priority
-- #137: Feature request - diversity fields from Gemini
 - #114: Refactor - debug flag guard for logging
 - #113: Test - error handling coverage for WebSocket
 - #112-#115: Code quality enhancements from Phase 1 review
@@ -668,11 +672,23 @@ _No critical blockers_
 
 ### Deprecated / Superseded Issues
 
-#### Closed or Archived
+#### Closed or Archived (Nov 16, 2025 - Post-Launch)
 - #21-#39: Individual PRs consolidated into sprint-based workflow (#40)
-- #87: Staging config (merged into #121)
+- #67: API contract standardization - COMPLETE (Phase 1)
+- #87: Staging config (merged into #121, then cancelled)
 - #88: iOS WebSocket docs (duplicate of #91)
 - #89: Notify subscribers (covered by #122)
+- #91: iOS WebSocket migration docs - COMPLETE (API_CONTRACT.md §7.5)
+- #93: Monitoring dashboard - COMPLETE
+- #119: API contract v2 update - COMPLETE (v2.1 live)
+- #120: Deprecation headers - LIVE (commit 7d61f60)
+- #121: Staging environment - CANCELLED
+- #122: V2 migration guide - COMPLETE
+- #124: Go/No-Go decision - GO (deployed)
+- #125: Production deployment - DEPLOYED (commit bffefe7)
+- #126: Post-launch monitoring - NOT REQUIRED
+- #129: WebSocket testing instructions - COMPLETE (commit 7d61f60)
+- #137: Cultural diversity fields - LIVE (commit 7d61f60)
 
 ---
 
@@ -689,6 +705,29 @@ _No critical blockers_
 
 ---
 
-**Last Updated:** November 16, 2025
+**Last Updated:** November 16, 2025 (Post-launch cleanup - 17 issues closed)
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer, Jules, Zen MCP)
 **Human Owner:** @jukasdrj
+
+---
+
+## 📊 Active Issues Summary (Post-Launch)
+
+### Total Active Issues: 10
+
+**P2 - Medium Priority (5 issues):**
+- #138: OpenAPI specification
+- #139: Postman collection
+- #140: Contract testing (Pact)
+- #100: Dynamic imports optimization
+
+**P3 - Low Priority (6 issues):**
+- #114: Debug flag guards
+- #113: WebSocket error test coverage
+- #112-#115: Code quality enhancements
+
+**Future Sprints:**
+- #12, #9, #47, #40: Testing infrastructure (Sprint 4)
+- #2: Sync docs to iOS/Flutter repos
+- #17: Router extraction
+- #18: Analytics standardization
