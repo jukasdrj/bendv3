@@ -11,6 +11,19 @@ import { scanImageWithGemini } from "../providers/gemini-provider.js";
 import { enrichBooksParallel } from "./parallel-enrichment.js";
 
 /**
+ * AI Scanner Progress Stages
+ * Defines progress percentages for each stage of the AI scanning pipeline
+ */
+const PROGRESS_STAGES = {
+  QUALITY_ANALYSIS: 0.1, // Image quality check (10%)
+  AI_PROCESSING: 0.3, // Gemini AI vision processing (30%)
+  DETECTION_COMPLETE: 0.5, // Book detection complete (50%)
+  ENRICHMENT_START: 0.7, // Begin parallel enrichment (70%)
+  ENRICHMENT_DELTA: 0.25, // Enrichment progress range (70% → 95%)
+  FINALIZATION: 1.0, // Complete and send results (100%)
+};
+
+/**
  * Process bookshelf image scan with AI vision
  *
  * @param {string} jobId - Unique job identifier
@@ -48,16 +61,18 @@ export async function processBookshelfScan(
 
     // Stage 1: Image quality analysis (10% progress)
     await doStub.updateProgress("ai_scan", {
-      progress: 0.1,
+      progress: PROGRESS_STAGES.QUALITY_ANALYSIS,
       status: "Analyzing image quality...",
       processedCount: 0,
       currentItem: "Image quality check",
     });
-    console.log(`[AI Scanner] Progress pushed: 10% (image quality analysis)`);
+    console.log(
+      `[AI Scanner] Progress pushed: ${PROGRESS_STAGES.QUALITY_ANALYSIS * 100}% (image quality analysis)`,
+    );
 
     // Stage 2: AI processing with Gemini 2.0 Flash
     await doStub.updateProgress("ai_scan", {
-      progress: 0.3,
+      progress: PROGRESS_STAGES.AI_PROCESSING,
       status: "Processing with Gemini AI...",
       processedCount: 1,
       currentItem: "Gemini AI processing",
@@ -102,7 +117,7 @@ export async function processBookshelfScan(
     );
 
     await doStub.updateProgress("ai_scan", {
-      progress: 0.5,
+      progress: PROGRESS_STAGES.DETECTION_COMPLETE,
       status: `Detected ${detectedBooks.length} books, enriching data...`,
       processedCount: 1,
       currentItem: `${detectedBooks.length} books detected`,
@@ -163,7 +178,9 @@ export async function processBookshelfScan(
         }
       },
       async (completed, total, title, hasError) => {
-        const progress = 0.7 + (0.25 * completed) / total;
+        const progress =
+          PROGRESS_STAGES.ENRICHMENT_START +
+          (PROGRESS_STAGES.ENRICHMENT_DELTA * completed) / total;
         await doStub.updateProgress("ai_scan", {
           progress,
           status: hasError
@@ -210,7 +227,7 @@ export async function processBookshelfScan(
 
     // Final progress update before completion (100%)
     await doStub.updateProgress("ai_scan", {
-      progress: 1.0,
+      progress: PROGRESS_STAGES.FINALIZATION,
       status: "Scan complete, finalizing results...",
       processedCount: 3,
       currentItem: "Finalizing",
