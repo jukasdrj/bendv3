@@ -55,11 +55,13 @@ export async function writeCacheMetrics(env, metrics) {
       ? [metrics.isbn, 'isbn_search']  // blob1=<isbn_number>, blob2='isbn_search'
       : [metrics.endpoint, metrics.imageQuality];
 
-    // For ISBN searches, set index1='google-books-isbn' for query filtering
-    // For other searches, use cache hit/miss as index0
+    // Analytics Engine supports maximum of 1 index per data point
+    // For ISBN searches, use 'google-books-isbn' as primary index for query filtering
+    // For other searches, use cache hit/miss status as index
+    // Note: Cache hit status is still available in blobs array for all searches
     const indexes = metrics.isbn
-      ? ['google-books-isbn', metrics.cacheHit ? 'HIT' : 'MISS']  // index1='google-books-isbn', index0=HIT/MISS
-      : [metrics.cacheHit ? 'HIT' : 'MISS'];  // index0=HIT/MISS only
+      ? ['google-books-isbn']  // Primary index for ISBN search filtering
+      : [metrics.cacheHit ? 'HIT' : 'MISS'];  // Cache status for non-ISBN searches
 
     await env.CACHE_ANALYTICS.writeDataPoint({
       blobs,
