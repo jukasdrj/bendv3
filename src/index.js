@@ -328,7 +328,17 @@ export default {
             body: JSON.stringify({ books, jobId }),
           });
 
-          return handleBatchEnrichment(modifiedRequest, env, ctx);
+          const response = await handleBatchEnrichment(modifiedRequest, env, ctx);
+
+          // Add deprecation headers (RFC 8594 + Warning header)
+          response.headers.set("Deprecation", "true");
+          response.headers.set("Sunset", "Sat, 1 Mar 2026 00:00:00 GMT");
+          response.headers.set("Warning", '299 - "This endpoint is deprecated. Use /v1/enrichment/batch instead. Sunset: March 1, 2026"');
+          response.headers.set(
+            "Link",
+            '<https://api.oooefam.net/v1/enrichment/batch>; rel="alternate"; title="Use /v1/enrichment/batch instead"',
+          );
+          return response;
         } catch (error) {
           console.error("Failed to start enrichment:", error);
           return errorResponse(
@@ -729,9 +739,10 @@ export default {
         Object.entries(cacheHeaders).forEach(([key, value]) => {
           response.headers.set(key, value);
         });
-        // Deprecation headers (RFC 8594)
+        // Deprecation headers (RFC 8594 + Warning header)
         response.headers.set("Deprecation", "true");
         response.headers.set("Sunset", "Sat, 1 Mar 2026 00:00:00 GMT");
+        response.headers.set("Warning", '299 - "This endpoint is deprecated. Use /v1/search/title instead. Sunset: March 1, 2026"');
         response.headers.set(
           "Link",
           '<https://api.oooefam.net/v1/search/title>; rel="alternate"; title="Use /v1/search/title instead"',
@@ -768,9 +779,10 @@ export default {
         Object.entries(cacheHeaders).forEach(([key, value]) => {
           response.headers.set(key, value);
         });
-        // Deprecation headers (RFC 8594)
+        // Deprecation headers (RFC 8594 + Warning header)
         response.headers.set("Deprecation", "true");
         response.headers.set("Sunset", "Sat, 1 Mar 2026 00:00:00 GMT");
+        response.headers.set("Warning", '299 - "This endpoint is deprecated. Use /v1/search/isbn instead. Sunset: March 1, 2026"');
         response.headers.set(
           "Link",
           '<https://api.oooefam.net/v1/search/isbn>; rel="alternate"; title="Use /v1/search/isbn instead"',
@@ -850,9 +862,10 @@ export default {
         response.headers.set("X-Cache", cacheStatus);
         response.headers.set("X-Cache-Source", cacheSource);
         response.headers.set("X-Provider", result.provider || "openlibrary");
-        // Deprecation headers (RFC 8594)
+        // Deprecation headers (RFC 8594 + Warning header)
         response.headers.set("Deprecation", "true");
         response.headers.set("Sunset", "Sat, 1 Mar 2026 00:00:00 GMT");
+        response.headers.set("Warning", '299 - "This endpoint is deprecated. Use /v1/search/advanced instead. Sunset: March 1, 2026"');
         response.headers.set(
           "Link",
           '<https://api.oooefam.net/v1/search/advanced>; rel="alternate"; title="Use /v1/search/advanced instead"',
@@ -920,9 +933,10 @@ export default {
           if (request.method === "GET") {
             response.headers.set("Cache-Control", "public, max-age=21600"); // 6h cache
           }
-          // Deprecation headers (RFC 8594)
+          // Deprecation headers (RFC 8594 + Warning header)
           response.headers.set("Deprecation", "true");
           response.headers.set("Sunset", "Sat, 1 Mar 2026 00:00:00 GMT");
+          response.headers.set("Warning", '299 - "This endpoint is deprecated. Use /v1/search/advanced instead. Sunset: March 1, 2026"');
           response.headers.set(
             "Link",
             '<https://api.oooefam.net/v1/search/advanced>; rel="alternate"; title="Use /v1/search/advanced instead"',
