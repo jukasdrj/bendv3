@@ -27,6 +27,7 @@ import { processCSVImport } from "../../src/services/csv-processor.js";
 describe("CSV Processor Service", () => {
   let mockProgressReporter;
   let mockEnv;
+  const testJobId = "test-job-id"; // Add jobId constant for all tests
 
   beforeEach(() => {
     // Reset all mocks before each test
@@ -66,7 +67,7 @@ describe("CSV Processor Service", () => {
     it("should wait for client ready before processing", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       expect(mockProgressReporter.waitForReady).toHaveBeenCalledWith(10000);
     });
@@ -80,7 +81,7 @@ describe("CSV Processor Service", () => {
       const csvText = "title,author\nTest Book,Test Author";
 
       // Should not throw
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       expect(mockProgressReporter.updateProgress).toHaveBeenCalled();
     });
@@ -93,7 +94,7 @@ describe("CSV Processor Service", () => {
 
       const csvText = "title,author\nTest Book,Test Author";
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       expect(mockProgressReporter.updateProgress).toHaveBeenCalled();
     });
@@ -103,7 +104,7 @@ describe("CSV Processor Service", () => {
     it("should report validation progress", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       expect(mockProgressReporter.updateProgress).toHaveBeenCalledWith(
         "csv_import",
@@ -117,7 +118,7 @@ describe("CSV Processor Service", () => {
     it("should report Gemini upload progress", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       expect(mockProgressReporter.updateProgress).toHaveBeenCalledWith(
         "csv_import",
@@ -136,7 +137,7 @@ describe("CSV Processor Service", () => {
         { title: "Book 2", author: "Author 2" },
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       expect(mockProgressReporter.updateProgress).toHaveBeenCalledWith(
         "csv_import",
@@ -159,7 +160,7 @@ describe("CSV Processor Service", () => {
 
       const csvText = "invalid,csv\ndata";
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       expect(mockProgressReporter.sendError).toHaveBeenCalledWith(
         "csv_import",
@@ -177,7 +178,7 @@ describe("CSV Processor Service", () => {
         new Error("Gemini API rate limit exceeded"),
       );
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       expect(mockProgressReporter.sendError).toHaveBeenCalledWith(
         "csv_import",
@@ -193,7 +194,7 @@ describe("CSV Processor Service", () => {
 
       mockParseCSVWithGemini.mockResolvedValue([]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       expect(mockProgressReporter.sendError).toHaveBeenCalledWith(
         "csv_import",
@@ -211,18 +212,15 @@ describe("CSV Processor Service", () => {
 
       mockEnv.KV_CACHE.get.mockResolvedValue(cachedBooks);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       expect(mockEnv.KV_CACHE.get).toHaveBeenCalled();
+      // ISSUE #133: Summary-only completion (booksCount instead of books array)
       expect(mockProgressReporter.complete).toHaveBeenCalledWith(
         "csv_import",
         expect.objectContaining({
-          books: expect.arrayContaining([
-            expect.objectContaining({
-              title: "Cached Book",
-              author: "Cached Author",
-            }),
-          ]),
+          booksCount: 1,
+          resultsUrl: expect.stringContaining("/v1/csv/results/"),
         }),
       );
     });
@@ -232,7 +230,7 @@ describe("CSV Processor Service", () => {
 
       mockEnv.KV_CACHE.get.mockResolvedValue(null); // Cache miss
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       expect(mockEnv.KV_CACHE.put).toHaveBeenCalledWith(
         expect.any(String),
@@ -254,21 +252,24 @@ describe("CSV Processor Service", () => {
         { title: "Another Book", author: "Another Author" },
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
+      // ISSUE #133: Summary-only completion
       expect(mockProgressReporter.complete).toHaveBeenCalledWith(
         "csv_import",
         expect.objectContaining({
-          books: expect.arrayContaining([
-            expect.objectContaining({ title: "Valid Book" }),
-            expect.objectContaining({ title: "Another Book" }),
-          ]),
+          booksCount: 2, // 2 valid books (1 filtered out)
+          resultsUrl: expect.stringContaining("/v1/csv/results/"),
         }),
       );
 
-      const completeCall = mockProgressReporter.complete.mock.calls[0];
-      const books = completeCall[1].books;
-      expect(books).toHaveLength(2);
+      // Verify full results stored in KV
+      const kvPutCall = mockEnv.KV_CACHE.put.mock.calls.find((call) =>
+        call[0].startsWith("csv-results:"),
+      );
+      expect(kvPutCall).toBeDefined();
+      const storedResults = JSON.parse(kvPutCall[1]);
+      expect(storedResults.books).toHaveLength(2);
     });
 
     it("should filter out books without author", async () => {
@@ -279,12 +280,23 @@ describe("CSV Processor Service", () => {
         { title: "No Author Book" }, // Missing author
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
-      const completeCall = mockProgressReporter.complete.mock.calls[0];
-      const books = completeCall[1].books;
-      expect(books).toHaveLength(1);
-      expect(books[0].title).toBe("Valid Book");
+      // ISSUE #133: Summary-only completion
+      expect(mockProgressReporter.complete).toHaveBeenCalledWith(
+        "csv_import",
+        expect.objectContaining({
+          booksCount: 1, // 1 valid book (1 filtered out)
+        }),
+      );
+
+      // Verify full results in KV
+      const kvPutCall = mockEnv.KV_CACHE.put.mock.calls.find((call) =>
+        call[0].startsWith("csv-results:"),
+      );
+      const storedResults = JSON.parse(kvPutCall[1]);
+      expect(storedResults.books).toHaveLength(1);
+      expect(storedResults.books[0].title).toBe("Valid Book");
     });
 
     it("should trim whitespace from book data", async () => {
@@ -298,20 +310,26 @@ describe("CSV Processor Service", () => {
         },
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
+      // ISSUE #133: Summary-only completion
       expect(mockProgressReporter.complete).toHaveBeenCalledWith(
         "csv_import",
         expect.objectContaining({
-          books: [
-            {
-              title: "Spaced Book",
-              author: "Spaced Author",
-              isbn: "1234567890",
-            },
-          ],
+          booksCount: 1,
         }),
       );
+
+      // Verify trimmed data in KV storage
+      const kvPutCall = mockEnv.KV_CACHE.put.mock.calls.find((call) =>
+        call[0].startsWith("csv-results:"),
+      );
+      const storedResults = JSON.parse(kvPutCall[1]);
+      expect(storedResults.books[0]).toEqual({
+        title: "Spaced Book",
+        author: "Spaced Author",
+        isbn: "1234567890",
+      });
     });
 
     it("should handle optional ISBN field", async () => {
@@ -322,13 +340,16 @@ describe("CSV Processor Service", () => {
         { title: "Book Without ISBN", author: "Author" },
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
-      const completeCall = mockProgressReporter.complete.mock.calls[0];
-      const books = completeCall[1].books;
+      // ISSUE #133: Verify ISBN handling in KV storage
+      const kvPutCall = mockEnv.KV_CACHE.put.mock.calls.find((call) =>
+        call[0].startsWith("csv-results:"),
+      );
+      const storedResults = JSON.parse(kvPutCall[1]);
 
-      expect(books[0].isbn).toBe("1234567890");
-      expect(books[1].isbn).toBeUndefined();
+      expect(storedResults.books[0].isbn).toBe("1234567890");
+      expect(storedResults.books[1].isbn).toBeUndefined();
     });
   });
 
@@ -341,19 +362,28 @@ describe("CSV Processor Service", () => {
         { title: "Book 2", author: "Author 2" },
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
+      // ISSUE #133: Summary-only completion via WebSocket
       expect(mockProgressReporter.complete).toHaveBeenCalledWith(
         "csv_import",
         expect.objectContaining({
-          books: expect.arrayContaining([
-            { title: "Book 1", author: "Author 1", isbn: undefined },
-            { title: "Book 2", author: "Author 2", isbn: undefined },
-          ]),
-          errors: [],
+          booksCount: 2,
+          resultsUrl: expect.stringContaining("/v1/csv/results/"),
           successRate: "2/2",
         }),
       );
+
+      // Verify full results stored in KV
+      const kvPutCall = mockEnv.KV_CACHE.put.mock.calls.find((call) =>
+        call[0].startsWith("csv-results:"),
+      );
+      const storedResults = JSON.parse(kvPutCall[1]);
+      expect(storedResults.books).toEqual([
+        { title: "Book 1", author: "Author 1", isbn: undefined },
+        { title: "Book 2", author: "Author 2", isbn: undefined },
+      ]);
+      expect(storedResults.errors).toEqual([]);
     });
 
     it("should include success rate in completion", async () => {
@@ -365,7 +395,7 @@ describe("CSV Processor Service", () => {
         { title: "Book 3" }, // Missing author, will be filtered
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       expect(mockProgressReporter.complete).toHaveBeenCalledWith(
         "csv_import",

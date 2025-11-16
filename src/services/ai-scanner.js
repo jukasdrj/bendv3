@@ -233,8 +233,10 @@ export async function processBookshelfScan(
       currentItem: "Finalizing",
     });
 
-    // Send completion using unified schema
-    const completionPayload = {
+    // ISSUE #133: Store full results in KV to avoid multi-MB WebSocket payloads
+    // Store complete results with 24-hour expiration
+    const resultsKey = `scan-results:${jobId}`;
+    const fullResults = {
       totalDetected: detectedBooks.length,
       approved: approved.length,
       needsReview: review.length,
@@ -242,16 +244,33 @@ export async function processBookshelfScan(
       metadata: {
         modelUsed,
         processingTime,
+        timestamp: Date.now(),
       },
     };
+
+    await env.KV_CACHE.put(resultsKey, JSON.stringify(fullResults), {
+      expirationTtl: 86400, // 24 hours
+    });
+
     console.log(
-      `[AI Scanner] 📤 Sending complete with payload:`,
-      JSON.stringify({
-        totalDetected: completionPayload.totalDetected,
-        approved: completionPayload.approved,
-        needsReview: completionPayload.needsReview,
-        booksCount: completionPayload.books.length,
-      }),
+      `[AI Scanner] 💾 Stored full results in KV: ${resultsKey} (${books.length} books)`,
+    );
+
+    // Send summary-only completion via WebSocket
+    const completionPayload = {
+      totalDetected: detectedBooks.length,
+      approved: approved.length,
+      needsReview: review.length,
+      resultsUrl: `/v1/scan/results/${jobId}`, // Client fetches full results via HTTP GET
+      metadata: {
+        modelUsed,
+        processingTime,
+      },
+    };
+
+    console.log(
+      `[AI Scanner] 📤 Sending summary-only completion:`,
+      JSON.stringify(completionPayload),
     );
     await doStub.complete("ai_scan", completionPayload);
 

@@ -22,6 +22,10 @@ describe("AI Scanner Metadata", () => {
     mockEnv = {
       GEMINI_API_KEY: "test-api-key-123",
       CONFIDENCE_THRESHOLD: "0.6",
+      KV_CACHE: {
+        put: vi.fn(async () => {}), // ISSUE #133: Mock KV storage for summary-only pattern
+        get: vi.fn(async () => null),
+      },
       BOOKS_API_PROXY: {
         fetch: async () =>
           new Response(

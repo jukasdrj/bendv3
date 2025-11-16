@@ -367,7 +367,7 @@ export class JobStateManagerDO extends DurableObject {
       const reporter = new ProgressReporter(jobState.jobId, this.env);
 
       try {
-        await processCSVImport(csvText, reporter, this.env);
+        await processCSVImport(csvText, reporter, this.env, jobState.jobId);
       } catch (error) {
         console.error(
           "[JobStateManager] CSV processing failed in alarm:",
@@ -391,10 +391,11 @@ export class JobStateManagerDO extends DurableObject {
       // Clean up temporary storage
       await this.storage.delete("csvText");
       await this.storage.delete("processingType");
-
     } else if (processingType === "bookshelf_scan") {
       // Bookshelf scan processing path
-      console.log("[JobStateManager] Alarm triggered for bookshelf scan processing");
+      console.log(
+        "[JobStateManager] Alarm triggered for bookshelf scan processing",
+      );
 
       const imageData = await this.storage.get("imageData");
       const requestHeaders = await this.storage.get("requestHeaders");
@@ -408,8 +409,12 @@ export class JobStateManagerDO extends DurableObject {
       }
 
       // Import AI scanner service (in DO context to avoid Worker CPU timeout)
-      const { processBookshelfScan } = await import("../services/ai-scanner.js");
-      const { ProgressReporter } = await import("../utils/progress-reporter.js");
+      const { processBookshelfScan } = await import(
+        "../services/ai-scanner.js"
+      );
+      const { ProgressReporter } = await import(
+        "../utils/progress-reporter.js"
+      );
 
       const reporter = new ProgressReporter(jobState.jobId, this.env);
 
@@ -417,8 +422,8 @@ export class JobStateManagerDO extends DurableObject {
         // Create a mock request object with headers (for X-AI-Provider support)
         const mockRequest = {
           headers: {
-            get: (key) => requestHeaders[key] || null
-          }
+            get: (key) => requestHeaders[key] || null,
+          },
         };
 
         // Call the AI scanner with reporter instead of doStub
@@ -429,7 +434,7 @@ export class JobStateManagerDO extends DurableObject {
           mockRequest,
           this.env,
           reporter, // Use reporter instead of doStub
-          null      // No execution context in alarm
+          null, // No execution context in alarm
         );
       } catch (error) {
         console.error(
@@ -443,7 +448,8 @@ export class JobStateManagerDO extends DurableObject {
           retryable: true,
           details: {
             fallbackAvailable: false,
-            suggestion: "Try uploading a clearer photo or contact support if issue persists",
+            suggestion:
+              "Try uploading a clearer photo or contact support if issue persists",
           },
         });
       }
@@ -452,7 +458,6 @@ export class JobStateManagerDO extends DurableObject {
       await this.storage.delete("imageData");
       await this.storage.delete("requestHeaders");
       await this.storage.delete("processingType");
-
     } else {
       // Cleanup path (24 hour cleanup after job completion/failure)
       console.log(

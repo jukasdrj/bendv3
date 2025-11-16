@@ -110,7 +110,7 @@ export function createMockDOStub() {
         );
       }
 
-      // Pipeline-specific payload validation
+      // Pipeline-specific payload validation (ISSUE #133: Summary-only pattern)
       if (pipeline === "ai_scan") {
         if (typeof payload.totalDetected !== "number") {
           throw new Error(
@@ -122,15 +122,23 @@ export function createMockDOStub() {
             "Missing required field for ai_scan completion: approved (number)",
           );
         }
-        if (!Array.isArray(payload.books)) {
+        // ISSUE #133: Accept either books array (legacy) or resultsUrl (summary-only)
+        if (
+          !Array.isArray(payload.books) &&
+          typeof payload.resultsUrl !== "string"
+        ) {
           throw new Error(
-            "Missing required field for ai_scan completion: books (array)",
+            "Missing required field for ai_scan completion: books (array) or resultsUrl (string)",
           );
         }
       } else if (pipeline === "csv_import") {
-        if (!Array.isArray(payload.books)) {
+        // ISSUE #133: Accept either books array (legacy) or resultsUrl (summary-only)
+        if (
+          !Array.isArray(payload.books) &&
+          typeof payload.booksCount !== "number"
+        ) {
           throw new Error(
-            "Missing required field for csv_import completion: books (array)",
+            "Missing required field for csv_import completion: books (array) or booksCount (number)",
           );
         }
         if (typeof payload.successRate !== "string") {
