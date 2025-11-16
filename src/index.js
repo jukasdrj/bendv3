@@ -41,72 +41,10 @@ import {
   notFoundResponse,
 } from "./utils/response-builder.ts";
 import { getProgressDOStub } from "./utils/durable-object-helpers.ts";
-
-/**
- * Analytics Helper Functions
- * Tracks request metrics for monitoring dashboard
- */
-
-/**
- * Write analytics data point to Analytics Engine
- * @param {Object} env - Worker environment bindings
- * @param {string} endpoint - Endpoint path (e.g., "/v1/search/title")
- * @param {number} statusCode - HTTP status code
- * @param {number} processingTime - Request processing time in ms
- * @param {string} errorCode - Error code if request failed (optional)
- * @param {string} cacheStatus - Cache status: HIT, MISS, BYPASS (optional)
- */
-function trackRequestMetrics(
-  env,
-  endpoint,
-  statusCode,
-  processingTime,
-  errorCode = null,
-  cacheStatus = "MISS",
-) {
-  try {
-    if (!env.PERFORMANCE_ANALYTICS) return;
-
-    env.PERFORMANCE_ANALYTICS.writeDataPoint({
-      blobs: [endpoint, errorCode || "N/A", cacheStatus],
-      doubles: [statusCode, processingTime],
-      indexes: [endpoint], // For efficient querying by endpoint
-    });
-  } catch (error) {
-    console.error("[Analytics] Failed to track metrics:", error);
-  }
-}
-
-/**
- * Add analytics headers to response for debugging
- * @param {Response} response - Original response
- * @param {number} startTime - Request start timestamp
- * @param {string} cacheStatus - Cache status
- * @param {string} errorCode - Error code if applicable
- * @returns {Response} Response with added headers
- */
-function addAnalyticsHeaders(
-  response,
-  startTime,
-  cacheStatus = "MISS",
-  errorCode = null,
-) {
-  const processingTime = Date.now() - startTime;
-  const headers = new Headers(response.headers);
-
-  headers.set("X-Response-Time", `${processingTime}ms`);
-  headers.set("X-Cache-Status", cacheStatus);
-
-  if (errorCode) {
-    headers.set("X-Error-Code", errorCode);
-  }
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-}
+import {
+  trackRequestMetrics,
+  addAnalyticsHeaders,
+} from "./utils/analytics.js";
 
 // Export the Durable Object classes for Cloudflare Workers runtime
 export {

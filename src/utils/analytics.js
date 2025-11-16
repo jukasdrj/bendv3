@@ -78,3 +78,66 @@ export async function writeCacheMetrics(env, metrics) {
     // Don't throw - would break search requests. Silent failure acceptable for analytics.
   }
 }
+
+/**
+ * Track request metrics to Analytics Engine for performance monitoring
+ *
+ * @param {Object} env - Worker environment bindings (must include PERFORMANCE_ANALYTICS)
+ * @param {string} endpoint - API endpoint path (e.g., '/v1/search/title')
+ * @param {number} statusCode - HTTP status code
+ * @param {number} processingTime - Request processing time in milliseconds
+ * @param {string} errorCode - Error code if request failed (optional)
+ * @param {string} cacheStatus - Cache status: HIT, MISS, BYPASS (optional)
+ */
+export function trackRequestMetrics(
+  env,
+  endpoint,
+  statusCode,
+  processingTime,
+  errorCode = null,
+  cacheStatus = "MISS",
+) {
+  try {
+    if (!env.PERFORMANCE_ANALYTICS) return;
+
+    env.PERFORMANCE_ANALYTICS.writeDataPoint({
+      blobs: [endpoint, errorCode || "N/A", cacheStatus],
+      doubles: [statusCode, processingTime],
+      indexes: [endpoint], // For efficient querying by endpoint
+    });
+  } catch (error) {
+    console.error("[Analytics] Failed to track metrics:", error);
+  }
+}
+
+/**
+ * Add analytics headers to response for debugging
+ *
+ * @param {Response} response - Original response
+ * @param {number} startTime - Request start timestamp
+ * @param {string} cacheStatus - Cache status (HIT, MISS, BYPASS)
+ * @param {string} errorCode - Error code if applicable
+ * @returns {Response} Response with added headers
+ */
+export function addAnalyticsHeaders(
+  response,
+  startTime,
+  cacheStatus = "MISS",
+  errorCode = null,
+) {
+  const processingTime = Date.now() - startTime;
+  const headers = new Headers(response.headers);
+
+  headers.set("X-Response-Time", `${processingTime}ms`);
+  headers.set("X-Cache-Status", cacheStatus);
+
+  if (errorCode) {
+    headers.set("X-Error-Code", errorCode);
+  }
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
