@@ -1,10 +1,24 @@
-# BooksTrack API Contract v2.0
+# BooksTrack API Contract v2.1
 
 **Status:** Production ✅
 **Effective Date:** November 15, 2025
-**Last Updated:** November 15, 2025
+**Last Updated:** November 16, 2025 (v2.1 - WebSocket Documentation)
 **Contract Owner:** Backend Team
 **Audience:** iOS, Flutter, Web Frontend Teams
+
+---
+
+## 🔥 What's New in v2.1 (Issue #67)
+
+This update **documents the complete WebSocket implementation** that has been in production but was previously undocumented:
+
+- **7 New Message Types:** `ready`, `ready_ack`, `reconnected`, + batch scanning messages
+- **Reconnection Support (Section 7.5):** 60-second grace period, state sync, iOS Swift examples
+- **Batch Photo Scanning (Section 7.6):** 1-5 photo uploads with photo-by-photo progress tracking
+- **Token Refresh:** Updated status from "not implemented" to ✅ Production Ready
+- **Integration Checklists:** Expanded with reconnection and batch requirements
+
+**Action Required:** Review Sections 7.3, 7.5, 7.6, and 9.3 if you integrate with WebSocket API.
 
 ---
 
@@ -70,29 +84,28 @@ This document is the **single source of truth** for the BooksTrack API. All fron
 3. **Expiration:** Tokens expire after **2 hours** (7200 seconds)
 4. **Refresh:** Available within **30-minute window** before expiration
 
-**Token Refresh (Future):**
-```http
-POST /v1/token/refresh
-Content-Type: application/json
+**Token Refresh:**
 
-{
-  "jobId": "uuid-12345",
-  "oldToken": "eyJhbGc..."
-}
+**Status:** ✅ **Production Ready** (via Durable Object RPC, no HTTP endpoint)
 
-Response:
-{
-  "data": {
-    "newToken": "eyJhbGc...",
-    "expiresAt": "2025-11-15T22:00:00Z"
-  },
-  "metadata": {
-    "timestamp": "2025-11-15T20:00:00Z"
-  }
-}
+**Implementation:** Token refresh is handled internally by the Durable Object, not via HTTP POST endpoint.
+
+**Refresh Window:**
+- Tokens can be refreshed **only in the last 30 minutes** before expiration
+- Prevents infinite token extension attacks
+- New token extends expiration by another 2 hours
+
+**Client Usage:**
+```swift
+// iOS client calls refresh via WebSocket message (custom implementation)
+// OR relies on automatic refresh if connection is long-running
+// Token refresh happens transparently during WebSocket lifecycle
 ```
 
-**Status:** ⚠️ Token refresh endpoint not yet implemented. Tokens are single-use only.
+**Security Notes:**
+- Concurrent refresh requests are prevented (race condition protection)
+- Old token must match stored token exactly
+- Expired tokens cannot be refreshed (must re-authenticate)
 
 ### 3.2 Rate Limiting
 
@@ -760,10 +773,26 @@ All messages use this envelope:
 **MessageType:**
 ```typescript
 type MessageType =
+  // Job lifecycle messages
   | "job_started"
   | "job_progress"
   | "job_complete"
   | "error"
+
+  // Client-server handshake
+  | "ready"           // Client → Server: Ready to receive updates
+  | "ready_ack"       // Server → Client: Acknowledged ready signal
+
+  // Reconnection support
+  | "reconnected"     // Server → Client: State sync after reconnect
+
+  // Batch photo scanning
+  | "batch-init"      // Server → Client: Batch scan initialization
+  | "batch-progress"  // Server → Client: Photo-by-photo progress
+  | "batch-complete"  // Server → Client: Batch scan complete
+  | "batch-canceling" // Server → Client: Batch cancellation in progress
+
+  // Keep-alive (planned, not yet implemented)
   | "ping"
   | "pong";
 ```
@@ -887,6 +916,183 @@ Sent when job fails.
 
 ---
 
+#### ready (Client → Server)
+
+**CRITICAL:** Clients MUST send this message after connecting to signal readiness to receive job updates.
+
+```json
+{
+  "type": "ready"
+}
+```
+
+**Why Required:**
+- Server waits for client ready signal before starting processing (2-5 second timeout)
+- Prevents message loss if client connects but isn't ready to receive
+- Ensures UI is initialized before progress updates arrive
+
+**Client Implementation:**
+```swift
+// Swift example for iOS
+func webSocketDidConnect(_ webSocket: URLSessionWebSocketTask) {
+    let readyMessage = ["type": "ready"]
+    let jsonData = try! JSONEncoder().encode(readyMessage)
+    webSocket.send(.data(jsonData)) { error in
+        if let error = error {
+            print("Failed to send ready signal: \(error)")
+        }
+    }
+}
+```
+
+---
+
+#### ready_ack (Server → Client)
+
+Server acknowledgment of client ready signal.
+
+```json
+{
+  "type": "ready_ack",
+  "jobId": "uuid-12345",
+  "pipeline": "ai_scan",
+  "timestamp": 1700000000000,
+  "version": "1.0.0",
+  "payload": {
+    "type": "ready_ack",
+    "timestamp": 1700000000000
+  }
+}
+```
+
+**Client Action:** Start listening for `job_started`, `job_progress`, and `job_complete` messages.
+
+---
+
+#### reconnected (Server → Client)
+
+Sent when client reconnects after disconnect, includes current job state for sync.
+
+```json
+{
+  "type": "reconnected",
+  "jobId": "uuid-12345",
+  "pipeline": "csv_import",
+  "timestamp": 1700005000000,
+  "version": "1.0.0",
+  "payload": {
+    "type": "reconnected",
+    "progress": 0.65,
+    "status": "processing",
+    "processedCount": 65,
+    "totalCount": 100,
+    "lastUpdate": 1700004950000,
+    "message": "Reconnected successfully - resuming job progress"
+  }
+}
+```
+
+**Client Action:** Update UI with current progress state, continue listening for updates.
+
+**See:** Section 7.5 for full reconnection flow.
+
+---
+
+#### batch-init (Server → Client)
+
+Sent when batch photo scan starts (1-5 photos).
+
+```json
+{
+  "type": "batch-init",
+  "jobId": "uuid-12345",
+  "timestamp": 1700000000000,
+  "data": {
+    "type": "batch-init",
+    "totalPhotos": 3,
+    "status": "processing"
+  }
+}
+```
+
+**See:** Section 7.6 for complete batch scanning documentation.
+
+---
+
+#### batch-progress (Server → Client)
+
+Sent after each photo processes in batch scan.
+
+```json
+{
+  "type": "batch-progress",
+  "jobId": "uuid-12345",
+  "timestamp": 1700000500000,
+  "data": {
+    "type": "batch-progress",
+    "currentPhoto": 1,
+    "totalPhotos": 3,
+    "photoStatus": "complete",
+    "booksFound": 12,
+    "totalBooksFound": 25,
+    "photos": [
+      { "index": 0, "status": "complete", "booksFound": 13 },
+      { "index": 1, "status": "complete", "booksFound": 12 },
+      { "index": 2, "status": "queued", "booksFound": 0 }
+    ]
+  }
+}
+```
+
+---
+
+#### batch-complete (Server → Client)
+
+Sent when all photos in batch are processed.
+
+```json
+{
+  "type": "batch-complete",
+  "jobId": "uuid-12345",
+  "timestamp": 1700001500000,
+  "data": {
+    "type": "batch-complete",
+    "totalBooks": 37,
+    "photoResults": [
+      { "photoIndex": 0, "booksFound": 13, "status": "success" },
+      { "photoIndex": 1, "booksFound": 12, "status": "success" },
+      { "photoIndex": 2, "booksFound": 12, "status": "success" }
+    ],
+    "books": [
+      /* Array of detected books with enrichment */
+    ]
+  }
+}
+```
+
+**Note:** Unlike single-photo scans, batch completion includes full book array (not summary-only).
+
+---
+
+#### batch-canceling (Server → Client)
+
+Sent when batch cancellation is requested (graceful shutdown in progress).
+
+```json
+{
+  "type": "batch-canceling",
+  "jobId": "uuid-12345",
+  "timestamp": 1700001000000,
+  "data": {
+    "type": "batch-canceling"
+  }
+}
+```
+
+**Client Action:** Show "Canceling..." UI, wait for connection close with code 1001 (GOING_AWAY).
+
+---
+
 ### 7.4 Close Codes
 
 Standard RFC 6455 close codes:
@@ -900,6 +1106,320 @@ Standard RFC 6455 close codes:
 | 1009 | MESSAGE_TOO_BIG | Payload > 32 MiB | Reduce payload size |
 | 1011 | INTERNAL_ERROR | Server error | Retry with exponential backoff |
 | 1013 | TRY_AGAIN_LATER | Server overload | Retry after 30 seconds |
+
+---
+
+### 7.5 Reconnection Support
+
+**Status:** ✅ **Production Ready**
+
+#### Overview
+
+WebSocket connections can disconnect due to:
+- Network transitions (WiFi ↔ Cellular)
+- App backgrounding on iOS
+- Temporary network loss
+- Server maintenance
+
+The API supports **reconnection with state sync** to resume jobs seamlessly.
+
+#### Reconnection Grace Period
+
+- **60 seconds** after unexpected disconnect (codes other than 1000)
+- Auth token and job state preserved in Durable Object storage
+- After grace period, job continues but state may be stale
+
+#### Reconnection Flow
+
+**1. Detect Disconnect**
+```swift
+func webSocket(_ webSocket: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+    // Normal closure (1000) - job complete, don't reconnect
+    if closeCode == .normalClosure {
+        return
+    }
+
+    // Unexpected disconnect - attempt reconnection
+    print("WebSocket disconnected: code \(closeCode.rawValue)")
+    attemptReconnection()
+}
+```
+
+**2. Reconnect with Query Param**
+```swift
+func attemptReconnection() {
+    // Add reconnect=true to URL
+    let reconnectURL = "\(originalURL)&reconnect=true"
+    let webSocket = URLSession.shared.webSocketTask(with: URL(string: reconnectURL)!)
+    webSocket.resume()
+}
+```
+
+**3. Receive State Sync**
+
+Server sends `reconnected` message with current progress:
+```json
+{
+  "type": "reconnected",
+  "jobId": "uuid-12345",
+  "pipeline": "csv_import",
+  "timestamp": 1700005000000,
+  "version": "1.0.0",
+  "payload": {
+    "type": "reconnected",
+    "progress": 0.65,
+    "status": "processing",
+    "processedCount": 65,
+    "totalCount": 100,
+    "lastUpdate": 1700004950000,
+    "message": "Reconnected successfully - resuming job progress"
+  }
+}
+```
+
+**4. Update UI and Continue**
+```swift
+case "reconnected":
+    let progress = payload.progress
+    let processedCount = payload.processedCount
+    // Update UI with synced state
+    updateProgressUI(progress: progress, count: processedCount)
+    // Continue listening for job_progress and job_complete
+```
+
+#### Best Practices
+
+- **Reconnect immediately** after unexpected disconnect (don't wait)
+- **Always use `reconnect=true`** query param for state sync
+- **Implement exponential backoff** if reconnection fails (1s, 2s, 4s, 8s, max 30s)
+- **Max 3 retries** before showing user error
+- **Preserve jobId and token** in memory across reconnections
+
+#### Testing Reconnection
+
+```bash
+# Connect to local WebSocket
+wscat -c "ws://localhost:8787/ws/progress?jobId=test-123&token=test-token"
+
+# Disconnect (Ctrl+C)
+
+# Reconnect with state sync
+wscat -c "ws://localhost:8787/ws/progress?jobId=test-123&token=test-token&reconnect=true"
+
+# Expected: "reconnected" message with current progress
+```
+
+---
+
+### 7.6 Batch Photo Scanning
+
+**Status:** ✅ **Production Ready** (iOS Multi-Photo Upload Feature)
+
+#### Overview
+
+Batch scanning allows users to upload **1-5 photos** in a single request, with **photo-by-photo progress updates** via WebSocket.
+
+**Why Batch Scanning:**
+- Faster than sequential single-photo uploads
+- Single WebSocket connection for all photos
+- Atomic transaction - all succeed or all fail
+- Better UX with photo-level progress tracking
+
+#### Batch Workflow
+
+**1. Upload Batch**
+```http
+POST /api/batch-scan HTTP/1.1
+Host: api.oooefam.net
+Content-Type: multipart/form-data
+
+--boundary
+Content-Disposition: form-data; name="photos[]"; filename="photo1.jpg"
+Content-Type: image/jpeg
+
+[Binary data for photo 1]
+--boundary
+Content-Disposition: form-data; name="photos[]"; filename="photo2.jpg"
+Content-Type: image/jpeg
+
+[Binary data for photo 2]
+--boundary--
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "data": {
+    "jobId": "batch-uuid-12345",
+    "token": "auth-token-67890",
+    "totalPhotos": 2
+  },
+  "metadata": {
+    "timestamp": "2025-11-16T12:00:00.000Z"
+  }
+}
+```
+
+**2. Connect WebSocket**
+```swift
+let wsURL = "wss://api.oooefam.net/ws/progress?jobId=\(jobId)&token=\(token)"
+let webSocket = URLSession.shared.webSocketTask(with: URL(string: wsURL)!)
+webSocket.resume()
+
+// Send ready signal
+let readyMessage = ["type": "ready"]
+webSocket.send(.data(try! JSONEncoder().encode(readyMessage))) { _ in }
+```
+
+**3. Receive Batch Messages**
+
+**batch-init** - Scan starting:
+```json
+{
+  "type": "batch-init",
+  "jobId": "batch-uuid-12345",
+  "timestamp": 1700000000000,
+  "data": {
+    "type": "batch-init",
+    "totalPhotos": 2,
+    "status": "processing"
+  }
+}
+```
+
+**batch-progress** - After each photo (sent 2 times for 2 photos):
+```json
+{
+  "type": "batch-progress",
+  "jobId": "batch-uuid-12345",
+  "timestamp": 1700000500000,
+  "data": {
+    "type": "batch-progress",
+    "currentPhoto": 0,
+    "totalPhotos": 2,
+    "photoStatus": "complete",
+    "booksFound": 15,
+    "totalBooksFound": 15,
+    "photos": [
+      { "index": 0, "status": "complete", "booksFound": 15 },
+      { "index": 1, "status": "queued", "booksFound": 0 }
+    ]
+  }
+}
+```
+
+**batch-complete** - All photos processed:
+```json
+{
+  "type": "batch-complete",
+  "jobId": "batch-uuid-12345",
+  "timestamp": 1700001000000,
+  "data": {
+    "type": "batch-complete",
+    "totalBooks": 28,
+    "photoResults": [
+      { "photoIndex": 0, "booksFound": 15, "status": "success" },
+      { "photoIndex": 1, "booksFound": 13, "status": "success" }
+    ],
+    "books": [
+      {
+        "title": "The Great Gatsby",
+        "author": "F. Scott Fitzgerald",
+        "isbn": "9780743273565",
+        "confidence": 0.95,
+        "boundingBox": { "x": 0.12, "y": 0.34, "width": 0.08, "height": 0.25 },
+        "enrichment": {
+          "status": "success",
+          "work": { /* WorkDTO */ },
+          "editions": [ /* EditionDTO[] */ ],
+          "authors": [ /* AuthorDTO[] */ ]
+        }
+      }
+      // ... 27 more books
+    ]
+  }
+}
+```
+
+#### Photo State Lifecycle
+
+```
+queued → processing → complete | error
+```
+
+**Photo Status Values:**
+- `queued` - Waiting to be processed
+- `processing` - Currently being scanned by AI
+- `complete` - Successfully processed
+- `error` - Failed (see `error` field)
+
+#### Batch Limits
+
+| Limit | Value | Reason |
+|-------|-------|--------|
+| **Min Photos** | 1 | Single photo uses `/api/scan-bookshelf` endpoint |
+| **Max Photos** | 5 | AI processing time (5 photos × 10s = 50s max) |
+| **Max Photo Size** | 10 MB | Gemini API limit |
+| **Total Upload Size** | 50 MB | 5 photos × 10 MB each |
+
+#### Cancellation
+
+**Client Cancels:**
+```json
+{
+  "type": "cancel_batch"
+}
+```
+
+**Server Response:**
+```json
+{
+  "type": "batch-canceling",
+  "jobId": "batch-uuid-12345",
+  "timestamp": 1700001000000,
+  "data": {
+    "type": "batch-canceling"
+  }
+}
+```
+
+**Final Close:**
+- WebSocket closes with code 1001 (GOING_AWAY)
+- Partial results discarded (not saved to KV)
+
+#### Error Handling
+
+**Individual Photo Fails:**
+```json
+{
+  "type": "batch-progress",
+  "data": {
+    "currentPhoto": 1,
+    "photoStatus": "error",
+    "photos": [
+      { "index": 0, "status": "complete", "booksFound": 15 },
+      { "index": 1, "status": "error", "error": "Invalid image format", "booksFound": 0 }
+    ]
+  }
+}
+```
+- **Batch continues** processing remaining photos
+- Failed photos marked with `error` field
+- `totalBooksFound` excludes failed photos
+
+**Entire Batch Fails:**
+```json
+{
+  "type": "error",
+  "pipeline": "ai_scan",
+  "payload": {
+    "code": "BATCH_SCAN_ERROR",
+    "message": "All photos failed processing",
+    "retryable": true
+  }
+}
+```
+- WebSocket closes with code 1011 (INTERNAL_ERROR)
 
 ---
 
@@ -956,11 +1476,28 @@ Standard RFC 6455 close codes:
 
 ### 9.3 WebSocket Integration
 
-- [ ] Implement token-based auth (query params)
-- [ ] Handle all message types (`job_started`, `job_progress`, `job_complete`, `error`)
-- [ ] Implement reconnection logic (exponential backoff, max 3 retries)
+**Basic Setup:**
+- [ ] Implement token-based auth (query params: `jobId`, `token`)
+- [ ] Send `ready` message immediately after connection (CRITICAL)
+- [ ] Listen for `ready_ack` confirmation before expecting job messages
+- [ ] Handle all job lifecycle messages (`job_started`, `job_progress`, `job_complete`, `error`)
+- [ ] Fetch full results via HTTP GET after `job_complete` (summary-only pattern)
 - [ ] Respect close codes (see section 7.4)
-- [ ] Fetch full results via HTTP GET after `job_complete`
+
+**Reconnection Support:**
+- [ ] Implement reconnection logic with exponential backoff (1s, 2s, 4s, 8s, max 30s)
+- [ ] Add `reconnect=true` query param when reconnecting
+- [ ] Handle `reconnected` message and sync UI state
+- [ ] Max 3 retry attempts before showing user error
+- [ ] Preserve `jobId` and `token` in memory across reconnections
+
+**Batch Photo Scanning (if applicable):**
+- [ ] Handle `batch-init` message (totalPhotos count)
+- [ ] Update UI for each `batch-progress` message (photo-by-photo)
+- [ ] Display photo grid with individual status indicators (queued/processing/complete/error)
+- [ ] Handle `batch-complete` with full book array (not summary-only)
+- [ ] Implement batch cancellation (`cancel_batch` message)
+- [ ] Respect 1-5 photo limit
 
 ### 9.4 DTO Mapping
 
@@ -1047,6 +1584,13 @@ Standard RFC 6455 close codes:
 
 ### 11.3 Changelog
 
+- **v2.1 (Nov 16, 2025):** 🔥 **Major WebSocket Documentation Update** (Issue #67)
+  - Documented 7 previously undocumented message types (`ready`, `ready_ack`, `reconnected`, batch messages)
+  - Added Section 7.5: Reconnection Support with 60-second grace period
+  - Added Section 7.6: Batch Photo Scanning (1-5 photos with photo-by-photo progress)
+  - Updated token refresh status to ✅ Production Ready
+  - Comprehensive iOS Swift code examples for all WebSocket features
+  - Updated integration checklist with reconnection and batch requirements
 - **v2.0 (Nov 15, 2025):** Cultural diversity enrichment, summary-only completions, results endpoints
 - **v1.5 (Oct 1, 2025):** ISBNs array, quality scoring
 - **v1.0 (Sep 1, 2025):** Initial release
@@ -1114,5 +1658,6 @@ ws.onmessage = async (event) => {
 **END OF CONTRACT**
 
 **Questions?** Contact: api-support@oooefam.net
-**Last Updated:** November 15, 2025
+**Last Updated:** November 16, 2025 (v2.1 - WebSocket Documentation Update)
 **Next Review:** February 15, 2026
+**Related Issues:** #67 (API Contract Standardization), #91 (iOS WebSocket Migration Docs)
