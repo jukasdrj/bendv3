@@ -130,6 +130,8 @@ export async function handleCSVImport(request, env, ctx) {
  * @param {Object} env - Worker environment bindings
  */
 export async function processCSVImportCore(csvText, jobId, doStub, env) {
+  const startTime = Date.now();
+
   try {
 
     // Give the client a predictable window to establish the WebSocket connection.
