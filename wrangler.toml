@@ -213,10 +213,27 @@ dataset = "bookshelf_ai_performance"
 binding = "SAMPLING_ANALYTICS"
 dataset = "books_api_sampling_metrics"
 
-# Observability (from books-api-proxy and bookshelf-ai-worker)
+# Observability - Workers Logs & Traces (Paid Plan)
+# Docs: https://developers.cloudflare.com/workers/observability/logs/workers-logs/
+# Pricing: 20M log events included/month, $0.60 per additional million
+# Retention: 7 days (paid plan)
 [observability]
 enabled = true
-head_sampling_rate = 1.0
+head_sampling_rate = 1.0  # 100% sampling (log all requests)
+
+# Workers Logs Configuration
+[observability.logs]
+enabled = true
+head_sampling_rate = 1.0  # 100% sampling (log all requests)
+persist = true             # Store logs for 7 days
+invocation_logs = true     # Include invocation logs (fetch, cron, queue, websocket, etc.)
+
+# Workers Traces Configuration
+# Distributed tracing for requests across Workers, Durable Objects, and external APIs
+[observability.traces]
+enabled = true             # Enable distributed tracing
+head_sampling_rate = 1.0   # 100% sampling (trace all requests)
+persist = true             # Store traces for analysis
 
 # Resource limits (Paid Plan)
 # CPU time is actual computation time, not wall-clock duration
