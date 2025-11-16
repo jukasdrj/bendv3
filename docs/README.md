@@ -42,6 +42,7 @@ This is the **authoritative contract** maintained by the backend team. All front
 | [SECRETS_SETUP.md](./SECRETS_SETUP.md) | Environment secrets configuration | Backend, DevOps |
 | [MONITORING_GUIDE.md](./MONITORING_GUIDE.md) | Dashboard and alert configuration | Backend, DevOps |
 | [ROLLBACK_PROCEDURES.md](./ROLLBACK_PROCEDURES.md) | Emergency rollback procedures | Backend, DevOps |
+| [TEST_COVERAGE_ANALYSIS.md](./TEST_COVERAGE_ANALYSIS.md) | Test coverage gaps and testing roadmap | Backend, QA |
 
 ### Deprecated Documents (Historical Reference Only)
 
@@ -78,6 +79,7 @@ This is the **authoritative contract** maintained by the backend team. All front
 1. **Deployment:** [DEPLOYMENT.md](./DEPLOYMENT.md)
 2. **Secrets Setup:** [SECRETS_SETUP.md](./SECRETS_SETUP.md)
 3. **Architecture:** [CLAUDE.md](../.claude/CLAUDE.md) (in `.claude/` directory)
+4. **Test Coverage:** [TEST_COVERAGE_ANALYSIS.md](./TEST_COVERAGE_ANALYSIS.md) - Coverage gaps and testing roadmap
 
 ---
 
