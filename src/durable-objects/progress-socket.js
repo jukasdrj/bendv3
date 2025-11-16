@@ -1,5 +1,5 @@
-import { DurableObject } from 'cloudflare:workers';
-import { WebSocketCloseCodes } from '../types/websocket-messages.js';
+import { DurableObject } from "cloudflare:workers";
+import { WebSocketCloseCodes } from "../types/websocket-messages.js";
 
 /**
  * ProgressWebSocketDO - Durable Object for Real-Time Job Progress via WebSocket
@@ -48,8 +48,8 @@ import { WebSocketCloseCodes } from '../types/websocket-messages.js';
 // Pipeline-specific throttling configuration
 const THROTTLE_CONFIG = {
   batch_enrichment: { updateCount: 5, timeSeconds: 10 },
-  csv_import: { updateCount: 20, timeSeconds: 30 },  // Reduced writes
-  ai_scan: { updateCount: 1, timeSeconds: 60 }       // Minimal writes
+  csv_import: { updateCount: 20, timeSeconds: 30 }, // Reduced writes
+  ai_scan: { updateCount: 1, timeSeconds: 60 }, // Minimal writes
 };
 
 // See .claude/CLAUDE.md for Durable Object architecture details
@@ -78,69 +78,84 @@ export class ProgressWebSocketDO extends DurableObject {
    * - Added timing metrics for diagnostics
    * - Parallelized storage reads (100-200ms improvement on cold starts)
    * - Reduced sequential async operations during upgrade
+   *
+   * RECONNECTION SUPPORT (Issue #127):
+   * - Detects reconnection attempts via 'reconnect=true' query param
+   * - Restores job state and sends current progress to reconnected clients
+   * - Gracefully closes old WebSocket before establishing new connection
    */
   async fetch(request) {
     const upgradeStartTime = Date.now();
     const url = new URL(request.url);
-    const upgradeHeader = request.headers.get('Upgrade');
+    const upgradeHeader = request.headers.get("Upgrade");
 
-    console.log('[ProgressDO] Incoming request', {
+    console.log("[ProgressDO] Incoming request", {
       url: url.toString(),
       upgradeHeader,
       method: request.method,
-      timestamp: upgradeStartTime
+      timestamp: upgradeStartTime,
     });
 
     // Validate WebSocket upgrade
-    if (!upgradeHeader || upgradeHeader !== 'websocket') {
-      console.warn('[ProgressDO] Invalid upgrade header', { upgradeHeader });
-      return new Response('Expected Upgrade: websocket', {
+    if (!upgradeHeader || upgradeHeader !== "websocket") {
+      console.warn("[ProgressDO] Invalid upgrade header", { upgradeHeader });
+      return new Response("Expected Upgrade: websocket", {
         status: 426,
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'text/plain'
-        }
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "text/plain",
+        },
       });
     }
 
     // Extract jobId from query params
-    const jobId = url.searchParams.get('jobId');
+    const jobId = url.searchParams.get("jobId");
     if (!jobId) {
-      console.error('[ProgressDO] Missing jobId parameter');
-      return new Response('Missing jobId parameter', { status: 400 });
+      console.error("[ProgressDO] Missing jobId parameter");
+      return new Response("Missing jobId parameter", { status: 400 });
+    }
+
+    // Check if this is a reconnection attempt
+    const isReconnect = url.searchParams.get("reconnect") === "true";
+    if (isReconnect) {
+      console.log(`[${jobId}] ✅ Reconnection request detected`);
     }
 
     // SECURITY: Validate authentication token
     // OPTIMIZATION: Parallel storage reads (was sequential, now concurrent)
-    const providedToken = url.searchParams.get('token');
+    const providedToken = url.searchParams.get("token");
     const storageStartTime = Date.now();
     const [storedToken, expiration] = await Promise.all([
-      this.storage.get('authToken'),
-      this.storage.get('authTokenExpiration')
+      this.storage.get("authToken"),
+      this.storage.get("authTokenExpiration"),
     ]);
     const storageDuration = Date.now() - storageStartTime;
 
     console.log(`[${jobId}] 📊 Storage reads took ${storageDuration}ms`);
 
     if (!storedToken || !providedToken || storedToken !== providedToken) {
-      console.warn(`[${jobId}] WebSocket authentication failed - invalid token`);
-      return new Response('Unauthorized', {
+      console.warn(
+        `[${jobId}] WebSocket authentication failed - invalid token`,
+      );
+      return new Response("Unauthorized", {
         status: 401,
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'text/plain'
-        }
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "text/plain",
+        },
       });
     }
 
     if (Date.now() > expiration) {
-      console.warn(`[${jobId}] WebSocket authentication failed - token expired`);
-      return new Response('Token expired', {
+      console.warn(
+        `[${jobId}] WebSocket authentication failed - token expired`,
+      );
+      return new Response("Token expired", {
         status: 401,
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'text/plain'
-        }
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "text/plain",
+        },
       });
     }
 
@@ -148,6 +163,24 @@ export class ProgressWebSocketDO extends DurableObject {
 
     const pairStartTime = Date.now();
     console.log(`[ProgressDO] Creating WebSocket for job ${jobId}`);
+
+    // RECONNECTION SUPPORT: Close old WebSocket if it exists
+    if (this.webSocket && isReconnect) {
+      console.log(`[${jobId}] Closing old WebSocket connection for reconnect`);
+      try {
+        this.webSocket.close(
+          WebSocketCloseCodes.NORMAL_CLOSURE,
+          "Client reconnecting",
+        );
+      } catch (error) {
+        console.warn(`[${jobId}] Error closing old WebSocket:`, error.message);
+      }
+      // Clear old state but DON'T delete storage (we need job state for reconnection)
+      this.webSocket = null;
+      this.isReady = false;
+      this.readyPromise = null;
+      this.readyResolver = null;
+    }
 
     // Create WebSocket pair
     const [client, server] = Object.values(new WebSocketPair());
@@ -168,16 +201,18 @@ export class ProgressWebSocketDO extends DurableObject {
     });
 
     const totalUpgradeDuration = Date.now() - upgradeStartTime;
-    console.log(`[${this.jobId}] WebSocket connection accepted, waiting for ready signal`);
+    console.log(
+      `[${this.jobId}] WebSocket connection accepted, waiting for ready signal`,
+    );
     console.log(`[${this.jobId}] 📊 WebSocket upgrade timing:`, {
       storageDuration: `${storageDuration}ms`,
       pairCreation: `${pairDuration}ms`,
       accept: `${acceptDuration}ms`,
-      totalUpgrade: `${totalUpgradeDuration}ms`
+      totalUpgrade: `${totalUpgradeDuration}ms`,
     });
 
     // Setup event handlers
-    this.webSocket.addEventListener('message', (event) => {
+    this.webSocket.addEventListener("message", (event) => {
       console.log(`[${this.jobId}] Received message:`, event.data);
 
       // Parse incoming message
@@ -185,22 +220,33 @@ export class ProgressWebSocketDO extends DurableObject {
         const msg = JSON.parse(event.data);
 
         // Validate message structure (RFC 6455: Protocol error requires connection close)
-        if (!msg || typeof msg !== 'object') {
-          console.warn(`[${this.jobId}] Protocol error: Invalid message structure (not an object)`);
-          this.webSocket.close(WebSocketCloseCodes.PROTOCOL_ERROR, 'Invalid message format');
+        if (!msg || typeof msg !== "object") {
+          console.warn(
+            `[${this.jobId}] Protocol error: Invalid message structure (not an object)`,
+          );
+          this.webSocket.close(
+            WebSocketCloseCodes.PROTOCOL_ERROR,
+            "Invalid message format",
+          );
           this.cleanup();
           return;
         }
 
-        if (!msg.type || typeof msg.type !== 'string') {
-          console.warn(`[${this.jobId}] Protocol error: Missing or invalid 'type' field`, msg);
-          this.webSocket.close(WebSocketCloseCodes.PROTOCOL_ERROR, 'Missing message type');
+        if (!msg.type || typeof msg.type !== "string") {
+          console.warn(
+            `[${this.jobId}] Protocol error: Missing or invalid 'type' field`,
+            msg,
+          );
+          this.webSocket.close(
+            WebSocketCloseCodes.PROTOCOL_ERROR,
+            "Missing message type",
+          );
           this.cleanup();
           return;
         }
 
         // Handle ready signal
-        if (msg.type === 'ready') {
+        if (msg.type === "ready") {
           console.log(`[${this.jobId}] ✅ Client ready signal received`);
           this.isReady = true;
 
@@ -211,48 +257,117 @@ export class ProgressWebSocketDO extends DurableObject {
           }
 
           // Send acknowledgment back to client (TypedWebSocketMessage envelope)
-          this.webSocket.send(JSON.stringify({
-            type: 'ready_ack',
-            jobId: this.jobId,
-            pipeline: this.currentPipeline,
-            timestamp: Date.now(),
-            version: '1.0.0',
-            payload: {
-              type: 'ready_ack',
-              timestamp: Date.now()
-            }
-          }));
+          this.webSocket.send(
+            JSON.stringify({
+              type: "ready_ack",
+              jobId: this.jobId,
+              pipeline: this.currentPipeline,
+              timestamp: Date.now(),
+              version: "1.0.0",
+              payload: {
+                type: "ready_ack",
+                timestamp: Date.now(),
+              },
+            }),
+          );
         } else {
           // Unknown message type is a protocol violation
-          console.warn(`[${this.jobId}] Protocol error: Unknown message type '${msg.type}'`);
-          this.webSocket.close(WebSocketCloseCodes.PROTOCOL_ERROR, `Unknown message type: ${msg.type}`);
+          console.warn(
+            `[${this.jobId}] Protocol error: Unknown message type '${msg.type}'`,
+          );
+          this.webSocket.close(
+            WebSocketCloseCodes.PROTOCOL_ERROR,
+            `Unknown message type: ${msg.type}`,
+          );
           this.cleanup();
         }
       } catch (error) {
         // JSON parse failure is a protocol violation (RFC 6455)
-        console.error(`[${this.jobId}] Protocol error: Failed to parse message`, error);
-        this.webSocket.close(WebSocketCloseCodes.PROTOCOL_ERROR, 'Invalid JSON');
+        console.error(
+          `[${this.jobId}] Protocol error: Failed to parse message`,
+          error,
+        );
+        this.webSocket.close(
+          WebSocketCloseCodes.PROTOCOL_ERROR,
+          "Invalid JSON",
+        );
         this.cleanup();
       }
     });
 
-    this.webSocket.addEventListener('close', (event) => {
-      console.log(`[${this.jobId}] WebSocket closed:`, event.code, event.reason);
-      this.cleanup();
+    this.webSocket.addEventListener("close", (event) => {
+      console.log(
+        `[${this.jobId}] WebSocket closed:`,
+        event.code,
+        event.reason,
+      );
+
+      // RECONNECTION SUPPORT: Store disconnect info for potential reconnection
+      this.storage.put("lastDisconnect", Date.now());
+      this.storage.put("lastDisconnectCode", event.code);
+      this.storage.put("lastDisconnectReason", event.reason || "Unknown");
+
+      // Only cleanup immediately for normal closures (job complete)
+      // For unexpected disconnects, allow 60-second reconnection grace period
+      if (event.code === WebSocketCloseCodes.NORMAL_CLOSURE) {
+        console.log(`[${this.jobId}] Normal closure - cleaning up immediately`);
+        this.cleanup();
+      } else {
+        console.log(
+          `[${this.jobId}] Unexpected disconnect (code ${event.code}) - 60s reconnection grace period`,
+        );
+        this.cleanupInMemoryOnly();
+      }
     });
 
-    this.webSocket.addEventListener('error', (event) => {
+    this.webSocket.addEventListener("error", (event) => {
       console.error(`[${this.jobId}] WebSocket error:`, event);
-      this.cleanup();
+      // Don't cleanup on error - client may reconnect
+      this.cleanupInMemoryOnly();
     });
+
+    // RECONNECTION SUPPORT: Send current job state to reconnected client
+    if (isReconnect) {
+      // Retrieve current job state from storage
+      const jobState = await this.storage.get("jobState");
+      if (jobState) {
+        console.log(
+          `[${jobId}] Sending reconnection confirmation with current progress`,
+        );
+
+        // Send reconnection message with current state
+        this.webSocket.send(
+          JSON.stringify({
+            type: "reconnected",
+            jobId: this.jobId,
+            pipeline: jobState.pipeline || this.currentPipeline,
+            timestamp: Date.now(),
+            version: "1.0.0",
+            payload: {
+              type: "reconnected",
+              progress: jobState.progress || 0,
+              status: jobState.status || "processing",
+              processedCount: jobState.processedCount || 0,
+              totalCount: jobState.totalCount || 0,
+              lastUpdate: jobState.lastUpdate || Date.now(),
+              message: "Reconnected successfully - resuming job progress",
+            },
+          }),
+        );
+      } else {
+        console.warn(
+          `[${jobId}] Reconnection requested but no job state found`,
+        );
+      }
+    }
 
     // Return client-side WebSocket to iOS app
     return new Response(null, {
       status: 101,
       webSocket: client,
       headers: {
-        'Access-Control-Allow-Origin': '*'
-      }
+        "Access-Control-Allow-Origin": "*",
+      },
     });
   }
 
@@ -264,10 +379,15 @@ export class ProgressWebSocketDO extends DurableObject {
    * @returns {Promise<{success: boolean}>}
    */
   async setAuthToken(token) {
-    await this.storage.put('authToken', token);
+    await this.storage.put("authToken", token);
     // Tokens expire after 2 hours
-    await this.storage.put('authTokenExpiration', Date.now() + (2 * 60 * 60 * 1000));
-    console.log(`[${this.jobId || 'unknown'}] Auth token set (expires in 2 hours)`);
+    await this.storage.put(
+      "authTokenExpiration",
+      Date.now() + 2 * 60 * 60 * 1000,
+    );
+    console.log(
+      `[${this.jobId || "unknown"}] Auth token set (expires in 2 hours)`,
+    );
     return { success: true };
   }
 
@@ -284,25 +404,31 @@ export class ProgressWebSocketDO extends DurableObject {
   async refreshAuthToken(oldToken) {
     // Prevent concurrent refresh race conditions
     if (this.refreshInProgress) {
-      console.warn(`[${this.jobId || 'unknown'}] Token refresh already in progress`);
-      return { error: 'Refresh in progress, please retry shortly' };
+      console.warn(
+        `[${this.jobId || "unknown"}] Token refresh already in progress`,
+      );
+      return { error: "Refresh in progress, please retry shortly" };
     }
 
     this.refreshInProgress = true;
     try {
-      const storedToken = await this.storage.get('authToken');
-      const expiration = await this.storage.get('authTokenExpiration');
+      const storedToken = await this.storage.get("authToken");
+      const expiration = await this.storage.get("authTokenExpiration");
 
       // Validate old token
       if (!storedToken || !oldToken || storedToken !== oldToken) {
-        console.warn(`[${this.jobId || 'unknown'}] Token refresh failed - invalid token`);
-        return { error: 'Invalid token' };
+        console.warn(
+          `[${this.jobId || "unknown"}] Token refresh failed - invalid token`,
+        );
+        return { error: "Invalid token" };
       }
 
       // Check if token is expired
       if (Date.now() > expiration) {
-        console.warn(`[${this.jobId || 'unknown'}] Token refresh failed - token expired`);
-        return { error: 'Token expired' };
+        console.warn(
+          `[${this.jobId || "unknown"}] Token refresh failed - token expired`,
+        );
+        return { error: "Token expired" };
       }
 
       // Enforce 30-minute refresh window (prevents infinite extension)
@@ -311,10 +437,12 @@ export class ProgressWebSocketDO extends DurableObject {
       const timeUntilExpiration = expiration - Date.now();
       if (timeUntilExpiration > REFRESH_WINDOW_MS) {
         const minutesRemaining = Math.floor(timeUntilExpiration / 60000);
-        console.warn(`[${this.jobId || 'unknown'}] Token refresh too early - ${minutesRemaining} minutes remaining`);
+        console.warn(
+          `[${this.jobId || "unknown"}] Token refresh too early - ${minutesRemaining} minutes remaining`,
+        );
         return {
-          error: 'Refresh not allowed yet',
-          details: `Token can be refreshed ${Math.floor((timeUntilExpiration - REFRESH_WINDOW_MS) / 60000)} minutes from now`
+          error: "Refresh not allowed yet",
+          details: `Token can be refreshed ${Math.floor((timeUntilExpiration - REFRESH_WINDOW_MS) / 60000)} minutes from now`,
         };
       }
 
@@ -322,14 +450,16 @@ export class ProgressWebSocketDO extends DurableObject {
       const TOKEN_EXPIRATION_MS = 2 * 60 * 60 * 1000; // 2 hours
       const newToken = crypto.randomUUID();
       const newExpiration = Date.now() + TOKEN_EXPIRATION_MS;
-      await this.storage.put('authToken', newToken);
-      await this.storage.put('authTokenExpiration', newExpiration);
+      await this.storage.put("authToken", newToken);
+      await this.storage.put("authTokenExpiration", newExpiration);
 
-      console.log(`[${this.jobId || 'unknown'}] ✅ Token refreshed successfully (expires in 2 hours)`);
+      console.log(
+        `[${this.jobId || "unknown"}] ✅ Token refreshed successfully (expires in 2 hours)`,
+      );
 
       return {
         token: newToken,
-        expiresIn: 7200 // 2 hours in seconds
+        expiresIn: 7200, // 2 hours in seconds
       };
     } finally {
       this.refreshInProgress = false;
@@ -354,12 +484,12 @@ export class ProgressWebSocketDO extends DurableObject {
       pipeline,
       totalCount,
       processedCount: 0,
-      status: 'running',
+      status: "running",
       startTime: Date.now(),
-      version: 1
+      version: 1,
     };
 
-    await this.storage.put('jobState', state);
+    await this.storage.put("jobState", state);
     this.lastPersistTime = Date.now();
     console.log(`[${this.jobId}] Job state initialized for ${pipeline}`);
 
@@ -381,21 +511,27 @@ export class ProgressWebSocketDO extends DurableObject {
    */
   async updateJobState(updates) {
     if (!this.currentPipeline) {
-      console.warn(`[${this.jobId}] Cannot update state: pipeline not initialized`);
+      console.warn(
+        `[${this.jobId}] Cannot update state: pipeline not initialized`,
+      );
       return { success: false, persisted: false };
     }
 
     // Validate pipeline exists in THROTTLE_CONFIG
     const config = THROTTLE_CONFIG[this.currentPipeline];
     if (!config) {
-      console.error(`[${this.jobId}] Invalid pipeline: ${this.currentPipeline}`);
-      throw new Error(`Invalid pipeline type: ${this.currentPipeline}. Valid types: ${Object.keys(THROTTLE_CONFIG).join(', ')}`);
+      console.error(
+        `[${this.jobId}] Invalid pipeline: ${this.currentPipeline}`,
+      );
+      throw new Error(
+        `Invalid pipeline type: ${this.currentPipeline}. Valid types: ${Object.keys(THROTTLE_CONFIG).join(", ")}`,
+      );
     }
 
     // Load throttle state from Durable Storage (survives eviction)
-    const throttleState = await this.storage.get('throttleState') || {
+    const throttleState = (await this.storage.get("throttleState")) || {
       updatesSinceLastPersist: 0,
-      lastPersistTime: Date.now()
+      lastPersistTime: Date.now(),
     };
 
     throttleState.updatesSinceLastPersist++;
@@ -403,15 +539,15 @@ export class ProgressWebSocketDO extends DurableObject {
 
     const shouldPersist =
       throttleState.updatesSinceLastPersist >= config.updateCount ||
-      timeSinceLastPersist >= (config.timeSeconds * 1000);
+      timeSinceLastPersist >= config.timeSeconds * 1000;
 
     if (shouldPersist) {
-      const currentState = await this.storage.get('jobState') || {};
+      const currentState = (await this.storage.get("jobState")) || {};
       const newState = {
         ...currentState,
         ...updates,
         lastUpdate: Date.now(),
-        version: (currentState.version || 0) + 1
+        version: (currentState.version || 0) + 1,
       };
 
       // Persist both job state and throttle state atomically
@@ -419,20 +555,22 @@ export class ProgressWebSocketDO extends DurableObject {
         jobState: newState,
         throttleState: {
           updatesSinceLastPersist: 0,
-          lastPersistTime: Date.now()
-        }
+          lastPersistTime: Date.now(),
+        },
       });
 
       // Update in-memory cache for fast access
       this.updatesSinceLastPersist = 0;
       this.lastPersistTime = Date.now();
 
-      console.log(`[${this.jobId}] State persisted (version ${newState.version})`);
+      console.log(
+        `[${this.jobId}] State persisted (version ${newState.version})`,
+      );
       return { success: true, persisted: true };
     }
 
     // Update throttle state even if not persisting job state
-    await this.storage.put('throttleState', throttleState);
+    await this.storage.put("throttleState", throttleState);
 
     return { success: true, persisted: false };
   }
@@ -444,9 +582,11 @@ export class ProgressWebSocketDO extends DurableObject {
    * @returns {Promise<Object|null>}
    */
   async getJobState() {
-    const state = await this.storage.get('jobState');
+    const state = await this.storage.get("jobState");
     if (state) {
-      console.log(`[${this.jobId}] State retrieved (version ${state.version || 0})`);
+      console.log(
+        `[${this.jobId}] State retrieved (version ${state.version || 0})`,
+      );
     }
     return state || null;
   }
@@ -459,9 +599,9 @@ export class ProgressWebSocketDO extends DurableObject {
    */
   async getJobStateAndAuth() {
     const [jobState, authToken, authTokenExpiration] = await Promise.all([
-      this.storage.get('jobState'),
-      this.storage.get('authToken'),
-      this.storage.get('authTokenExpiration')
+      this.storage.get("jobState"),
+      this.storage.get("authToken"),
+      this.storage.get("authTokenExpiration"),
     ]);
 
     if (!jobState) {
@@ -469,7 +609,9 @@ export class ProgressWebSocketDO extends DurableObject {
       return null;
     }
 
-    console.log(`[${this.jobId}] State and auth retrieved (version ${jobState.version || 0})`);
+    console.log(
+      `[${this.jobId}] State and auth retrieved (version ${jobState.version || 0})`,
+    );
     return { jobState, authToken, authTokenExpiration };
   }
 
@@ -481,22 +623,24 @@ export class ProgressWebSocketDO extends DurableObject {
    * @returns {Promise<{success: boolean}>}
    */
   async completeJobState(results) {
-    const currentState = await this.storage.get('jobState') || {};
+    const currentState = (await this.storage.get("jobState")) || {};
     const finalState = {
       ...currentState,
-      status: 'complete',
+      status: "complete",
       endTime: Date.now(),
       results,
-      version: (currentState.version || 0) + 1
+      version: (currentState.version || 0) + 1,
     };
 
-    await this.storage.put('jobState', finalState);
+    await this.storage.put("jobState", finalState);
     console.log(`[${this.jobId}] Job state marked as complete`);
 
     // Schedule cleanup alarm for 24 hours from now (only after job completes)
-    const cleanupTime = Date.now() + (24 * 60 * 60 * 1000);
+    const cleanupTime = Date.now() + 24 * 60 * 60 * 1000;
     await this.storage.setAlarm(cleanupTime);
-    console.log(`[${this.jobId}] Cleanup alarm scheduled for ${new Date(cleanupTime).toISOString()}`);
+    console.log(
+      `[${this.jobId}] Cleanup alarm scheduled for ${new Date(cleanupTime).toISOString()}`,
+    );
 
     return { success: true };
   }
@@ -508,22 +652,24 @@ export class ProgressWebSocketDO extends DurableObject {
    * @returns {Promise<{success: boolean}>}
    */
   async failJobState(error) {
-    const currentState = await this.storage.get('jobState') || {};
+    const currentState = (await this.storage.get("jobState")) || {};
     const finalState = {
       ...currentState,
-      status: 'failed',
+      status: "failed",
       endTime: Date.now(),
       error,
-      version: (currentState.version || 0) + 1
+      version: (currentState.version || 0) + 1,
     };
 
-    await this.storage.put('jobState', finalState);
+    await this.storage.put("jobState", finalState);
     console.log(`[${this.jobId}] Job state marked as failed`);
 
     // Schedule cleanup alarm for 24 hours from now (only after job fails)
-    const cleanupTime = Date.now() + (24 * 60 * 60 * 1000);
+    const cleanupTime = Date.now() + 24 * 60 * 60 * 1000;
     await this.storage.setAlarm(cleanupTime);
-    console.log(`[${this.jobId}] Cleanup alarm scheduled for ${new Date(cleanupTime).toISOString()}`);
+    console.log(
+      `[${this.jobId}] Cleanup alarm scheduled for ${new Date(cleanupTime).toISOString()}`,
+    );
 
     return { success: true };
   }
@@ -538,32 +684,36 @@ export class ProgressWebSocketDO extends DurableObject {
     // NEW: Check if job has been canceled before pushing
     const isCanceled = (await this.storage.get("status")) === "canceled";
     if (isCanceled) {
-      console.warn(`[${this.jobId}] Job is canceled, dropping progress message.`);
+      console.warn(
+        `[${this.jobId}] Job is canceled, dropping progress message.`,
+      );
       // Stop the worker by throwing an error
       throw new Error("Job canceled by client");
     }
 
     console.log(`[ProgressDO] pushProgress called for job ${this.jobId}`, {
       hasWebSocket: !!this.webSocket,
-      progressData
+      progressData,
     });
 
     if (!this.webSocket) {
-      const error = new Error('No WebSocket connection available');
+      const error = new Error("No WebSocket connection available");
       console.error(`[${this.jobId}] No WebSocket connection`, { error });
       throw error;
     }
 
     const message = JSON.stringify({
-      type: 'progress',
+      type: "progress",
       jobId: this.jobId,
       timestamp: Date.now(),
-      data: progressData
+      data: progressData,
     });
 
     try {
       this.webSocket.send(message);
-      console.log(`[${this.jobId}] Progress sent successfully`, { messageLength: message.length });
+      console.log(`[${this.jobId}] Progress sent successfully`, {
+        messageLength: message.length,
+      });
       return { success: true };
     } catch (error) {
       console.error(`[${this.jobId}] Failed to send message:`, error);
@@ -579,7 +729,9 @@ export class ProgressWebSocketDO extends DurableObject {
    * @returns {Promise<{success: boolean, timedOut?: boolean, disconnected?: boolean}>}
    */
   async waitForReady(timeoutMs = 5000) {
-    console.log(`[${this.jobId}] waitForReady called (timeout: ${timeoutMs}ms)`);
+    console.log(
+      `[${this.jobId}] waitForReady called (timeout: ${timeoutMs}ms)`,
+    );
 
     // If already ready, return immediately
     if (this.isReady) {
@@ -589,7 +741,9 @@ export class ProgressWebSocketDO extends DurableObject {
 
     // Check if WebSocket is null/closed before waiting
     if (!this.webSocket) {
-      console.warn(`[${this.jobId}] ⚠️ WebSocket is null, cannot wait for ready`);
+      console.warn(
+        `[${this.jobId}] ⚠️ WebSocket is null, cannot wait for ready`,
+      );
       return { success: false, disconnected: true };
     }
 
@@ -613,13 +767,15 @@ export class ProgressWebSocketDO extends DurableObject {
     const readyResult = await Promise.race([
       this.readyPromise.then(() => ({ success: true })),
       timeoutPromise,
-      disconnectPromise
+      disconnectPromise,
     ]);
 
     if (readyResult.timedOut) {
       console.warn(`[${this.jobId}] ⚠️ Ready timeout after ${timeoutMs}ms`);
     } else if (readyResult.disconnected) {
-      console.warn(`[${this.jobId}] ⚠️ WebSocket disconnected while waiting for ready`);
+      console.warn(
+        `[${this.jobId}] ⚠️ WebSocket disconnected while waiting for ready`,
+      );
     } else {
       console.log(`[${this.jobId}] ✅ Ready signal received`);
     }
@@ -656,7 +812,7 @@ export class ProgressWebSocketDO extends DurableObject {
   /**
    * RPC Method: Close WebSocket connection
    */
-  async closeConnection(reason = 'Job completed') {
+  async closeConnection(reason = "Job completed") {
     if (this.webSocket) {
       this.webSocket.close(WebSocketCloseCodes.NORMAL_CLOSURE, reason);
       this.cleanup();
@@ -687,15 +843,15 @@ export class ProgressWebSocketDO extends DurableObject {
     }
 
     const message = {
-      type: 'job_started',
+      type: "job_started",
       jobId: this.jobId,
       pipeline,
       timestamp: Date.now(),
-      version: '1.0.0',
+      version: "1.0.0",
       payload: {
-        type: 'job_started',
-        ...payload
-      }
+        type: "job_started",
+        ...payload,
+      },
     };
 
     try {
@@ -722,21 +878,23 @@ export class ProgressWebSocketDO extends DurableObject {
     }
 
     const message = {
-      type: 'job_progress',
+      type: "job_progress",
       jobId: this.jobId,
       pipeline,
       timestamp: Date.now(),
-      version: '1.0.0',
+      version: "1.0.0",
       payload: {
-        type: 'job_progress',
-        ...payload
-      }
+        type: "job_progress",
+        ...payload,
+      },
     };
 
     try {
       this.webSocket.send(JSON.stringify(message));
       if (!payload.keepAlive) {
-        console.log(`[${this.jobId}] Progress update sent: ${payload.progress}`);
+        console.log(
+          `[${this.jobId}] Progress update sent: ${payload.progress}`,
+        );
       }
       return { success: true };
     } catch (error) {
@@ -759,16 +917,16 @@ export class ProgressWebSocketDO extends DurableObject {
     }
 
     const message = {
-      type: 'job_complete',
+      type: "job_complete",
       jobId: this.jobId,
       pipeline,
       timestamp: Date.now(),
-      version: '1.0.0',
+      version: "1.0.0",
       payload: {
-        type: 'job_complete',
+        type: "job_complete",
         pipeline,
-        ...payload
-      }
+        ...payload,
+      },
     };
 
     try {
@@ -778,7 +936,10 @@ export class ProgressWebSocketDO extends DurableObject {
       // Close connection after completion
       setTimeout(() => {
         if (this.webSocket) {
-          this.webSocket.close(WebSocketCloseCodes.NORMAL_CLOSURE, 'Job completed');
+          this.webSocket.close(
+            WebSocketCloseCodes.NORMAL_CLOSURE,
+            "Job completed",
+          );
           this.cleanup();
         }
       }, 1000); // 1 second delay to ensure message is delivered
@@ -804,25 +965,30 @@ export class ProgressWebSocketDO extends DurableObject {
     }
 
     const message = {
-      type: 'error',
+      type: "error",
       jobId: this.jobId,
       pipeline,
       timestamp: Date.now(),
-      version: '1.0.0',
+      version: "1.0.0",
       payload: {
-        type: 'error',
-        ...payload
-      }
+        type: "error",
+        ...payload,
+      },
     };
 
     try {
       this.webSocket.send(JSON.stringify(message));
-      console.log(`[${this.jobId}] Error message sent (v2 schema): ${payload.code}`);
+      console.log(
+        `[${this.jobId}] Error message sent (v2 schema): ${payload.code}`,
+      );
 
       // Close connection after error with appropriate code
       setTimeout(() => {
         if (this.webSocket) {
-          this.webSocket.close(WebSocketCloseCodes.INTERNAL_ERROR, 'Job failed');
+          this.webSocket.close(
+            WebSocketCloseCodes.INTERNAL_ERROR,
+            "Job failed",
+          );
           this.cleanup();
         }
       }, 1000); // 1 second delay to ensure message is delivered
@@ -835,20 +1001,44 @@ export class ProgressWebSocketDO extends DurableObject {
   }
 
   /**
-   * Internal cleanup
+   * Internal cleanup - Full cleanup including storage
    */
   async cleanup() {
     // Clear in-memory state
     this.webSocket = null;
     this.jobId = null;
+    this.isReady = false;
+    this.readyPromise = null;
+    this.readyResolver = null;
 
     // CRITICAL: Delete auth tokens from storage to prevent memory leak (Issue #101)
     // Tokens accumulate indefinitely if not cleaned up, causing storage bloat
-    await this.storage.delete('authToken');
-    await this.storage.delete('authTokenExpiration');
+    await this.storage.delete("authToken");
+    await this.storage.delete("authTokenExpiration");
 
     // IMPORTANT: Do NOT clear "canceled" status from storage
     // Worker needs to check cancellation state after socket closes
+
+    console.log("[ProgressDO] Cleanup complete");
+  }
+
+  /**
+   * RECONNECTION SUPPORT (Issue #127): Cleanup in-memory state only
+   * Preserves auth tokens and job state in storage to allow reconnection
+   */
+  cleanupInMemoryOnly() {
+    // Clear in-memory state
+    this.webSocket = null;
+    this.isReady = false;
+    this.readyPromise = null;
+    this.readyResolver = null;
+
+    // DON'T delete storage - preserve auth tokens and job state for reconnection
+    // DON'T clear jobId - needed for logging in case of reconnection
+
+    console.log(
+      `[${this.jobId}] In-memory cleanup complete (storage preserved for reconnection)`,
+    );
   }
 
   /**
@@ -863,16 +1053,18 @@ export class ProgressWebSocketDO extends DurableObject {
     console.log(`[${jobId}] Scheduling CSV processing via alarm`);
 
     // Store CSV data and job metadata in Durable Object storage
-    await this.storage.put('csvData', csvText);
-    await this.storage.put('jobId', jobId);
-    await this.storage.put('jobType', 'csv-import');
+    await this.storage.put("csvData", csvText);
+    await this.storage.put("jobId", jobId);
+    await this.storage.put("jobType", "csv-import");
 
     // Schedule alarm with 2-second delay to ensure WebSocket connects
     // iOS needs time to: receive HTTP 202 → extract jobId → connect WebSocket → send ready
     const alarmTime = Date.now() + 2000;
     await this.storage.setAlarm(alarmTime);
 
-    console.log(`[${jobId}] CSV processing alarm scheduled for ${new Date(alarmTime).toISOString()}`);
+    console.log(
+      `[${jobId}] CSV processing alarm scheduled for ${new Date(alarmTime).toISOString()}`,
+    );
 
     return { success: true };
   }
@@ -890,16 +1082,18 @@ export class ProgressWebSocketDO extends DurableObject {
     console.log(`[${jobId}] Scheduling bookshelf scan via alarm`);
 
     // Store image data and job metadata in Durable Object storage
-    await this.storage.put('imageData', imageData);
-    await this.storage.put('requestHeaders', requestHeaders || {});
-    await this.storage.put('jobId', jobId);
-    await this.storage.put('jobType', 'bookshelf-scan');
+    await this.storage.put("imageData", imageData);
+    await this.storage.put("requestHeaders", requestHeaders || {});
+    await this.storage.put("jobId", jobId);
+    await this.storage.put("jobType", "bookshelf-scan");
 
     // Schedule alarm with 2-second delay to ensure WebSocket connects
     const alarmTime = Date.now() + 2000;
     await this.storage.setAlarm(alarmTime);
 
-    console.log(`[${jobId}] Bookshelf scan alarm scheduled for ${new Date(alarmTime).toISOString()}`);
+    console.log(
+      `[${jobId}] Bookshelf scan alarm scheduled for ${new Date(alarmTime).toISOString()}`,
+    );
 
     return { success: true };
   }
@@ -914,23 +1108,25 @@ export class ProgressWebSocketDO extends DurableObject {
    * 3. State Cleanup - No jobType, scheduled 24h after job completion
    */
   async alarm() {
-    const jobType = await this.storage.get('jobType');
-    const jobId = await this.storage.get('jobId');
+    const jobType = await this.storage.get("jobType");
+    const jobId = await this.storage.get("jobId");
 
-    if (jobType === 'csv-import') {
+    if (jobType === "csv-import") {
       // CSV processing alarm (scheduled at 2s by scheduleCSVProcessing)
       console.log(`[${jobId}] Alarm triggered for CSV import processing`);
       await this.processCSVImportAlarm();
-    } else if (jobType === 'bookshelf-scan') {
+    } else if (jobType === "bookshelf-scan") {
       // Bookshelf scan processing alarm (scheduled at 2s by scheduleBookshelfScan)
       console.log(`[${jobId}] Alarm triggered for bookshelf scan processing`);
       await this.processBookshelfScanAlarm();
     } else {
       // Cleanup alarm (scheduled at 24h by completeJobState/failJobState)
-      console.log(`[${jobId || 'unknown'}] Cleanup alarm triggered - removing old state`);
-      await this.storage.delete('jobState');
-      await this.storage.delete('authToken');
-      await this.storage.delete('authTokenExpiration');
+      console.log(
+        `[${jobId || "unknown"}] Cleanup alarm triggered - removing old state`,
+      );
+      await this.storage.delete("jobState");
+      await this.storage.delete("authToken");
+      await this.storage.delete("authTokenExpiration");
     }
   }
 
@@ -939,14 +1135,18 @@ export class ProgressWebSocketDO extends DurableObject {
    * No Worker CPU time limits apply in alarm context
    */
   async processCSVImportAlarm() {
-    const csvText = await this.storage.get('csvData');
-    const jobId = await this.storage.get('jobId');
+    const csvText = await this.storage.get("csvData");
+    const jobId = await this.storage.get("jobId");
 
-    console.log(`[${jobId}] Starting CSV processing in alarm (no timeout limits)`);
+    console.log(
+      `[${jobId}] Starting CSV processing in alarm (no timeout limits)`,
+    );
 
     try {
       // Import processing logic (need to inline or import)
-      const { processCSVImportCore } = await import('../handlers/csv-import.ts');
+      const { processCSVImportCore } = await import(
+        "../handlers/csv-import.ts"
+      );
 
       // Process CSV with access to this (DO stub methods)
       await processCSVImportCore(csvText, jobId, this, this.env);
@@ -954,29 +1154,28 @@ export class ProgressWebSocketDO extends DurableObject {
       console.log(`[${jobId}] CSV processing completed successfully`);
 
       // Clean up storage
-      await this.storage.delete('csvData');
-      await this.storage.delete('jobId');
-      await this.storage.delete('jobType');
-
+      await this.storage.delete("csvData");
+      await this.storage.delete("jobId");
+      await this.storage.delete("jobType");
     } catch (error) {
       console.error(`[${jobId}] CSV processing failed in alarm:`, error);
 
       // CRITICAL FIX (Issues #347, #379): Use v2 unified schema method
       // Send error to client using sendError (v2) instead of fail (v1 legacy)
-      await this.sendError('csv_import', {
-        code: 'CSV_PROCESSING_ERROR',
+      await this.sendError("csv_import", {
+        code: "CSV_PROCESSING_ERROR",
         message: error.message,
         details: {
           fallbackAvailable: true,
-          suggestion: 'Try manual CSV import instead'
+          suggestion: "Try manual CSV import instead",
         },
-        retryable: true
+        retryable: true,
       });
 
       // Clean up storage even on error
-      await this.storage.delete('csvData');
-      await this.storage.delete('jobId');
-      await this.storage.delete('jobType');
+      await this.storage.delete("csvData");
+      await this.storage.delete("jobId");
+      await this.storage.delete("jobType");
     }
   }
 
@@ -985,53 +1184,66 @@ export class ProgressWebSocketDO extends DurableObject {
    * No Worker CPU time limits apply in alarm context (can handle 20-60s AI processing)
    */
   async processBookshelfScanAlarm() {
-    const imageData = await this.storage.get('imageData');
-    const requestHeaders = await this.storage.get('requestHeaders');
-    const jobId = await this.storage.get('jobId');
+    const imageData = await this.storage.get("imageData");
+    const requestHeaders = await this.storage.get("requestHeaders");
+    const jobId = await this.storage.get("jobId");
 
-    console.log(`[${jobId}] Starting bookshelf scan in alarm (no CPU time limits)`);
+    console.log(
+      `[${jobId}] Starting bookshelf scan in alarm (no CPU time limits)`,
+    );
 
     try {
       // Import AI scanner service
-      const { processBookshelfScan } = await import('../services/ai-scanner.js');
+      const { processBookshelfScan } = await import(
+        "../services/ai-scanner.js"
+      );
 
       // Create mock request object with headers
       const mockRequest = {
         headers: {
-          get: (key) => requestHeaders[key] || null
-        }
+          get: (key) => requestHeaders[key] || null,
+        },
       };
 
       // Process bookshelf scan with access to this (DO stub methods)
       // Pass null for ctx since we're in alarm context (no ctx.waitUntil needed)
-      await processBookshelfScan(jobId, imageData, mockRequest, this.env, this, null);
+      await processBookshelfScan(
+        jobId,
+        imageData,
+        mockRequest,
+        this.env,
+        this,
+        null,
+      );
 
       console.log(`[${jobId}] Bookshelf scan completed successfully`);
 
       // Clean up storage
-      await this.storage.delete('imageData');
-      await this.storage.delete('requestHeaders');
-      await this.storage.delete('jobId');
-      await this.storage.delete('jobType');
-
+      await this.storage.delete("imageData");
+      await this.storage.delete("requestHeaders");
+      await this.storage.delete("jobId");
+      await this.storage.delete("jobType");
     } catch (error) {
-      console.error(`[${jobId}] Bookshelf scan processing failed in alarm:`, error);
+      console.error(
+        `[${jobId}] Bookshelf scan processing failed in alarm:`,
+        error,
+      );
 
-      await this.sendError('ai_scan', {
-        code: 'BOOKSHELF_SCAN_ERROR',
+      await this.sendError("ai_scan", {
+        code: "BOOKSHELF_SCAN_ERROR",
         message: error.message,
         details: {
           fallbackAvailable: false,
-          suggestion: 'Try uploading a clearer photo or contact support'
+          suggestion: "Try uploading a clearer photo or contact support",
         },
-        retryable: true
+        retryable: true,
       });
 
       // Clean up storage even on error
-      await this.storage.delete('imageData');
-      await this.storage.delete('requestHeaders');
-      await this.storage.delete('jobId');
-      await this.storage.delete('jobType');
+      await this.storage.delete("imageData");
+      await this.storage.delete("requestHeaders");
+      await this.storage.delete("jobId");
+      await this.storage.delete("jobType");
     }
   }
 
@@ -1040,45 +1252,48 @@ export class ProgressWebSocketDO extends DurableObject {
    * Called by batch-scan-handler.js when batch upload starts
    */
   async initBatch({ jobId, totalPhotos, status }) {
-    console.log(`[ProgressDO] initBatch called for job ${jobId}`, { totalPhotos, status });
+    console.log(`[ProgressDO] initBatch called for job ${jobId}`, {
+      totalPhotos,
+      status,
+    });
 
     // I2: Type validation
-    if (typeof jobId !== 'string' || jobId.trim().length === 0) {
-      throw new Error('jobId must be a non-empty string');
+    if (typeof jobId !== "string" || jobId.trim().length === 0) {
+      throw new Error("jobId must be a non-empty string");
     }
-    if (typeof totalPhotos !== 'number' || totalPhotos < 1 || totalPhotos > 5) {
-      throw new Error('totalPhotos must be a number between 1 and 5');
+    if (typeof totalPhotos !== "number" || totalPhotos < 1 || totalPhotos > 5) {
+      throw new Error("totalPhotos must be a number between 1 and 5");
     }
 
     // C2: Clear legacy state to prevent key collisions
-    await this.storage.delete('status');
+    await this.storage.delete("status");
 
     // Initialize batch state with photo array
     const photos = Array.from({ length: totalPhotos }, (_, i) => ({
       index: i,
-      status: 'queued',
-      booksFound: 0
+      status: "queued",
+      booksFound: 0,
     }));
 
     const batchState = {
       jobId,
-      type: 'batch',
+      type: "batch",
       totalPhotos,
       photos,
       overallStatus: status,
       currentPhoto: null,
       totalBooksFound: 0,
-      cancelRequested: false
+      cancelRequested: false,
     };
 
-    await this.storage.put('batchState', batchState);
+    await this.storage.put("batchState", batchState);
 
     // Broadcast initialization to connected clients
     this.broadcastToClients({
-      type: 'batch-init',
+      type: "batch-init",
       // No longer need top-level jobId, it's added by broadcastToClients
       totalPhotos,
-      status
+      status,
     });
 
     return { success: true };
@@ -1089,17 +1304,22 @@ export class ProgressWebSocketDO extends DurableObject {
    * Called by batch-scan-handler.js after each photo processes
    */
   async updatePhoto({ photoIndex, status, booksFound, error }) {
-    console.log(`[ProgressDO] updatePhoto called`, { photoIndex, status, booksFound, error });
+    console.log(`[ProgressDO] updatePhoto called`, {
+      photoIndex,
+      status,
+      booksFound,
+      error,
+    });
 
     // I2: Type validation
-    if (typeof photoIndex !== 'number') {
-      throw new Error('photoIndex must be a number');
+    if (typeof photoIndex !== "number") {
+      throw new Error("photoIndex must be a number");
     }
 
-    const batchState = await this.storage.get('batchState');
-    if (!batchState || batchState.type !== 'batch') {
-      console.error('[ProgressDO] Batch job not found');
-      return { error: 'Batch job not found' };
+    const batchState = await this.storage.get("batchState");
+    if (!batchState || batchState.type !== "batch") {
+      console.error("[ProgressDO] Batch job not found");
+      return { error: "Batch job not found" };
     }
 
     // C3: Array bounds validation
@@ -1119,27 +1339,27 @@ export class ProgressWebSocketDO extends DurableObject {
     }
 
     // Update current photo pointer
-    if (status === 'processing') {
+    if (status === "processing") {
       batchState.currentPhoto = photoIndex;
     }
 
     // Recalculate total books found
     batchState.totalBooksFound = batchState.photos.reduce(
       (sum, p) => sum + (p.booksFound || 0),
-      0
+      0,
     );
 
-    await this.storage.put('batchState', batchState);
+    await this.storage.put("batchState", batchState);
 
     // Broadcast update to connected clients
     this.broadcastToClients({
-      type: 'batch-progress',
+      type: "batch-progress",
       currentPhoto: photoIndex,
       totalPhotos: batchState.totalPhotos,
       photoStatus: status,
       booksFound: booksFound || 0,
       totalBooksFound: batchState.totalBooksFound,
-      photos: batchState.photos
+      photos: batchState.photos,
     });
 
     return { success: true };
@@ -1153,28 +1373,28 @@ export class ProgressWebSocketDO extends DurableObject {
     console.log(`[ProgressDO] completeBatch called`, { status, totalBooks });
 
     // I2: Type validation
-    if (typeof totalBooks !== 'number') {
-      throw new Error('totalBooks must be a number');
+    if (typeof totalBooks !== "number") {
+      throw new Error("totalBooks must be a number");
     }
 
-    const batchState = await this.storage.get('batchState');
+    const batchState = await this.storage.get("batchState");
     if (!batchState) {
-      console.error('[ProgressDO] Job not found');
-      return { error: 'Job not found' };
+      console.error("[ProgressDO] Job not found");
+      return { error: "Job not found" };
     }
 
-    batchState.overallStatus = status || 'complete';
+    batchState.overallStatus = status || "complete";
     batchState.totalBooksFound = totalBooks;
     batchState.finalResults = books;
 
-    await this.storage.put('batchState', batchState);
+    await this.storage.put("batchState", batchState);
 
     // Broadcast completion
     this.broadcastToClients({
-      type: 'batch-complete',
+      type: "batch-complete",
       totalBooks,
       photoResults,
-      books
+      books,
     });
 
     return { success: true };
@@ -1185,7 +1405,7 @@ export class ProgressWebSocketDO extends DurableObject {
    * Called by test endpoints to verify state
    */
   async getState() {
-    const batchState = await this.storage.get('batchState');
+    const batchState = await this.storage.get("batchState");
     return batchState || {};
   }
 
@@ -1194,7 +1414,7 @@ export class ProgressWebSocketDO extends DurableObject {
    * Called by batch-scan-handler.js in processing loop
    */
   async isBatchCanceled() {
-    const batchState = await this.storage.get('batchState');
+    const batchState = await this.storage.get("batchState");
     return { canceled: batchState?.cancelRequested || false };
   }
 
@@ -1205,20 +1425,20 @@ export class ProgressWebSocketDO extends DurableObject {
   async cancelBatch() {
     console.log(`[ProgressDO] cancelBatch called`);
 
-    const batchState = await this.storage.get('batchState');
+    const batchState = await this.storage.get("batchState");
 
     if (!batchState) {
-      return { error: 'Job not found' };
+      return { error: "Job not found" };
     }
 
     batchState.cancelRequested = true;
-    batchState.overallStatus = 'canceling';
+    batchState.overallStatus = "canceling";
 
-    await this.storage.put('batchState', batchState);
+    await this.storage.put("batchState", batchState);
 
     // Broadcast cancellation
     this.broadcastToClients({
-      type: 'batch-canceling'
+      type: "batch-canceling",
     });
 
     return { success: true };
@@ -1229,7 +1449,7 @@ export class ProgressWebSocketDO extends DurableObject {
    */
   broadcastToClients(data) {
     if (!this.webSocket) {
-      console.warn('[ProgressDO] No WebSocket connection to broadcast to');
+      console.warn("[ProgressDO] No WebSocket connection to broadcast to");
       return;
     }
 
@@ -1237,7 +1457,7 @@ export class ProgressWebSocketDO extends DurableObject {
       // Standardize message format to match `pushProgress` and prevent client-side parsing errors
       // The client expects a consistent top-level structure with a `data` payload.
       const message = {
-        type: data.type || 'progress', // The payload should always have a type
+        type: data.type || "progress", // The payload should always have a type
         jobId: this.jobId,
         timestamp: Date.now(),
         data, // The original object is now the payload
@@ -1246,7 +1466,7 @@ export class ProgressWebSocketDO extends DurableObject {
       this.webSocket.send(JSON.stringify(message));
       console.log(`[ProgressDO] Broadcast sent:`, message.type);
     } catch (error) {
-      console.error('[ProgressDO] Failed to send to client:', error);
+      console.error("[ProgressDO] Failed to send to client:", error);
     }
   }
 }
