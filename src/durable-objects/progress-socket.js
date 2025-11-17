@@ -139,7 +139,24 @@ export class ProgressWebSocketDO extends DurableObject {
 
     console.log(`[${jobId}] 📊 Storage reads took ${storageDuration}ms`);
 
-    if (!storedToken || !providedToken || storedToken !== providedToken) {
+    // HIGH FIX: Check for both current token and recently refreshed old token (grace period)
+    let authSuccess = false;
+    if (storedToken && providedToken && storedToken === providedToken) {
+      authSuccess = true;
+    } else if (providedToken) {
+      // Check for recently auto-refreshed token (5-minute grace period)
+      const oldTokenExpiration = await this.storage.get(
+        `oldAuthToken:${providedToken}`,
+      );
+      if (oldTokenExpiration) {
+        authSuccess = true;
+        console.log(
+          `[${jobId}] ✅ Reconnection successful using recently expired token (grace period)`,
+        );
+      }
+    }
+
+    if (!authSuccess) {
       console.warn(
         `[${jobId}] WebSocket authentication failed - invalid token`,
       );
@@ -152,7 +169,8 @@ export class ProgressWebSocketDO extends DurableObject {
       });
     }
 
-    if (Date.now() > expiration) {
+    // Only check expiration if we authenticated with the current token (not old token)
+    if (storedToken === providedToken && Date.now() > expiration) {
       console.warn(
         `[${jobId}] WebSocket authentication failed - token expired`,
       );
@@ -216,6 +234,18 @@ export class ProgressWebSocketDO extends DurableObject {
       accept: `${acceptDuration}ms`,
       totalUpgrade: `${totalUpgradeDuration}ms`,
     });
+
+    // CRITICAL FIX: Schedule periodic token refresh check AFTER jobId initialization
+    // This ensures all alarm logs show the correct jobId instead of [undefined]
+    // Only schedule token refresh alarm if no job is pending (prevents alarm conflict)
+    const jobType = await this.storage.get("jobType");
+    if (!jobType) {
+      await this.scheduleTokenRefreshCheck();
+    } else {
+      console.log(
+        `[${this.jobId}] Job type '${jobType}' pending, skipping initial token refresh schedule`,
+      );
+    }
 
     // Setup event handlers
     this.webSocket.addEventListener("message", (event) => {
@@ -465,6 +495,171 @@ export class ProgressWebSocketDO extends DurableObject {
         token: newToken,
         expiresIn: 7200, // 2 hours in seconds
       };
+    } finally {
+      this.refreshInProgress = false;
+    }
+  }
+
+  /**
+   * AUTOMATIC TOKEN REFRESH: Schedule periodic check for token expiration
+   *
+   * This method implements the automatic token refresh promised in API_CONTRACT.md.
+   * Uses Durable Object alarms to periodically check token expiration and refresh
+   * when within 30 minutes of expiry, ensuring active WebSocket connections never
+   * experience authentication failures.
+   *
+   * Implementation:
+   * - Schedules alarm for next check time (15 minutes from now)
+   * - Alarm handler checks if token needs refresh (within 30min window)
+   * - Automatically extends token by 2 hours if needed
+   * - Reschedules next check
+   *
+   * @returns {Promise<void>}
+   */
+  async scheduleTokenRefreshCheck() {
+    const expiration = await this.storage.get("authTokenExpiration");
+    if (!expiration) {
+      console.warn(
+        `[${this.jobId}] No token expiration found, skipping refresh check schedule`,
+      );
+      return;
+    }
+
+    const now = Date.now();
+    const timeUntilExpiration = expiration - now;
+    const REFRESH_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+    const CHECK_INTERVAL_MS = 15 * 60 * 1000; // Check every 15 minutes
+
+    // If token expires in less than 30 minutes, refresh immediately
+    if (timeUntilExpiration < REFRESH_WINDOW_MS && timeUntilExpiration > 0) {
+      console.log(
+        `[${this.jobId}] Token expires in ${Math.floor(timeUntilExpiration / 60000)}min - refreshing automatically`,
+      );
+      const refreshed = await this.autoRefreshToken();
+      if (refreshed) {
+        // After refresh, restart the scheduling logic to use the new expiration.
+        // This avoids scheduling a redundant alarm based on the old expiration value.
+        await this.scheduleTokenRefreshCheck();
+        return;
+      }
+    }
+
+    // HIGH FIX: Calculate next check time (simplified to avoid negative timestamps)
+    const refreshWindowStart = expiration - REFRESH_WINDOW_MS;
+    let nextCheckTime = Math.min(
+      now + CHECK_INTERVAL_MS,
+      refreshWindowStart, // Check at start of refresh window, not before
+    );
+
+    // HIGH FIX: Ensure nextCheckTime is not in the past (prevents infinite alarm loops)
+    if (nextCheckTime <= now) {
+      if (timeUntilExpiration > 0) {
+        nextCheckTime = now + 1000; // Schedule 1 second from now
+        console.log(
+          `[${this.jobId}] Token expires soon, scheduling immediate check`,
+        );
+      } else {
+        console.log(
+          `[${this.jobId}] Token already expired, skipping next check schedule`,
+        );
+        return;
+      }
+    }
+
+    // HIGH FIX: If a job is pending, schedule token refresh AFTER the job alarm
+    // Durable Objects support only ONE alarm - avoid overwriting job processing alarms
+    const jobType = await this.storage.get("jobType");
+    if (jobType) {
+      // Job alarms are scheduled for 2s by scheduleCSVProcessing/scheduleBookshelfScan.
+      // Schedule token check 5s out to ensure job alarm fires first.
+      const jobAlarmTime = now + 5000;
+      nextCheckTime = Math.max(nextCheckTime, jobAlarmTime);
+      console.log(
+        `[${this.jobId}] Job type '${jobType}' pending, scheduling token refresh after expected job start`,
+      );
+    }
+
+    // Only schedule if we have time before expiration
+    if (nextCheckTime > now) {
+      await this.storage.setAlarm(nextCheckTime);
+      console.log(
+        `[${this.jobId}] Token refresh check scheduled for ${new Date(nextCheckTime).toISOString()}`,
+      );
+    }
+  }
+
+  /**
+   * AUTOMATIC TOKEN REFRESH: Internal method to refresh token without client action
+   *
+   * Unlike refreshAuthToken() which requires client to provide oldToken,
+   * this method is called automatically by the alarm handler and doesn't
+   * require client interaction.
+   *
+   * @returns {Promise<boolean>} True if refresh succeeded
+   */
+  async autoRefreshToken() {
+    if (this.refreshInProgress) {
+      console.warn(
+        `[${this.jobId}] Auto-refresh skipped - refresh already in progress`,
+      );
+      return false;
+    }
+
+    this.refreshInProgress = true;
+    try {
+      const expiration = await this.storage.get("authTokenExpiration");
+      const oldToken = await this.storage.get("authToken"); // HIGH FIX: Retrieve old token before overwriting
+      const now = Date.now();
+
+      // Check if token is already expired
+      if (now > expiration) {
+        console.warn(
+          `[${this.jobId}] Token already expired, cannot auto-refresh`,
+        );
+        return false;
+      }
+
+      // Check if we're in the refresh window (last 30 minutes)
+      const REFRESH_WINDOW_MS = 30 * 60 * 1000;
+      const timeUntilExpiration = expiration - now;
+      if (timeUntilExpiration > REFRESH_WINDOW_MS) {
+        console.log(
+          `[${this.jobId}] Token not yet eligible for refresh (${Math.floor(timeUntilExpiration / 60000)}min remaining)`,
+        );
+        return false;
+      }
+
+      // Generate new token and extend expiration
+      const TOKEN_EXPIRATION_MS = 2 * 60 * 60 * 1000; // 2 hours
+      const newToken = crypto.randomUUID();
+      const newExpiration = now + TOKEN_EXPIRATION_MS;
+
+      await this.storage.put("authToken", newToken);
+      await this.storage.put("authTokenExpiration", newExpiration);
+
+      // HIGH FIX: Store old token for 5-minute grace period (300 seconds)
+      // This allows clients to reconnect with the old token during auto-refresh transitions
+      if (oldToken) {
+        await this.storage.put(`oldAuthToken:${oldToken}`, true, {
+          expirationTtl: 300,
+        });
+        console.log(
+          `[${this.jobId}] Old token stored with 5-minute grace period for reconnection`,
+        );
+      }
+
+      console.log(
+        `[${this.jobId}] ✅ Token automatically refreshed (expires in 2 hours)`,
+      );
+
+      // NO CLIENT NOTIFICATION NEEDED - this is transparent to the client
+      // The client continues using the WebSocket connection without any action required
+      // If client disconnects during refresh, they can reconnect with old token (grace period)
+
+      return true;
+    } catch (error) {
+      console.error(`[${this.jobId}] Auto-refresh failed:`, error);
+      return false;
     } finally {
       this.refreshInProgress = false;
     }
@@ -1144,31 +1339,62 @@ export class ProgressWebSocketDO extends DurableObject {
    * Alarm handler: Process long-running background jobs or cleanup
    * Runs outside Worker CPU time limits (5min for HTTP, 15min for alarms)
    *
-   * Handles three types of alarms:
-   * 1. CSV Import Processing - jobType='csv-import', scheduled 2s after upload
-   * 2. Bookshelf Scan Processing - jobType='bookshelf-scan', scheduled 2s after upload
-   * 3. State Cleanup - No jobType, scheduled 24h after job completion
+   * Handles four types of alarms:
+   * 1. Token Refresh Check - Dynamic alarm scheduled by scheduleTokenRefreshCheck() based on token expiration time
+   * 2. CSV Import Processing - jobType='csv-import', scheduled 2s after upload
+   * 3. Bookshelf Scan Processing - jobType='bookshelf-scan', scheduled 2s after upload
+   * 4. State Cleanup - No jobType, scheduled 24h after job completion
    */
   async alarm() {
     const jobType = await this.storage.get("jobType");
     const jobId = await this.storage.get("jobId");
 
+    // MEDIUM FIX: Robust logging ID fallback (handles DO wake-up scenarios)
+    const logId = this.jobId || jobId || this.state.id.toString();
+
+    // Check if this is a token refresh alarm by inspecting token expiration
+    const expiration = await this.storage.get("authTokenExpiration");
+    if (expiration && !jobType) {
+      // This is a token refresh check alarm (no jobType, but has active token)
+      console.log(`[${logId}] Alarm triggered for token refresh check`);
+
+      // Attempt to auto-refresh if within window
+      const refreshed = await this.autoRefreshToken();
+
+      // If token was refreshed OR still has time, schedule next check
+      if (refreshed || Date.now() < expiration) {
+        await this.scheduleTokenRefreshCheck();
+      } else {
+        console.log(
+          `[${logId}] Token expired, no further refresh checks scheduled`,
+        );
+      }
+      return;
+    }
+
     if (jobType === "csv-import") {
       // CSV processing alarm (scheduled at 2s by scheduleCSVProcessing)
-      console.log(`[${jobId}] Alarm triggered for CSV import processing`);
+      console.log(`[${logId}] Alarm triggered for CSV import processing`);
       await this.processCSVImportAlarm();
     } else if (jobType === "bookshelf-scan") {
       // Bookshelf scan processing alarm (scheduled at 2s by scheduleBookshelfScan)
-      console.log(`[${jobId}] Alarm triggered for bookshelf scan processing`);
+      console.log(`[${logId}] Alarm triggered for bookshelf scan processing`);
       await this.processBookshelfScanAlarm();
     } else {
       // Cleanup alarm (scheduled at 24h by completeJobState/failJobState)
-      console.log(
-        `[${jobId || "unknown"}] Cleanup alarm triggered - removing old state`,
-      );
+      console.log(`[${logId}] Cleanup alarm triggered - removing old state`);
       await this.storage.delete("jobState");
       await this.storage.delete("authToken");
       await this.storage.delete("authTokenExpiration");
+
+      // Delete all oldAuthToken:* keys (created during auto-refresh)
+      const oldTokenKeys = await this.storage.list({ prefix: "oldAuthToken:" });
+      for (const key of oldTokenKeys.keys()) {
+        await this.storage.delete(key);
+      }
+      if (oldTokenKeys.size > 0) {
+        console.log(`[${logId}] Cleaned up ${oldTokenKeys.size} old token(s)`);
+      }
     }
   }
 

@@ -107,7 +107,7 @@ This document is the **single source of truth** for the BooksTrack API. All fron
 
 **Security Notes:**
 - Automatic refresh only works for **active WebSocket connections**
-- Disconnected clients must reconnect with original token (within 60-second grace period)
+- Disconnected clients can reconnect with old token during auto-refresh (5-minute grace period)
 - Expired tokens cannot be refreshed (must start new job)
 
 ### 3.2 Rate Limiting
