@@ -1,24 +1,47 @@
-# BooksTrack API Contract v2.1
+# BooksTrack API Contract v2.2
 
 **Status:** Production ✅
 **Effective Date:** November 15, 2025
-**Last Updated:** November 16, 2025 (v2.1 - WebSocket Documentation)
+**Last Updated:** November 18, 2025 (v2.2 - Hono Router Migration Complete)
 **Contract Owner:** Backend Team
 **Audience:** iOS, Flutter, Web Frontend Teams
 
 ---
 
-## 🔥 What's New in v2.1 (Issue #67)
+## 🔥 What's New in v2.2 (Hono Router Complete)
 
-This update **documents the complete WebSocket implementation** that has been in production but was previously undocumented:
+This update documents the **complete Hono router migration** and new default routing behavior:
 
-- **7 New Message Types:** `ready`, `ready_ack`, `reconnected`, + batch scanning messages
-- **Reconnection Support (Section 7.5):** 60-second grace period, state sync, iOS Swift examples
-- **Batch Photo Scanning (Section 7.6):** 1-5 photo uploads with photo-by-photo progress tracking
-- **Token Refresh:** Updated status from "not implemented" to ✅ Production Ready
-- **Integration Checklists:** Expanded with reconnection and batch requirements
+### **Router Migration (Week 2 - COMPLETE)**
+- ✅ **12/12 Endpoints Migrated:** All API endpoints now available in Hono router
+- ✅ **Hono Default Enabled:** `ENABLE_HONO_ROUTER != 'false'` (opt-out model)
+- ✅ **New Endpoints Added:** `/v1/scan/results/{jobId}`, `/v1/csv/results/{jobId}`, `/POST /api/batch-scan`
+- ✅ **Security Hardening:** Input validation (200-char limits), CORS whitelist, error handler tests
+- 📊 **Performance Headers:** `X-Router: hono`, `X-Response-Time: {ms}ms` for monitoring
 
-**Action Required:** Review Sections 7.3, 7.5, 7.6, and 9.3 if you integrate with WebSocket API.
+### **New Section 2.1: Router Architecture**
+- Feature flag documentation (`ENABLE_HONO_ROUTER`)
+- Client detection via `X-Router` header
+- Input validation limits (DoS prevention)
+- CORS policy details (native app support)
+- Rate limiting architecture
+- Testing instructions
+
+### **Breaking Changes:** None
+- Both routers produce identical responses
+- Manual router still available via `ENABLE_HONO_ROUTER=false`
+- Rollback time: < 60 seconds via environment variable
+
+### **Previous Update (v2.1 - Issue #67)**
+- 7 New WebSocket message types (`ready`, `ready_ack`, `reconnected`, + batch)
+- Reconnection support (Section 7.5) with 60-second grace period
+- Batch photo scanning (Section 7.6) - 1-5 photos with progress tracking
+- Token refresh: ✅ Production Ready (automatic)
+
+**Action Required:**
+- Review **Section 2.1** for router architecture and feature flag behavior
+- Monitor `X-Router` header in responses (should be `hono` by default)
+- No client code changes required (response formats unchanged)
 
 ---
 
@@ -46,8 +69,8 @@ This document is the **single source of truth** for the BooksTrack API. All fron
 
 ### 1.3 Versioning
 
-**Current Version:** `v2.1`
-**API Version Header:** `X-API-Version: 2.1` (optional)
+**Current Version:** `v2.2`
+**API Version Header:** `X-API-Version: 2.2` (optional)
 **URL Versioning:** `/v1/*` endpoints (implements v2.x contract), `/v2/*` endpoints (reserved for future breaking changes)
 
 **Version Support Policy:**
@@ -71,6 +94,142 @@ This document is the **single source of truth** for the BooksTrack API. All fron
 - Production: TLS 1.2+ required
 - Staging: TLS 1.2+ required
 - Local: HTTP allowed for development only
+
+---
+
+## 2.1 Router Architecture (Feature Flag)
+
+**Status:** ✅ **Production Ready** (Hono Router Default as of Week 2)
+
+### Feature Flag: `ENABLE_HONO_ROUTER`
+
+BooksTrack supports two routing implementations for zero-downtime migration:
+
+| Router | Status | Feature Flag | Performance Headers | Default |
+|--------|--------|--------------|---------------------|---------|
+| **Hono Router** | ✅ Production | `ENABLE_HONO_ROUTER != 'false'` | `X-Router: hono`, `X-Response-Time: {ms}ms` | **Yes (Week 2+)** |
+| **Manual Router** | Legacy (Opt-Out) | `ENABLE_HONO_ROUTER = 'false'` | None | No |
+
+**Default Behavior (Week 2+):**
+- Hono router is **enabled by default** unless explicitly disabled
+- Set `ENABLE_HONO_ROUTER=false` in environment to use legacy manual router
+- Rollback time: **< 60 seconds** via environment variable update
+
+**Migration Timeline:**
+- ✅ **Week 1 (Complete):** Hono router opt-in, 9/12 endpoints migrated
+- ✅ **Week 2 (Current):** Security hardening, 12/12 endpoints, **default enabled**
+- 🔄 **Week 3 (Planned):** Monitor production, deprecate manual router
+- 🔄 **Week 4 (Planned):** Remove manual router code entirely
+
+### Client Detection
+
+**Detecting Which Router Handled Request:**
+
+```http
+HTTP/1.1 200 OK
+X-Router: hono
+X-Response-Time: 145ms
+Content-Type: application/json
+```
+
+**Headers:**
+- **`X-Router: hono`**: Request was handled by Hono router
+- **`X-Response-Time: {ms}ms`**: Processing time (Hono only)
+- **No `X-Router` header**: Request was handled by manual router (legacy)
+
+**Client Usage:**
+```swift
+// Swift example - detect router
+if let router = response.value(forHTTPHeaderField: "X-Router") {
+    print("Router used: \(router)")  // "hono"
+}
+
+if let responseTime = response.value(forHTTPHeaderField: "X-Response-Time") {
+    print("Processing time: \(responseTime)")  // "145ms"
+}
+```
+
+### Input Validation Limits (Hono Router)
+
+The Hono router enforces **input length limits** to prevent DoS attacks:
+
+| Parameter | Limit | Behavior | Endpoint |
+|-----------|-------|----------|----------|
+| `q` (search query) | 200 chars | Silent truncation | `/v1/search/title` |
+| `title` | 200 chars | Silent truncation | `/v1/search/advanced` |
+| `author` | 200 chars | Silent truncation | `/v1/search/advanced` |
+| `jobId` | 100 chars | Silent truncation | `/ws/progress`, `/v1/*/results/{jobId}` |
+| `isbn` | No limit | Regex validation (ISBN-10/13) | `/v1/search/isbn` |
+
+**Note:** Input is truncated **silently** without error. This prevents excessively long queries from causing performance issues.
+
+### CORS Policy (Hono Router)
+
+**Function-Based Origin Validation:**
+
+```javascript
+// Allowed origins
+const allowedOrigins = [
+  'https://bookstrack.oooefam.net',   // Production web app
+  'https://harvest.oooefam.net',       // Harvest dashboard
+  'capacitor://localhost',              // iOS app (Capacitor)
+  'http://localhost:3000',              // Local dev (web)
+  'http://localhost:8787'               // Local dev (wrangler)
+]
+
+// Requests without Origin header are allowed (native iOS/Android apps)
+```
+
+**CORS Headers:**
+```http
+Access-Control-Allow-Origin: https://bookstrack.oooefam.net
+Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE
+Access-Control-Allow-Headers: Content-Type, Authorization
+Access-Control-Expose-Headers: X-Router, X-Response-Time
+Access-Control-Max-Age: 86400
+```
+
+**Native App Support:**
+- Requests **without `Origin` header** are allowed (native iOS/Android apps)
+- iOS Capacitor apps use `capacitor://localhost` origin
+- Android apps typically send no `Origin` header
+
+### Rate Limiting (Durable Objects)
+
+Rate limiting is enforced via **Durable Objects** (not router-specific):
+
+**Implementation:**
+- Rate limiting logic is in Durable Object (shared across both routers)
+- Hono router uses middleware wrapper: `rateLimitMiddleware`
+- Manual router calls rate limiter directly
+
+**Endpoints with Rate Limiting:**
+- `POST /v1/enrichment/batch` - 10 requests/minute per IP
+- `POST /api/scan-bookshelf/batch` - 5 requests/minute per IP
+- `POST /api/import/csv-gemini` - 5 requests/minute per IP
+- `POST /api/batch-scan` - 5 requests/minute per IP
+
+### Testing the Router
+
+**Local Development:**
+```bash
+# Test with Hono router (default)
+npx wrangler dev
+
+# Test with manual router (opt-out)
+ENABLE_HONO_ROUTER=false npx wrangler dev
+
+# Verify router via headers
+curl -I http://localhost:8787/health | grep X-Router
+```
+
+**Production Testing:**
+```bash
+# Check which router is active
+curl -I https://api.oooefam.net/health | grep X-Router
+
+# Expected: X-Router: hono (Week 2+)
+```
 
 ---
 
@@ -1602,6 +1761,15 @@ queued → processing → complete | error
 
 ### 11.3 Changelog
 
+- **v2.2 (Nov 18, 2025):** 🚀 **Hono Router Migration Complete** (Phase 1 Week 2)
+  - ✅ **12/12 Endpoints Migrated:** All API endpoints available in Hono router
+  - ✅ **Hono Default Enabled:** Feature flag now defaults to `true` (opt-out model)
+  - Added Section 2.1: Router Architecture (feature flag, headers, input limits, CORS, testing)
+  - New endpoints: `/v1/scan/results/{jobId}`, `/v1/csv/results/{jobId}`, `POST /api/batch-scan`
+  - Security hardening: Input validation (200-char limits), CORS whitelist, error handler coverage
+  - Performance monitoring: `X-Router` and `X-Response-Time` headers for analytics
+  - Zero breaking changes: Both routers produce identical responses
+  - Rollback capability: `ENABLE_HONO_ROUTER=false` (< 60 seconds)
 - **v2.1 (Nov 16, 2025):** 🔥 **Major WebSocket Documentation Update** (Issue #67)
   - Documented 7 previously undocumented message types (`ready`, `ready_ack`, `reconnected`, batch messages)
   - Added Section 7.5: Reconnection Support with 60-second grace period
@@ -1676,6 +1844,9 @@ ws.onmessage = async (event) => {
 **END OF CONTRACT**
 
 **Questions?** Contact: api-support@oooefam.net
-**Last Updated:** November 16, 2025 (v2.1 - WebSocket Documentation Update)
+**Last Updated:** November 18, 2025 (v2.2 - Hono Router Migration Complete)
 **Next Review:** February 15, 2026
-**Related Issues:** #67 (API Contract Standardization), #91 (iOS WebSocket Migration Docs)
+**Related Issues:**
+- #67 (API Contract Standardization - v2.1)
+- #91 (iOS WebSocket Migration Docs - v2.1)
+- PHASE_1_HONO_MIGRATION (Hono Router Week 2 - v2.2)

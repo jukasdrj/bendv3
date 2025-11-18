@@ -12,6 +12,17 @@ import { describe, it, expect } from 'vitest'
 import worker from '../src/index.js'
 
 // Mock environment for testing
+// Mock ExecutionContext
+const mockCtx = {
+  waitUntil: (promise) => {
+    // Silently consume promises in tests (no-op but accepts promises)
+    if (promise && typeof promise.catch === 'function') {
+      promise.catch(() => {}) // Prevent unhandled rejection warnings
+    }
+  },
+  passThroughOnException: () => {}
+}
+
 const mockEnv = {
   ENABLE_HONO_ROUTER: 'false', // Will be overridden per test
   CACHE_HOT_TTL: '7200',
@@ -48,8 +59,16 @@ const mockEnv = {
   // Mock Durable Objects
   PROGRESS_WEBSOCKET_DO: {
     idFromName: () => ({ toString: () => 'test-id' }),
-    get: () => ({
-      fetch: async () => new Response('WebSocket upgrade', { status: 101 })
+    get: (id) => ({
+      fetch: async (request) => {
+        // Mock successful WebSocket upgrade
+        // Note: Status 101 is not valid in Node's Response constructor
+        // Use 200 for test purposes - real DO will handle actual WebSocket upgrade
+        return new Response('WebSocket upgrade mock', {
+          status: 200,
+          headers: { 'X-Mock-Websocket': 'true' }
+        })
+      }
     })
   },
   RATE_LIMITER_DO: {
@@ -73,7 +92,7 @@ describe('Hono Router - Feature Flag', () => {
     const request = new Request('http://localhost/health')
     const env = { ...mockEnv, ENABLE_HONO_ROUTER: 'false' }
 
-    const response = await worker.fetch(request, env, {})
+    const response = await worker.fetch(request, env, mockCtx)
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -86,7 +105,7 @@ describe('Hono Router - Feature Flag', () => {
     const request = new Request('http://localhost/health')
     const env = { ...mockEnv, ENABLE_HONO_ROUTER: 'true' }
 
-    const response = await worker.fetch(request, env, {})
+    const response = await worker.fetch(request, env, mockCtx)
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -102,7 +121,7 @@ describe('Hono Router - Route Functionality', () => {
 
   it('should handle /health endpoint', async () => {
     const request = new Request('http://localhost/health')
-    const response = await worker.fetch(request, env, {})
+    const response = await worker.fetch(request, env, mockCtx)
     const data = await response.json()
 
     expect(response.status).toBe(200)
@@ -115,7 +134,7 @@ describe('Hono Router - Route Functionality', () => {
 
   it('should handle /metrics endpoint', async () => {
     const request = new Request('http://localhost/metrics')
-    const response = await worker.fetch(request, env, {})
+    const response = await worker.fetch(request, env, mockCtx)
 
     expect(response.status).toBe(200)
     expect(response.headers.get('X-Router')).toBe('hono')
@@ -123,7 +142,7 @@ describe('Hono Router - Route Functionality', () => {
 
   it('should return 404 for unknown routes', async () => {
     const request = new Request('http://localhost/unknown-route')
-    const response = await worker.fetch(request, env, {})
+    const response = await worker.fetch(request, env, mockCtx)
     const data = await response.json()
 
     expect(response.status).toBe(404)
@@ -136,7 +155,7 @@ describe('Hono Router - Route Functionality', () => {
       method: 'OPTIONS',
       headers: { Origin: 'http://localhost:3000' }
     })
-    const response = await worker.fetch(request, env, {})
+    const response = await worker.fetch(request, env, mockCtx)
 
     expect(response.status).toBe(204)
     expect(response.headers.has('Access-Control-Allow-Origin')).toBe(true)
@@ -148,14 +167,14 @@ describe('Hono Router - Analytics Headers', () => {
 
   it('should include X-Router header in all responses', async () => {
     const request = new Request('http://localhost/health')
-    const response = await worker.fetch(request, env, {})
+    const response = await worker.fetch(request, env, mockCtx)
 
     expect(response.headers.get('X-Router')).toBe('hono')
   })
 
   it('should include X-Response-Time header', async () => {
     const request = new Request('http://localhost/health')
-    const response = await worker.fetch(request, env, {})
+    const response = await worker.fetch(request, env, mockCtx)
 
     const responseTime = response.headers.get('X-Response-Time')
     expect(responseTime).toBeDefined()
@@ -172,7 +191,7 @@ describe('Hono Router - Performance Benchmarks', () => {
     const manualStart = performance.now()
     for (let i = 0; i < iterations; i++) {
       const request = new Request(testUrl)
-      await worker.fetch(request, { ...mockEnv, ENABLE_HONO_ROUTER: 'false' }, {})
+      await worker.fetch(request, { ...mockEnv, ENABLE_HONO_ROUTER: 'false' }, mockCtx)
     }
     const manualTime = performance.now() - manualStart
 
@@ -180,7 +199,7 @@ describe('Hono Router - Performance Benchmarks', () => {
     const honoStart = performance.now()
     for (let i = 0; i < iterations; i++) {
       const request = new Request(testUrl)
-      await worker.fetch(request, { ...mockEnv, ENABLE_HONO_ROUTER: 'true' }, {})
+      await worker.fetch(request, { ...mockEnv, ENABLE_HONO_ROUTER: 'true' }, mockCtx)
     }
     const honoTime = performance.now() - honoStart
 
@@ -210,18 +229,22 @@ describe('Hono Router - WebSocket Routing', () => {
 
   it('should route WebSocket upgrade requests to Durable Object', async () => {
     const request = new Request('http://localhost/ws/progress?jobId=test-123', {
-      headers: { Upgrade: 'websocket' }
+      headers: { 'Upgrade': 'websocket' }
     })
-    const response = await worker.fetch(request, env, {})
+    const response = await worker.fetch(request, env, mockCtx)
 
-    expect(response.status).toBe(101) // WebSocket upgrade status
+    // Hono correctly forwards request to DO
+    // Mock DO returns 200 (real DO would handle actual WebSocket upgrade)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('X-Mock-Websocket')).toBe('true')
+    expect(response.headers.get('X-Router')).toBe('hono')
   })
 
   it('should return error for missing jobId parameter', async () => {
     const request = new Request('http://localhost/ws/progress', {
       headers: { Upgrade: 'websocket' }
     })
-    const response = await worker.fetch(request, env, {})
+    const response = await worker.fetch(request, env, mockCtx)
     const data = await response.json()
 
     expect(response.status).toBe(400)
@@ -231,11 +254,14 @@ describe('Hono Router - WebSocket Routing', () => {
   it('should forward non-WebSocket requests to Durable Object', async () => {
     const request = new Request('http://localhost/ws/progress?jobId=test-123')
     // No Upgrade header - DO will handle the response
-    const response = await worker.fetch(request, env, {})
+    const response = await worker.fetch(request, env, mockCtx)
 
     // Note: Behavior parity with manual router - no upgrade validation at router level
-    // The Durable Object (mocked to return 101) handles the actual WebSocket logic
-    expect(response.status).toBe(101)
+    // The Durable Object handles the actual WebSocket logic
+    // Mock DO returns 200 for testing (real DO handles WebSocket upgrade)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('X-Mock-Websocket')).toBe('true')
+    expect(response.headers.get('X-Router')).toBe('hono')
   })
 })
 
@@ -258,8 +284,22 @@ describe('Hono Router - Error Handling', () => {
     }
 
     // The /health route should still succeed even if analytics fails
-    const response = await worker.fetch(request, faultyEnv, {})
+    const response = await worker.fetch(request, faultyEnv, mockCtx)
     expect(response.status).toBe(200)
+  })
+
+  it('should catch route errors with global onError handler', async () => {
+    // Test the /test/error route that intentionally throws an error
+    const request = new Request('http://localhost/test/error')
+    const env = { ...mockEnv, ENABLE_HONO_ROUTER: 'true', LOG_LEVEL: 'DEBUG' }
+
+    const response = await worker.fetch(request, env, mockCtx)
+    const data = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(data.error.code).toBe('INTERNAL_ERROR')
+    expect(data.error.message).toBe('An unexpected error occurred')
+    expect(data.error.details).toBe('Test error for onError handler validation')
   })
 
   it('should log errors to Analytics Engine asynchronously', async () => {
@@ -275,7 +315,7 @@ describe('Hono Router - Error Handling', () => {
       }
     }
 
-    const response = await worker.fetch(request, envWithLogging, {})
+    const response = await worker.fetch(request, envWithLogging, mockCtx)
     expect(response.status).toBe(404)
 
     // Give async logging time to complete
@@ -294,14 +334,14 @@ describe('Hono Router - Response Consistency', () => {
     const manualResponse = await worker.fetch(request, {
       ...mockEnv,
       ENABLE_HONO_ROUTER: 'false'
-    }, {})
+    }, mockCtx)
     const manualData = await manualResponse.json()
 
     // Hono router
     const honoResponse = await worker.fetch(request, {
       ...mockEnv,
       ENABLE_HONO_ROUTER: 'true'
-    }, {})
+    }, mockCtx)
     const honoData = await honoResponse.json()
 
     // Both should have same status and worker info
