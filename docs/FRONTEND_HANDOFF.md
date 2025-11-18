@@ -228,9 +228,106 @@ ws.onmessage = (event) => {
 **Limits:**
 - 1-5 photos per batch
 - 10MB max per photo
-- Rate limit: 5 requests/minute per IP
+- Rate limit: 5 requests/minute per IP (**per-batch**, not per-photo)
 
 **Full spec:** API_CONTRACT.md Section 7.6
+
+### **Rate Limiting for Batch Operations**
+
+**IMPORTANT:** The 5 requests/minute limit is **per-batch**, not per-photo.
+
+#### **iOS Swift Example - Handling Rate Limits**
+
+```swift
+class BatchScanService {
+    private var lastBatchScanTime: Date?
+    private let rateLimitWindow: TimeInterval = 60.0 // 1 minute
+    private let maxBatchesPerMinute = 5
+    private var batchesInWindow: [Date] = []
+
+    func canSubmitBatch() -> (allowed: Bool, retryAfter: TimeInterval?) {
+        let now = Date()
+
+        // Clean up batches outside the 60-second window
+        batchesInWindow = batchesInWindow.filter {
+            now.timeIntervalSince($0) < rateLimitWindow
+        }
+
+        if batchesInWindow.count >= maxBatchesPerMinute {
+            let oldestBatch = batchesInWindow.first!
+            let retryAfter = rateLimitWindow - now.timeIntervalSince(oldestBatch)
+            return (false, retryAfter)
+        }
+
+        return (true, nil)
+    }
+
+    func submitBatchScan(photos: [UIImage]) async throws -> BatchScanResponse {
+        // Check client-side rate limit first
+        let (allowed, retryAfter) = canSubmitBatch()
+        guard allowed else {
+            throw BatchScanError.rateLimited(retryAfter: retryAfter!)
+        }
+
+        // Submit batch
+        let formData = createMultipartFormData(photos: photos)
+        var request = URLRequest(url: URL(string: "https://api.oooefam.net/api/batch-scan")!)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = formData
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        // Track this batch submission
+        batchesInWindow.append(Date())
+
+        // Handle HTTP 429 rate limit response
+        if let httpResponse = response as? HTTPURLResponse {
+            if httpResponse.statusCode == 429 {
+                let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
+                    .flatMap(TimeInterval.init) ?? 60.0
+                throw BatchScanError.rateLimited(retryAfter: retryAfter)
+            }
+        }
+
+        return try JSONDecoder().decode(BatchScanResponse.self, from: data)
+    }
+}
+
+enum BatchScanError: Error {
+    case rateLimited(retryAfter: TimeInterval)
+}
+```
+
+#### **Best Practices**
+
+1. **Client-Side Tracking**: Track batch submissions locally to avoid hitting server limits
+2. **Respect Retry-After**: Always honor the `Retry-After` header from 429 responses
+3. **User Feedback**: Show clear messaging when rate limited:
+   ```swift
+   if case .rateLimited(let retryAfter) = error {
+       let minutes = Int(ceil(retryAfter / 60.0))
+       showAlert("Rate limit reached. Please wait \(minutes) minute(s) before submitting another batch.")
+   }
+   ```
+4. **Batch Consolidation**: Combine photos into fewer batches (up to 5 photos per batch) to stay under limits
+
+#### **Rate Limit Headers**
+
+All batch scan responses include rate limit information:
+
+```http
+HTTP/1.1 200 OK
+X-RateLimit-Limit: 5
+X-RateLimit-Remaining: 3
+X-RateLimit-Reset: 1700000042
+
+# After exceeding limit:
+HTTP/1.1 429 Too Many Requests
+Retry-After: 42
+```
+
+Parse these headers to provide real-time feedback in your UI.
 
 ---
 
