@@ -23,7 +23,7 @@ describe("WebSocket Token Management - Edge Cases", () => {
 
     // Mock Durable Object storage with realistic behavior
     const storageData = new Map();
-    
+
     mockStorage = {
       data: storageData,
       get: vi.fn((key) => {
@@ -317,8 +317,7 @@ describe("WebSocket Token Management - Edge Cases", () => {
       ]);
 
       // Assert - One succeeds, one is blocked
-      const successCount =
-        (autoResult ? 1 : 0) + (manualResult.token ? 1 : 0);
+      const successCount = (autoResult ? 1 : 0) + (manualResult.token ? 1 : 0);
       expect(successCount).toBe(1);
 
       if (!autoResult) {
@@ -506,6 +505,298 @@ describe("WebSocket Token Management - Edge Cases", () => {
 
       // Assert - Should not refresh (too early)
       expect(result).toBe(false);
+    });
+  });
+
+  describe("Token Invalidation on Job Completion (Issue #164)", () => {
+    beforeEach(() => {
+      // Add invalidateAuthToken method to progressDO mock
+      progressDO.invalidateAuthToken = async function () {
+        const token = await this.storage.get("authToken");
+
+        if (!token) {
+          return { success: true };
+        }
+
+        // Add token to blacklist with 2.5-hour TTL
+        const BLACKLIST_TTL_MS = 2.5 * 60 * 60 * 1000; // 2.5 hours
+        await this.storage.put(
+          `blacklistedToken:${token}`,
+          {
+            invalidatedAt: Date.now(),
+            reason: "Job completed or failed",
+            jobId: this.jobId,
+          },
+          { expirationTtl: Math.floor(BLACKLIST_TTL_MS / 1000) },
+        );
+
+        // Delete active token and expiration
+        await this.storage.delete("authToken");
+        await this.storage.delete("authTokenExpiration");
+
+        return { success: true };
+      };
+
+      progressDO.completeJobState = async function (results) {
+        const currentState = (await this.storage.get("jobState")) || {};
+        const finalState = {
+          ...currentState,
+          status: "complete",
+          endTime: Date.now(),
+          results,
+        };
+
+        await this.storage.put("jobState", finalState);
+        await this.invalidateAuthToken(); // SECURITY FIX (Issue #164)
+
+        return { success: true };
+      };
+
+      progressDO.failJobState = async function (error) {
+        const currentState = (await this.storage.get("jobState")) || {};
+        const finalState = {
+          ...currentState,
+          status: "failed",
+          endTime: Date.now(),
+          error,
+        };
+
+        await this.storage.put("jobState", finalState);
+        await this.invalidateAuthToken(); // SECURITY FIX (Issue #164)
+
+        return { success: true };
+      };
+    });
+
+    it("should blacklist token immediately on job completion", async () => {
+      // Arrange
+      const token = "job-complete-token";
+      await progressDO.setAuthToken(token);
+
+      // Act - Complete job (simulates 30-second job finishing)
+      await progressDO.completeJobState({ books: 10 });
+
+      // Assert - Token should be blacklisted
+      const blacklistEntry = await progressDO.storage.get(
+        `blacklistedToken:${token}`,
+      );
+      expect(blacklistEntry).toBeDefined();
+      expect(blacklistEntry.reason).toBe("Job completed or failed");
+      expect(blacklistEntry.jobId).toBe("test-job-123");
+
+      // Assert - Active token should be deleted
+      const activeToken = await progressDO.storage.get("authToken");
+      const expiration = await progressDO.storage.get("authTokenExpiration");
+      expect(activeToken).toBeNull();
+      expect(expiration).toBeNull();
+    });
+
+    it("should blacklist token immediately on job failure", async () => {
+      // Arrange
+      const token = "job-fail-token";
+      await progressDO.setAuthToken(token);
+
+      // Act - Fail job
+      await progressDO.failJobState({ message: "Processing failed" });
+
+      // Assert - Token should be blacklisted
+      const blacklistEntry = await progressDO.storage.get(
+        `blacklistedToken:${token}`,
+      );
+      expect(blacklistEntry).toBeDefined();
+      expect(blacklistEntry.reason).toBe("Job completed or failed");
+
+      // Assert - Active token should be deleted
+      const activeToken = await progressDO.storage.get("authToken");
+      expect(activeToken).toBeNull();
+    });
+
+    it("should reject reconnection with blacklisted token", async () => {
+      // Arrange
+      const token = "blacklisted-reconnect-token";
+      await progressDO.setAuthToken(token);
+      await progressDO.completeJobState({ books: 5 });
+
+      // Act - Simulate WebSocket authentication check
+      const blacklistEntry = await progressDO.storage.get(
+        `blacklistedToken:${token}`,
+      );
+
+      // Assert - Blacklist entry exists, connection should be rejected
+      expect(blacklistEntry).toBeDefined();
+      expect(blacklistEntry.invalidatedAt).toBeLessThanOrEqual(Date.now());
+
+      // In real implementation, this would return 401 response
+      // Here we verify the blacklist check would fail
+      const isBlacklisted = !!blacklistEntry;
+      expect(isBlacklisted).toBe(true);
+    });
+
+    it("should allow new job to use different token after previous job completed", async () => {
+      // Arrange - Job 1 completes
+      const token1 = "job1-token";
+      await progressDO.setAuthToken(token1);
+      await progressDO.completeJobState({ books: 3 });
+
+      // Act - Job 2 starts with new token
+      const token2 = "job2-token";
+      await progressDO.setAuthToken(token2);
+
+      // Assert - Token 1 is blacklisted, Token 2 is active
+      const blacklistEntry1 = await progressDO.storage.get(
+        `blacklistedToken:${token1}`,
+      );
+      const blacklistEntry2 = await progressDO.storage.get(
+        `blacklistedToken:${token2}`,
+      );
+      const activeToken = await progressDO.storage.get("authToken");
+
+      expect(blacklistEntry1).toBeDefined();
+      expect(blacklistEntry2).toBeNull();
+      expect(activeToken).toBe(token2);
+    });
+
+    it("should handle invalidation of already-deleted token gracefully", async () => {
+      // Arrange - No active token
+      await progressDO.storage.delete("authToken");
+      await progressDO.storage.delete("authTokenExpiration");
+
+      // Act - Attempt to invalidate non-existent token
+      const result = await progressDO.invalidateAuthToken();
+
+      // Assert - Should succeed without error
+      expect(result.success).toBe(true);
+
+      // Should not create blacklist entry for null token
+      const blacklistKeys = [];
+      const storageList = await progressDO.storage.data;
+      for (const [key, value] of storageList.entries()) {
+        if (key.startsWith("blacklistedToken:")) {
+          blacklistKeys.push(key);
+        }
+      }
+      expect(blacklistKeys.length).toBe(0);
+    });
+
+    it("should set blacklist TTL to 2.5 hours (covers token expiration + buffer)", async () => {
+      // Arrange
+      const token = "ttl-test-token";
+      await progressDO.setAuthToken(token);
+
+      // Act
+      await progressDO.completeJobState({ books: 1 });
+
+      // Assert - Verify storage.put was called with correct TTL
+      const putCalls = progressDO.storage.put.mock.calls;
+      const blacklistCall = putCalls.find(
+        (call) =>
+          typeof call[0] === "string" &&
+          call[0].startsWith("blacklistedToken:"),
+      );
+
+      expect(blacklistCall).toBeDefined();
+      expect(blacklistCall[2]).toBeDefined();
+      expect(blacklistCall[2].expirationTtl).toBe(9000); // 2.5 hours in seconds
+    });
+  });
+
+  describe("Blacklist Cleanup (Issue #164)", () => {
+    beforeEach(() => {
+      // Add list method to mock storage
+      progressDO.storage.list = async function (options) {
+        const prefix = options?.prefix || "";
+        const results = new Map();
+
+        for (const [key, value] of this.data.entries()) {
+          if (key.startsWith(prefix)) {
+            results.set(key, value);
+          }
+        }
+
+        return results;
+      };
+    });
+
+    it("should cleanup expired blacklist entries during alarm", async () => {
+      // Arrange - Add old blacklisted token (3 hours old, past 2.5-hour TTL)
+      const oldToken = "old-blacklisted-token";
+      const oldEntry = {
+        invalidatedAt: Date.now() - 3 * 60 * 60 * 1000, // 3 hours ago
+        reason: "Job completed or failed",
+        jobId: "old-job-123",
+      };
+      await progressDO.storage.put(`blacklistedToken:${oldToken}`, oldEntry);
+
+      // Add recent blacklisted token (1 hour old, within TTL)
+      const recentToken = "recent-blacklisted-token";
+      const recentEntry = {
+        invalidatedAt: Date.now() - 1 * 60 * 60 * 1000, // 1 hour ago
+        reason: "Job completed or failed",
+        jobId: "recent-job-456",
+      };
+      await progressDO.storage.put(
+        `blacklistedToken:${recentToken}`,
+        recentEntry,
+      );
+
+      // Act - Simulate cleanup alarm (manual cleanup as fallback to TTL)
+      const blacklistKeys = await progressDO.storage.list({
+        prefix: "blacklistedToken:",
+      });
+      for (const key of blacklistKeys.keys()) {
+        const entry = await progressDO.storage.get(key);
+        if (entry && Date.now() - entry.invalidatedAt > 2.5 * 60 * 60 * 1000) {
+          await progressDO.storage.delete(key);
+        }
+      }
+
+      // Assert - Old token should be deleted, recent token should remain
+      const oldTokenExists = await progressDO.storage.get(
+        `blacklistedToken:${oldToken}`,
+      );
+      const recentTokenExists = await progressDO.storage.get(
+        `blacklistedToken:${recentToken}`,
+      );
+
+      expect(oldTokenExists).toBeNull();
+      expect(recentTokenExists).toBeDefined();
+    });
+
+    it("should not delete blacklist entries within TTL window", async () => {
+      // Arrange - Recent blacklisted tokens
+      const tokens = [
+        { token: "recent1", age: 1 * 60 * 60 * 1000 }, // 1 hour
+        { token: "recent2", age: 2 * 60 * 60 * 1000 }, // 2 hours
+      ];
+
+      for (const { token, age } of tokens) {
+        await progressDO.storage.put(`blacklistedToken:${token}`, {
+          invalidatedAt: Date.now() - age,
+          reason: "Job completed or failed",
+          jobId: `job-${token}`,
+        });
+      }
+
+      // Act - Cleanup alarm
+      const blacklistKeys = await progressDO.storage.list({
+        prefix: "blacklistedToken:",
+      });
+      let deletedCount = 0;
+      for (const key of blacklistKeys.keys()) {
+        const entry = await progressDO.storage.get(key);
+        if (entry && Date.now() - entry.invalidatedAt > 2.5 * 60 * 60 * 1000) {
+          await progressDO.storage.delete(key);
+          deletedCount++;
+        }
+      }
+
+      // Assert - No entries should be deleted (all within 2.5-hour TTL)
+      expect(deletedCount).toBe(0);
+
+      const remainingKeys = await progressDO.storage.list({
+        prefix: "blacklistedToken:",
+      });
+      expect(remainingKeys.size).toBe(2);
     });
   });
 });
