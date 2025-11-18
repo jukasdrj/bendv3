@@ -8,6 +8,7 @@
  */
 
 import * as externalApis from "../services/external-apis.ts";
+import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../utils/response-builder.js';
 
 // Request coalescing: Map of in-flight requests by cache key
 const IN_FLIGHT_REQUESTS = new Map();
@@ -104,22 +105,20 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
   if (negativeCache) {
     // Maintain consistent API contract: always return success: true for "no results"
     if (negativeCache.type === "no_results") {
-      return {
-        success: true,
-        provider: "none",
-        items: [],
-        cached: true,
-        negativeCache: true,
-      };
+      return createSuccessResponse(
+        { items: [] },  // Temporary: keeping items[] until full DTO migration
+        {
+          provider: "none",
+          cached: true
+        }
+      );
     }
     // Only true errors return success: false
-    return {
-      success: false,
-      error: negativeCache.error,
-      items: [],
-      cached: true,
-      negativeCache: true,
-    };
+    return createErrorResponse(
+      negativeCache.error,
+      negativeCache.status || 500,
+      ErrorCodes.PROVIDER_ERROR
+    );
   }
 
   // Check for in-flight request (request coalescing)
@@ -183,12 +182,13 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
           })),
         );
 
-        return {
-          success: true,
-          provider: "google",
-          items: items.slice(0, maxResults),
-          cached: false,
-        };
+        return createSuccessResponse(
+          { items: items.slice(0, maxResults) },
+          {
+            provider: "google",
+            cached: false
+          }
+        );
       }
 
       // Fallback to OpenLibrary if Google Books fails
@@ -235,12 +235,13 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
           })),
         );
 
-        return {
-          success: true,
-          provider: "openlibrary",
-          items: items.slice(0, maxResults),
-          cached: false,
-        };
+        return createSuccessResponse(
+          { items: items.slice(0, maxResults) },
+          {
+            provider: "openlibrary",
+            cached: false
+          }
+        );
       }
 
       // No results from any provider - store as "no_results" type (not error)
@@ -252,12 +253,13 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
         env,
       );
 
-      return {
-        success: true,
-        provider: "none",
-        items: [],
-        cached: false,
-      };
+      return createSuccessResponse(
+        { items: [] },
+        {
+          provider: "none",
+          cached: false
+        }
+      );
     } catch (error) {
       console.error(
         `[AdvancedSearch] Error searching for "${bookTitle}":`,
@@ -269,11 +271,11 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
         await storeNegativeCache(cacheKey, error, "error", env);
       }
 
-      return {
-        success: false,
-        error: error.message,
-        items: [],
-      };
+      return createErrorResponse(
+        error.message || "Search failed",
+        500,
+        ErrorCodes.INTERNAL_ERROR
+      );
     } finally {
       // Clean up in-flight request
       IN_FLIGHT_REQUESTS.delete(cacheKey);

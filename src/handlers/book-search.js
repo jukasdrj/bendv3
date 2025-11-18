@@ -352,16 +352,16 @@ function transformWorkToGoogleFormat(work) {
 
   const volumeInfo = {
     title: work.title,
-    subtitle: work.subtitle || "",
+    subtitle: work.subtitle,
     authors: authors,
-    publisher: primaryEdition?.publisher || "",
+    publisher: primaryEdition?.publisher,
     publishedDate: work.firstPublicationYear
       ? work.firstPublicationYear.toString()
-      : primaryEdition?.publicationDate || "",
-    description: work.description || primaryEdition?.description || "",
+      : primaryEdition?.publicationDate,
+    description: work.description || primaryEdition?.description,
     industryIdentifiers: industryIdentifiers,
-    pageCount: primaryEdition?.pageCount || 0,
-    categories: work.subjects || [],
+    pageCount: primaryEdition?.pageCount,
+    categories: work.subjects,
     imageLinks: primaryEdition?.coverImageURL
       ? {
           thumbnail: primaryEdition.coverImageURL,
