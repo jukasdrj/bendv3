@@ -1526,6 +1526,10 @@ export class ProgressWebSocketDO extends DurableObject {
     // C2: Clear legacy state to prevent key collisions
     await this.storage.delete("status");
 
+    // FIX (Issue #TBD): Set pipeline for batch scanning
+    // Required for broadcastToClients() to include correct pipeline in envelope
+    this.currentPipeline = "ai_scan";
+
     // Initialize batch state with photo array
     const photos = Array.from({ length: totalPhotos }, (_, i) => ({
       index: i,
@@ -1704,6 +1708,11 @@ export class ProgressWebSocketDO extends DurableObject {
 
   /**
    * Helper: Broadcast message to all connected WebSocket clients
+   *
+   * FIX (Issue #TBD): Align with API_CONTRACT.md unified schema
+   * - Changed "data" to "payload" to match canonical envelope format
+   * - Added missing "pipeline" and "version" fields required by contract
+   * - Fixes iOS parsing failures in batch scan workflows
    */
   broadcastToClients(data) {
     if (!this.webSocket) {
@@ -1712,13 +1721,19 @@ export class ProgressWebSocketDO extends DurableObject {
     }
 
     try {
-      // Standardize message format to match `pushProgress` and prevent client-side parsing errors
-      // The client expects a consistent top-level structure with a `data` payload.
+      // Unified schema format (matches API_CONTRACT.md v2.1)
+      // All WebSocket messages must follow this envelope structure
       const message = {
-        type: data.type || "progress", // The payload should always have a type
+        type: data.type || "progress",
         jobId: this.jobId,
+        pipeline: this.currentPipeline || "ai_scan", // Required by API contract
         timestamp: Date.now(),
-        data, // The original object is now the payload
+        version: "1.0.0", // Required by API contract
+        payload: {
+          // Changed from "data" to "payload" per API_CONTRACT.md:762-774
+          type: data.type,
+          ...data,
+        },
       };
 
       this.webSocket.send(JSON.stringify(message));

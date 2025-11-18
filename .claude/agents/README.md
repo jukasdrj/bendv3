@@ -1,3 +1,8 @@
+---
+name: agents-readme
+description: Documentation for BooksTrack autonomous agents
+---
+
 # BooksTrack Autonomous Agents
 
 This directory contains specialized AI agents that work autonomously to manage Cloudflare Workers deployments and code quality.
