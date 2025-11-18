@@ -46,6 +46,16 @@ routes = [
 
 # Environment variables merged from all workers
 [vars]
+# ========================================================================
+# Hono Router Migration (Phase 1 - Coexistence Infrastructure)
+# ========================================================================
+# Pattern: Feature Flag Toggle (HONO_COEXISTENCE_PATTERNS.md #1)
+# When true: Delegates all requests to Hono router (new)
+# When false: Uses existing manual routing (default, 100% backward compatible)
+# Canary test: Only /health endpoint in Phase 1, will expand in future phases
+# Risk: LOW - Feature flag allows instant rollback if issues detected
+ENABLE_HONO_ROUTER = "false"
+
 # Cache configuration (from books-api-proxy)
 CACHE_HOT_TTL = "7200"         # 2 hours
 CACHE_COLD_TTL = "1209600"     # 14 days

@@ -2,6 +2,7 @@ import { ProgressWebSocketDO } from "./durable-objects/progress-socket.js";
 import { RateLimiterDO } from "./durable-objects/rate-limiter.js";
 import { WebSocketConnectionDO } from "./durable-objects/websocket-connection.js";
 import { JobStateManagerDO } from "./durable-objects/job-state-manager.js";
+import honoRouter from "./router/hono-router.ts";
 import * as externalApis from "./services/external-apis.ts";
 import * as enrichment from "./services/enrichment.ts";
 import * as aiScanner from "./services/ai-scanner.js";
@@ -63,6 +64,18 @@ export default {
     let errorCode = null;
 
     try {
+      // ========================================================================
+      // Hono Router Coexistence (Phase 1 - Feature Flag Toggle)
+      // ========================================================================
+      // Pattern: Feature Flag (HONO_COEXISTENCE_PATTERNS.md #1)
+      // When ENABLE_HONO_ROUTER === 'true', delegate to Hono router
+      // Otherwise, continue with existing manual routing (100% backward compatible)
+      // Canary test: Only /health endpoint in Phase 1, will expand in future phases
+      if (env.ENABLE_HONO_ROUTER === 'true') {
+        console.log('[Router] Delegating to Hono router');
+        return await honoRouter.fetch(request, env, ctx);
+      }
+
       // Custom domain routing: harvest.oooefam.net root → Dashboard
       if (url.hostname === "harvest.oooefam.net" && url.pathname === "/") {
         response = await handleHarvestDashboard(request, env);
@@ -338,6 +351,18 @@ export default {
       // ========================================================================
       // AI Scanner Endpoint
       // ========================================================================
+
+      // POST /api/batch-scan - Batch AI bookshelf scanner with WebSocket progress (alias route)
+      if (
+        url.pathname === "/api/batch-scan" &&
+        request.method === "POST"
+      ) {
+        // Rate limiting: Prevent denial-of-wallet attacks on AI batch endpoint
+        const rateLimitResponse = await checkRateLimit(request, env);
+        if (rateLimitResponse) return rateLimitResponse;
+
+        return handleBatchScan(request, env, ctx);
+      }
 
       // POST /api/scan-bookshelf/batch - Batch AI bookshelf scanner with WebSocket progress
       if (
