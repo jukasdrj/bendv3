@@ -103,6 +103,9 @@ export type MessageType =
   | "job_progress"
   | "job_complete"
   | "error"
+  | "ready"           // Client → Server: Client is ready to receive messages
+  | "ready_ack"       // Server → Client: Server acknowledges ready state
+  | "reconnected"     // Server → Client: Reconnection successful with state sync
   | "ping"
   | "pong";
 

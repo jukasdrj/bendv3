@@ -176,6 +176,7 @@ export async function searchGoogleBooksById(
         "User-Agent": GOOGLE_BOOKS_USER_AGENT,
         Accept: "application/json",
       },
+      cache: 'no-cache',
     });
 
     if (!response.ok) {

@@ -22,7 +22,7 @@ import type { DataProvider } from "../types/enums";
  * Environment bindings required for the analytics logger.
  */
 export interface AnalyticsEnv {
-  PROVIDER_ANALYTICS?: AnalyticsEngineDataset;
+  ANALYTICS_ENGINE?: AnalyticsEngineDataset;
 }
 
 /**
@@ -59,16 +59,16 @@ export async function logExternalApiCall<T>(
     const result = await apiCallFn();
     const processingTime = Date.now() - startTime;
 
-    if (env.PROVIDER_ANALYTICS) {
+    if (env.ANALYTICS_ENGINE) {
       const { query, isbn } = params;
       const eventType = isbn ? "isbn_search" : "search";
 
-      env.PROVIDER_ANALYTICS.writeDataPoint({
-        blobs: [query || isbn, eventType, provider],
-        doubles: [
-          processingTime,
-          Array.isArray(result) ? result.length : 1,
-        ],
+      // Extract actual result count from NormalizedResponse structure
+      const resultCount = (result as any)?.works?.length ?? 0;
+
+      env.ANALYTICS_ENGINE.writeDataPoint({
+        blobs: [query || isbn || 'unknown', eventType, provider],
+        doubles: [processingTime, resultCount],
         indexes: [`${provider.toLowerCase()}-success`],
       });
     }
@@ -77,12 +77,15 @@ export async function logExternalApiCall<T>(
   } catch (error) {
     const processingTime = Date.now() - startTime;
 
-    if (env.PROVIDER_ANALYTICS) {
+    // Type guard for error message extraction
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (env.ANALYTICS_ENGINE) {
       const { query, isbn } = params;
       const eventType = isbn ? "isbn_search_error" : "search_error";
 
-      env.PROVIDER_ANALYTICS.writeDataPoint({
-        blobs: [query || isbn, eventType, provider, error.message],
+      env.ANALYTICS_ENGINE.writeDataPoint({
+        blobs: [query || isbn || 'unknown', eventType, provider, errorMessage],
         doubles: [processingTime, 0],
         indexes: [`${provider.toLowerCase()}-error`],
       });
