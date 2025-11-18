@@ -2,7 +2,7 @@ import { ProgressWebSocketDO } from "./durable-objects/progress-socket.js";
 import { RateLimiterDO } from "./durable-objects/rate-limiter.js";
 import { WebSocketConnectionDO } from "./durable-objects/websocket-connection.js";
 import { JobStateManagerDO } from "./durable-objects/job-state-manager.js";
-import honoRouter from "./router/hono-router.ts";
+import honoRouter from "./router.ts";
 import * as externalApis from "./services/external-apis.ts";
 import * as enrichment from "./services/enrichment.ts";
 import * as aiScanner from "./services/ai-scanner.js";
@@ -58,25 +58,25 @@ export {
 export default {
   async fetch(request, env, ctx) {
     // ========================================================================
-    // FEATURE FLAG: Hono Router (Phase 1 MVP)
+    // FEATURE FLAG: Hono Router (Week 2 - Default Enabled)
     // ========================================================================
-    // When ENABLE_HONO_ROUTER=true, route requests through Hono framework
-    // Otherwise, use existing manual routing (default)
+    // Hono router is now DEFAULT (ENABLE_HONO_ROUTER=true by default)
+    // Manual router only used if explicitly disabled (ENABLE_HONO_ROUTER=false)
     //
-    // This allows A/B testing and gradual migration with zero production risk
+    // This allows zero-downtime rollback if issues are detected
     // Rollback: Set ENABLE_HONO_ROUTER=false (<60 seconds)
     // ========================================================================
-    const useHono = env.ENABLE_HONO_ROUTER === 'true';
+    const useHono = env.ENABLE_HONO_ROUTER !== 'false';
 
     if (useHono) {
-      console.log('[Router] Using Hono router (feature flag enabled)');
+      console.log('[Router] Using Hono router (default, feature flag enabled)');
       return honoRouter.fetch(request, env, ctx);
     }
 
     // ========================================================================
-    // Manual Router (Legacy - Default)
+    // Manual Router (Legacy - Opt-Out Only)
     // ========================================================================
-    console.log('[Router] Using manual router (feature flag disabled)');
+    console.log('[Router] Using manual router (feature flag explicitly disabled)');
     const startTime = Date.now();
     const url = new URL(request.url);
     let response;
@@ -1218,7 +1218,7 @@ export default {
           {
             status: "ok",
             worker: "api-worker",
-            version: "1.0.0",
+            version: "2.1.0",
             endpoints: [
               "GET /search/title?q={query}&maxResults={n} - Title search with caching (6h TTL)",
               "GET /search/isbn?isbn={isbn}&maxResults={n} - ISBN search with caching (7 day TTL)",

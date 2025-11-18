@@ -625,9 +625,9 @@ _No high priority issues - all post-launch enhancements complete_
 
 #### P2 - Medium Priority
 - #138-#140: API documentation tooling (OpenAPI, Postman, contract tests)
-- #100: Performance - dynamic imports optimization
 
 #### P3 - Low Priority
+- #100: Performance - dynamic imports optimization (downgraded from P2)
 - #114: Refactor - debug flag guard for logging
 - #113: Test - error handling coverage for WebSocket
 - #112-#115: Code quality enhancements from Phase 1 review
@@ -706,7 +706,7 @@ _No high priority issues - all post-launch enhancements complete_
 
 ### Deprecated / Superseded Issues
 
-#### Closed or Archived (Nov 16, 2025 - Post-Launch)
+#### Closed or Archived (Nov 18, 2025 - Hono Migration Complete)
 - #21-#39: Individual PRs consolidated into sprint-based workflow (#40)
 - #67: API contract standardization - COMPLETE (Phase 1)
 - #87: Staging config (merged into #121, then cancelled)
@@ -714,15 +714,17 @@ _No high priority issues - all post-launch enhancements complete_
 - #89: Notify subscribers (covered by #122)
 - #91: iOS WebSocket migration docs - COMPLETE (API_CONTRACT.md §7.5)
 - #93: Monitoring dashboard - COMPLETE
-- #119: API contract v2 update - COMPLETE (v2.1 live)
+- #119: API contract v2 update - COMPLETE (v2.2 live with Section 2.1)
 - #120: Deprecation headers - LIVE (commit 7d61f60)
 - #121: Staging environment - CANCELLED
 - #122: V2 migration guide - COMPLETE
 - #124: Go/No-Go decision - GO (deployed)
-- #125: Production deployment - DEPLOYED (commit bffefe7)
+- #125: Production deployment - DEPLOYED (Hono router e5277910)
 - #126: Post-launch monitoring - NOT REQUIRED
 - #129: WebSocket testing instructions - COMPLETE (commit 7d61f60)
 - #137: Cultural diversity fields - LIVE (commit 7d61f60)
+- #17: Extract router into modules - COMPLETE (Hono router IS the modular extraction)
+- #18: Standardize analytics logging - COMPLETE (Hono middleware provides standardization)
 
 ---
 
@@ -739,29 +741,30 @@ _No high priority issues - all post-launch enhancements complete_
 
 ---
 
-**Last Updated:** November 16, 2025 (Post-launch cleanup - 17 issues closed)
+**Last Updated:** November 18, 2025 (Hono Migration Complete - 19 issues closed)
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer, Jules, Zen MCP)
 **Human Owner:** @jukasdrj
 
 ---
 
-## 📊 Active Issues Summary (Post-Launch)
+## 📊 Active Issues Summary (Post-Hono Migration)
 
-### Total Active Issues: 10
+### Total Active Issues: 6 (down from 10)
 
-**P2 - Medium Priority (5 issues):**
+**P2 - Medium Priority (3 issues):**
 - #138: OpenAPI specification
 - #139: Postman collection
 - #140: Contract testing (Pact)
-- #100: Dynamic imports optimization
 
-**P3 - Low Priority (6 issues):**
+**P3 - Low Priority (3 issues):**
+- #100: Dynamic imports optimization (downgraded from P2)
 - #114: Debug flag guards
 - #113: WebSocket error test coverage
-- #112-#115: Code quality enhancements
 
 **Future Sprints:**
 - #12, #9, #47, #40: Testing infrastructure (Sprint 4)
 - #2: Sync docs to iOS/Flutter repos
-- #17: Router extraction
-- #18: Analytics standardization
+
+**Closed by Hono Migration:**
+- #17: Router extraction (Hono router IS the extraction)
+- #18: Analytics standardization (Hono middleware provides this)

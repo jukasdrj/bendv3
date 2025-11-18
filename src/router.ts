@@ -15,18 +15,35 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Env } from './types/env'
 import { handleSearchISBN } from './handlers/v1/search-isbn'
+import { handleSearchTitle } from './handlers/v1/search-title'
+import { handleSearchAdvanced } from './handlers/v1/search-advanced'
+import { handleBatchEnrichment } from './handlers/batch-enrichment'
+import { handleBatchScan } from './handlers/batch-scan-handler'
+import { handleCSVImport } from './handlers/csv-import'
 import { handleMetricsRequest } from './handlers/metrics-handler'
 import { getProgressDOStub } from './utils/durable-object-helpers'
 import { analyticsMiddleware } from './middleware/hono-analytics'
+import { checkRateLimit } from './middleware/rate-limiter'
 
 const app = new Hono<{ Bindings: Env }>()
 
 // Global analytics middleware (adds X-Router and X-Response-Time headers)
 app.use('*', analyticsMiddleware())
 
-// Global CORS middleware (using Hono's built-in for simplicity)
+// Global CORS middleware (secure with iOS compatibility)
 app.use('*', cors({
-  origin: '*', // Permissive for iOS app (doesn't send Origin header)
+  origin: (origin) => {
+    // Allow specific origins for web clients
+    const allowedOrigins = [
+      'https://bookstrack.oooefam.net',   // Production web app
+      'https://harvest.oooefam.net',       // Harvest dashboard
+      'capacitor://localhost',              // iOS app (Capacitor)
+      'http://localhost:3000',              // Local dev (web)
+      'http://localhost:8787'               // Local dev (wrangler)
+    ]
+    // Allow requests without Origin header (native iOS/Android apps)
+    return origin ? allowedOrigins.includes(origin) : true
+  },
   allowMethods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
   allowHeaders: ['Content-Type', 'Authorization'],
   exposeHeaders: ['X-Router', 'X-Response-Time'],
@@ -52,16 +69,86 @@ app.get('/health', (c) => {
 app.get('/v1/search/isbn', async (c) => {
   const isbn = c.req.query('isbn')
 
-  if (!isbn) {
+  // Validation: ISBN format (10 or 13 digits, hyphens allowed)
+  const isbnRegex = /^(?=(?:\D*\d){10}(?:(?:\D*\d){3})?$)[\d-]+$/
+
+  if (!isbn || !isbnRegex.test(isbn)) {
     return c.json({
       error: {
         code: 'INVALID_ISBN',
-        message: 'ISBN query parameter is required'
+        message: 'A valid ISBN-10 or ISBN-13 is required'
       }
     }, 400)
   }
 
   return await handleSearchISBN(isbn, c.env, c.req.raw)
+})
+
+// ============================================================================
+// V1 Search API - Additional Routes (Week 1 Migration)
+// ============================================================================
+
+// GET /v1/search/title - Search books by title
+app.get('/v1/search/title', async (c) => {
+  const rawQuery = c.req.query('q')
+
+  // Validation: Limit length to prevent DoS and ensure data quality
+  const query = rawQuery?.substring(0, 200)
+
+  if (!query || query.trim().length === 0) {
+    return c.json({
+      error: {
+        code: 'MISSING_PARAM',
+        message: 'Query parameter "q" is required (max 200 characters)'
+      }
+    }, 400)
+  }
+
+  return await handleSearchTitle(query, c.env, c.req.raw)
+})
+
+// GET /v1/search/advanced - Advanced search by title and/or author
+app.get('/v1/search/advanced', async (c) => {
+  // Validation: Limit length to prevent DoS (max 200 chars each)
+  const title = c.req.query('title')?.substring(0, 200) || ''
+  const author = c.req.query('author')?.substring(0, 200) || ''
+
+  if (!title && !author) {
+    return c.json({
+      error: {
+        code: 'MISSING_PARAM',
+        message: 'At least one search parameter required (title or author, max 200 characters each)'
+      }
+    }, 400)
+  }
+
+  return await handleSearchAdvanced(title, author, c.env, c.executionCtx, c.req.raw)
+})
+
+// ============================================================================
+// Batch Endpoints (Week 1 Migration - With Rate Limiting)
+// ============================================================================
+
+// Rate limiting middleware for Hono
+const rateLimitMiddleware = async (c, next) => {
+  const rateLimitResponse = await checkRateLimit(c.req.raw, c.env)
+  if (rateLimitResponse) return rateLimitResponse
+  await next()
+}
+
+// POST /v1/enrichment/batch - Canonical batch enrichment endpoint
+app.post('/v1/enrichment/batch', rateLimitMiddleware, async (c) => {
+  return await handleBatchEnrichment(c.req.raw, c.env, c.executionCtx)
+})
+
+// POST /api/scan-bookshelf/batch - Batch AI bookshelf scanner
+app.post('/api/scan-bookshelf/batch', rateLimitMiddleware, async (c) => {
+  return await handleBatchScan(c.req.raw, c.env, c.executionCtx)
+})
+
+// POST /api/import/csv-gemini - Gemini-powered CSV import
+app.post('/api/import/csv-gemini', rateLimitMiddleware, async (c) => {
+  return await handleCSVImport(c.req.raw, c.env, c.executionCtx)
 })
 
 // ============================================================================
@@ -75,9 +162,10 @@ app.get('/metrics', async (c) => {
 // MVP Route 4: WebSocket Progress (WebSocket Routing Test)
 // ============================================================================
 app.get('/ws/progress', async (c) => {
-  const jobId = c.req.query('jobId')
+  // Validation: Limit jobId length to prevent abuse (UUIDs are 36 chars)
+  const jobId = c.req.query('jobId')?.substring(0, 100)
 
-  if (!jobId) {
+  if (!jobId || jobId.trim().length === 0) {
     return c.json({
       error: {
         code: 'MISSING_PARAM',
@@ -105,6 +193,132 @@ app.get('/ws/progress', async (c) => {
 })
 
 // ============================================================================
+// Results Retrieval Endpoints (Week 2 Migration)
+// ============================================================================
+
+// GET /v1/scan/results/{jobId} - Retrieve AI scan results after WebSocket completion
+app.get('/v1/scan/results/:jobId', async (c) => {
+  // Validation: Limit jobId length to prevent abuse (UUIDs are 36 chars)
+  const jobId = c.req.param('jobId')?.substring(0, 100)
+
+  if (!jobId || jobId.trim().length === 0) {
+    return c.json({
+      data: null,
+      metadata: {
+        timestamp: new Date().toISOString()
+      },
+      error: {
+        code: 'MISSING_PARAM',
+        message: 'Missing jobId parameter'
+      }
+    }, 400)
+  }
+
+  // Retrieve from KV cache (24-hour TTL)
+  const resultsKey = `scan-results:${jobId}`
+  const results = await c.env.KV_CACHE.get(resultsKey, 'json')
+
+  if (!results) {
+    return c.json({
+      data: null,
+      metadata: {
+        timestamp: new Date().toISOString()
+      },
+      error: {
+        message: 'Scan results not found or expired. Results are stored for 24 hours after job completion.',
+        code: 'NOT_FOUND',
+        details: {
+          jobId,
+          resultsKey,
+          ttl: '24 hours'
+        }
+      }
+    }, 404)
+  }
+
+  return c.json({
+    data: results,
+    metadata: {
+      timestamp: new Date().toISOString(),
+      cached: true,
+      provider: 'kv_cache'
+    }
+  })
+})
+
+// GET /v1/csv/results/{jobId} - Retrieve CSV import results after WebSocket completion
+app.get('/v1/csv/results/:jobId', async (c) => {
+  // Validation: Limit jobId length to prevent abuse (UUIDs are 36 chars)
+  const jobId = c.req.param('jobId')?.substring(0, 100)
+
+  if (!jobId || jobId.trim().length === 0) {
+    return c.json({
+      data: null,
+      metadata: {
+        timestamp: new Date().toISOString()
+      },
+      error: {
+        code: 'MISSING_PARAM',
+        message: 'Missing jobId parameter'
+      }
+    }, 400)
+  }
+
+  // Retrieve from KV cache (24-hour TTL)
+  const resultsKey = `csv-results:${jobId}`
+  const results = await c.env.KV_CACHE.get(resultsKey, 'json')
+
+  if (!results) {
+    return c.json({
+      data: null,
+      metadata: {
+        timestamp: new Date().toISOString()
+      },
+      error: {
+        message: 'CSV import results not found or expired. Results are stored for 24 hours after job completion.',
+        code: 'NOT_FOUND',
+        details: {
+          jobId,
+          resultsKey,
+          ttl: '24 hours'
+        }
+      }
+    }, 404)
+  }
+
+  return c.json({
+    data: results,
+    metadata: {
+      timestamp: new Date().toISOString(),
+      cached: true,
+      provider: 'kv_cache'
+    }
+  })
+})
+
+// POST /api/batch-scan - Batch photo scanning (1-5 photos)
+app.post('/api/batch-scan', rateLimitMiddleware, async (c) => {
+  return await handleBatchScan(c.req.raw, c.env, c.executionCtx)
+})
+
+// ============================================================================
+// Test Route (DEBUG mode only - for testing error handler)
+// ============================================================================
+app.get('/test/error', (c) => {
+  // Only available in DEBUG mode for testing onError handler
+  if (c.env.LOG_LEVEL !== 'DEBUG') {
+    return c.json({
+      error: {
+        code: 'NOT_FOUND',
+        message: 'Endpoint not found: GET /test/error'
+      }
+    }, 404)
+  }
+
+  throw new Error('Test error for onError handler validation')
+})
+
+// ============================================================================
 // Global 404 Handler
 // ============================================================================
 app.notFound((c) => {
@@ -123,20 +337,22 @@ app.onError((err, c) => {
   console.error('[Hono] Unhandled error:', err)
 
   // Log to Analytics Engine asynchronously (doesn't block response)
-  c.executionCtx.waitUntil(
-    c.env.PERFORMANCE_ANALYTICS?.writeDataPoint({
-      blobs: [
-        'router_error',
-        err.message,
-        c.req.path,
-        c.req.method
-      ],
-      doubles: [1], // Error count
-      indexes: ['hono'] // Router type
-    }).catch(analyticsErr => {
-      console.error('[Hono] Failed to log error to Analytics Engine:', analyticsErr)
-    })
-  )
+  if (c.env.PERFORMANCE_ANALYTICS) {
+    c.executionCtx.waitUntil(
+      c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
+        blobs: [
+          'router_error',
+          err.message,
+          c.req.path,
+          c.req.method
+        ],
+        doubles: [1], // Error count
+        indexes: ['hono'] // Router type
+      }).catch(analyticsErr => {
+        console.error('[Hono] Failed to log error to Analytics Engine:', analyticsErr)
+      })
+    )
+  }
 
   return c.json({
     error: {

@@ -20,6 +20,23 @@ import {
 import { mockFetch, clearMockResponses } from './mocks/api-mocks.js';
 
 // ============================================================================
+// CLOUDFLARE WORKERS RUNTIME MOCKS
+// ============================================================================
+
+// Mock DurableObject base class
+class MockDurableObject {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+  }
+}
+
+// Mock cloudflare:workers module globally
+vi.mock('cloudflare:workers', () => ({
+  DurableObject: MockDurableObject,
+}));
+
+// ============================================================================
 // ENVIRONMENT SETUP
 // ============================================================================
 
