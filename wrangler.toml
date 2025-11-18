@@ -54,7 +54,7 @@ routes = [
 # When false: Uses existing manual routing (default, 100% backward compatible)
 # Canary test: Only /health endpoint in Phase 1, will expand in future phases
 # Risk: LOW - Feature flag allows instant rollback if issues detected
-ENABLE_HONO_ROUTER = "false"
+ENABLE_HONO_ROUTER = "true"
 
 # Cache configuration (from books-api-proxy)
 CACHE_HOT_TTL = "7200"         # 2 hours
@@ -92,13 +92,6 @@ ENABLE_UNIFIED_ENVELOPE = "true"
 # When true: Uses refactored architecture (WebSocketConnectionDO + JobStateManagerDO + Services)
 # When false: Uses legacy monolithic ProgressWebSocketDO (default for backward compatibility)
 ENABLE_REFACTORED_DOS = "false"  # Default: legacy architecture
-
-# Hono Router Migration (Phase 1 MVP - Issue #173)
-# When true: Routes requests through Hono framework for type-safe routing
-# When false: Uses manual if/else routing in src/index.js (default)
-# Rollback: Set to "false" and deploy (<60 seconds)
-# A/B Testing: Use X-Router header to track performance (hono vs manual)
-ENABLE_HONO_ROUTER = "false"  # Default: manual router (safe)
 
 # KV Namespaces (consolidated from books-api-proxy and external-apis-worker)
 # Note: Set remote = true to access production KV during local development (Wrangler v4.37+)
