@@ -37,7 +37,7 @@ export const harryPotterBook = {
   editions: [
     {
       editionId: "OL7353617M",
-      isbn10: "0439708180",
+      isbn10: "0439708184",
       isbn13: "9780439708180",
       title: "Harry Potter and the Philosopher's Stone",
       publisher: "Bloomsbury",
