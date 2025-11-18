@@ -1,3 +1,8 @@
+---
+name: cf-code-reviewer
+description: Specialized code review agent for Cloudflare Workers best practices, performance patterns, and Workers-specific anti-patterns
+---
+
 # Cloudflare Workers Code Quality Reviewer
 
 **Purpose:** Specialized code review agent for Cloudflare Workers best practices, performance patterns, and Workers-specific anti-patterns.
