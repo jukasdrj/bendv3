@@ -111,13 +111,27 @@ See [API_CONTRACT.md](API_CONTRACT.md) for complete reference.
 **Endpoint-Specific Limits:**
 - Search endpoints: 100 requests/minute
 - Batch enrichment: 10 requests/minute
-- AI scanning (`/api/batch-scan`): 5 requests/minute
+- **AI scanning (`/api/batch-scan`)**: 5 requests/minute
+  - **Per-batch limit** (not per-photo)
+  - Example: Scanning 10 photos in one batch = 1 request
 
 **Response headers:**
 - `X-RateLimit-Limit`: Maximum requests allowed in the window
 - `X-RateLimit-Remaining`: Requests remaining in the current window
 - `X-RateLimit-Reset`: Unix timestamp when the rate limit window resets
 - `Retry-After`: Seconds to wait before making another request (sent with 429 status only)
+
+**Example:**
+```http
+POST /api/batch-scan
+X-RateLimit-Limit: 5
+X-RateLimit-Remaining: 2
+X-RateLimit-Reset: 1700000000
+
+# After 5th request within 60 seconds:
+HTTP/1.1 429 Too Many Requests
+Retry-After: 42
+```
 
 See [API_CONTRACT.md § 3.2](API_CONTRACT.md#32-rate-limiting) for complete rules.
 

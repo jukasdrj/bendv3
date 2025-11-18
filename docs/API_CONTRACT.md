@@ -117,9 +117,23 @@ This document is the **single source of truth** for the BooksTrack API. All fron
 - **Burst:** 50 requests/minute
 
 **Endpoint-Specific Limits:**
-- Search: **100 requests/minute** per IP
-- Batch Enrichment: **10 requests/minute** per IP
-- AI Scan: **5 requests/minute** per IP (expensive AI operations)
+- Search endpoints (`/v1/search/*`): **100 requests/minute** per IP
+- Batch enrichment (`/api/enrichment/start`): **10 requests/minute** per IP
+- **AI batch scanning (`/api/batch-scan`)**: **5 requests/minute** per IP
+  - **Important:** Limit applies per batch request, not per photo
+  - Example: 4 photos in 1 batch = 1 request counted
+  - Each batch can contain up to 5 photos
+
+**Batch Scan Rate Limit FAQ:**
+
+Q: If I send 5 photos in a batch, does that count as 5 requests?
+A: No, it counts as **1 request** (per-batch, not per-photo).
+
+Q: What happens if I exceed the 5 requests/minute limit?
+A: You receive HTTP 429 with `Retry-After` header indicating seconds to wait.
+
+Q: Can I send multiple batches in parallel?
+A: Yes, but all requests within a 60-second window count toward the 5/minute limit.
 
 **Rate Limit Headers:**
 ```http
