@@ -4,6 +4,9 @@ import { getCorsHeaders } from "../middleware/cors.js";
 import { processCSVImportCore } from "../handlers/csv-import.ts";
 import { processBookshelfScan } from "../services/ai-scanner.js";
 
+// Module-level constants for token security
+const BLACKLIST_TTL_SECONDS = 2.5 * 60 * 60; // 2.5 hours (covers 2hr expiration + buffer)
+
 /**
  * ProgressWebSocketDO - Durable Object for Real-Time Job Progress via WebSocket
  *
@@ -134,7 +137,9 @@ export class ProgressWebSocketDO extends DurableObject {
     const [storedToken, expiration, blacklistEntry] = await Promise.all([
       this.storage.get("authToken"),
       this.storage.get("authTokenExpiration"),
-      this.storage.get(`blacklistedToken:${providedToken}`), // SECURITY FIX (Issue #164): Check blacklist
+      providedToken
+        ? this.storage.get(`blacklistedToken:${providedToken}`)
+        : Promise.resolve(null), // SECURITY FIX (Issue #164): Check blacklist (null-safe)
     ]);
     const storageDuration = Date.now() - storageStartTime;
 
@@ -570,9 +575,8 @@ export class ProgressWebSocketDO extends DurableObject {
       return { success: true };
     }
 
-    // Add token to blacklist with 2.5-hour TTL (covers full 2-hour expiration + buffer)
+    // Add current token to blacklist with 2.5-hour TTL (covers full 2-hour expiration + buffer)
     // TTL ensures automatic cleanup without manual intervention
-    const BLACKLIST_TTL_MS = 2.5 * 60 * 60 * 1000; // 2.5 hours
     await this.storage.put(
       `blacklistedToken:${token}`,
       {
@@ -580,12 +584,44 @@ export class ProgressWebSocketDO extends DurableObject {
         reason: "Job completed or failed",
         jobId: this.jobId,
       },
-      { expirationTtl: Math.floor(BLACKLIST_TTL_MS / 1000) }, // Convert to seconds
+      { expirationTtl: BLACKLIST_TTL_SECONDS },
     );
 
-    // Delete active token and expiration
-    await this.storage.delete("authToken");
-    await this.storage.delete("authTokenExpiration");
+    // SECURITY FIX: Blacklist old tokens created during auto-refresh
+    // Prevents leaked old tokens from reconnecting after job completion
+    const oldTokenKeys = await this.storage.list({ prefix: "oldAuthToken:" });
+    if (oldTokenKeys.size > 0) {
+      const now = Date.now();
+      const blacklistPuts = {};
+      const oldTokenKeysToDelete = [];
+
+      for (const key of oldTokenKeys.keys()) {
+        if (key.startsWith("oldAuthToken:")) {
+          const oldTokenValue = key.slice("oldAuthToken:".length);
+          blacklistPuts[`blacklistedToken:${oldTokenValue}`] = {
+            invalidatedAt: now,
+            reason: "Job completed or failed",
+            jobId: this.jobId,
+          };
+          oldTokenKeysToDelete.push(key);
+        } else {
+          console.warn(`[${this.jobId || "unknown"}] Unexpected old token key format: ${key}`);
+        }
+      }
+
+      // Batch blacklist old tokens (single storage.put call)
+      await this.storage.put(blacklistPuts, { expirationTtl: BLACKLIST_TTL_SECONDS });
+
+      // Delete old token keys from storage to prevent bloat
+      await this.storage.delete(oldTokenKeysToDelete);
+
+      console.log(
+        `[${this.jobId || "unknown"}] Blacklisted and deleted ${oldTokenKeysToDelete.length} old token(s)`,
+      );
+    }
+
+    // Delete active token and expiration (batch operation)
+    await this.storage.delete(["authToken", "authTokenExpiration"]);
 
     console.log(
       `[${this.jobId || "unknown"}] ✅ Auth token invalidated and blacklisted (TTL: 2.5 hours)`,
@@ -1489,30 +1525,46 @@ export class ProgressWebSocketDO extends DurableObject {
       await this.storage.delete("authToken");
       await this.storage.delete("authTokenExpiration");
 
-      // Delete all oldAuthToken:* keys (created during auto-refresh)
+      // Delete all oldAuthToken:* keys (created during auto-refresh) - batch operation
       const oldTokenKeys = await this.storage.list({ prefix: "oldAuthToken:" });
-      for (const key of oldTokenKeys.keys()) {
-        await this.storage.delete(key);
-      }
       if (oldTokenKeys.size > 0) {
+        await this.storage.delete(Array.from(oldTokenKeys.keys()));
         console.log(`[${logId}] Cleaned up ${oldTokenKeys.size} old token(s)`);
       }
 
       // SECURITY FIX (Issue #164): Cleanup blacklisted tokens (fallback to TTL expiration)
       // Cloudflare KV TTL should auto-delete, but this provides manual cleanup as backup
-      const blacklistKeys = await this.storage.list({
-        prefix: "blacklistedToken:",
-      });
-      for (const key of blacklistKeys.keys()) {
-        const entry = await this.storage.get(key);
-        // Only delete if older than 2.5 hours (matches TTL)
-        if (entry && Date.now() - entry.invalidatedAt > 2.5 * 60 * 60 * 1000) {
-          await this.storage.delete(key);
+      const BLACKLIST_TTL_MS = BLACKLIST_TTL_SECONDS * 1000;
+      let deletedCount = 0;
+      let cursor;
+
+      do {
+        const listed = await this.storage.list({
+          prefix: "blacklistedToken:",
+          cursor,
+          limit: 128, // Process in batches to handle pagination
+        });
+
+        const keysToDelete = [];
+        for (const [key, entry] of listed.entries()) {
+          // Only delete if older than 2.5 hours (matches TTL)
+          if (entry && Date.now() - entry.invalidatedAt > BLACKLIST_TTL_MS) {
+            keysToDelete.push(key);
+          }
         }
-      }
-      if (blacklistKeys.size > 0) {
+
+        if (keysToDelete.length > 0) {
+          // Use batch delete for efficiency
+          await this.storage.delete(keysToDelete);
+          deletedCount += keysToDelete.length;
+        }
+
+        cursor = listed.cursor;
+      } while (cursor);
+
+      if (deletedCount > 0) {
         console.log(
-          `[${logId}] Cleaned up ${blacklistKeys.size} blacklisted token(s)`,
+          `[${logId}] Cleaned up ${deletedCount} expired blacklisted token(s)`,
         );
       }
     }

@@ -670,7 +670,7 @@ describe("WebSocket Token Management - Edge Cases", () => {
       // Should not create blacklist entry for null token
       const blacklistKeys = [];
       const storageList = await progressDO.storage.data;
-      for (const [key, value] of storageList.entries()) {
+      for (const key of storageList.keys()) {
         if (key.startsWith("blacklistedToken:")) {
           blacklistKeys.push(key);
         }
@@ -743,8 +743,7 @@ describe("WebSocket Token Management - Edge Cases", () => {
       const blacklistKeys = await progressDO.storage.list({
         prefix: "blacklistedToken:",
       });
-      for (const key of blacklistKeys.keys()) {
-        const entry = await progressDO.storage.get(key);
+      for (const [key, entry] of blacklistKeys.entries()) {
         if (entry && Date.now() - entry.invalidatedAt > 2.5 * 60 * 60 * 1000) {
           await progressDO.storage.delete(key);
         }
