@@ -188,6 +188,30 @@ export class ProgressWebSocketDO extends DurableObject {
     const pairStartTime = Date.now();
     console.log(`[ProgressDO] Creating WebSocket for job ${jobId}`);
 
+    // SECURITY FIX (Issue #165): Prevent concurrent connections with same token
+    // Only one active WebSocket allowed per token to prevent race conditions
+    if (this.webSocket && !isReconnect) {
+      console.warn(
+        `[${jobId}] 🚫 Rejecting new connection - token already has active WebSocket`,
+      );
+
+      // Create temporary WebSocketPair just to send rejection message
+      const [rejectedClient, rejectedServer] = Object.values(
+        new WebSocketPair(),
+      );
+      rejectedServer.accept();
+      rejectedServer.close(
+        1008, // POLICY_VIOLATION close code
+        "Token already in use with an active connection. Use reconnect=true to reconnect.",
+      );
+
+      return new Response(null, {
+        status: 101,
+        webSocket: rejectedClient,
+        headers: getCorsHeaders(request),
+      });
+    }
+
     // RECONNECTION SUPPORT: Close old WebSocket if it exists
     if (this.webSocket && isReconnect) {
       console.log(`[${jobId}] Closing old WebSocket connection for reconnect`);
