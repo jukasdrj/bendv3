@@ -131,13 +131,33 @@ export class ProgressWebSocketDO extends DurableObject {
     // OPTIMIZATION: Parallel storage reads (was sequential, now concurrent)
     const providedToken = url.searchParams.get("token");
     const storageStartTime = Date.now();
-    const [storedToken, expiration] = await Promise.all([
+    const [storedToken, expiration, blacklistEntry] = await Promise.all([
       this.storage.get("authToken"),
       this.storage.get("authTokenExpiration"),
+      this.storage.get(`blacklistedToken:${providedToken}`), // SECURITY FIX (Issue #164): Check blacklist
     ]);
     const storageDuration = Date.now() - storageStartTime;
 
     console.log(`[${jobId}] 📊 Storage reads took ${storageDuration}ms`);
+
+    // SECURITY FIX (Issue #164): Reject blacklisted tokens immediately
+    // Prevents token reuse after job completion/failure
+    if (blacklistEntry) {
+      console.warn(
+        `[${jobId}] 🚫 WebSocket authentication failed - token blacklisted`,
+        {
+          reason: blacklistEntry.reason,
+          invalidatedAt: new Date(blacklistEntry.invalidatedAt).toISOString(),
+        },
+      );
+      return new Response("Token invalidated - job completed or failed", {
+        status: 401,
+        headers: {
+          ...getCorsHeaders(request),
+          "Content-Type": "text/plain",
+        },
+      });
+    }
 
     // HIGH FIX: Check for both current token and recently refreshed old token (grace period)
     let authSuccess = false;
@@ -525,6 +545,56 @@ export class ProgressWebSocketDO extends DurableObject {
   }
 
   /**
+   * RPC Method: Invalidate authentication token
+   * Called automatically by completeJobState() and failJobState()
+   *
+   * Security (Issue #164): Immediately blacklist token on job completion/failure
+   * to prevent token reuse. Tokens remain blacklisted for 2.5 hours (longer than
+   * the 2-hour expiration) to ensure leaked tokens can't reconnect to completed jobs.
+   *
+   * Implementation:
+   * 1. Retrieve current authToken from storage
+   * 2. Add to blacklist with TTL (auto-cleanup by Cloudflare)
+   * 3. Delete authToken and expiration from storage
+   * 4. Log security event for audit trail
+   *
+   * @returns {Promise<{success: boolean}>}
+   */
+  async invalidateAuthToken() {
+    const token = await this.storage.get("authToken");
+
+    if (!token) {
+      console.warn(
+        `[${this.jobId || "unknown"}] No token to invalidate (already cleaned up)`,
+      );
+      return { success: true };
+    }
+
+    // Add token to blacklist with 2.5-hour TTL (covers full 2-hour expiration + buffer)
+    // TTL ensures automatic cleanup without manual intervention
+    const BLACKLIST_TTL_MS = 2.5 * 60 * 60 * 1000; // 2.5 hours
+    await this.storage.put(
+      `blacklistedToken:${token}`,
+      {
+        invalidatedAt: Date.now(),
+        reason: "Job completed or failed",
+        jobId: this.jobId,
+      },
+      { expirationTtl: Math.floor(BLACKLIST_TTL_MS / 1000) }, // Convert to seconds
+    );
+
+    // Delete active token and expiration
+    await this.storage.delete("authToken");
+    await this.storage.delete("authTokenExpiration");
+
+    console.log(
+      `[${this.jobId || "unknown"}] ✅ Auth token invalidated and blacklisted (TTL: 2.5 hours)`,
+    );
+
+    return { success: true };
+  }
+
+  /**
    * AUTOMATIC TOKEN REFRESH: Schedule periodic check for token expiration
    *
    * This method implements the automatic token refresh promised in API_CONTRACT.md.
@@ -858,6 +928,10 @@ export class ProgressWebSocketDO extends DurableObject {
     await this.storage.put("jobState", finalState);
     console.log(`[${this.jobId}] Job state marked as complete`);
 
+    // SECURITY FIX (Issue #164): Invalidate auth token immediately on completion
+    // Prevents token reuse after job finishes (30-second job = 1h 59m 30s exposure reduced to 0s)
+    await this.invalidateAuthToken();
+
     // Schedule cleanup alarm for 24 hours from now (only after job completes)
     const cleanupTime = Date.now() + 24 * 60 * 60 * 1000;
     await this.storage.setAlarm(cleanupTime);
@@ -886,6 +960,10 @@ export class ProgressWebSocketDO extends DurableObject {
 
     await this.storage.put("jobState", finalState);
     console.log(`[${this.jobId}] Job state marked as failed`);
+
+    // SECURITY FIX (Issue #164): Invalidate auth token immediately on failure
+    // Prevents token reuse after job fails (same security benefit as completeJobState)
+    await this.invalidateAuthToken();
 
     // Schedule cleanup alarm for 24 hours from now (only after job fails)
     const cleanupTime = Date.now() + 24 * 60 * 60 * 1000;
@@ -1418,6 +1496,24 @@ export class ProgressWebSocketDO extends DurableObject {
       }
       if (oldTokenKeys.size > 0) {
         console.log(`[${logId}] Cleaned up ${oldTokenKeys.size} old token(s)`);
+      }
+
+      // SECURITY FIX (Issue #164): Cleanup blacklisted tokens (fallback to TTL expiration)
+      // Cloudflare KV TTL should auto-delete, but this provides manual cleanup as backup
+      const blacklistKeys = await this.storage.list({
+        prefix: "blacklistedToken:",
+      });
+      for (const key of blacklistKeys.keys()) {
+        const entry = await this.storage.get(key);
+        // Only delete if older than 2.5 hours (matches TTL)
+        if (entry && Date.now() - entry.invalidatedAt > 2.5 * 60 * 60 * 1000) {
+          await this.storage.delete(key);
+        }
+      }
+      if (blacklistKeys.size > 0) {
+        console.log(
+          `[${logId}] Cleaned up ${blacklistKeys.size} blacklisted token(s)`,
+        );
       }
     }
   }
