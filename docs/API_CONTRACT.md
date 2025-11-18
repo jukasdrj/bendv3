@@ -19,6 +19,12 @@ This update documents the **complete Hono router migration** and new default rou
 - ✅ **Security Hardening:** Input validation (200-char limits), CORS whitelist, error handler tests
 - 📊 **Performance Headers:** `X-Router: hono`, `X-Response-Time: {ms}ms` for monitoring
 
+### **New: OpenAPI 3.0.3 Specification (Section 1.4)**
+- 📄 **Machine-readable spec available:** [`docs/openapi.yaml`](./openapi.yaml)
+- 🔧 **Use cases:** Client SDK generation, Postman import, contract testing, API validation
+- ✅ **Production-ready:** All 12 endpoints + WebSocket + 13 message types fully documented
+- 🔄 **Sync status:** Kept in sync with this contract on every update
+
 ### **New Section 2.1: Router Architecture**
 - Feature flag documentation (`ENABLE_HONO_ROUTER`)
 - Client detection via `X-Router` header
@@ -79,6 +85,43 @@ This document is the **single source of truth** for the BooksTrack API. All fron
 - `v3.*`: Not yet planned
 
 **IMPORTANT:** URL path `/v1/*` implements API contract v2.x (not v1.x). The path name is for URL stability while the contract version evolves.
+
+### 1.4 Machine-Readable Specification
+
+**OpenAPI 3.0.3 Specification:** [`docs/openapi.yaml`](./openapi.yaml)
+
+A complete OpenAPI specification is available for programmatic API consumption:
+
+- **Format:** OpenAPI 3.0.3 (YAML)
+- **Coverage:** All 12 HTTP endpoints, WebSocket endpoint, complete DTO schemas, all 13 WebSocket message types
+- **Use Cases:**
+  - Generate client SDKs (iOS, Flutter, web)
+  - Import into API development tools (Postman, Insomnia, Paw)
+  - Validate requests/responses programmatically
+  - Generate API documentation (Swagger UI, Redoc)
+  - Contract testing with Pact or Dredd
+- **Sync Status:** Kept in sync with this contract document on every update
+- **Last Updated:** November 18, 2025 (v2.2)
+
+**Relationship to this document:**
+- This `API_CONTRACT.md` is the **human-readable source of truth**
+- `openapi.yaml` is the **machine-readable equivalent**
+- In case of discrepancies, this document takes precedence (report immediately to backend team)
+
+**Quick Start:**
+```bash
+# Import into Postman
+curl https://api.oooefam.net/docs/openapi.yaml | pbcopy
+
+# Generate TypeScript client
+npx @openapitools/openapi-generator-cli generate \
+  -i docs/openapi.yaml \
+  -g typescript-fetch \
+  -o src/generated/api-client
+
+# Validate your requests
+npx @stoplight/spectral-cli lint docs/openapi.yaml
+```
 
 ---
 
@@ -1761,9 +1804,10 @@ queued → processing → complete | error
 
 ### 11.3 Changelog
 
-- **v2.2 (Nov 18, 2025):** 🚀 **Hono Router Migration Complete** (Phase 1 Week 2)
+- **v2.2 (Nov 18, 2025):** 🚀 **Hono Router Migration Complete** + **OpenAPI Spec** (Phase 1 Week 2)
   - ✅ **12/12 Endpoints Migrated:** All API endpoints available in Hono router
   - ✅ **Hono Default Enabled:** Feature flag now defaults to `true` (opt-out model)
+  - 📄 **NEW: OpenAPI 3.0.3 Specification:** Machine-readable spec at [`docs/openapi.yaml`](./openapi.yaml) (Section 1.4)
   - Added Section 2.1: Router Architecture (feature flag, headers, input limits, CORS, testing)
   - New endpoints: `/v1/scan/results/{jobId}`, `/v1/csv/results/{jobId}`, `POST /api/batch-scan`
   - Security hardening: Input validation (200-char limits), CORS whitelist, error handler coverage
