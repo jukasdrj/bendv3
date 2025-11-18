@@ -722,9 +722,10 @@ wss://api.oooefam.net/ws/progress?jobId={jobId}&token={token}
 
 **Connection Lifecycle:**
 1. Client connects with valid `jobId` and `token`
-2. Server sends `connected` acknowledgment
-3. Server sends job updates (`job_started`, `job_progress`, `job_complete`)
-4. Server closes connection with code 1000 (NORMAL_CLOSURE) on completion
+2. Client sends `ready` signal when ready to receive messages
+3. Server sends `ready_ack` acknowledgment
+4. Server sends job updates (`job_started`, `job_progress`, `job_complete`)
+5. Server closes connection with code 1000 (NORMAL_CLOSURE) on completion
 
 **Heartbeat:**
 - Server sends `ping` every 30 seconds
