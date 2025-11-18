@@ -4,7 +4,7 @@
 
 **Start with these three files:**
 
-1. **[API_README.md](API_README.md)** - Canonical API contracts and integration patterns
+1. **[API_CONTRACT.md](API_CONTRACT.md)** - Canonical API contracts and integration patterns (v2.1)
 2. **[FRONTEND_HANDOFF.md](FRONTEND_HANDOFF.md)** - Integration guide for iOS and Flutter teams
 3. **[../README.md](../README.md)** - Repository overview and features
 
@@ -15,7 +15,7 @@
 ### 🔍 I need to...
 
 **Find API documentation**
-→ [docs/API_README.md](API_README.md)
+→ [docs/API_CONTRACT.md](API_CONTRACT.md)
 
 **Deploy to production**
 → [docs/deployment/DEPLOYMENT.md](deployment/DEPLOYMENT.md)
@@ -24,7 +24,7 @@
 → [docs/deployment/SECRETS_SETUP.md](deployment/SECRETS_SETUP.md)
 
 **Monitor performance metrics**
-→ [docs/guides/METRICS.md](guides/METRICS.md)
+→ [MONITORING_GUIDE.md](MONITORING_GUIDE.md)
 
 **Understand ISBNdb cover caching**
 → [docs/guides/ISBNDB-HARVEST-IMPLEMENTATION.md](guides/ISBNDB-HARVEST-IMPLEMENTATION.md)
@@ -50,7 +50,7 @@
 
 ```
 docs/
-├── API_README.md              ⭐ START HERE (API contracts)
+├── API_CONTRACT.md            ⭐ START HERE (API contracts v2.1)
 ├── FRONTEND_HANDOFF.md        ⭐ START HERE (Frontend integration)
 ├── deployment/                🚀 Deployment guides
 ├── guides/                     📖 Feature documentation
@@ -90,36 +90,45 @@ npm run tail                   # Stream production logs
 
 **Background Jobs:**
 - `POST /v1/enrichment/batch` (with WebSocket progress)
-- `POST /api/scan-bookshelf?jobId={uuid}` (AI scanning)
+- `POST /api/batch-scan` (AI scanning - returns jobId)
 
 **Real-time Updates:**
-- `GET /ws/progress?jobId={uuid}` (WebSocket)
+- `GET /ws/progress?jobId={jobId}&token={token}` (WebSocket)
 
 **Health:**
 - `GET /health` (API status)
 
-See [API_README.md](API_README.md) for complete reference.
+See [API_CONTRACT.md](API_CONTRACT.md) for complete reference.
 
 ---
 
 ## Rate Limiting
 
-**Limit:** 10 requests per 60 seconds per IP
+**Global Limits (per IP):**
+- 1000 requests/hour (hard limit)
+- 50 requests/minute (burst protection)
 
-**Protected endpoints:**
-- `/api/token/refresh`
-- `/api/scan-bookshelf`
-- `/api/import/csv-gemini`
-- `/v1/enrichment/batch`
+**Endpoint-Specific Limits:**
+- Search endpoints: 100 requests/minute
+- Batch enrichment: 10 requests/minute
+- AI scanning (`/api/batch-scan`): 5 requests/minute
 
-**Response header:** `Retry-After: {seconds}`
+**Response headers:**
+- `X-RateLimit-Limit`: Maximum requests allowed in the window
+- `X-RateLimit-Remaining`: Requests remaining in the current window
+- `X-RateLimit-Reset`: Unix timestamp when the rate limit window resets
+- `Retry-After`: Seconds to wait before making another request (sent with 429 status only)
+
+See [API_CONTRACT.md § 3.2](API_CONTRACT.md#32-rate-limiting) for complete rules.
 
 ---
 
 ## Support & Help
 
 **For API questions:**
-→ Open GitHub issue in `bookstrack-backend` repo
+→ Email: api-support@oooefam.net
+→ Slack: #bookstrack-api
+→ GitHub Issues: https://github.com/jukasdrj/bookstrack-backend/issues
 
 **For integration issues (iOS/Flutter):**
 → See [FRONTEND_HANDOFF.md](FRONTEND_HANDOFF.md#support--debugging)
@@ -130,6 +139,9 @@ See [API_README.md](API_README.md) for complete reference.
 **For bug reports:**
 → Include endpoint, timestamp, jobId, and error message
 
+**API Status Page:**
+→ https://status.oooefam.net
+
 ---
 
 ## Related Projects
@@ -139,5 +151,5 @@ See [API_README.md](API_README.md) for complete reference.
 
 ---
 
-**Last Updated:** November 13, 2025
-**Next:** Read [API_README.md](API_README.md) for canonical contracts
+**Last Updated:** November 17, 2025 (aligned with API v2.1)
+**Next:** Read [API_CONTRACT.md](API_CONTRACT.md) for canonical contracts
