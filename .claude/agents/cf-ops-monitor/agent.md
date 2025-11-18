@@ -1,6 +1,7 @@
 ---
 name: cf-ops-monitor
 description: Autonomous management of Cloudflare Workers deployments, observability, and runtime monitoring
+permissionMode: ask
 ---
 
 # Cloudflare Operations & Monitoring Agent

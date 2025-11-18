@@ -9,15 +9,57 @@ This directory contains specialized AI agents that work autonomously to manage C
 
 ---
 
-## Available Agents
+## Multi-Agent Development Workflow (NEW!)
+
+BooksTrack now supports a **three-agent development workflow** for complex features:
+
+### 🎯 Workflow: Sonnet 4.5 → Haiku → Grok-4
+
+1. **Sonnet 4.5 (PM & Orchestrator)** - You!
+   - Requirements clarification
+   - Architecture decisions
+   - Task decomposition
+   - Quality validation
+
+2. **Haiku (Implementation Specialist)** via Zen MCP
+   - Rapid code generation
+   - Feature implementation
+   - Test coverage
+   - Following established patterns
+
+3. **Grok-4 (Quality Reviewer)** via Zen MCP
+   - Security & vulnerability analysis
+   - Performance optimization
+   - Code smell detection
+   - Standards compliance
+
+**To use this workflow:** Reference the `multi-agent-dev` skill in `.claude/skills/`
+
+**Example invocation:**
+```
+User: "Implement pagination for the book search endpoint with Haiku, then have Grok-4 review it"
+
+Sonnet:
+1. Clarifies requirements (page/limit params, max limits, response format)
+2. Delegates to Haiku with complete context via mcp__zen__chat
+3. Reviews Haiku's implementation
+4. Delegates to Grok-4 for security/performance review via mcp__zen__codereview
+5. Addresses critical findings
+6. Delivers final implementation to user
+```
+
+---
+
+## Cloudflare-Specific Agents
 
 ### 🚀 cf-ops-monitor
 **Purpose:** Deployment automation, observability, and incident response
+**Permission Mode:** `ask` (requires approval for deployments)
 
 **Invoke:**
 ```bash
 # Manual invocation
-/skill cf-ops-monitor
+@cf-ops-monitor
 
 # Ask Claude Code to invoke
 "Use the cf-ops-monitor agent to deploy and monitor the latest changes"
@@ -40,11 +82,12 @@ This directory contains specialized AI agents that work autonomously to manage C
 
 ### ✅ cf-code-reviewer
 **Purpose:** Code quality enforcement for Cloudflare Workers patterns
+**Permission Mode:** `allow` (auto-runs without approval)
 
 **Invoke:**
 ```bash
 # Manual invocation
-/skill cf-code-reviewer
+@cf-code-reviewer
 
 # Ask Claude Code to invoke
 "Have the cf-code-reviewer validate my changes to the search handler"

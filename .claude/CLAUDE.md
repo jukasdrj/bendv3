@@ -418,12 +418,45 @@ throw new Error('External API call failed')
 
 ## AI Collaboration
 
+### Multi-Agent Development Workflow (NEW!)
+
+BooksTrack supports a **Sonnet 4.5 → Haiku → Grok-4** workflow for complex development tasks. See `.claude/skills/multi-agent-dev.md` for the complete guide.
+
+**When to use:**
+- Complex feature implementation requiring rapid iteration
+- Security-critical code needing expert review
+- Performance-sensitive optimizations
+- Large refactoring projects with multiple components
+
+**Example:**
+```
+User: "Add rate limiting to the batch enrichment endpoint"
+
+Sonnet 4.5 (you):
+1. Clarify requirements (per-IP? per-user? rate limits?)
+2. Design approach (KV-based sliding window)
+3. Delegate implementation to Haiku via mcp__zen__chat
+4. Review Haiku's output
+5. Request Grok-4 security review via mcp__zen__codereview
+6. Address critical findings
+7. Deliver to user
+```
+
+**Available via Zen MCP:**
+- `mcp__zen__chat(model="haiku")` - Fast implementation
+- `mcp__zen__codereview(model="grok-4")` - Expert review
+- `mcp__zen__debug(model="grok-4")` - Deep debugging
+- `mcp__zen__secaudit(model="grok-4")` - Security audit
+
+---
+
 ### Autonomous Project Agents
 
 #### 🚀 cf-ops-monitor (Deployment & Observability)
 **Location:** `.claude/agents/cf-ops-monitor/`
 **Invoke with:** `@cf-ops-monitor` or automatically via hooks
 **Slash commands:** `/deploy`, `/logs`, `/rollback`, `/cache-check`
+**Permission Mode:** `ask` (requires approval for critical ops)
 
 **Capabilities:**
 - Execute `wrangler deploy` with health checks
@@ -440,7 +473,7 @@ throw new Error('External API call failed')
 - Monitoring cache performance
 - Tracking API quota usage (Google Books, ISBNdb, Gemini)
 
-**Autonomy:** High - can deploy, monitor, and rollback without human intervention
+**Autonomy:** High - can deploy, monitor, and rollback (with approval)
 
 ---
 
@@ -448,6 +481,7 @@ throw new Error('External API call failed')
 **Location:** `.claude/agents/cf-code-reviewer/`
 **Invoke with:** `@cf-code-reviewer` or automatically on code changes
 **Slash commands:** `/review`
+**Permission Mode:** `allow` (auto-runs without approval)
 
 **Capabilities:**
 - Review Workers-specific patterns (env bindings, KV cache, Durable Objects)
@@ -464,7 +498,7 @@ throw new Error('External API call failed')
 - Modifying `wrangler.toml`
 - Reviewing external API integrations
 
-**Autonomy:** Medium - provides detailed reviews and recommendations
+**Autonomy:** High - auto-runs on code changes without approval
 
 ---
 

@@ -1,6 +1,7 @@
 ---
 name: cf-code-reviewer
 description: Specialized code review agent for Cloudflare Workers best practices, performance patterns, and Workers-specific anti-patterns
+permissionMode: allow
 ---
 
 # Cloudflare Workers Code Quality Reviewer
