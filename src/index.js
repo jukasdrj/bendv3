@@ -57,6 +57,26 @@ export {
 
 export default {
   async fetch(request, env, ctx) {
+    // ========================================================================
+    // FEATURE FLAG: Hono Router (Phase 1 MVP)
+    // ========================================================================
+    // When ENABLE_HONO_ROUTER=true, route requests through Hono framework
+    // Otherwise, use existing manual routing (default)
+    //
+    // This allows A/B testing and gradual migration with zero production risk
+    // Rollback: Set ENABLE_HONO_ROUTER=false (<60 seconds)
+    // ========================================================================
+    const useHono = env.ENABLE_HONO_ROUTER === 'true';
+
+    if (useHono) {
+      console.log('[Router] Using Hono router (feature flag enabled)');
+      return honoRouter.fetch(request, env, ctx);
+    }
+
+    // ========================================================================
+    // Manual Router (Legacy - Default)
+    // ========================================================================
+    console.log('[Router] Using manual router (feature flag disabled)');
     const startTime = Date.now();
     const url = new URL(request.url);
     let response;
@@ -64,18 +84,6 @@ export default {
     let errorCode = null;
 
     try {
-      // ========================================================================
-      // Hono Router Coexistence (Phase 1 - Feature Flag Toggle)
-      // ========================================================================
-      // Pattern: Feature Flag (HONO_COEXISTENCE_PATTERNS.md #1)
-      // When ENABLE_HONO_ROUTER === 'true', delegate to Hono router
-      // Otherwise, continue with existing manual routing (100% backward compatible)
-      // Canary test: Only /health endpoint in Phase 1, will expand in future phases
-      if (env.ENABLE_HONO_ROUTER === 'true') {
-        console.log('[Router] Delegating to Hono router');
-        return await honoRouter.fetch(request, env, ctx);
-      }
-
       // Custom domain routing: harvest.oooefam.net root → Dashboard
       if (url.hostname === "harvest.oooefam.net" && url.pathname === "/") {
         response = await handleHarvestDashboard(request, env);

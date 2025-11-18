@@ -233,7 +233,7 @@ npm install hono
 **Verification:**
 \`\`\`bash
 npm list hono
-# hono@4.6.14
+# hono@4.10.6
 \`\`\`
 
 #### Step 1.2: Extract Analytics Helpers (1 hour)
