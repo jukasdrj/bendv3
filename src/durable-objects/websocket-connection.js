@@ -81,6 +81,22 @@ export class WebSocketConnectionDO extends DurableObject {
 
     console.log(`[${jobId}] Storage reads took ${storageDuration}ms`);
 
+    // SECURITY FIX (#212): Check if token has already been consumed (one-time use)
+    const tokenConsumed = await this.storage.get("authTokenConsumed");
+
+    if (tokenConsumed) {
+      console.warn(
+        `[${jobId}] WebSocket authentication failed - token already used (prevents session hijacking)`,
+      );
+      return new Response("Token already consumed. Only one connection per token is allowed.", {
+        status: 401,
+        headers: {
+          ...getCorsHeaders(request),
+          "Content-Type": "text/plain",
+        },
+      });
+    }
+
     if (!storedToken || !providedToken || storedToken !== providedToken) {
       console.warn(
         `[${jobId}] WebSocket authentication failed - invalid token`,
@@ -107,7 +123,11 @@ export class WebSocketConnectionDO extends DurableObject {
       });
     }
 
-    console.log(`[${jobId}] ✅ WebSocket authentication successful`);
+    // SECURITY FIX (#212): Mark token as consumed IMMEDIATELY after validation
+    // This prevents race conditions where multiple clients try to connect simultaneously
+    await this.storage.put("authTokenConsumed", true);
+
+    console.log(`[${jobId}] ✅ WebSocket authentication successful (token now invalidated for reuse)`);
 
     // Create WebSocket pair
     const pairStartTime = Date.now();
@@ -223,6 +243,11 @@ export class WebSocketConnectionDO extends DurableObject {
    * RPC Method: Set authentication token for WebSocket connection
    * Called by handlers before starting background processing
    *
+   * SECURITY (#212): Tokens are one-time use to prevent session hijacking
+   * - Each new token resets the consumed flag
+   * - First WebSocket connection consumes the token
+   * - Subsequent connections with same token are rejected
+   *
    * @param {string} token - Authentication token (UUID)
    * @returns {Promise<{success: boolean}>}
    */
@@ -233,8 +258,11 @@ export class WebSocketConnectionDO extends DurableObject {
       "authTokenExpiration",
       Date.now() + 2 * 60 * 60 * 1000,
     );
+    // SECURITY FIX (#212): Reset consumed flag when new token is issued
+    // This allows legitimate reconnections with fresh tokens
+    await this.storage.delete("authTokenConsumed");
     console.log(
-      `[${this.jobId || "unknown"}] Auth token set (expires in 2 hours)`,
+      `[${this.jobId || "unknown"}] Auth token set (expires in 2 hours, one-time use)`,
     );
     return { success: true };
   }

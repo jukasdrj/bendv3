@@ -5,6 +5,51 @@ import { CSV_BOOK_SCHEMA } from '../types/gemini-schemas.js';
 const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
 
 /**
+ * Sanitize CSV text to prevent prompt injection attacks
+ *
+ * Security measures:
+ * - Escape special characters that could break out of context
+ * - Remove control characters that could inject commands
+ * - Truncate excessive input to prevent token exhaustion attacks
+ *
+ * @param {string} csvText - Raw CSV content
+ * @returns {string} Sanitized CSV content safe for use in prompts
+ */
+function sanitizeCSVForPrompt(csvText) {
+  // Maximum safe CSV size: ~500KB (Gemini 2M token context with overhead)
+  const MAX_CSV_SIZE = 500 * 1024;
+
+  if (csvText.length > MAX_CSV_SIZE) {
+    throw new Error(`CSV too large for processing (max ${MAX_CSV_SIZE / 1024}KB)`);
+  }
+
+  // Remove control characters that could inject instructions
+  // Keep only printable ASCII, tabs, newlines, and common Unicode characters
+  let sanitized = csvText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+
+  // Escape special characters that could break prompt context
+  sanitized = sanitized
+    .replace(/\\/g, '\\\\')  // Escape backslashes first
+    .replace(/`/g, '\\`')    // Escape backticks (code blocks)
+    .replace(/\${/g, '\\${'); // Escape template literals
+
+  // Remove suspicious instruction patterns (case-insensitive)
+  const suspiciousPatterns = [
+    /ignore\s+(previous|all|prior)\s+instructions?/gi,
+    /new\s+instructions?:/gi,
+    /system\s*:/gi,
+    /override\s+(instructions?|system)/gi,
+    /disregard\s+(previous|prior|all)/gi
+  ];
+
+  for (const pattern of suspiciousPatterns) {
+    sanitized = sanitized.replace(pattern, '[REMOVED_SUSPICIOUS_CONTENT]');
+  }
+
+  return sanitized;
+}
+
+/**
  * Parse CSV file using Gemini 2.5 Flash-Lite API
  *
  * Features:
@@ -13,6 +58,7 @@ const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/mo
  * - responseMimeType for guaranteed JSON output (no markdown stripping needed)
  * - responseSchema for type safety (Gemini enforces title+author requirement)
  * - Supports large CSVs (up to 8K tokens output)
+ * - SECURITY: Input sanitization to prevent prompt injection attacks
  *
  * @param {string} csvText - Raw CSV content
  * @param {string} prompt - Gemini prompt with few-shot examples
@@ -21,7 +67,9 @@ const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/mo
  * @throws {Error} If API call fails or response is invalid
  */
 export async function parseCSVWithGemini(csvText, prompt, apiKey) {
-  const fullPrompt = `${prompt}\n\nCSV Data:\n${csvText}`;
+  // SECURITY FIX (#177): Sanitize CSV content to prevent prompt injection
+  const sanitizedCSV = sanitizeCSVForPrompt(csvText);
+  const fullPrompt = `${prompt}\n\nCSV Data:\n${sanitizedCSV}`;
 
   const response = await fetch(GEMINI_API_ENDPOINT, {
     method: 'POST',
