@@ -1,10 +1,126 @@
 # API v2.x Migration Guide
 
 **Target Audience:** iOS and Flutter Frontend Teams
-**Current API Version:** v2.1 (WebSocket enhancements)
+**Current API Version:** v2.3 (WebSocket Security Fix)
 **Effective Date:** November 16, 2025
 **Migration Deadline:** March 1, 2026 (legacy v1.x sunset)
 **Status:** Production Ready - Migrate Now
+
+---
+
+## 🚨 URGENT: WebSocket Security Fix (v2.3 - Issue #163)
+
+**Effective Date:** November 18, 2025
+**Migration Deadline:** February 18, 2026 (90 days)
+**Priority:** 🔴 **CRITICAL** - Security vulnerability
+
+### What Changed?
+
+WebSocket token authentication method changed to prevent token leakage in server logs, browser history, and network traffic.
+
+**OLD METHOD (INSECURE - Deprecated):**
+```swift
+// ❌ INSECURE: Token visible in logs and browser history
+let url = "wss://api.oooefam.net/ws/progress?jobId=\(jobId)&token=\(token)"
+let ws = URLSession.shared.webSocketTask(with: URL(string: url)!)
+```
+
+**NEW METHOD (SECURE - Required):**
+```swift
+// ✅ SECURE: Token in header, not logged by proxies/CDN
+let url = URL(string: "wss://api.oooefam.net/ws/progress?jobId=\(jobId)")!
+var request = URLRequest(url: url)
+request.setValue("bookstrack-auth.\(token)", forHTTPHeaderField: "Sec-WebSocket-Protocol")
+let ws = URLSession.shared.webSocketTask(with: request)
+```
+
+### Why This Matters
+
+**Security Risks with OLD method:**
+- ✅ Tokens appear in Cloudflare Access Logs (visible to backend team)
+- ✅ Tokens appear in browser history (visible to users)
+- ✅ Tokens may leak via HTTP Referer headers
+- ✅ Tokens visible in browser DevTools Network tab
+
+**NEW method eliminates all risks:**
+- ✅ `Sec-WebSocket-Protocol` header NOT logged by proxies/CDN
+- ✅ NOT stored in browser history
+- ✅ NOT included in Referer headers
+- ✅ Standard WebSocket authentication pattern (used by Socket.IO, Phoenix)
+
+### Migration Timeline
+
+| Phase | Date | Action |
+|-------|------|--------|
+| **Today** | Nov 18, 2025 | Backend deployed (backward compatible) |
+| **Week 1** | Nov 18-25, 2025 | Update iOS/Flutter WebSocket clients |
+| **Week 2** | Nov 25-Dec 2, 2025 | Test in staging, monitor deprecation warnings |
+| **Week 4** | Dec 2-16, 2025 | Production rollout via feature flag |
+| **Month 3** | Feb 18, 2026 | OLD method disabled (90-day notice)
+
+### Implementation Guide
+
+**iOS (Swift):**
+```swift
+// Before: Token in URL (insecure)
+let oldURL = "wss://api.oooefam.net/ws/progress?jobId=\(jobId)&token=\(token)"
+
+// After: Token in Sec-WebSocket-Protocol header (secure)
+let url = URL(string: "wss://api.oooefam.net/ws/progress?jobId=\(jobId)")!
+var request = URLRequest(url: url)
+request.setValue("bookstrack-auth.\(token)", forHTTPHeaderField: "Sec-WebSocket-Protocol")
+let webSocket = URLSession.shared.webSocketTask(with: request)
+webSocket.resume()
+```
+
+**Flutter/Dart:**
+```dart
+// Before: Token in URL (insecure)
+final oldChannel = WebSocketChannel.connect(
+  Uri.parse('wss://api.oooefam.net/ws/progress?jobId=$jobId&token=$token')
+);
+
+// After: Token in protocols parameter (secure)
+final channel = WebSocketChannel.connect(
+  Uri.parse('wss://api.oooefam.net/ws/progress?jobId=$jobId'),
+  protocols: ['bookstrack-auth.$token']
+);
+```
+
+**Web (JavaScript):**
+```javascript
+// Before: Token in URL (insecure)
+const oldWs = new WebSocket(
+  `wss://api.oooefam.net/ws/progress?jobId=${jobId}&token=${token}`
+);
+
+// After: Token in protocols array (secure)
+const ws = new WebSocket(
+  `wss://api.oooefam.net/ws/progress?jobId=${jobId}`,
+  [`bookstrack-auth.${token}`]
+);
+```
+
+### Testing
+
+**How to verify migration:**
+1. Connect to WebSocket using NEW method
+2. Check server logs for deprecation warning:
+   - OLD method: `⚠️ DEPRECATED: Token provided via URL query parameter`
+   - NEW method: `✅ Token provided via secure subprotocol header`
+3. Send `ready` message and verify `ready_ack` response
+4. Confirm job completes successfully
+
+**Backward Compatibility:**
+- OLD method still works until February 18, 2026
+- No rush to migrate, but recommended ASAP for security
+- Server logs deprecation warnings for OLD method usage
+
+### Support
+
+**Questions?** Contact backend team:
+- Slack: #bookstrack-backend
+- GitHub: Issue #163
 
 ---
 

@@ -1,14 +1,37 @@
-# BooksTrack API Contract v2.2
+# BooksTrack API Contract v2.3
 
 **Status:** Production ✅
 **Effective Date:** November 15, 2025
-**Last Updated:** November 18, 2025 (v2.2 - Hono Router Migration Complete)
+**Last Updated:** November 18, 2025 (v2.3 - WebSocket Security Fix)
 **Contract Owner:** Backend Team
 **Audience:** iOS, Flutter, Web Frontend Teams
 
 ---
 
-## 🔥 What's New in v2.2 (Hono Router Complete)
+## 🔥 What's New in v2.3 (WebSocket Security Fix)
+
+### **🔒 SECURITY FIX: WebSocket Token Authentication (Issue #163)**
+- **Problem:** Tokens passed in URL query parameters leaked in server logs, browser history, and network traffic
+- **Solution:** New authentication via `Sec-WebSocket-Protocol` header (secure, not logged)
+- **Backward Compatibility:** OLD method (query param) still works but deprecated
+- **Migration Required:** Clients should migrate to new method within 90 days
+- **Impact:** Critical security improvement - tokens no longer visible in logs
+
+**NEW (Secure):**
+```javascript
+const ws = new WebSocket(url, ['bookstrack-auth.TOKEN_HERE'])
+```
+
+**OLD (Deprecated):**
+```javascript
+const ws = new WebSocket(`${url}?jobId=xxx&token=yyy`)  // ⚠️ INSECURE
+```
+
+**See:** Section 3.1 for complete migration guide with iOS, Web, and Flutter examples.
+
+---
+
+## What's New in v2.2 (Hono Router Complete)
 
 This update documents the **complete Hono router migration** and new default routing behavior:
 
@@ -282,11 +305,27 @@ curl -I https://api.oooefam.net/health | grep X-Router
 
 **Token-Based Auth:** Required for all WebSocket connections.
 
+**SECURITY FIX (Issue #163):** Token authentication method changed to prevent token leakage.
+
+**NEW METHOD (Secure) - Recommended:**
+Use WebSocket Subprotocol header to pass token (tokens NOT visible in logs/history):
+```
+wss://api.oooefam.net/ws/progress?jobId={jobId}
+Sec-WebSocket-Protocol: bookstrack-auth.{TOKEN}
+```
+
+**OLD METHOD (Deprecated) - Backward Compatible:**
+Pass token in URL query parameter (⚠️ INSECURE - leaks tokens in logs):
+```
+wss://api.oooefam.net/ws/progress?jobId={jobId}&token={token}
+```
+
 **Token Lifecycle:**
 1. **Obtain Token:** POST endpoints return `{ jobId, token }` in response
-2. **Connect:** Use token in WebSocket URL: `wss://api.oooefam.net/ws/progress?jobId={jobId}&token={token}`
-3. **Expiration:** Tokens expire after **2 hours** (7200 seconds)
-4. **Refresh:** Available within **30-minute window** before expiration
+2. **Connect (NEW):** Pass token via `Sec-WebSocket-Protocol: bookstrack-auth.{token}` header
+3. **Connect (OLD):** Pass token in URL query param `&token={token}` (deprecated)
+4. **Expiration:** Tokens expire after **2 hours** (7200 seconds)
+5. **Refresh:** Available within **30-minute window** before expiration
 
 **Token Refresh:**
 
@@ -300,7 +339,50 @@ curl -I https://api.oooefam.net/health | grep X-Router
 - New token extends expiration by another 2 hours
 - Client receives updated token via internal state (transparent)
 
-**Client Usage:**
+**Client Implementation Examples:**
+
+**iOS (Swift):**
+```swift
+// NEW METHOD (Secure - Recommended)
+let url = URL(string: "wss://api.oooefam.net/ws/progress?jobId=\(jobId)")!
+let request = URLRequest(url: url)
+request.setValue("bookstrack-auth.\(token)", forHTTPHeaderField: "Sec-WebSocket-Protocol")
+let webSocket = URLSession.shared.webSocketTask(with: request)
+
+// OLD METHOD (Deprecated - Backward Compatible)
+let url = URL(string: "wss://api.oooefam.net/ws/progress?jobId=\(jobId)&token=\(token)")!
+let webSocket = URLSession.shared.webSocketTask(with: url)
+```
+
+**JavaScript/Web:**
+```javascript
+// NEW METHOD (Secure - Recommended)
+const ws = new WebSocket(
+  `wss://api.oooefam.net/ws/progress?jobId=${jobId}`,
+  [`bookstrack-auth.${token}`]
+);
+
+// OLD METHOD (Deprecated - Backward Compatible)
+const ws = new WebSocket(
+  `wss://api.oooefam.net/ws/progress?jobId=${jobId}&token=${token}`
+);
+```
+
+**Flutter/Dart:**
+```dart
+// NEW METHOD (Secure - Recommended)
+final channel = WebSocketChannel.connect(
+  Uri.parse('wss://api.oooefam.net/ws/progress?jobId=$jobId'),
+  protocols: ['bookstrack-auth.$token']
+);
+
+// OLD METHOD (Deprecated - Backward Compatible)
+final channel = WebSocketChannel.connect(
+  Uri.parse('wss://api.oooefam.net/ws/progress?jobId=$jobId&token=$token')
+);
+```
+
+**Token Refresh (Automatic):**
 ```swift
 // NO CLIENT ACTION REQUIRED
 // The Durable Object automatically extends tokens for active WebSocket connections

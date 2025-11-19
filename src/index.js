@@ -42,10 +42,7 @@ import {
   notFoundResponse,
 } from "./utils/response-builder.ts";
 import { getProgressDOStub } from "./utils/durable-object-helpers.ts";
-import {
-  trackRequestMetrics,
-  addAnalyticsHeaders,
-} from "./utils/analytics.js";
+import { trackRequestMetrics, addAnalyticsHeaders } from "./utils/analytics.js";
 
 // Export the Durable Object classes for Cloudflare Workers runtime
 export {
@@ -66,17 +63,19 @@ export default {
     // This allows zero-downtime rollback if issues are detected
     // Rollback: Set ENABLE_HONO_ROUTER=false (<60 seconds)
     // ========================================================================
-    const useHono = env.ENABLE_HONO_ROUTER !== 'false';
+    const useHono = env.ENABLE_HONO_ROUTER !== "false";
 
     if (useHono) {
-      console.log('[Router] Using Hono router (default, feature flag enabled)');
+      console.log("[Router] Using Hono router (default, feature flag enabled)");
       return honoRouter.fetch(request, env, ctx);
     }
 
     // ========================================================================
     // Manual Router (Legacy - Opt-Out Only)
     // ========================================================================
-    console.log('[Router] Using manual router (feature flag explicitly disabled)');
+    console.log(
+      "[Router] Using manual router (feature flag explicitly disabled)",
+    );
     const startTime = Date.now();
     const url = new URL(request.url);
     let response;
@@ -99,6 +98,16 @@ export default {
       }
 
       // Route WebSocket connections to the Durable Object
+      // SECURITY FIX (Issue #163): Token authentication now uses WebSocket Subprotocol
+      // NEW METHOD (secure): Token passed via Sec-WebSocket-Protocol header
+      //   Example: new WebSocket(url, ['bookstrack-auth.TOKEN_HERE'])
+      //
+      // OLD METHOD (deprecated): Token via URL query param (backward compatible)
+      //   Example: wss://api.oooefam.net/ws/progress?jobId=xxx&token=yyy
+      //   ⚠️ WARNING: Leaks tokens in logs, browser history, and network traffic
+      //
+      // Token validation happens in the Durable Object (progress-socket.js:133-178)
+      // See API_CONTRACT.md § 7.5 for complete WebSocket authentication flow
       if (url.pathname === "/ws/progress") {
         const jobId = url.searchParams.get("jobId");
         if (!jobId) {
@@ -287,12 +296,19 @@ export default {
             body: JSON.stringify({ books, jobId }),
           });
 
-          const response = await handleBatchEnrichment(modifiedRequest, env, ctx);
+          const response = await handleBatchEnrichment(
+            modifiedRequest,
+            env,
+            ctx,
+          );
 
           // Add deprecation headers (RFC 8594 + Warning header)
           response.headers.set("Deprecation", "true");
           response.headers.set("Sunset", "Sat, 1 Mar 2026 00:00:00 GMT");
-          response.headers.set("Warning", '299 - "This endpoint is deprecated. Use /v1/enrichment/batch instead. Sunset: March 1, 2026"');
+          response.headers.set(
+            "Warning",
+            '299 - "This endpoint is deprecated. Use /v1/enrichment/batch instead. Sunset: March 1, 2026"',
+          );
           response.headers.set(
             "Link",
             '<https://api.oooefam.net/v1/enrichment/batch>; rel="alternate"; title="Use /v1/enrichment/batch instead"',
@@ -361,10 +377,7 @@ export default {
       // ========================================================================
 
       // POST /api/batch-scan - Batch AI bookshelf scanner with WebSocket progress (alias route)
-      if (
-        url.pathname === "/api/batch-scan" &&
-        request.method === "POST"
-      ) {
+      if (url.pathname === "/api/batch-scan" && request.method === "POST") {
         // Rate limiting: Prevent denial-of-wallet attacks on AI batch endpoint
         const rateLimitResponse = await checkRateLimit(request, env);
         if (rateLimitResponse) return rateLimitResponse;
@@ -713,7 +726,10 @@ export default {
         // Deprecation headers (RFC 8594 + Warning header)
         response.headers.set("Deprecation", "true");
         response.headers.set("Sunset", "Sat, 1 Mar 2026 00:00:00 GMT");
-        response.headers.set("Warning", '299 - "This endpoint is deprecated. Use /v1/search/title instead. Sunset: March 1, 2026"');
+        response.headers.set(
+          "Warning",
+          '299 - "This endpoint is deprecated. Use /v1/search/title instead. Sunset: March 1, 2026"',
+        );
         response.headers.set(
           "Link",
           '<https://api.oooefam.net/v1/search/title>; rel="alternate"; title="Use /v1/search/title instead"',
@@ -753,7 +769,10 @@ export default {
         // Deprecation headers (RFC 8594 + Warning header)
         response.headers.set("Deprecation", "true");
         response.headers.set("Sunset", "Sat, 1 Mar 2026 00:00:00 GMT");
-        response.headers.set("Warning", '299 - "This endpoint is deprecated. Use /v1/search/isbn instead. Sunset: March 1, 2026"');
+        response.headers.set(
+          "Warning",
+          '299 - "This endpoint is deprecated. Use /v1/search/isbn instead. Sunset: March 1, 2026"',
+        );
         response.headers.set(
           "Link",
           '<https://api.oooefam.net/v1/search/isbn>; rel="alternate"; title="Use /v1/search/isbn instead"',
@@ -836,7 +855,10 @@ export default {
         // Deprecation headers (RFC 8594 + Warning header)
         response.headers.set("Deprecation", "true");
         response.headers.set("Sunset", "Sat, 1 Mar 2026 00:00:00 GMT");
-        response.headers.set("Warning", '299 - "This endpoint is deprecated. Use /v1/search/advanced instead. Sunset: March 1, 2026"');
+        response.headers.set(
+          "Warning",
+          '299 - "This endpoint is deprecated. Use /v1/search/advanced instead. Sunset: March 1, 2026"',
+        );
         response.headers.set(
           "Link",
           '<https://api.oooefam.net/v1/search/advanced>; rel="alternate"; title="Use /v1/search/advanced instead"',
@@ -907,7 +929,10 @@ export default {
           // Deprecation headers (RFC 8594 + Warning header)
           response.headers.set("Deprecation", "true");
           response.headers.set("Sunset", "Sat, 1 Mar 2026 00:00:00 GMT");
-          response.headers.set("Warning", '299 - "This endpoint is deprecated. Use /v1/search/advanced instead. Sunset: March 1, 2026"');
+          response.headers.set(
+            "Warning",
+            '299 - "This endpoint is deprecated. Use /v1/search/advanced instead. Sunset: March 1, 2026"',
+          );
           response.headers.set(
             "Link",
             '<https://api.oooefam.net/v1/search/advanced>; rel="alternate"; title="Use /v1/search/advanced instead"',
