@@ -439,6 +439,16 @@ final channel = WebSocketChannel.connect(
   - Example: 4 photos in 1 batch = 1 request counted
   - Each batch can contain up to 5 photos
 
+**⚠️ IMPORTANT: Common Confusion Clarification**
+
+**"50 photos" is NOT a limit!** The number "50" appears in documentation as:
+- **50 MB** - Total batch size limit (5 photos × 10 MB each)
+- **50 seconds** - Max processing time (5 photos × 10s each)
+
+**The actual photo limit is 5 photos per batch**, NOT 50.
+
+---
+
 **Batch Scan Rate Limit FAQ:**
 
 Q: If I send 5 photos in a batch, does that count as 5 requests?
@@ -450,28 +460,51 @@ A: You receive HTTP 429 with `Retry-After` header indicating seconds to wait.
 Q: Can I send multiple batches in parallel?
 A: Yes, but all requests within a 60-second window count toward the 5/minute limit.
 
+Q: How do I scan more than 5 photos at once?
+A: Split into multiple batches. For 20 photos: send 4 batches of 5 photos each (respects 5 req/min limit = ~1 minute total).
+
+Q: Why is the limit 5 photos and not more?
+A: AI processing time (Gemini 2.0 Flash) takes ~10 seconds per photo. 5 photos = 50 seconds max, within Cloudflare Workers' 60-second CPU limit.
+
 **Rate Limit Headers:**
 ```http
-X-RateLimit-Limit: 1000
-X-RateLimit-Remaining: 987
-X-RateLimit-Reset: 1700000000
+X-RateLimit-Limit: 5
+X-RateLimit-Remaining: 3
+X-RateLimit-Reset: 1700000060
+Retry-After: 45
 ```
 
-**Rate Limit Exceeded:**
+**Rate Limit Exceeded (429 Response):**
 ```json
 {
-  "data": null,
-  "metadata": {
-    "timestamp": "2025-11-15T20:00:00Z"
-  },
-  "error": {
-    "message": "Rate limit exceeded. Try again in 45 seconds.",
-    "code": "RATE_LIMIT_EXCEEDED",
-    "details": {
-      "retryAfter": 45,
-      "limit": 100,
-      "window": "1 minute"
-    }
+  "error": "Rate limit exceeded. Please try again in 45 seconds.",
+  "code": "RATE_LIMIT_EXCEEDED",
+  "details": {
+    "retryAfter": 45,
+    "clientIP": "192.168.1...",
+    "requestsRemaining": 0,
+    "requestsLimit": 5
+  }
+}
+```
+
+**Example: Batch Scan Rate Limit Response**
+```http
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json
+Retry-After: 45
+X-RateLimit-Limit: 5
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1700000060
+
+{
+  "error": "Rate limit exceeded. Please try again in 45 seconds.",
+  "code": "RATE_LIMIT_EXCEEDED",
+  "details": {
+    "retryAfter": 45,
+    "clientIP": "192.168.1...",
+    "requestsRemaining": 0,
+    "requestsLimit": 5
   }
 }
 ```
@@ -1739,9 +1772,32 @@ queued → processing → complete | error
 | Limit | Value | Reason |
 |-------|-------|--------|
 | **Min Photos** | 1 | Single photo uses `/api/scan-bookshelf` endpoint |
-| **Max Photos** | 5 | AI processing time (5 photos × 10s = 50s max) |
+| **Max Photos** | **5** | AI processing time (5 photos × 10s = 50s max, within Workers' 60s limit) |
 | **Max Photo Size** | 10 MB | Gemini API limit |
 | **Total Upload Size** | 50 MB | 5 photos × 10 MB each |
+| **Rate Limit** | 5 requests/minute | Per IP, applies to batch requests (not individual photos) |
+
+**⚠️ Common Mistake:** Confusing "50 MB" with "50 photos". The limit is **5 photos**, not 50.
+
+**iOS Pagination Pattern (20+ Photos):**
+```swift
+// For 20 photos, split into 4 batches of 5
+let allPhotos = [/* 20 photos */]
+let batchSize = 5
+
+for (index, batch) in allPhotos.chunked(into: batchSize).enumerated() {
+    // Respect 5 req/min rate limit: wait 12 seconds between batches
+    if index > 0 {
+        try await Task.sleep(nanoseconds: 12_000_000_000) // 12 seconds
+    }
+
+    // Upload batch
+    let response = try await uploadBatch(batch)
+
+    // Connect WebSocket and track progress
+    await trackBatchProgress(response.jobId, response.token)
+}
+```
 
 #### Cancellation
 
