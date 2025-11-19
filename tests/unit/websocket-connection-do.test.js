@@ -64,7 +64,7 @@ describe('WebSocketConnectionDO', () => {
   });
 
   describe('Authentication', () => {
-    it('should set auth token with expiration', async () => {
+    it('should set auth token with expiration and reset consumed flag', async () => {
       const token = 'test-token-123';
       const result = await doInstance.setAuthToken(token);
 
@@ -74,6 +74,8 @@ describe('WebSocketConnectionDO', () => {
         'authTokenExpiration',
         expect.any(Number)
       );
+      // SECURITY (#212): Verify consumed flag is reset for new tokens
+      expect(mockState.storage.delete).toHaveBeenCalledWith('authTokenConsumed');
     });
 
     it('should reject upgrade without upgrade header', async () => {
@@ -129,6 +131,50 @@ describe('WebSocketConnectionDO', () => {
 
       expect(response.status).toBe(401);
       expect(await response.text()).toBe('Token expired');
+    });
+
+    it('should reject second connection attempt with same token (SECURITY #212)', async () => {
+      const token = 'one-time-token';
+
+      // First connection: should succeed and consume token
+      await mockState.storage.put('authToken', token);
+      await mockState.storage.put('authTokenExpiration', Date.now() + 10000);
+
+      // Simulate token already consumed (first connection succeeded)
+      await mockState.storage.put('authTokenConsumed', true);
+
+      // Second connection attempt with same token
+      const request = new Request(`http://localhost?jobId=test-123&token=${token}`, {
+        method: 'GET',
+        headers: { 'Upgrade': 'websocket' }
+      });
+
+      const response = await doInstance.fetch(request);
+
+      // Should reject with 401
+      expect(response.status).toBe(401);
+      expect(await response.text()).toContain('Token already consumed');
+    });
+
+    it('should allow reconnection with fresh token after consumption (SECURITY #212)', async () => {
+      const oldToken = 'consumed-token';
+      const newToken = 'fresh-token';
+
+      // First connection consumed old token
+      await mockState.storage.put('authToken', oldToken);
+      await mockState.storage.put('authTokenExpiration', Date.now() + 10000);
+      await mockState.storage.put('authTokenConsumed', true);
+
+      // Server issues new token (simulates legitimate reconnection)
+      await doInstance.setAuthToken(newToken);
+
+      // Verify consumed flag was reset
+      const consumed = await mockState.storage.get('authTokenConsumed');
+      expect(consumed).toBeUndefined();
+
+      // Verify new token is set
+      const storedToken = await mockState.storage.get('authToken');
+      expect(storedToken).toBe(newToken);
     });
   });
 
