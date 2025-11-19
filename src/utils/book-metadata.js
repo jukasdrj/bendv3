@@ -3,7 +3,9 @@
  * Provider-agnostic image quality detection and search link generation
  */
 
-const PLACEHOLDER_COVER = 'https://api.oooefam.net/placeholder-cover.png'
+// Placeholder cover for books without images (Issue #202)
+// Using placehold.co CDN for reliability and performance
+const PLACEHOLDER_COVER = 'https://placehold.co/300x450/e0e0e0/666666?text=No+Cover'
 
 /**
  * Generate SHA-256 hash of URL for cache key (using Web Crypto API)

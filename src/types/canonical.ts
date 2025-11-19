@@ -32,7 +32,7 @@ export interface WorkDTO {
   originalLanguage?: string;
   firstPublicationYear?: number;
   description?: string;
-  coverImageURL?: string; // Cover image URL (copied from EditionDTO for enrichment)
+  coverImageURL?: string; // Cover image URL (placeholder used if missing)
 
   // Provenance
   synthetic?: boolean; // True if Work was inferred from Edition data
@@ -82,7 +82,7 @@ export interface EditionDTO {
   publicationDate?: string; // YYYY-MM-DD or YYYY
   pageCount?: number;
   format: EditionFormat;
-  coverImageURL?: string;
+  coverImageURL?: string; // Cover image URL (placeholder used if missing)
   editionTitle?: string;
   editionDescription?: string; // Note: Can't use 'description' in Swift (@Model macro reserves it)
   language?: string;

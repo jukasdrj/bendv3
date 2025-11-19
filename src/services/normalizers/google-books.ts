@@ -4,6 +4,7 @@
 
 import type { WorkDTO, EditionDTO } from '../../types/canonical.js';
 import { GenreNormalizer } from '../genre-normalizer.js';
+import { getPlaceholderCover } from '../../utils/book-metadata.js';
 
 // Create genre normalizer instance (reused across all normalizations)
 const genreNormalizer = new GenreNormalizer();
@@ -20,10 +21,11 @@ function extractYear(dateString?: string): number | undefined {
 
 /**
  * Get high-resolution cover URL from Google Books API thumbnail link
+ * Returns placeholder URL if no cover is available
  */
-function getHighResCoverURL(imageLinks?: { thumbnail?: string }): string | undefined {
+function getHighResCoverURL(imageLinks?: { thumbnail?: string }): string {
   const thumbnailURL = imageLinks?.thumbnail?.replace('http:', 'https:');
-  if (!thumbnailURL) return undefined;
+  if (!thumbnailURL) return getPlaceholderCover();
 
   // Request high-resolution image by changing zoom parameter.
   // This removes any existing zoom parameter and adds our preferred one.

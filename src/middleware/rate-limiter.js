@@ -20,7 +20,34 @@
  */
 
 const RATE_LIMIT_WINDOW = 60; // 60 seconds
-const RATE_LIMIT_MAX_REQUESTS = 10; // 10 requests per window
+
+/**
+ * Rate limit configuration per endpoint type
+ * AI-heavy endpoints require stricter limits due to cost and processing time
+ */
+const RATE_LIMITS = {
+  default: 100,           // Generic search endpoints (v1/search/*)
+  batchEnrichment: 10,    // /v1/enrichment/batch
+  aiScan: 5,              // /api/batch-scan (AI photo scanning)
+  csvImport: 5,           // /api/import/csv-gemini (AI parsing)
+  bookshelfScan: 5        // /api/scan-bookshelf/batch (AI scanning)
+};
+
+/**
+ * Determine the rate limit for a specific endpoint path.
+ *
+ * @param {string} pathname - URL pathname from the request
+ * @returns {number} - Max requests per minute for this endpoint
+ */
+export function getRateLimitForEndpoint(pathname) {
+  if (pathname === '/api/batch-scan') return RATE_LIMITS.aiScan;
+  if (pathname === '/api/import/csv-gemini') return RATE_LIMITS.csvImport;
+  if (pathname === '/api/scan-bookshelf/batch') return RATE_LIMITS.bookshelfScan;
+  if (pathname === '/v1/enrichment/batch') return RATE_LIMITS.batchEnrichment;
+  if (pathname.startsWith('/v1/search/')) return RATE_LIMITS.default;
+
+  return RATE_LIMITS.default;
+}
 
 /**
  * Check if request exceeds rate limit for the client's IP.
@@ -28,13 +55,21 @@ const RATE_LIMIT_MAX_REQUESTS = 10; // 10 requests per window
  * FIXED: Now uses atomic Durable Object to prevent race condition.
  * Previously used KV which allowed concurrent requests to bypass limit via TOCTOU.
  *
+ * UPDATE (Issue #222): Now supports per-endpoint rate limits.
+ * AI endpoints limited to 5 req/min as documented in API_CONTRACT.md.
+ *
  * @param {Request} request - Incoming request
  * @param {object} env - Worker environment bindings
+ * @param {number} [maxRequests] - Optional custom rate limit (overrides endpoint-specific limit)
  * @returns {Response|null} - 429 response if rate limited, null otherwise
  */
-export async function checkRateLimit(request, env) {
+export async function checkRateLimit(request, env, maxRequests = null) {
   // Extract client IP (Cloudflare provides this in CF-Connecting-IP header)
   const clientIP = request.headers.get("CF-Connecting-IP") || "unknown";
+
+  // Determine rate limit for this endpoint
+  const pathname = new URL(request.url).pathname;
+  const limitForEndpoint = maxRequests !== null ? maxRequests : getRateLimitForEndpoint(pathname);
 
   try {
     // Get Durable Object stub for this IP's rate limit counter
@@ -43,9 +78,13 @@ export async function checkRateLimit(request, env) {
     const rateLimiterStub = env.RATE_LIMITER_DO.get(rateLimiterId);
 
     // Check rate limit (atomic operation - no race condition)
+    // Pass the endpoint-specific limit to the Durable Object
     const response = await rateLimiterStub.fetch(
       new Request("http://localhost/check", {
         method: "POST",
+        headers: {
+          "X-Rate-Limit-Max": limitForEndpoint.toString()
+        }
       }),
     );
 
@@ -56,7 +95,7 @@ export async function checkRateLimit(request, env) {
       const retryAfterSeconds = Math.ceil((resetAt - Date.now()) / 1000);
       const retryAfter = Math.max(1, retryAfterSeconds); // Ensure positive value
       console.warn(
-        `[Rate Limit] Blocked request from IP: ${clientIP} (limit exceeded)`,
+        `[Rate Limit] Blocked request from IP: ${clientIP} (limit exceeded, endpoint: ${pathname}, limit: ${limitForEndpoint})`,
       );
 
       return new Response(
@@ -67,7 +106,8 @@ export async function checkRateLimit(request, env) {
             retryAfter,
             clientIP: clientIP.substring(0, 8) + "...", // Partial IP for privacy
             requestsRemaining: remaining,
-            requestsLimit: RATE_LIMIT_MAX_REQUESTS,
+            requestsLimit: limitForEndpoint,
+            endpoint: pathname,
           },
         }),
         {
@@ -75,7 +115,7 @@ export async function checkRateLimit(request, env) {
           headers: {
             "Content-Type": "application/json",
             "Retry-After": retryAfter.toString(),
-            "X-RateLimit-Limit": RATE_LIMIT_MAX_REQUESTS.toString(),
+            "X-RateLimit-Limit": limitForEndpoint.toString(),
             "X-RateLimit-Remaining": remaining.toString(),
             "X-RateLimit-Reset": resetAt.toString(),
           },

@@ -192,4 +192,285 @@ describe('Book Search Handler - searchByTitle', () => {
       expect(Array.isArray(result.items)).toBe(true)
     })
   })
+
+  describe('Deduplication Logic (#199)', () => {
+    it('should deduplicate books with same title and no ISBNs', async () => {
+      // Arrange: Mock providers returning duplicate books without ISBNs
+      const mockGoogleBooks = {
+        kind: 'books#volumes',
+        totalItems: 1,
+        items: [
+          {
+            kind: 'books#volume',
+            id: 'book1',
+            volumeInfo: {
+              title: 'The Great Gatsby',
+              authors: ['F. Scott Fitzgerald'],
+              publishedDate: '1925',
+              // No industryIdentifiers
+            }
+          }
+        ]
+      }
+
+      const mockOpenLibrary = {
+        works: [
+          {
+            id: 'OL1234W',
+            title: 'The Great Gatsby',
+            authors: ['F. Scott Fitzgerald'],
+            firstPublicationYear: 1925,
+            editions: [
+              {
+                // No ISBN fields
+                publicationDate: '1925'
+              }
+            ]
+          }
+        ]
+      }
+
+      server.use(
+        http.get('https://www.googleapis.com/books/v1/volumes', () => {
+          return HttpResponse.json(mockGoogleBooks)
+        }),
+        http.get('https://openlibrary.org/search.json', () => {
+          return HttpResponse.json(mockOpenLibrary)
+        })
+      )
+
+      // Act: Search by title
+      const result = await searchByTitle('The Great Gatsby', {}, mockEnv, mockCtx)
+
+      // Assert: Should deduplicate and return only 1 result
+      expect(result.items).toBeDefined()
+      expect(result.items.length).toBe(1)
+      expect(result.items[0].volumeInfo.title).toBe('The Great Gatsby')
+    })
+
+    it('should keep books with different titles and no ISBNs', async () => {
+      // Arrange: Mock provider returning different books without ISBNs
+      const mockGoogleBooks = {
+        kind: 'books#volumes',
+        totalItems: 2,
+        items: [
+          {
+            kind: 'books#volume',
+            id: 'book1',
+            volumeInfo: {
+              title: 'The Great Gatsby',
+              authors: ['F. Scott Fitzgerald'],
+              publishedDate: '1925',
+            }
+          },
+          {
+            kind: 'books#volume',
+            id: 'book2',
+            volumeInfo: {
+              title: 'Moby Dick',
+              authors: ['Herman Melville'],
+              publishedDate: '1851',
+            }
+          }
+        ]
+      }
+
+      server.use(
+        http.get('https://www.googleapis.com/books/v1/volumes', () => {
+          return HttpResponse.json(mockGoogleBooks)
+        }),
+        http.get('https://openlibrary.org/search.json', () => {
+          return HttpResponse.json({ works: [] }) // Empty response from OpenLibrary
+        })
+      )
+
+      // Act: Search by title
+      const result = await searchByTitle('classic literature', {}, mockEnv, mockCtx)
+
+      // Assert: Should keep both results
+      expect(result.items).toBeDefined()
+      expect(result.items.length).toBe(2)
+    })
+
+    it('should deduplicate by ISBN when available', async () => {
+      // Arrange: Mock provider returning duplicate ISBNs
+      const mockGoogleBooks = {
+        kind: 'books#volumes',
+        totalItems: 2,
+        items: [
+          {
+            kind: 'books#volume',
+            id: 'book1',
+            volumeInfo: {
+              title: 'Test Book',
+              industryIdentifiers: [
+                { type: 'ISBN_13', identifier: '9780123456789' }
+              ]
+            }
+          },
+          {
+            kind: 'books#volume',
+            id: 'book2',
+            volumeInfo: {
+              title: 'Test Book',
+              industryIdentifiers: [
+                { type: 'ISBN_13', identifier: '978-0-123-45678-9' } // Same ISBN with hyphens
+              ]
+            }
+          }
+        ]
+      }
+
+      server.use(
+        http.get('https://www.googleapis.com/books/v1/volumes', () => {
+          return HttpResponse.json(mockGoogleBooks)
+        }),
+        http.get('https://openlibrary.org/search.json', () => {
+          return HttpResponse.json({ works: [] })
+        })
+      )
+
+      // Act: Search
+      const result = await searchByTitle('Test Book', {}, mockEnv, mockCtx)
+
+      // Assert: Should deduplicate by ISBN
+      expect(result.items).toBeDefined()
+      expect(result.items.length).toBe(1)
+    })
+
+    it('should handle mix of ISBN and non-ISBN books', async () => {
+      // Arrange: Mock provider returning mix of books
+      const mockGoogleBooks = {
+        kind: 'books#volumes',
+        totalItems: 3,
+        items: [
+          {
+            kind: 'books#volume',
+            id: 'book1',
+            volumeInfo: {
+              title: 'Modern Book',
+              industryIdentifiers: [
+                { type: 'ISBN_13', identifier: '9780123456789' }
+              ]
+            }
+          },
+          {
+            kind: 'books#volume',
+            id: 'book2',
+            volumeInfo: {
+              title: 'Old Book',
+              // No ISBN (pre-1970)
+            }
+          },
+          {
+            kind: 'books#volume',
+            id: 'book3',
+            volumeInfo: {
+              title: 'Old Book',
+              // Duplicate of book2
+            }
+          }
+        ]
+      }
+
+      server.use(
+        http.get('https://www.googleapis.com/books/v1/volumes', () => {
+          return HttpResponse.json(mockGoogleBooks)
+        }),
+        http.get('https://openlibrary.org/search.json', () => {
+          return HttpResponse.json({ works: [] })
+        })
+      )
+
+      // Act: Search
+      const result = await searchByTitle('books', {}, mockEnv, mockCtx)
+
+      // Assert: Should deduplicate by title for non-ISBN books
+      expect(result.items).toBeDefined()
+      expect(result.items.length).toBe(2) // Modern Book + Old Book (deduped)
+    })
+
+    it('should handle books without ISBN (edge case)', async () => {
+      // Arrange: Mock provider returning book with title but no ISBN
+      const mockGoogleBooks = {
+        kind: 'books#volumes',
+        totalItems: 1,
+        items: [
+          {
+            kind: 'books#volume',
+            id: 'book1',
+            volumeInfo: {
+              title: 'Rare Ancient Book',
+              authors: ['Unknown'],
+              // No industryIdentifiers (pre-ISBN era)
+            }
+          }
+        ]
+      }
+
+      server.use(
+        http.get('https://www.googleapis.com/books/v1/volumes', () => {
+          return HttpResponse.json(mockGoogleBooks)
+        }),
+        http.get('https://openlibrary.org/search.json', () => {
+          return HttpResponse.json({ works: [] })
+        })
+      )
+
+      // Act: Search
+      const result = await searchByTitle('test', {}, mockEnv, mockCtx)
+
+      // Assert: Should keep the book (edge case)
+      expect(result.items).toBeDefined()
+      expect(result.items.length).toBe(1)
+      expect(result.items[0].volumeInfo.title).toBe('Rare Ancient Book')
+    })
+
+    it('should normalize titles for deduplication (case and punctuation)', async () => {
+      // Arrange: Mock provider returning same title with different formatting
+      const mockGoogleBooks = {
+        kind: 'books#volumes',
+        totalItems: 3,
+        items: [
+          {
+            kind: 'books#volume',
+            id: 'book1',
+            volumeInfo: {
+              title: 'The Great Gatsby!!!',
+            }
+          },
+          {
+            kind: 'books#volume',
+            id: 'book2',
+            volumeInfo: {
+              title: 'the great gatsby',
+            }
+          },
+          {
+            kind: 'books#volume',
+            id: 'book3',
+            volumeInfo: {
+              title: 'THE GREAT GATSBY',
+            }
+          }
+        ]
+      }
+
+      server.use(
+        http.get('https://www.googleapis.com/books/v1/volumes', () => {
+          return HttpResponse.json(mockGoogleBooks)
+        }),
+        http.get('https://openlibrary.org/search.json', () => {
+          return HttpResponse.json({ works: [] })
+        })
+      )
+
+      // Act: Search
+      const result = await searchByTitle('gatsby', {}, mockEnv, mockCtx)
+
+      // Assert: Should deduplicate all variants
+      expect(result.items).toBeDefined()
+      expect(result.items.length).toBe(1)
+    })
+  })
 })
