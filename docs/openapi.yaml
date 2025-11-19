@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: BooksTrack API
-  version: 2.4
+  version: "2.4"
   description: |
     This OpenAPI specification defines the BooksTrack API, version 2.4.
     It is derived from and complements the human-readable [API_CONTRACT.md](API_CONTRACT.md) document.
@@ -37,6 +37,18 @@ servers:
     description: Staging environment
   - url: http://localhost:8787
     description: Local Development environment
+
+tags:
+  - name: Monitoring
+    description: Health and metrics endpoints
+  - name: Book Search
+    description: Search for books by ISBN, title, or author
+  - name: Results Retrieval
+    description: Retrieve job results after WebSocket completion
+  - name: WebSocket
+    description: Real-time progress updates for background jobs
+  - name: Batch Jobs
+    description: Initiate background processing jobs
 
 paths:
   /health:
@@ -140,6 +152,11 @@ paths:
               description: Processing time in milliseconds (Hono router only).
               schema:
                 type: string
+            X-Image-Quality:
+              description: Provider-agnostic image quality metric for cover images (v2.4 feature, Issue #195).
+              schema:
+                type: string
+                enum: [high, medium, low, unknown]
             Access-Control-Allow-Origin:
               description: Dynamic CORS origin header based on request origin.
               schema:
@@ -248,6 +265,11 @@ paths:
               description: Processing time in milliseconds (Hono router only).
               schema:
                 type: string
+            X-Image-Quality:
+              description: Provider-agnostic image quality metric for cover images (v2.4 feature, Issue #195).
+              schema:
+                type: string
+                enum: [high, medium, low, unknown]
             Access-Control-Allow-Origin:
               description: Dynamic CORS origin header based on request origin.
               schema:
@@ -313,6 +335,11 @@ paths:
               description: Processing time in milliseconds (Hono router only).
               schema:
                 type: string
+            X-Image-Quality:
+              description: Provider-agnostic image quality metric for cover images (v2.4 feature, Issue #195).
+              schema:
+                type: string
+                enum: [high, medium, low, unknown]
             Access-Control-Allow-Origin:
               description: Dynamic CORS origin header based on request origin.
               schema:
@@ -830,7 +857,8 @@ components:
       required: true
       schema:
         type: string
-        pattern: '^(?:ISBN(?:-13)?:?)(?=[0-9]{13}$)([0-9]{3}-){2}[0-9]{3}[0-9X]$|^(?:ISBN(?:-10)?:?)(?=[0-9]{10}$|(?=[0-9]{9}X$))(?=[0-9]{9}[0-9X]$)[0-9]{9}[0-9X]$'
+        pattern: '^[0-9]{10}([0-9]{3})?$'
+        description: ISBN-10 (10 digits) or ISBN-13 (13 digits), hyphens optional.
       example: '9780439708180'
 
   responses:
@@ -903,7 +931,7 @@ components:
       type: object
       properties:
         data:
-          type: 'null'
+          type: "null"
           description: Always null for error responses.
         metadata:
           $ref: '#/components/schemas/Metadata'
@@ -928,9 +956,10 @@ components:
           nullable: true
           example: 145
         provider:
-          $ref: '#/components/schemas/DataProvider'
-          description: The primary data provider for the response.
           nullable: true
+          description: The primary data provider for the response.
+          allOf:
+            - $ref: '#/components/schemas/DataProvider'
         cached:
           type: boolean
           description: True if the response was served from cache.
@@ -1063,7 +1092,7 @@ components:
           type: array
           items:
             type: string
-          example: [1234567]
+          example: ["1234567"]
         amazonASINs:
           type: array
           items:
@@ -1110,18 +1139,20 @@ components:
           nullable: true
           example: https://covers.openlibrary.org/b/id/12345-L.jpg
         searchLinks:
-          $ref: '#/components/schemas/SearchLinksDTO'
-          description: HATEOAS links for external providers (Issue #196).
           nullable: true
+          description: HATEOAS links for external providers (Issue #196).
+          allOf:
+            - $ref: '#/components/schemas/SearchLinksDTO'
         synthetic:
           type: boolean
           description: True if Work was inferred from an Edition.
           nullable: true
           example: false
         primaryProvider:
-          $ref: '#/components/schemas/DataProvider'
-          description: The primary data provider for this work.
           nullable: true
+          description: The primary data provider for this work.
+          allOf:
+            - $ref: '#/components/schemas/DataProvider'
         contributors:
           type: array
           items:
@@ -1157,9 +1188,10 @@ components:
           description: Source image path for AI-detected books.
           nullable: true
         boundingBox:
-          $ref: '#/components/schemas/BoundingBox'
-          description: Book location in image (for AI-detected books).
           nullable: true
+          description: Book location in image (for AI-detected books).
+          allOf:
+            - $ref: '#/components/schemas/BoundingBox'
       required:
         - title
         - subjectTags
@@ -1244,12 +1276,14 @@ components:
           nullable: true
           example: en
         searchLinks:
-          $ref: '#/components/schemas/SearchLinksDTO'
+          nullable: true
           description: HATEOAS links for external providers (Issue #196).
-          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/SearchLinksDTO'
         primaryProvider:
-          $ref: '#/components/schemas/DataProvider'
           nullable: true
+          allOf:
+            - $ref: '#/components/schemas/DataProvider'
         contributors:
           type: array
           items:
@@ -1293,9 +1327,10 @@ components:
         gender:
           $ref: '#/components/schemas/AuthorGender'
         culturalRegion:
-          $ref: '#/components/schemas/CulturalRegion'
-          description: Enriched via Wikidata.
           nullable: true
+          description: Enriched via Wikidata.
+          allOf:
+            - $ref: '#/components/schemas/CulturalRegion'
         nationality:
           type: string
           description: e.g., "Nigeria", "United States".
@@ -1446,6 +1481,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AuthorDTO'
+        resultCount:
+          type: number
+          format: int32
+          description: Number of books found (0 for no results, N for N books). Disambiguates empty results from errors.
+          example: 1
         totalResults:
           type: number
           format: int32
@@ -1455,6 +1495,7 @@ components:
         - works
         - editions
         - authors
+        - resultCount
     BookSearchResponseEnvelope:
       allOf:
         - $ref: '#/components/schemas/SuccessEnvelope'
@@ -1470,8 +1511,9 @@ components:
           type: string
           enum: [success, failed, pending]
         work:
-          $ref: '#/components/schemas/WorkDTO'
           nullable: true
+          allOf:
+            - $ref: '#/components/schemas/WorkDTO'
         editions:
           type: array
           items:
@@ -1508,8 +1550,9 @@ components:
           enum: [success, failed, pending]
           example: success
         enrichment:
-          $ref: '#/components/schemas/ScanResultBookEnrichment'
           nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ScanResultBookEnrichment'
       required:
         - title
         - author
@@ -1532,6 +1575,11 @@ components:
           type: number
           format: int32
           example: 5
+        expiresAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when results expire from KV cache (24 hours after job completion).
+          example: '2025-01-16T10:00:00.000Z'
         books:
           type: array
           items:
@@ -1558,6 +1606,7 @@ components:
         - totalDetected
         - approved
         - needsReview
+        - expiresAt
         - books
         - metadata
     ScanResultsResponseEnvelope:
@@ -1604,11 +1653,17 @@ components:
           type: number
           description: Unix timestamp (milliseconds).
           example: 1700000000000
+        expiresAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when results expire from KV cache (24 hours after job completion).
+          example: '2025-01-16T10:00:00.000Z'
       required:
         - books
         - errors
         - successRate
         - timestamp
+        - expiresAt
     CsvResultsResponseEnvelope:
       allOf:
         - $ref: '#/components/schemas/SuccessEnvelope'
