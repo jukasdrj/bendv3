@@ -56,8 +56,13 @@ export async function handleSearchAdvanced(
     if (cachedResult?.data) {
       console.log(`✅ Cache HIT: /v1/search/advanced (${cacheKey})`);
       // Cache hit - return v2 format directly
+      // Add resultCount if not present (for backward compatibility with old cache entries)
+      const data = cachedResult.data.data;
+      if (data && typeof data.resultCount === 'undefined') {
+        data.resultCount = data.works?.length || 0;
+      }
       return createSuccessResponse(
-        cachedResult.data.data,
+        data,
         {
           ...cachedResult.data.meta,
           cached: true,
@@ -87,7 +92,7 @@ export async function handleSearchAdvanced(
     if (!result || !result.works || result.works.length === 0) {
       // No books found in any provider
       return createSuccessResponse(
-        { works: [], editions: [], authors: [] },
+        { works: [], editions: [], authors: [], resultCount: 0 },
         {
           processingTime: Date.now() - startTime,
           provider: "none",
@@ -108,7 +113,7 @@ export async function handleSearchAdvanced(
     const cleanWorks = removeAuthorsFromWorks(result.works);
 
     const response = createSuccessResponse(
-      { works: cleanWorks, editions: result.editions, authors },
+      { works: cleanWorks, editions: result.editions, authors, resultCount: cleanWorks.length },
       {
         processingTime: Date.now() - startTime,
         provider: cleanWorks[0]?.primaryProvider, // Use actual provider from enriched work
@@ -122,7 +127,7 @@ export async function handleSearchAdvanced(
     // Note: We need to cache the legacy format for backward compatibility with existing cache
     const legacyResponseObject = {
       success: true,
-      data: { works: cleanWorks, editions: result.editions, authors },
+      data: { works: cleanWorks, editions: result.editions, authors, resultCount: cleanWorks.length },
       meta: {
         timestamp: new Date().toISOString(),
         processingTime: Date.now() - startTime,

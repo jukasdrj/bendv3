@@ -8,11 +8,55 @@
  */
 
 import * as externalApis from "../services/external-apis.ts";
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../utils/response-builder.js';
-import { generateSearchLinks } from '../utils/book-metadata.js';
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  ErrorCodes,
+} from "../utils/response-builder.js";
+import { generateSearchLinks } from "../utils/book-metadata.js";
 
 // Request coalescing: Map of in-flight requests by cache key
 const IN_FLIGHT_REQUESTS = new Map();
+
+// Request timeout (30 seconds)
+const REQUEST_TIMEOUT_MS = 30000;
+
+/**
+ * Wrap a promise with timeout and automatic cleanup
+ * Ensures Map entries are always removed, even on timeout
+ *
+ * @param {Promise} promise - Promise to wrap
+ * @param {number} timeoutMs - Timeout in milliseconds
+ * @param {string} cacheKey - Cache key to clean up
+ * @returns {Promise} Promise that rejects on timeout
+ */
+async function withTimeout(promise, timeoutMs, cacheKey) {
+  let timeoutId;
+  let timeoutOccurred = false;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          timeoutOccurred = true;
+          // Clean up Map entry on timeout
+          IN_FLIGHT_REQUESTS.delete(cacheKey);
+          console.error(`⏱️ Request timeout after ${timeoutMs}ms: ${cacheKey}`);
+          reject(new Error(`Request timeout after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    // Always clear timeout to prevent memory leak
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    // Note: DO NOT delete from Map here on success
+    // The inner requestPromise's finally block handles cleanup
+    // We only delete on timeout (handled above)
+  }
+}
 
 /**
  * Generate cache key for search parameters
@@ -107,18 +151,18 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
     // Maintain consistent API contract: always return success: true for "no results"
     if (negativeCache.type === "no_results") {
       return createSuccessResponse(
-        { items: [] },  // Temporary: keeping items[] until full DTO migration
+        { items: [], resultCount: 0 }, // Temporary: keeping items[] until full DTO migration
         {
           provider: "none",
-          cached: true
-        }
+          cached: true,
+        },
       );
     }
     // Only true errors return success: false
     return createErrorResponse(
       negativeCache.error,
       negativeCache.status || 500,
-      ErrorCodes.PROVIDER_ERROR
+      ErrorCodes.PROVIDER_ERROR,
     );
   }
 
@@ -142,11 +186,7 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
         env,
       );
 
-      if (
-        googleResult &&
-        googleResult.works &&
-        googleResult.works.length > 0
-      ) {
+      if (googleResult && googleResult.works && googleResult.works.length > 0) {
         // Convert normalized works back to Google Books volumeInfo format
         // This maintains compatibility with the existing enrichment code
         const items = googleResult.works.flatMap((work) =>
@@ -183,17 +223,23 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
                 previewLink: edition.previewLink,
                 infoLink: edition.infoLink,
               },
-              searchLinks: generateSearchLinks(isbn, work.title, primaryAuthor, volumeId),
+              searchLinks: generateSearchLinks(
+                isbn,
+                work.title,
+                primaryAuthor,
+                volumeId,
+              ),
             };
           }),
         );
 
+        const resultItems = items.slice(0, maxResults);
         return createSuccessResponse(
-          { items: items.slice(0, maxResults) },
+          { items: resultItems, resultCount: resultItems.length },
           {
             provider: "google",
-            cached: false
-          }
+            cached: false,
+          },
         );
       }
 
@@ -213,7 +259,9 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
         const items = olResult.works.flatMap((work) =>
           work.editions.map((edition) => {
             const isbn = edition.isbn13 || edition.isbn10 || null;
-            const volumeId = work.externalIds?.openLibraryWorkId || `ol-${work.title.replace(/\s+/g, "-").toLowerCase()}`;
+            const volumeId =
+              work.externalIds?.openLibraryWorkId ||
+              `ol-${work.title.replace(/\s+/g, "-").toLowerCase()}`;
             const primaryAuthor = work.authors[0]?.name || null;
 
             return {
@@ -241,17 +289,23 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
                     : null,
                 ].filter(Boolean),
               },
-              searchLinks: generateSearchLinks(isbn, work.title, primaryAuthor, volumeId),
+              searchLinks: generateSearchLinks(
+                isbn,
+                work.title,
+                primaryAuthor,
+                volumeId,
+              ),
             };
           }),
         );
 
+        const resultItems = items.slice(0, maxResults);
         return createSuccessResponse(
-          { items: items.slice(0, maxResults) },
+          { items: resultItems, resultCount: resultItems.length },
           {
             provider: "openlibrary",
-            cached: false
-          }
+            cached: false,
+          },
         );
       }
 
@@ -265,11 +319,11 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
       );
 
       return createSuccessResponse(
-        { items: [] },
+        { items: [], resultCount: 0 },
         {
           provider: "none",
-          cached: false
-        }
+          cached: false,
+        },
       );
     } catch (error) {
       console.error(
@@ -285,7 +339,7 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
       return createErrorResponse(
         error.message || "Search failed",
         500,
-        ErrorCodes.INTERNAL_ERROR
+        ErrorCodes.INTERNAL_ERROR,
       );
     } finally {
       // Clean up in-flight request
@@ -293,8 +347,15 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
     }
   })();
 
-  // Store promise for request coalescing
-  IN_FLIGHT_REQUESTS.set(cacheKey, requestPromise);
+  // Wrap with timeout to prevent memory leak on hung requests
+  const timeoutPromise = withTimeout(
+    requestPromise,
+    REQUEST_TIMEOUT_MS,
+    cacheKey,
+  );
 
-  return requestPromise;
+  // Store promise for request coalescing
+  IN_FLIGHT_REQUESTS.set(cacheKey, timeoutPromise);
+
+  return timeoutPromise;
 }

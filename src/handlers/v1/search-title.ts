@@ -40,7 +40,7 @@ export async function handleSearchTitle(
     if (!result || !result.works || result.works.length === 0) {
       // No books found in any provider
       return createSuccessResponse(
-        { works: [], editions: [], authors: [] },
+        { works: [], editions: [], authors: [], resultCount: 0 },
         {
           processingTime: Date.now() - startTime,
           provider: 'none',
@@ -61,7 +61,7 @@ export async function handleSearchTitle(
     const cleanWorks = removeAuthorsFromWorks(result.works);
 
     return createSuccessResponse(
-      { works: cleanWorks, editions: result.editions, authors },
+      { works: cleanWorks, editions: result.editions, authors, resultCount: cleanWorks.length },
       {
         processingTime: Date.now() - startTime,
         provider: cleanWorks[0]?.primaryProvider, // Use actual provider from enriched work

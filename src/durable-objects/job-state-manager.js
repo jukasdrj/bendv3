@@ -155,6 +155,9 @@ export class JobStateManagerDO extends DurableObject {
     await this.storage.put("jobState", completedState);
     console.log(`[JobStateManager] Job ${jobState.jobId} completed`);
 
+    // Calculate expiry timestamp (24 hours from now)
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
     // Notify WebSocket
     const wsDoId = this.env.WEBSOCKET_CONNECTION_DO.idFromName(jobState.jobId);
     const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
@@ -165,7 +168,10 @@ export class JobStateManagerDO extends DurableObject {
       pipeline,
       timestamp: Date.now(),
       version: "2.0.0",
-      payload,
+      payload: {
+        ...payload,
+        expiresAt, // Add expiry timestamp to payload
+      },
     });
 
     // Schedule cleanup after 24 hours
