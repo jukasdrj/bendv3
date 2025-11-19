@@ -85,17 +85,49 @@ export async function handleBatchScan(request, env, ctx) {
       return createErrorResponse('Storage not configured', 500, ErrorCodes.INTERNAL_ERROR);
     }
 
-    // Validate image structure and size
+    // SECURITY FIX (Issue #184): Validate ACTUAL decoded size, not estimated
+    // Before: Attacker could bypass with malformed base64 (estimate 9.9MB, decode to 13MB)
+    // After: Decode first, validate actual buffer size, prevent DoS via memory exhaustion
+    const MAX_BATCH_SIZE = 50_000_000; // 50MB total batch size limit
+
+    let totalBatchSize = 0;
+    const processedImages: { index: number; buffer: Buffer }[] = [];
+
     for (const img of images) {
       if (typeof img.index !== 'number' || !img.data) {
         return createErrorResponse('Each image must have index and data fields', 400, ErrorCodes.INVALID_REQUEST);
       }
 
-      // Validate base64 image size (4/3 of decoded size due to base64 encoding)
-      const estimatedSize = (img.data.length * 3) / 4;
-      if (estimatedSize > MAX_IMAGE_SIZE) {
-        return createErrorResponse(`Image ${img.index} exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB`, 413, ErrorCodes.FILE_TOO_LARGE);
+      // Decode base64 to get actual buffer size (not just estimate)
+      let decodedBuffer: Buffer;
+      try {
+        decodedBuffer = Buffer.from(img.data, 'base64');
+      } catch (error: any) {
+        return createErrorResponse(`Image ${img.index} has invalid base64 data: ${error.message}`, 400, ErrorCodes.INVALID_REQUEST);
       }
+
+      const actualSize = decodedBuffer.byteLength;
+
+      // Validate actual decoded size (not estimate)
+      if (actualSize > MAX_IMAGE_SIZE) {
+        return createErrorResponse(
+          `Image ${img.index} exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB (actual: ${(actualSize / 1_000_000).toFixed(1)}MB)`,
+          413,
+          ErrorCodes.FILE_TOO_LARGE
+        );
+      }
+
+      totalBatchSize += actualSize;
+      processedImages.push({ index: img.index, buffer: decodedBuffer });
+    }
+
+    // Validate total batch size (prevents 5x 13MB = 65MB memory spike)
+    if (totalBatchSize > MAX_BATCH_SIZE) {
+      return createErrorResponse(
+        `Total batch size exceeds maximum of ${MAX_BATCH_SIZE / 1_000_000}MB (actual: ${(totalBatchSize / 1_000_000).toFixed(1)}MB)`,
+        413,
+        ErrorCodes.FILE_TOO_LARGE
+      );
     }
 
     // Initialize batch job in Durable Object
@@ -137,6 +169,7 @@ export async function handleBatchScan(request, env, ctx) {
 }
 
 async function processBatchPhotos(jobId, images, env, doStub) {
+  const startTime = Date.now(); // Track processing duration for metrics
   const allBooks = [];
   const photoResults = [];
 
