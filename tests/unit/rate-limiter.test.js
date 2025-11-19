@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { checkRateLimit } from '../../src/middleware/rate-limiter.js'
+import { checkRateLimit, getRateLimitForEndpoint } from '../../src/middleware/rate-limiter.js'
 
 // Mock DurableObject base class for testing
 class MockDurableObject {
@@ -213,15 +213,19 @@ describe('Rate Limiter Middleware', () => {
     }
 
     const mockDOStub = {
-      fetch: vi.fn(async () => {
+      fetch: vi.fn(async (request) => {
+        // Extract custom rate limit from header (matches real DO behavior)
+        const maxRequestsHeader = request.headers.get("X-Rate-Limit-Max");
+        const maxRequests = maxRequestsHeader ? parseInt(maxRequestsHeader, 10) : 10;
+
         // Simulate checkAndIncrement logic
-        const allowed = rateLimiterState.count < 10
+        const allowed = rateLimiterState.count < maxRequests
 
         if (allowed) {
           rateLimiterState.count++
         }
 
-        const remaining = Math.max(0, 10 - rateLimiterState.count)
+        const remaining = Math.max(0, maxRequests - rateLimiterState.count)
 
         return new Response(
           JSON.stringify({
@@ -263,12 +267,12 @@ describe('Rate Limiter Middleware', () => {
       headers: { 'CF-Connecting-IP': '192.168.1.200' },
     })
 
-    // Exhaust limit
-    for (let i = 0; i < 10; i++) {
+    // Exhaust limit (default limit is 100 for /api/search)
+    for (let i = 0; i < 100; i++) {
       await checkRateLimit(request, mockEnv)
     }
 
-    // 11th request should be blocked
+    // 101st request should be blocked
     const result = await checkRateLimit(request, mockEnv)
 
     expect(result).not.toBeNull()
@@ -278,7 +282,7 @@ describe('Rate Limiter Middleware', () => {
     expect(body.code).toBe('RATE_LIMIT_EXCEEDED')
     expect(body.error).toContain('Rate limit exceeded')
     expect(body.details.retryAfter).toBeGreaterThan(0)
-    expect(body.details.requestsLimit).toBe(10)
+    expect(body.details.requestsLimit).toBe(100) // Default limit
   })
 
   it('should include rate limit headers in 429 response', async () => {
@@ -286,15 +290,15 @@ describe('Rate Limiter Middleware', () => {
       headers: { 'CF-Connecting-IP': '192.168.1.300' },
     })
 
-    // Exhaust limit
-    for (let i = 0; i < 10; i++) {
+    // Exhaust limit (default limit is 100 for /api/search)
+    for (let i = 0; i < 100; i++) {
       await checkRateLimit(request, mockEnv)
     }
 
     const result = await checkRateLimit(request, mockEnv)
 
     expect(result.headers.get('Retry-After')).toBeTruthy()
-    expect(result.headers.get('X-RateLimit-Limit')).toBe('10')
+    expect(result.headers.get('X-RateLimit-Limit')).toBe('100') // Default limit
     expect(result.headers.get('X-RateLimit-Remaining')).toBe('0')
     expect(result.headers.get('X-RateLimit-Reset')).toBeTruthy()
   })
@@ -330,6 +334,112 @@ describe('Rate Limiter Middleware', () => {
 
     // Should allow request (fail open)
     expect(result).toBeNull()
+  })
+})
+
+/**
+ * Per-Endpoint Rate Limits Tests (Issue #222)
+ * Validates endpoint-specific rate limits for AI endpoints
+ */
+describe('Per-Endpoint Rate Limits (Issue #222)', () => {
+  let mockState
+  let rateLimiter
+
+  beforeEach(() => {
+    let storage = {}
+    mockState = {
+      storage: {
+        get: vi.fn(async (key) => storage[key]),
+        put: vi.fn(async (key, value) => {
+          storage[key] = value
+        }),
+      },
+    }
+
+    rateLimiter = new RateLimiterDO(mockState, {})
+  })
+
+  it('should allow 5 requests for AI batch scan endpoint', async () => {
+    // AI endpoints have 5 req/min limit
+    for (let i = 0; i < 5; i++) {
+      const result = await rateLimiter.checkAndIncrement(5)
+      expect(result.allowed).toBe(true)
+      expect(result.remaining).toBe(4 - i)
+    }
+
+    // 6th request should be blocked
+    const blocked = await rateLimiter.checkAndIncrement(5)
+    expect(blocked.allowed).toBe(false)
+    expect(blocked.remaining).toBe(0)
+  })
+
+  it('should allow 10 requests for batch enrichment endpoint', async () => {
+    // Batch enrichment has 10 req/min limit
+    for (let i = 0; i < 10; i++) {
+      const result = await rateLimiter.checkAndIncrement(10)
+      expect(result.allowed).toBe(true)
+    }
+
+    // 11th request should be blocked
+    const blocked = await rateLimiter.checkAndIncrement(10)
+    expect(blocked.allowed).toBe(false)
+  })
+
+  it('should allow 100 requests for search endpoints', async () => {
+    // Search endpoints have 100 req/min limit
+    for (let i = 0; i < 100; i++) {
+      const result = await rateLimiter.checkAndIncrement(100)
+      expect(result.allowed).toBe(true)
+    }
+
+    // 101st request should be blocked
+    const blocked = await rateLimiter.checkAndIncrement(100)
+    expect(blocked.allowed).toBe(false)
+  })
+
+  it('should use default limit when no custom limit provided', async () => {
+    // Default limit is 10
+    for (let i = 0; i < 10; i++) {
+      const result = await rateLimiter.checkAndIncrement()
+      expect(result.allowed).toBe(true)
+    }
+
+    const blocked = await rateLimiter.checkAndIncrement()
+    expect(blocked.allowed).toBe(false)
+  })
+})
+
+/**
+ * Rate Limiter Middleware Per-Endpoint Tests
+ * Validates middleware correctly determines rate limits by endpoint path
+ */
+describe('Rate Limiter Middleware - Per-Endpoint Limits', () => {
+  it('should return 5 req/min for AI batch scan endpoint', () => {
+    expect(getRateLimitForEndpoint('/api/batch-scan')).toBe(5)
+  })
+
+  it('should return 5 req/min for CSV import endpoint', () => {
+    expect(getRateLimitForEndpoint('/api/import/csv-gemini')).toBe(5)
+  })
+
+  it('should return 5 req/min for bookshelf scan endpoint', () => {
+    expect(getRateLimitForEndpoint('/api/scan-bookshelf/batch')).toBe(5)
+  })
+
+  it('should return 10 req/min for batch enrichment endpoint', () => {
+    expect(getRateLimitForEndpoint('/v1/enrichment/batch')).toBe(10)
+  })
+
+  it('should return 100 req/min for search endpoints', () => {
+    expect(getRateLimitForEndpoint('/v1/search/isbn')).toBe(100)
+    expect(getRateLimitForEndpoint('/v1/search/title')).toBe(100)
+    expect(getRateLimitForEndpoint('/v1/search/advanced')).toBe(100)
+  })
+
+  it('should return default 100 req/min for unknown endpoints', () => {
+    expect(getRateLimitForEndpoint('/health')).toBe(100)
+    expect(getRateLimitForEndpoint('/metrics')).toBe(100)
+    expect(getRateLimitForEndpoint('/unknown')).toBe(100)
   })
 })
 

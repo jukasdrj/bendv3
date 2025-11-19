@@ -4,6 +4,7 @@
 
 import type { WorkDTO, EditionDTO, AuthorDTO } from '../../types/canonical.js';
 import { GenreNormalizer } from '../genre-normalizer.js';
+import { getPlaceholderCover } from '../../utils/book-metadata.js';
 
 // Create genre normalizer instance (reused across all normalizations)
 const genreNormalizer = new GenreNormalizer();
@@ -35,7 +36,7 @@ export function normalizeOpenLibraryToWork(doc: any): WorkDTO {
     description: undefined, // OpenLibrary search doesn't include descriptions
     coverImageURL: doc.cover_i
       ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
-      : undefined,
+      : getPlaceholderCover(),
     synthetic: false,
     primaryProvider: 'openlibrary',
     contributors: ['openlibrary'],
@@ -68,7 +69,7 @@ export function normalizeOpenLibraryToEdition(doc: any): EditionDTO {
     format: inferFormat(doc),
     coverImageURL: doc.cover_i
       ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
-      : undefined,
+      : getPlaceholderCover(),
     language: doc.language?.[0],
     primaryProvider: 'openlibrary',
     contributors: ['openlibrary'],

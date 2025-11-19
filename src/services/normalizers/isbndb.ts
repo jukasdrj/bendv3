@@ -5,6 +5,7 @@
 import type { WorkDTO, EditionDTO, AuthorDTO } from '../../types/canonical.js';
 import type { EditionFormat } from '../../types/enums.js';
 import { GenreNormalizer } from '../genre-normalizer.js';
+import { getPlaceholderCover } from '../../utils/book-metadata.js';
 
 // Create genre normalizer instance (reused across all normalizations)
 const genreNormalizer = new GenreNormalizer();
@@ -84,7 +85,7 @@ export function normalizeISBNdbToEdition(book: any): EditionDTO {
     publicationDate: book.date_published,
     pageCount: book.pages,
     format: normalizeBinding(book.binding),
-    coverImageURL: book.image,
+    coverImageURL: book.image || getPlaceholderCover(),
     editionTitle: book.title_long !== book.title ? book.title_long : undefined,
     editionDescription: book.synopsis,
     language: book.language,

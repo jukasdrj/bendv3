@@ -10,9 +10,14 @@ import { DurableObject } from "cloudflare:workers";
  * No race condition window: read-modify-write happens atomically in DO transaction.
  *
  * Algorithm: Token Bucket
- * - Each IP gets 10 tokens per 60-second window
+ * - Each IP gets N tokens per 60-second window (N varies by endpoint)
  * - Each request consumes 1 token
  * - Window resets after 60 seconds of inactivity
+ *
+ * UPDATE (Issue #222): Now supports per-endpoint rate limits.
+ * - AI endpoints: 5 requests/minute
+ * - Batch enrichment: 10 requests/minute
+ * - Search endpoints: 100 requests/minute
  *
  * Performance:
  * - Atomic check & increment: ~5-10ms (acceptable for rate limiter)
@@ -23,12 +28,12 @@ import { DurableObject } from "cloudflare:workers";
  * ```javascript
  * const id = env.RATE_LIMITER_DO.idFromName(clientIP)
  * const stub = env.RATE_LIMITER_DO.get(id)
- * const { allowed, remaining, resetAt } = await stub.checkAndIncrement()
+ * const { allowed, remaining, resetAt } = await stub.checkAndIncrement(maxRequests)
  * ```
  */
 
 const RATE_LIMIT_WINDOW = 60; // 60 seconds
-const RATE_LIMIT_MAX_REQUESTS = 10; // 10 requests per window
+const DEFAULT_RATE_LIMIT = 10; // Default: 10 requests per window
 
 export class RateLimiterDO extends DurableObject {
   constructor(state, env) {
@@ -42,9 +47,12 @@ export class RateLimiterDO extends DurableObject {
    * This is the core atomic operation that fixes the race condition.
    * No concurrent requests can both pass the check - serialization guaranteed by DO.
    *
+   * UPDATE (Issue #222): Now accepts custom maxRequests per endpoint.
+   *
+   * @param {number} maxRequests - Maximum requests allowed in the window (endpoint-specific)
    * @returns {Promise<{allowed: boolean, remaining: number, resetAt: number}>}
    */
-  async checkAndIncrement() {
+  async checkAndIncrement(maxRequests = DEFAULT_RATE_LIMIT) {
     const now = Date.now();
 
     // Get current counter state
@@ -61,7 +69,7 @@ export class RateLimiterDO extends DurableObject {
     }
 
     // Check if limit exceeded (BEFORE incrementing)
-    const allowed = counters.count < RATE_LIMIT_MAX_REQUESTS;
+    const allowed = counters.count < maxRequests;
 
     if (allowed) {
       // Increment counter (atomic with storage transaction)
@@ -69,7 +77,7 @@ export class RateLimiterDO extends DurableObject {
       await this.state.storage.put("counters", counters);
     }
 
-    const remaining = Math.max(0, RATE_LIMIT_MAX_REQUESTS - counters.count);
+    const remaining = Math.max(0, maxRequests - counters.count);
 
     return {
       allowed,
@@ -81,10 +89,16 @@ export class RateLimiterDO extends DurableObject {
   /**
    * Handle fetch requests from rate limiter middleware.
    * Expect POST to trigger checkAndIncrement and return result.
+   *
+   * UPDATE (Issue #222): Extracts X-Rate-Limit-Max header for endpoint-specific limits.
    */
   async fetch(request) {
     if (request.method === "POST") {
-      const result = await this.checkAndIncrement();
+      // Extract custom rate limit from header (if provided)
+      const maxRequestsHeader = request.headers.get("X-Rate-Limit-Max");
+      const maxRequests = maxRequestsHeader ? parseInt(maxRequestsHeader, 10) : DEFAULT_RATE_LIMIT;
+
+      const result = await this.checkAndIncrement(maxRequests);
       return new Response(JSON.stringify(result), {
         status: 200,
         headers: { "Content-Type": "application/json" },

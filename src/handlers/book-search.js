@@ -114,8 +114,8 @@ export async function searchByTitle(title, options, env, ctx) {
       }
     }
 
-    // Simple deduplication by title
-    const dedupedItems = deduplicateByTitle(finalItems);
+    // Deduplication by ISBN with title fallback
+    const dedupedItems = deduplicateByISBN(finalItems);
 
     /**
      * @type {{
@@ -353,6 +353,9 @@ function transformWorkToGoogleFormat(work) {
     });
   }
 
+  // Get cover URL with placeholder fallback
+  const coverImageURL = primaryEdition?.coverImageURL || getPlaceholderCover();
+
   const volumeInfo = {
     title: work.title,
     subtitle: work.subtitle,
@@ -365,12 +368,10 @@ function transformWorkToGoogleFormat(work) {
     industryIdentifiers: industryIdentifiers,
     pageCount: primaryEdition?.pageCount,
     categories: work.subjects,
-    imageLinks: primaryEdition?.coverImageURL
-      ? {
-          thumbnail: primaryEdition.coverImageURL,
-          smallThumbnail: primaryEdition.coverImageURL,
-        }
-      : undefined,
+    imageLinks: {
+      thumbnail: coverImageURL,
+      smallThumbnail: coverImageURL,
+    },
   };
 
   const volumeId =
@@ -413,18 +414,45 @@ function deduplicateByTitle(items) {
 }
 
 /**
- * Deduplicate items by ISBN
+ * Deduplicate items by ISBN with title fallback
+ * For books without ISBNs (common for pre-1970 books), falls back to title deduplication
  */
 function deduplicateByISBN(items) {
   const seen = new Set();
+  const seenTitles = new Set();
+
   return items.filter((item) => {
     const identifiers = item.volumeInfo?.industryIdentifiers || [];
-    const isbns = identifiers.map((id) => id.identifier).join(",");
-    if (!isbns) return true; // Keep items without ISBNs
-    if (seen.has(isbns)) {
-      return false;
+    const isbns = identifiers
+      .filter(id => id.type === 'ISBN_13' || id.type === 'ISBN_10')
+      .map(id => id.identifier);
+
+    // If book has ISBNs, dedupe by ISBN
+    if (isbns && isbns.length > 0) {
+      const hasNewISBN = isbns.some(isbn => {
+        const normalized = isbn.replace(/[-\s]/g, '');
+        if (seen.has(normalized)) return false;
+        seen.add(normalized);
+        return true;
+      });
+      return hasNewISBN;
     }
-    seen.add(isbns);
+
+    // Fallback: If no ISBN, dedupe by normalized title
+    if (item.volumeInfo?.title) {
+      const normalizedTitle = item.volumeInfo.title
+        .toLowerCase()
+        .replace(/[^\w\s]/g, '') // Remove punctuation
+        .trim();
+
+      if (seenTitles.has(normalizedTitle)) {
+        return false; // Duplicate title
+      }
+      seenTitles.add(normalizedTitle);
+      return true;
+    }
+
+    // Edge case: No ISBN and no title - keep it
     return true;
   });
 }

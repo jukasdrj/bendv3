@@ -618,6 +618,7 @@ interface WorkDTO {
   firstPublicationYear?: number;    // Year only (e.g., 1925)
   description?: string;             // Synopsis
   coverImageURL?: string;           // High-res cover (1200px width recommended)
+                                    // Returns placeholder URL if no cover available (Issue #202)
   searchLinks?: SearchLinksDTO;     // HATEOAS links for external providers (Issue #196)
 
   // ========== PROVENANCE ==========
@@ -707,7 +708,7 @@ interface EditionDTO {
   publisher?: string;
   publicationDate?: string;         // YYYY-MM-DD or YYYY
   pageCount?: number;
-  coverImageURL?: string;
+  coverImageURL?: string;           // Returns placeholder URL if no cover available (Issue #202)
   editionTitle?: string;            // e.g., "Deluxe Illustrated Edition"
   editionDescription?: string;      // Note: NOT 'description' (Swift reserved)
   language?: string;                // ISO 639-1 code
