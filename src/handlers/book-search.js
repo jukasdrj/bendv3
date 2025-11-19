@@ -317,6 +317,8 @@ function transformWorkToGoogleFormat(work) {
 
   // Handle different author formats
   let authors = [];
+  let authorsDetailed = [];
+
   if (work.authors) {
     if (Array.isArray(work.authors)) {
       authors = work.authors.map((a) => {
@@ -324,8 +326,26 @@ function transformWorkToGoogleFormat(work) {
         if (a && a.name) return a.name;
         return String(a);
       });
+
+      // Preserve full AuthorDTO objects for cultural diversity fields
+      authorsDetailed = work.authors
+        .filter((a) => typeof a === "object" && a !== null)
+        .map((a) => ({
+          name: a.name,
+          gender: a.gender || "Unknown",
+          ...(a.culturalRegion && { culturalRegion: a.culturalRegion }),
+          ...(a.nationality && { nationality: a.nationality }),
+          ...(a.birthYear && { birthYear: a.birthYear }),
+          ...(a.deathYear && { deathYear: a.deathYear }),
+          ...(a.openLibraryID && { openLibraryID: a.openLibraryID }),
+          ...(a.isbndbID && { isbndbID: a.isbndbID }),
+          ...(a.googleBooksID && { googleBooksID: a.googleBooksID }),
+          ...(a.goodreadsID && { goodreadsID: a.goodreadsID }),
+          ...(a.bookCount && { bookCount: a.bookCount }),
+        }));
     } else if (typeof work.authors === "string") {
       authors = [work.authors];
+      authorsDetailed = [{ name: work.authors, gender: "Unknown" }];
     }
   }
 
@@ -336,6 +356,25 @@ function transformWorkToGoogleFormat(work) {
           typeof a === "string" ? a : a.name || String(a),
         )
       : [String(primaryEdition.authors)];
+
+    // Also try to preserve detailed author info from edition
+    if (Array.isArray(primaryEdition.authors)) {
+      authorsDetailed = primaryEdition.authors
+        .filter((a) => typeof a === "object" && a !== null)
+        .map((a) => ({
+          name: a.name,
+          gender: a.gender || "Unknown",
+          ...(a.culturalRegion && { culturalRegion: a.culturalRegion }),
+          ...(a.nationality && { nationality: a.nationality }),
+          ...(a.birthYear && { birthYear: a.birthYear }),
+          ...(a.deathYear && { deathYear: a.deathYear }),
+          ...(a.openLibraryID && { openLibraryID: a.openLibraryID }),
+          ...(a.isbndbID && { isbndbID: a.isbndbID }),
+          ...(a.googleBooksID && { googleBooksID: a.googleBooksID }),
+          ...(a.goodreadsID && { goodreadsID: a.goodreadsID }),
+          ...(a.bookCount && { bookCount: a.bookCount }),
+        }));
+    }
   }
 
   // Prepare industry identifiers
@@ -360,6 +399,7 @@ function transformWorkToGoogleFormat(work) {
     title: work.title,
     subtitle: work.subtitle,
     authors: authors,
+    authorsDetailed: authorsDetailed.length > 0 ? authorsDetailed : undefined,
     publisher: primaryEdition?.publisher,
     publishedDate: work.firstPublicationYear
       ? work.firstPublicationYear.toString()
