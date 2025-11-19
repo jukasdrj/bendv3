@@ -1,12 +1,18 @@
 openapi: 3.0.3
 info:
   title: BooksTrack API
-  version: 2.2
+  version: 2.4
   description: |
-    This OpenAPI specification defines the BooksTrack API, version 2.2.
+    This OpenAPI specification defines the BooksTrack API, version 2.4.
     It is derived from and complements the human-readable [API_CONTRACT.md](API_CONTRACT.md) document.
 
-    **Key Highlights (v2.2):**
+    **Key Highlights (v2.4):**
+    - HATEOAS search links in WorkDTO/EditionDTO (`searchLinks` field) - fixes iOS "View on Google Books" crash
+    - Provider-agnostic image quality detection (accurate `X-Image-Quality` header for all providers)
+    - Web Crypto API migration (better Workers compatibility)
+    - HTTP response validation for cover image HEAD requests
+
+    **Previous Highlights (v2.2):**
     - Complete Hono router migration.
     - Hono router enabled by default.
     - New endpoints: `/v1/scan/results/{jobId}`, `/v1/csv/results/{jobId}`, `POST /api/batch-scan`.
@@ -1103,6 +1109,10 @@ components:
           description: High-res cover image URL (1200px width recommended).
           nullable: true
           example: https://covers.openlibrary.org/b/id/12345-L.jpg
+        searchLinks:
+          $ref: '#/components/schemas/SearchLinksDTO'
+          description: HATEOAS links for external providers (Issue #196).
+          nullable: true
         synthetic:
           type: boolean
           description: True if Work was inferred from an Edition.
@@ -1233,6 +1243,10 @@ components:
           description: ISO 639-1 code.
           nullable: true
           example: en
+        searchLinks:
+          $ref: '#/components/schemas/SearchLinksDTO'
+          description: HATEOAS links for external providers (Issue #196).
+          nullable: true
         primaryProvider:
           $ref: '#/components/schemas/DataProvider'
           nullable: true
@@ -1331,6 +1345,28 @@ components:
         - openlibrary
         - isbndb
         - gemini
+    SearchLinksDTO:
+      type: object
+      description: HATEOAS links for external book search providers (Issue #196). All fields are optional - backend generates links when sufficient metadata is available (ISBN, title, author).
+      properties:
+        googleBooks:
+          type: string
+          format: uri
+          description: Direct link to Google Books search or volume page
+          example: https://www.googleapis.com/books/v1/volumes?q=isbn:9780743273565
+          nullable: true
+        openLibrary:
+          type: string
+          format: uri
+          description: Direct link to OpenLibrary ISBN page or search
+          example: https://openlibrary.org/isbn/9780743273565
+          nullable: true
+        amazon:
+          type: string
+          format: uri
+          description: Direct link to Amazon search results
+          example: https://www.amazon.com/s?k=9780743273565
+          nullable: true
     EditionFormat:
       type: string
       enum:
