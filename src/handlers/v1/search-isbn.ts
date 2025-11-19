@@ -144,7 +144,7 @@ export async function handleSearchISBN(
       });
 
       return createSuccessResponse(
-        { works: [], editions: [], authors: [] },
+        { works: [], editions: [], authors: [], resultCount: 0 },
         {
           processingTime,
           provider: 'none',
@@ -178,7 +178,7 @@ export async function handleSearchISBN(
     });
 
     return createSuccessResponse(
-      { works: cleanWorks, editions: result.editions, authors },
+      { works: cleanWorks, editions: result.editions, authors, resultCount: cleanWorks.length },
       {
         processingTime,
         provider: work?.primaryProvider, // Use actual provider from enriched work

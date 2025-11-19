@@ -177,6 +177,7 @@ export interface BookSearchResponse {
   works: WorkDTO[];
   editions: EditionDTO[];
   authors: AuthorDTO[];
+  resultCount: number; // Number of books found (0 for no results, N for N books)
   totalResults?: number; // for pagination (future)
 }
 

@@ -777,9 +777,16 @@ interface BookSearchResponse {
   works: WorkDTO[];
   editions: EditionDTO[];
   authors: AuthorDTO[];
+  resultCount: number;              // Number of books found (0 for no results, N for N books)
   totalResults?: number;            // Reserved for future pagination
 }
 ```
+
+**Field Details:**
+- **`resultCount`**: Explicitly indicates the number of results found. This disambiguates "no results found" (0) from errors.
+  - `0`: Search completed successfully but found no matching books
+  - `N > 0`: Search found N matching books
+  - Always equals `works.length` in current implementation
 
 **Relationship:**
 - Works and Editions are **loosely coupled** (not normalized)
@@ -845,7 +852,8 @@ Host: api.oooefam.net
         "nationality": "United Kingdom",
         "birthYear": 1965
       }
-    ]
+    ],
+    "resultCount": 1
   },
   "metadata": {
     "timestamp": "2025-11-15T20:00:00.000Z",
@@ -862,7 +870,8 @@ Host: api.oooefam.net
   "data": {
     "works": [],
     "editions": [],
-    "authors": []
+    "authors": [],
+    "resultCount": 0
   },
   "metadata": {
     "timestamp": "2025-11-15T20:00:00.000Z",
@@ -956,6 +965,7 @@ Host: api.oooefam.net
     "totalDetected": 25,
     "approved": 20,
     "needsReview": 5,
+    "expiresAt": "2025-01-16T10:00:00.000Z",
     "books": [
       {
         "title": "The Great Gatsby",
@@ -1016,6 +1026,9 @@ Host: api.oooefam.net
 - TTL: **24 hours** from job completion
 - Max Size: ~10 MB (100 books @ 100 KB each)
 
+**Field Notes:**
+- **`expiresAt`**: ISO 8601 timestamp indicating when results will be deleted from KV cache. Clients should cache results locally before expiry or handle 404 errors gracefully.
+
 ---
 
 #### GET /v1/csv/results/{jobId}
@@ -1044,7 +1057,8 @@ Host: api.oooefam.net
     ],
     "errors": [],
     "successRate": "98/100",
-    "timestamp": 1700000000000
+    "timestamp": 1700000000000,
+    "expiresAt": "2025-01-16T10:00:00.000Z"
   },
   "metadata": {
     "timestamp": "2025-11-15T20:00:00.000Z",
@@ -1061,6 +1075,9 @@ Same structure as `/v1/scan/results/{jobId}`.
 **Storage:**
 - KV Key: `csv-results:{jobId}`
 - TTL: **24 hours** from job completion
+
+**Field Notes:**
+- **`expiresAt`**: ISO 8601 timestamp indicating when results will be deleted from KV cache. Clients should cache results locally before expiry or handle 404 errors gracefully.
 
 ---
 
@@ -1227,6 +1244,7 @@ Sent periodically during processing (every 5-10% progress).
     "approved": 20,
     "needsReview": 5,
     "resultsUrl": "/v1/scan/results/uuid-12345",
+    "expiresAt": "2025-01-16T10:00:00.000Z",
     "metadata": {
       "modelUsed": "gemini-2.0-flash-exp",
       "processingTime": 8500
@@ -1245,6 +1263,12 @@ GET https://api.oooefam.net/v1/scan/results/uuid-12345
 - Large result arrays (5-10 MB) cause UI freezes on mobile
 - WebSocket payloads kept < 1 KB for instant parsing
 - Results stored in KV with 24-hour TTL
+
+**New Field: `expiresAt` (Issue #169)**
+- **Type:** ISO 8601 timestamp string (e.g., `"2025-01-16T10:00:00.000Z"`)
+- **Purpose:** Prevents race conditions where clients try to fetch expired results
+- **Calculation:** 24 hours from job completion time
+- **Usage:** Clients can display countdown timers and handle expiry gracefully
 
 ---
 
@@ -1980,10 +2004,10 @@ if (envelope.error) {
 }
 
 // 3. Extract data
-const { works, editions, authors } = envelope.data;
+const { works, editions, authors, resultCount } = envelope.data;
 
 // 4. Display to user
-console.log(`Found ${works.length} works, ${editions.length} editions, ${authors.length} authors`);
+console.log(`Found ${resultCount} works, ${editions.length} editions, ${authors.length} authors`);
 console.log(`Primary work: ${works[0].title} by ${authors[0].name}`);
 console.log(`Gender: ${authors[0].gender}, Cultural Region: ${authors[0].culturalRegion}`);
 ```

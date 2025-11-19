@@ -1306,6 +1306,9 @@ export class ProgressWebSocketDO extends DurableObject {
       return { success: false };
     }
 
+    // Calculate expiry timestamp (24 hours from now)
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
     const message = {
       type: "job_complete",
       jobId: this.jobId,
@@ -1316,6 +1319,7 @@ export class ProgressWebSocketDO extends DurableObject {
         type: "job_complete",
         pipeline,
         ...payload,
+        expiresAt, // Add expiry timestamp to payload
       },
     };
 

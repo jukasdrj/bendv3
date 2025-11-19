@@ -51,11 +51,11 @@ export async function handleCSVResults(
   }
 
   try {
-    // Retrieve from KV (stored by csv-processor.js:105)
+    // Retrieve from KV with metadata (to get expiration timestamp)
     const resultsKey = `csv-results:${jobId}`;
-    const cached = await env.KV_CACHE.get(resultsKey, 'json');
+    const kvResult = await env.KV_CACHE.getWithMetadata(resultsKey, 'json');
 
-    if (!cached) {
+    if (!kvResult.value) {
       return createErrorResponse(
         'CSV import results not found or expired. Results are stored for 24 hours after job completion.',
         404,
@@ -66,14 +66,24 @@ export async function handleCSVResults(
     }
 
     // Cast to expected structure
-    const results = cached as CSVImportResults;
+    const results = kvResult.value as CSVImportResults;
+
+    // Calculate expiry: KV metadata.expiration is Unix timestamp in seconds
+    // Convert to ISO 8601 string for client consumption
+    // Fallback to 24h from now if metadata unavailable (edge case)
+    const expiresAt = kvResult.metadata?.expiration
+      ? new Date(kvResult.metadata.expiration * 1000).toISOString()
+      : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     console.log(
-      `[v1/csv/results] Retrieved results for job ${jobId}: ${results.books.length} books imported`
+      `[v1/csv/results] Retrieved results for job ${jobId}: ${results.books.length} books imported, expires at ${expiresAt}`
     );
 
     return createSuccessResponse(
-      results,
+      {
+        ...results,
+        expiresAt, // Add expiry timestamp to response
+      },
       {
         processingTime: Date.now() - startTime,
         cached: true,
