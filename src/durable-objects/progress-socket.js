@@ -130,9 +130,45 @@ export class ProgressWebSocketDO extends DurableObject {
       console.log(`[${jobId}] ✅ Reconnection request detected`);
     }
 
-    // SECURITY: Validate authentication token
+    // SECURITY FIX (Issue #163): Extract token from WebSocket Subprotocol header
+    // Supports both NEW method (subprotocol) and OLD method (query param) for migration
+    // Priority: Subprotocol > Query param (clients should migrate to subprotocol)
+    const wsProtocol = request.headers.get("Sec-WebSocket-Protocol");
+    let providedToken = null;
+    let tokenSource = null;
+
+    if (wsProtocol) {
+      // NEW METHOD: Extract token from subprotocol header (secure)
+      // Format: "bookstrack-auth, <base64-encoded-token>"
+      const protocols = wsProtocol.split(",").map((p) => p.trim());
+      const authProtocol = protocols.find((p) =>
+        p.startsWith("bookstrack-auth."),
+      );
+
+      if (authProtocol) {
+        // Extract token after the dot: "bookstrack-auth.abc123..."
+        providedToken = authProtocol.substring("bookstrack-auth.".length);
+        tokenSource = "subprotocol";
+        console.log(
+          `[${jobId}] ✅ Token provided via secure subprotocol header`,
+        );
+      }
+    }
+
+    if (!providedToken) {
+      // OLD METHOD (DEPRECATED): Fallback to query param for backward compatibility
+      // SECURITY WARNING: This method leaks tokens in logs/history
+      providedToken = url.searchParams.get("token");
+      if (providedToken) {
+        tokenSource = "query_param";
+        console.warn(
+          `[${jobId}] ⚠️ DEPRECATED: Token provided via URL query parameter (INSECURE). ` +
+            `Client should migrate to Sec-WebSocket-Protocol header. See API_CONTRACT.md §7.5`,
+        );
+      }
+    }
+
     // OPTIMIZATION: Parallel storage reads (was sequential, now concurrent)
-    const providedToken = url.searchParams.get("token");
     const storageStartTime = Date.now();
     const [storedToken, expiration, blacklistEntry] = await Promise.all([
       this.storage.get("authToken"),
@@ -143,7 +179,9 @@ export class ProgressWebSocketDO extends DurableObject {
     ]);
     const storageDuration = Date.now() - storageStartTime;
 
-    console.log(`[${jobId}] 📊 Storage reads took ${storageDuration}ms`);
+    console.log(
+      `[${jobId}] 📊 Storage reads took ${storageDuration}ms (token source: ${tokenSource})`,
+    );
 
     // SECURITY FIX (Issue #164): Reject blacklisted tokens immediately
     // Prevents token reuse after job completion/failure
@@ -447,10 +485,17 @@ export class ProgressWebSocketDO extends DurableObject {
     }
 
     // Return client-side WebSocket to iOS app
+    // SECURITY FIX (Issue #163): Include Sec-WebSocket-Protocol in upgrade response
+    const headers = getCorsHeaders(request);
+    if (tokenSource === "subprotocol") {
+      // Confirm the bookstrack-auth subprotocol (required by WebSocket RFC 6455)
+      headers["Sec-WebSocket-Protocol"] = "bookstrack-auth";
+    }
+
     return new Response(null, {
       status: 101,
       webSocket: client,
-      headers: getCorsHeaders(request),
+      headers,
     });
   }
 
@@ -605,12 +650,16 @@ export class ProgressWebSocketDO extends DurableObject {
           };
           oldTokenKeysToDelete.push(key);
         } else {
-          console.warn(`[${this.jobId || "unknown"}] Unexpected old token key format: ${key}`);
+          console.warn(
+            `[${this.jobId || "unknown"}] Unexpected old token key format: ${key}`,
+          );
         }
       }
 
       // Batch blacklist old tokens (single storage.put call)
-      await this.storage.put(blacklistPuts, { expirationTtl: BLACKLIST_TTL_SECONDS });
+      await this.storage.put(blacklistPuts, {
+        expirationTtl: BLACKLIST_TTL_SECONDS,
+      });
 
       // Delete old token keys from storage to prevent bloat
       await this.storage.delete(oldTokenKeysToDelete);

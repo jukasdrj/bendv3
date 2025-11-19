@@ -174,15 +174,20 @@ app.get('/ws/progress', async (c) => {
     }, 400)
   }
 
-  // Note: Token validation happens in the Durable Object (progress-socket.js:172-175)
+  // SECURITY FIX (Issue #163): Token authentication now uses WebSocket Subprotocol
+  // NEW METHOD (secure): Token passed via Sec-WebSocket-Protocol header
+  //   Example: new WebSocket(url, ['bookstrack-auth.TOKEN_HERE'])
+  //
+  // OLD METHOD (deprecated): Token via URL query param (backward compatible)
+  //   Example: wss://api.oooefam.net/ws/progress?jobId=xxx&token=yyy
+  //   ⚠️ WARNING: Leaks tokens in logs, browser history, and network traffic
+  //
+  // Token validation happens in the Durable Object (progress-socket.js:133-178)
   // This maintains parity with manual router and follows Workers architecture:
   // - Router: validates required params and routes to correct DO
   // - DO: handles authentication, session management, and business logic
   //
-  // IMPORTANT: WebSocket upgrade validation is NOT performed here to maintain
-  // behavioral parity with the manual router (src/index.js:94-109).
-  // The Durable Object will handle upgrade validation if needed.
-  // See API_CONTRACT.md § 7.5 for WebSocket authentication flow
+  // See API_CONTRACT.md § 7.5 for complete WebSocket authentication flow
 
   // Get Durable Object instance for this specific jobId
   const doStub = getProgressDOStub(jobId, c.env)
