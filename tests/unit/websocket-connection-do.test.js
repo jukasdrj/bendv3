@@ -1,13 +1,13 @@
 /**
  * Unit Tests: WebSocketConnectionDO
- * 
+ *
  * Tests the refactored WebSocket connection management Durable Object.
  * This DO is focused solely on WebSocket lifecycle and authentication.
- * 
+ *
  * Related: Issue #68 - Refactor Monolithic ProgressWebSocketDO
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // Mock DurableObject base class for testing
 class MockDurableObject {
@@ -18,14 +18,16 @@ class MockDurableObject {
 }
 
 // Mock the cloudflare:workers module
-vi.mock('cloudflare:workers', () => ({
+vi.mock("cloudflare:workers", () => ({
   DurableObject: MockDurableObject,
 }));
 
 // Import after mocking
-const { WebSocketConnectionDO } = await import('../../src/durable-objects/websocket-connection.js');
+const { WebSocketConnectionDO } = await import(
+  "../../src/durable-objects/websocket-connection.js"
+);
 
-describe('WebSocketConnectionDO', () => {
+describe("WebSocketConnectionDO", () => {
   let mockState;
   let mockEnv;
   let doInstance;
@@ -33,17 +35,17 @@ describe('WebSocketConnectionDO', () => {
   beforeEach(() => {
     // Mock Durable Object state
     const internalStorage = new Map();
-    
+
     mockState = {
       storage: new Map(),
-      id: { toString: () => 'test-do-id' }
+      id: { toString: () => "test-do-id" },
     };
 
     // Add storage methods that don't recurse
     mockState.storage.get = vi.fn(async (key) => {
       return internalStorage.get(key);
     });
-    
+
     mockState.storage.put = vi.fn(async (key, value) => {
       internalStorage.set(key, value);
     });
@@ -63,168 +65,181 @@ describe('WebSocketConnectionDO', () => {
     doInstance = new WebSocketConnectionDO(mockState, mockEnv);
   });
 
-  describe('Authentication', () => {
-    it('should set auth token with expiration and reset consumed flag', async () => {
-      const token = 'test-token-123';
+  describe("Authentication", () => {
+    it("should set auth token with expiration and reset consumed flag", async () => {
+      const token = "test-token-123";
       const result = await doInstance.setAuthToken(token);
 
       expect(result.success).toBe(true);
-      expect(mockState.storage.put).toHaveBeenCalledWith('authToken', token);
+      expect(mockState.storage.put).toHaveBeenCalledWith("authToken", token);
       expect(mockState.storage.put).toHaveBeenCalledWith(
-        'authTokenExpiration',
-        expect.any(Number)
+        "authTokenExpiration",
+        expect.any(Number),
       );
       // SECURITY (#212): Verify consumed flag is reset for new tokens
-      expect(mockState.storage.delete).toHaveBeenCalledWith('authTokenConsumed');
+      expect(mockState.storage.delete).toHaveBeenCalledWith(
+        "authTokenConsumed",
+      );
     });
 
-    it('should reject upgrade without upgrade header', async () => {
-      const request = new Request('http://localhost?jobId=test-123&token=abc', {
-        method: 'GET'
+    it("should reject upgrade without upgrade header", async () => {
+      const request = new Request("http://localhost?jobId=test-123&token=abc", {
+        method: "GET",
       });
 
       const response = await doInstance.fetch(request);
 
       expect(response.status).toBe(426);
-      expect(await response.text()).toBe('Expected Upgrade: websocket');
+      expect(await response.text()).toBe("Expected Upgrade: websocket");
     });
 
-    it('should reject upgrade without jobId', async () => {
-      const request = new Request('http://localhost?token=abc', {
-        method: 'GET',
-        headers: { 'Upgrade': 'websocket' }
+    it("should reject upgrade without jobId", async () => {
+      const request = new Request("http://localhost?token=abc", {
+        method: "GET",
+        headers: { Upgrade: "websocket" },
       });
 
       const response = await doInstance.fetch(request);
 
       expect(response.status).toBe(400);
-      expect(await response.text()).toBe('Missing jobId parameter');
+      expect(await response.text()).toBe("Missing jobId parameter");
     });
 
-    it('should reject upgrade with invalid token', async () => {
+    it("should reject upgrade with invalid token", async () => {
       // Set a stored token
-      await mockState.storage.put('authToken', 'valid-token');
-      await mockState.storage.put('authTokenExpiration', Date.now() + 10000);
+      await mockState.storage.put("authToken", "valid-token");
+      await mockState.storage.put("authTokenExpiration", Date.now() + 10000);
 
-      const request = new Request('http://localhost?jobId=test-123&token=invalid-token', {
-        method: 'GET',
-        headers: { 'Upgrade': 'websocket' }
-      });
-
-      const response = await doInstance.fetch(request);
-
-      expect(response.status).toBe(401);
-      expect(await response.text()).toBe('Unauthorized');
-    });
-
-    it('should reject upgrade with expired token', async () => {
-      const token = 'valid-token';
-      await mockState.storage.put('authToken', token);
-      await mockState.storage.put('authTokenExpiration', Date.now() - 1000); // Expired
-
-      const request = new Request(`http://localhost?jobId=test-123&token=${token}`, {
-        method: 'GET',
-        headers: { 'Upgrade': 'websocket' }
-      });
+      const request = new Request(
+        "http://localhost?jobId=test-123&token=invalid-token",
+        {
+          method: "GET",
+          headers: { Upgrade: "websocket" },
+        },
+      );
 
       const response = await doInstance.fetch(request);
 
       expect(response.status).toBe(401);
-      expect(await response.text()).toBe('Token expired');
+      expect(await response.text()).toBe("Unauthorized");
     });
 
-    it('should reject second connection attempt with same token (SECURITY #212)', async () => {
-      const token = 'one-time-token';
+    it("should reject upgrade with expired token", async () => {
+      const token = "valid-token";
+      await mockState.storage.put("authToken", token);
+      await mockState.storage.put("authTokenExpiration", Date.now() - 1000); // Expired
+
+      const request = new Request(
+        `http://localhost?jobId=test-123&token=${token}`,
+        {
+          method: "GET",
+          headers: { Upgrade: "websocket" },
+        },
+      );
+
+      const response = await doInstance.fetch(request);
+
+      expect(response.status).toBe(401);
+      expect(await response.text()).toBe("Token expired");
+    });
+
+    it("should reject second connection attempt with same token (SECURITY #212)", async () => {
+      const token = "one-time-token";
 
       // First connection: should succeed and consume token
-      await mockState.storage.put('authToken', token);
-      await mockState.storage.put('authTokenExpiration', Date.now() + 10000);
+      await mockState.storage.put("authToken", token);
+      await mockState.storage.put("authTokenExpiration", Date.now() + 10000);
 
       // Simulate token already consumed (first connection succeeded)
-      await mockState.storage.put('authTokenConsumed', true);
+      await mockState.storage.put("authTokenConsumed", true);
 
       // Second connection attempt with same token
-      const request = new Request(`http://localhost?jobId=test-123&token=${token}`, {
-        method: 'GET',
-        headers: { 'Upgrade': 'websocket' }
-      });
+      const request = new Request(
+        `http://localhost?jobId=test-123&token=${token}`,
+        {
+          method: "GET",
+          headers: { Upgrade: "websocket" },
+        },
+      );
 
       const response = await doInstance.fetch(request);
 
       // Should reject with 401
       expect(response.status).toBe(401);
-      expect(await response.text()).toContain('Token already consumed');
+      expect(await response.text()).toContain("Token already consumed");
     });
 
-    it('should allow reconnection with fresh token after consumption (SECURITY #212)', async () => {
-      const oldToken = 'consumed-token';
-      const newToken = 'fresh-token';
+    it("should allow reconnection with fresh token after consumption (SECURITY #212)", async () => {
+      const oldToken = "consumed-token";
+      const newToken = "fresh-token";
 
       // First connection consumed old token
-      await mockState.storage.put('authToken', oldToken);
-      await mockState.storage.put('authTokenExpiration', Date.now() + 10000);
-      await mockState.storage.put('authTokenConsumed', true);
+      await mockState.storage.put("authToken", oldToken);
+      await mockState.storage.put("authTokenExpiration", Date.now() + 10000);
+      await mockState.storage.put("authTokenConsumed", true);
 
       // Server issues new token (simulates legitimate reconnection)
       await doInstance.setAuthToken(newToken);
 
       // Verify consumed flag was reset
-      const consumed = await mockState.storage.get('authTokenConsumed');
+      const consumed = await mockState.storage.get("authTokenConsumed");
       expect(consumed).toBeUndefined();
 
       // Verify new token is set
-      const storedToken = await mockState.storage.get('authToken');
+      const storedToken = await mockState.storage.get("authToken");
       expect(storedToken).toBe(newToken);
     });
   });
 
-  describe('WebSocket Lifecycle', () => {
-    it('should initialize ready promise on construction', () => {
+  describe("WebSocket Lifecycle", () => {
+    it("should initialize ready promise on construction", () => {
       expect(doInstance.isReady).toBe(false);
       expect(doInstance.readyPromise).toBeNull();
       expect(doInstance.readyResolver).toBeNull();
     });
 
-    it('should handle ready message from client', () => {
-      doInstance.jobId = 'test-123';
+    it("should handle ready message from client", () => {
+      doInstance.jobId = "test-123";
       doInstance.readyPromise = new Promise((resolve) => {
         doInstance.readyResolver = resolve;
       });
       doInstance.webSocket = {
-        send: vi.fn()
+        send: vi.fn(),
       };
 
-      doInstance.handleMessage(JSON.stringify({ type: 'ready' }));
+      doInstance.handleMessage(JSON.stringify({ type: "ready" }));
 
       expect(doInstance.isReady).toBe(true);
       expect(doInstance.webSocket.send).toHaveBeenCalledWith(
-        expect.stringContaining('"type":"ready_ack"')
+        expect.stringContaining('"type":"ready_ack"'),
       );
     });
 
-    it('should ignore invalid message format', () => {
-      doInstance.jobId = 'test-123';
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    it("should ignore invalid message format", () => {
+      doInstance.jobId = "test-123";
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
 
-      doInstance.handleMessage('invalid json');
-
-      expect(consoleSpy).toHaveBeenCalled();
-      consoleSpy.mockRestore();
-    });
-
-    it('should ignore messages with missing type', () => {
-      doInstance.jobId = 'test-123';
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      doInstance.handleMessage(JSON.stringify({ data: 'test' }));
+      doInstance.handleMessage("invalid json");
 
       expect(consoleSpy).toHaveBeenCalled();
       consoleSpy.mockRestore();
     });
 
-    it('should cleanup on close', () => {
+    it("should ignore messages with missing type", () => {
+      doInstance.jobId = "test-123";
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      doInstance.handleMessage(JSON.stringify({ data: "test" }));
+
+      expect(consoleSpy).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
+    it("should cleanup on close", () => {
       doInstance.webSocket = { send: vi.fn() };
-      doInstance.jobId = 'test-123';
+      doInstance.jobId = "test-123";
       doInstance.isReady = true;
 
       doInstance.cleanup();
@@ -235,8 +250,8 @@ describe('WebSocketConnectionDO', () => {
     });
   });
 
-  describe('RPC Methods', () => {
-    it('should wait for ready signal successfully', async () => {
+  describe("RPC Methods", () => {
+    it("should wait for ready signal successfully", async () => {
       doInstance.isReady = false;
       doInstance.webSocket = { send: vi.fn() };
       doInstance.readyPromise = Promise.resolve();
@@ -247,7 +262,7 @@ describe('WebSocketConnectionDO', () => {
       expect(result.disconnected).toBe(false);
     });
 
-    it('should return immediately if already ready', async () => {
+    it("should return immediately if already ready", async () => {
       doInstance.isReady = true;
 
       const result = await doInstance.waitForReady(1000);
@@ -256,7 +271,7 @@ describe('WebSocketConnectionDO', () => {
       expect(result.disconnected).toBe(false);
     });
 
-    it('should detect disconnected socket', async () => {
+    it("should detect disconnected socket", async () => {
       doInstance.isReady = false;
       doInstance.webSocket = null;
 
@@ -265,7 +280,7 @@ describe('WebSocketConnectionDO', () => {
       expect(result.disconnected).toBe(true);
     });
 
-    it('should timeout if ready signal not received', async () => {
+    it("should timeout if ready signal not received", async () => {
       doInstance.isReady = false;
       doInstance.webSocket = { send: vi.fn() };
       doInstance.readyPromise = new Promise(() => {}); // Never resolves
@@ -275,51 +290,57 @@ describe('WebSocketConnectionDO', () => {
       expect(result.timedOut).toBe(true);
     });
 
-    it('should send message successfully', async () => {
-      doInstance.jobId = 'test-123';
+    it("should send message successfully", async () => {
+      doInstance.jobId = "test-123";
       doInstance.webSocket = {
-        send: vi.fn()
+        send: vi.fn(),
       };
 
-      const message = { type: 'test', data: 'hello' };
+      const message = { type: "test", data: "hello" };
       const result = await doInstance.send(message);
 
       expect(result.success).toBe(true);
-      expect(doInstance.webSocket.send).toHaveBeenCalledWith(JSON.stringify(message));
+      expect(doInstance.webSocket.send).toHaveBeenCalledWith(
+        JSON.stringify(message),
+      );
     });
 
-    it('should fail to send if no websocket', async () => {
-      doInstance.jobId = 'test-123';
+    it("should fail to send if no websocket", async () => {
+      doInstance.jobId = "test-123";
       doInstance.webSocket = null;
 
-      const message = { type: 'test', data: 'hello' };
+      const message = { type: "test", data: "hello" };
       const result = await doInstance.send(message);
 
       expect(result.success).toBe(false);
     });
 
-    it('should close connection gracefully', async () => {
-      doInstance.jobId = 'test-123';
+    it("should close connection gracefully", async () => {
+      doInstance.jobId = "test-123";
       const closeMock = vi.fn();
       doInstance.webSocket = {
-        close: closeMock
+        close: closeMock,
       };
 
-      const result = await doInstance.closeConnection('Test reason');
+      const result = await doInstance.closeConnection("Test reason");
 
       expect(result.success).toBe(true);
-      expect(closeMock).toHaveBeenCalledWith(1000, 'Test reason');
+      expect(closeMock).toHaveBeenCalledWith(1000, "Test reason");
       expect(doInstance.webSocket).toBeNull();
     });
 
-    it('should handle close error gracefully', async () => {
-      doInstance.jobId = 'test-123';
+    it("should handle close error gracefully", async () => {
+      doInstance.jobId = "test-123";
       doInstance.webSocket = {
-        close: vi.fn(() => { throw new Error('Close failed'); })
+        close: vi.fn(() => {
+          throw new Error("Close failed");
+        }),
       };
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const result = await doInstance.closeConnection('Test reason');
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const result = await doInstance.closeConnection("Test reason");
 
       expect(result.success).toBe(true);
       expect(doInstance.webSocket).toBeNull();
@@ -327,35 +348,35 @@ describe('WebSocketConnectionDO', () => {
     });
   });
 
-  describe('Message Handling', () => {
+  describe("Message Handling", () => {
     beforeEach(() => {
-      doInstance.jobId = 'test-123';
+      doInstance.jobId = "test-123";
       doInstance.webSocket = {
-        send: vi.fn()
+        send: vi.fn(),
       };
     });
 
-    it('should handle ready message and send acknowledgment', () => {
+    it("should handle ready message and send acknowledgment", () => {
       doInstance.readyPromise = new Promise((resolve) => {
         doInstance.readyResolver = resolve;
       });
 
-      doInstance.handleMessage(JSON.stringify({ type: 'ready' }));
+      doInstance.handleMessage(JSON.stringify({ type: "ready" }));
 
       expect(doInstance.isReady).toBe(true);
       expect(doInstance.webSocket.send).toHaveBeenCalledWith(
-        expect.stringContaining('"type":"ready_ack"')
+        expect.stringContaining('"type":"ready_ack"'),
       );
       expect(doInstance.readyResolver).toBeNull(); // Cleared after resolve
     });
 
-    it('should log unknown message types', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    it("should log unknown message types", () => {
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-      doInstance.handleMessage(JSON.stringify({ type: 'unknown' }));
+      doInstance.handleMessage(JSON.stringify({ type: "unknown" }));
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Unknown message type: unknown')
+        expect.stringContaining("Unknown message type: unknown"),
       );
       consoleSpy.mockRestore();
     });
