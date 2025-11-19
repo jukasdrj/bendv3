@@ -1,14 +1,45 @@
-# BooksTrack API Contract v2.3
+# BooksTrack API Contract v2.4
 
 **Status:** Production ✅
-**Effective Date:** November 15, 2025
-**Last Updated:** November 18, 2025 (v2.3 - WebSocket Security Fix)
+**Effective Date:** November 18, 2025
+**Last Updated:** November 18, 2025 (v2.4 - P1 Fixes: Image Quality + HATEOAS Links)
 **Contract Owner:** Backend Team
 **Audience:** iOS, Flutter, Web Frontend Teams
 
 ---
 
-## 🔥 What's New in v2.3 (WebSocket Security Fix)
+## 🔥 What's New in v2.4 (P1 Fixes: Image Quality + HATEOAS Links)
+
+### **🔗 NEW: HATEOAS Search Links (Issue #196)**
+- **Feature:** All WorkDTO and EditionDTO responses now include optional `searchLinks` field
+- **Purpose:** Backend centralizes URL construction - clients just follow links (no URL building logic needed)
+- **Providers:** Google Books, OpenLibrary, Amazon
+- **Impact:** Fixes iOS "View on Google Books" crash, eliminates duplicated URL logic across platforms
+- **Breaking Change:** None - field is optional, backward compatible
+
+**Example Response:**
+```json
+{
+  "title": "The Great Gatsby",
+  "searchLinks": {
+    "googleBooks": "https://www.googleapis.com/books/v1/volumes?q=isbn:9780743273565",
+    "openLibrary": "https://openlibrary.org/isbn/9780743273565",
+    "amazon": "https://www.amazon.com/s?k=9780743273565"
+  }
+}
+```
+
+### **📊 IMPROVED: Provider-Agnostic Image Quality Detection (Issue #195)**
+- **Fix:** `X-Image-Quality` header now accurate for OpenLibrary/ISBNdb covers (not just Google Books)
+- **Method:** Dimension-based detection via HTTP HEAD requests with URL heuristics fallback
+- **Caching:** Image dimensions cached for 24h to minimize external calls
+- **Impact:** More accurate quality metrics across all providers
+
+**See:** Section 5.1 (WorkDTO) and 5.2 (EditionDTO) for `searchLinks` schema.
+
+---
+
+## What's New in v2.3 (WebSocket Security Fix)
 
 ### **🔒 SECURITY FIX: WebSocket Token Authentication (Issue #163)**
 - **Problem:** Tokens passed in URL query parameters leaked in server logs, browser history, and network traffic
@@ -554,6 +585,7 @@ interface WorkDTO {
   firstPublicationYear?: number;    // Year only (e.g., 1925)
   description?: string;             // Synopsis
   coverImageURL?: string;           // High-res cover (1200px width recommended)
+  searchLinks?: SearchLinksDTO;     // HATEOAS links for external providers (Issue #196)
 
   // ========== PROVENANCE ==========
   synthetic?: boolean;              // true if Work was inferred from Edition
@@ -596,6 +628,28 @@ type ReviewStatus = "verified" | "needsReview" | "userEdited";
 type DataProvider = "google-books" | "openlibrary" | "isbndb" | "gemini";
 ```
 
+**SearchLinksDTO (Issue #196 - HATEOAS Compliance):**
+```typescript
+interface SearchLinksDTO {
+  googleBooks?: string;   // Direct link to Google Books search/volume
+  openLibrary?: string;   // Direct link to OpenLibrary ISBN/search
+  amazon?: string;        // Direct link to Amazon search
+}
+```
+
+**Purpose:** Centralize URL construction on backend (HATEOAS principle). Clients never need to construct provider URLs - just follow the links provided.
+
+**Example:**
+```json
+{
+  "searchLinks": {
+    "googleBooks": "https://www.googleapis.com/books/v1/volumes?q=isbn:9780743273565",
+    "openLibrary": "https://openlibrary.org/isbn/9780743273565",
+    "amazon": "https://www.amazon.com/s?k=9780743273565"
+  }
+}
+```
+
 ---
 
 ### 5.2 EditionDTO (Physical/Digital Manifestation)
@@ -624,6 +678,7 @@ interface EditionDTO {
   editionTitle?: string;            // e.g., "Deluxe Illustrated Edition"
   editionDescription?: string;      // Note: NOT 'description' (Swift reserved)
   language?: string;                // ISO 639-1 code
+  searchLinks?: SearchLinksDTO;     // HATEOAS links for external providers (Issue #196)
 
   // ========== PROVENANCE ==========
   primaryProvider?: DataProvider;

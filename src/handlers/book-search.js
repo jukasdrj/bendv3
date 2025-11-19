@@ -12,6 +12,7 @@ import { setCached } from "../utils/cache.js";
 import { UnifiedCacheService } from "../services/unified-cache.js";
 import { writeCacheMetrics } from "../utils/analytics.js";
 import { CacheKeyFactory } from "../services/cache-key-factory.js";
+import { detectImageQuality, generateSearchLinks, getPlaceholderCover } from "../utils/book-metadata.js";
 
 /**
  * Search books by title with multi-provider orchestration
@@ -44,11 +45,12 @@ export async function searchByTitle(title, options, env, ctx) {
 
   if (cachedResult && cachedResult.data) {
     const { data, source } = cachedResult;
-    const headers = generateCacheHeaders(
+    const headers = await generateCacheHeaders(
       true,
       cachedResult.age || 0,
       cachedResult.ttl || 0,
       data.items,
+      env
     );
 
     // Write cache metrics to Analytics Engine
@@ -133,7 +135,7 @@ export async function searchByTitle(title, options, env, ctx) {
       provider: `orchestrated:${successfulProviders.join("+")}`,
       cached: false,
       responseTime: Date.now() - startTime,
-      _cacheHeaders: generateCacheHeaders(false, 0, 6 * 60 * 60, dedupedItems), // TTL: 6h
+      _cacheHeaders: await generateCacheHeaders(false, 0, 6 * 60 * 60, dedupedItems, env), // TTL: 6h
     };
 
     // Cache for 6 hours
@@ -188,11 +190,12 @@ export async function searchByISBN(isbn, options, env, ctx) {
 
   if (cachedResult && cachedResult.data) {
     const { data, source } = cachedResult;
-    const headers = generateCacheHeaders(
+    const headers = await generateCacheHeaders(
       true,
       cachedResult.age || 0,
       cachedResult.ttl || 0,
       data.items,
+      env
     );
 
     // Write cache metrics to Analytics Engine
@@ -375,10 +378,22 @@ function transformWorkToGoogleFormat(work) {
     work.openLibraryWorkKey ||
     `synthetic-${work.title.replace(/\s+/g, "-").toLowerCase()}`;
 
+  // Extract ISBN for search links (prefer ISBN-13)
+  const isbn = primaryEdition?.isbn13 || primaryEdition?.isbn10 || null;
+
+  // Generate HATEOAS search links
+  const searchLinks = generateSearchLinks(
+    isbn,
+    work.title,
+    authors[0], // Primary author
+    volumeId
+  );
+
   return {
     kind: "books#volume",
     id: volumeId,
     volumeInfo: volumeInfo,
+    searchLinks: searchLinks, // HATEOAS compliance
   };
 }
 
@@ -420,9 +435,10 @@ function deduplicateByISBN(items) {
  * @param {number} age - Cache age in seconds
  * @param {number} ttl - Cache TTL in seconds
  * @param {Array} items - Search result items for quality analysis
- * @returns {Object} Headers object
+ * @param {Object} env - Worker environment bindings
+ * @returns {Promise<Object>} Headers object
  */
-function generateCacheHeaders(cacheHit, age, ttl, items = []) {
+async function generateCacheHeaders(cacheHit, age, ttl, items = [], env) {
   const headers = {};
 
   // Cache status
@@ -434,8 +450,8 @@ function generateCacheHeaders(cacheHit, age, ttl, items = []) {
   // Cache TTL (remaining seconds before expiry)
   headers["X-Cache-TTL"] = ttl.toString();
 
-  // Image quality analysis
-  const imageQuality = analyzeImageQuality(items);
+  // Image quality analysis (provider-agnostic)
+  const imageQuality = await analyzeImageQuality(items, env);
   headers["X-Image-Quality"] = imageQuality;
 
   // Data completeness (% with ISBN + cover)
@@ -446,30 +462,47 @@ function generateCacheHeaders(cacheHit, age, ttl, items = []) {
 }
 
 /**
- * Analyzes cover image quality from URLs
+ * Analyzes cover image quality from URLs (provider-agnostic)
+ * Uses detectImageQuality utility for accurate dimension-based analysis
+ *
  * @param {Array} items - Search result items in Google Books format
- * @returns {string} 'high' | 'medium' | 'low' | 'missing'
+ * @param {Object} env - Worker environment bindings
+ * @returns {Promise<string>} 'high' | 'medium' | 'low' | 'missing'
  */
-function analyzeImageQuality(items) {
+async function analyzeImageQuality(items, env) {
   if (!items || items.length === 0) return "missing";
 
+  // Collect all cover URLs for parallel processing
+  const coverUrls = items.map(item => {
+    const imageLinks = item.volumeInfo?.imageLinks;
+    return imageLinks?.thumbnail || imageLinks?.smallThumbnail || "";
+  });
+
+  // Detect quality for all covers in parallel (with 2s timeout per image)
+  const qualityResults = await Promise.all(
+    coverUrls.map(url => detectImageQuality(url, env))
+  );
+
+  // Count quality levels
   let highCount = 0;
   let mediumCount = 0;
   let lowCount = 0;
   let missingCount = 0;
 
-  for (const item of items) {
-    const imageLinks = item.volumeInfo?.imageLinks;
-    const coverURL = imageLinks?.thumbnail || imageLinks?.smallThumbnail || "";
-
-    if (!coverURL) {
-      missingCount++;
-    } else if (coverURL.includes("zoom=1") || coverURL.includes("zoom=2")) {
-      highCount++; // High zoom = high quality
-    } else if (coverURL.includes("zoom=0")) {
-      lowCount++; // Low zoom = low quality
-    } else {
-      mediumCount++; // Default quality
+  for (const result of qualityResults) {
+    switch (result.quality) {
+      case 'high':
+        highCount++;
+        break;
+      case 'medium':
+        mediumCount++;
+        break;
+      case 'low':
+        lowCount++;
+        break;
+      case 'missing':
+        missingCount++;
+        break;
     }
   }
 
