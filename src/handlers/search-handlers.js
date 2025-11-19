@@ -195,12 +195,31 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
             const volumeId = edition.googleBooksVolumeId || `synthetic-${isbn}`;
             const primaryAuthor = work.authors[0]?.name || null;
 
+            // Map authorsDetailed with cultural diversity fields
+            const authorsDetailed = work.authors
+              .filter((a) => typeof a === "object" && a !== null)
+              .map((a) => ({
+                name: a.name,
+                gender: a.gender || "Unknown",
+                ...(a.culturalRegion && { culturalRegion: a.culturalRegion }),
+                ...(a.nationality && { nationality: a.nationality }),
+                ...(a.birthYear && { birthYear: a.birthYear }),
+                ...(a.deathYear && { deathYear: a.deathYear }),
+                ...(a.openLibraryID && { openLibraryID: a.openLibraryID }),
+                ...(a.isbndbID && { isbndbID: a.isbndbID }),
+                ...(a.googleBooksID && { googleBooksID: a.googleBooksID }),
+                ...(a.goodreadsID && { goodreadsID: a.goodreadsID }),
+                ...(a.bookCount && { bookCount: a.bookCount }),
+              }));
+
             return {
               id: volumeId,
               volumeInfo: {
                 title: work.title,
                 subtitle: work.subtitle,
                 authors: work.authors.map((a) => a.name),
+                authorsDetailed:
+                  authorsDetailed.length > 0 ? authorsDetailed : undefined,
                 publishedDate: edition.publicationDate || edition.publishDate,
                 publisher: edition.publisher,
                 pageCount: edition.pageCount || edition.pages,
@@ -264,12 +283,31 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
               `ol-${work.title.replace(/\s+/g, "-").toLowerCase()}`;
             const primaryAuthor = work.authors[0]?.name || null;
 
+            // Map authorsDetailed with cultural diversity fields
+            const authorsDetailed = work.authors
+              .filter((a) => typeof a === "object" && a !== null)
+              .map((a) => ({
+                name: a.name,
+                gender: a.gender || "Unknown",
+                ...(a.culturalRegion && { culturalRegion: a.culturalRegion }),
+                ...(a.nationality && { nationality: a.nationality }),
+                ...(a.birthYear && { birthYear: a.birthYear }),
+                ...(a.deathYear && { deathYear: a.deathYear }),
+                ...(a.openLibraryID && { openLibraryID: a.openLibraryID }),
+                ...(a.isbndbID && { isbndbID: a.isbndbID }),
+                ...(a.googleBooksID && { googleBooksID: a.googleBooksID }),
+                ...(a.goodreadsID && { goodreadsID: a.goodreadsID }),
+                ...(a.bookCount && { bookCount: a.bookCount }),
+              }));
+
             return {
               id: volumeId,
               volumeInfo: {
                 title: work.title,
                 subtitle: work.subtitle,
                 authors: work.authors.map((a) => a.name),
+                authorsDetailed:
+                  authorsDetailed.length > 0 ? authorsDetailed : undefined,
                 publishedDate: edition.publicationDate,
                 publisher: edition.publisher,
                 pageCount: edition.pageCount,

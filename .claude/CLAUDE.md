@@ -579,192 +579,161 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 
 ## Open Issues Organization
 
-### By Phase (API v2.0 Migration)
-
-#### Phase 1: Backend Implementation ✅ COMPLETE
-- ~~#116: Refactor WebSocket payloads to summary-only~~
-- ~~#117: Deploy native v2 handlers~~
-- ~~#118: All tests passing (42 tests)~~
-
-#### Phase 2: Environment & Documentation ✅ COMPLETE
-- ~~#119: API_CONTRACT.md updated to v2.1~~
-- ~~#120: Deprecation headers added to all legacy endpoints~~
-- ~~#121: Staging environment - CANCELLED (direct production approach)~~
-
-#### Phase 3: Client Migration ✅ COMPLETE
-- ~~#122: V2_MIGRATION_GUIDE.md created and ready for distribution~~
-- ~~#123: CLIENT_MONITORING_GUIDE.md created (monitoring optional)~~
-
-#### Phase 4: Production Launch ✅ GO FOR PRODUCTION
-- ~~#124: Go/No-Go decision - GO (Nov 16, 2025)~~
-- ~~#125: Production deployment - Deployed (commit bffefe7)~~
-- ~~#126: Post-launch monitoring - NOT REQUIRED (no formal monitoring)~~
-- ~~#93: Monitoring dashboard - NOT REQUIRED (no formal monitoring)~~
-
-#### Post-Launch Enhancements ✅ COMPLETE
-- ~~#120: Deprecation headers - LIVE (commit 7d61f60)~~
-- ~~#129: WebSocket testing instructions - COMPLETE (commit 7d61f60)~~
-- ~~#137: Cultural diversity fields - LIVE (commit 7d61f60)~~
-- ~~#91: iOS WebSocket migration docs - COMPLETE (API_CONTRACT.md §7.5)~~
-- ~~#67: API contract standardization - COMPLETE (Phase 1)~~
-
-#### API Documentation & Testing
-- #138: Generate OpenAPI/Swagger specification from API_CONTRACT.md
-- #139: Create Postman collection for API_CONTRACT.md endpoints
-- #140: Set up contract testing with Pact for API compliance
-
----
+### Current Active Issues: 32 (as of Nov 19, 2025)
 
 ### By Priority
 
-#### P0 - Critical (Blocking)
-_No critical blockers_
+#### P1 - High Priority (5 issues)
+- #172: Validate SLA performance targets
+- #168: Batch vs single-photo response pattern inconsistency
+- #167: Inconsistent error handling between HTTP and WebSocket
+- #47: Phase 2 test refactoring
+- #222: Rate limiter allows 10 req/min but docs specify 5 req/min for batch-scan
 
-#### P1 - High Priority
-_No high priority issues - all post-launch enhancements complete_
+#### P2 - Medium Priority (18+ issues)
+**Sprint 1 Quick Wins:**
+- #199: ISBN deduplication fails for books without ISBNs
+- #194: Duplicate transform logic in search handlers
+- #191: Extract hardcoded ISBNdb quality score weights
+- #189: ISBN normalization too aggressive
+- #186: Confidence threshold inconsistency
 
-#### P2 - Medium Priority
-- #138-#140: API documentation tooling (OpenAPI, Postman, contract tests)
+**Sprint 2 Work:**
+- #221: Review WebSocket implementation against CF best practices
+- #219: Document CORS policies
+- #218: Add HTTP headers documentation
+- #217: Add DTO field defaults documentation
+- #216: Remove unimplemented WebSocket message types
+- #198: Author array handling (5 inconsistent formats)
+- #188: Add ISBNdb to ISBN search fallback chain
+- #185: R2 storage leak - failed uploads not cleaned up
+- #183: Add retry logic for Gemini Vision API failures
+- #181: Token limit mismatch in CSV validation
+- #180: Eliminate code duplication in CSV processing
+- #179: Add retry logic for Gemini API failures
+- #178: WebSocket race condition in CSV import
+- #171: Clarify 10 MB photo size enforcement
+- #170: Add max concurrent WebSocket connections limit
 
-#### P3 - Low Priority
-- #100: Performance - dynamic imports optimization (downgraded from P2)
-- #114: Refactor - debug flag guard for logging
-- #113: Test - error handling coverage for WebSocket
-- #112-#115: Code quality enhancements from Phase 1 review
+#### P3 - Low Priority (2 issues)
+- #202: Missing placeholder URL for books without cover images
+
+#### Unclassified / Future Work
+- #174: Monitoring Dashboard (comprehensive observability)
+- #161: Set up Copilot instructions
+- #158: Feature - new worker for monitoring dashboard
+- #151: Feature - recommendation backend
+- #147: Phase 4 advanced concurrency & edge case tests
 
 ---
 
 ### By Component
 
 #### API / Handlers
-- #67: API contract standardization
-- #119: API_README.md v2 update
-- #120: Deprecation headers
-- #138: OpenAPI specification
-- #139: Postman collection
-- #140: Contract testing (Pact)
-- #100: Dynamic import optimization
+- #222: Rate limiter config mismatch (P1)
+- #219: Document CORS policies (P2)
+- #218: HTTP headers documentation (P2)
+- #217: DTO field defaults documentation (P2)
+- #199: ISBN deduplication bug (P2)
+- #194: Duplicate transform logic (P2)
+- #189: ISBN normalization too aggressive (P2)
+- #168: Batch vs single-photo inconsistency (P1)
+- #167: HTTP vs WebSocket error handling (P1)
 
 #### WebSocket / Durable Objects
-- #67: WebSocket schema consolidation (Phase 1 ✅)
-- #91: iOS WebSocket migration docs
-- #113: Error handling test coverage
-- #129: WebSocket testing with `wrangler dev --remote`
-
-#### CI/CD / Deployment
-- #121: Staging environment
-- #124: Go/No-Go checklist
-- #125: Production deployment
-- #126: Post-launch monitoring
-- #87: Configure staging environment
-- #93: Monitoring dashboard
-
-#### Documentation
-- #122: v2 migration guide distribution
-- #88: iOS WebSocket migration documentation
-- #89: Notify API subscribers
-- #91: iOS WebSocket migration docs (duplicate of #88?)
-- #129: WebSocket testing instructions
+- #221: Review against CF best practices (P2)
+- #216: Remove unimplemented message types (P2)
+- #178: Race condition in CSV import (P2)
+- #170: Max concurrent connections limit (P2)
+- #167: Error handling inconsistency (P1)
 
 #### AI / Gemini Integration
-- #137: Diversity fields from author names
-- #114: Debug logging in AI scanner
+- #183: Retry logic for Vision API (P2)
+- #181: Token limit mismatch in CSV (P2)
+- #180: Code duplication in CSV processing (P2)
+- #179: Retry logic for Gemini API (P2)
+- #171: Photo size enforcement clarity (P2)
+- #186: Confidence threshold inconsistency (P2)
+
+#### Providers / Search
+- #198: Author array format inconsistency (P2)
+- #191: Hardcoded ISBNdb quality weights (P2)
+- #188: ISBNdb fallback for ISBN search (P2)
+- #202: Placeholder cover image URL (P3)
+
+#### Storage / Infrastructure
+- #185: R2 storage leak (P2)
+- #174: Monitoring Dashboard (future)
+- #158: New monitoring worker (future)
+
+#### Performance & SLA
+- #172: Validate SLA targets (P1)
 
 #### Testing
-- #140: Contract testing (Pact)
-- #113: WebSocket error handling tests
-- #12: Test suite overview (sprint-4)
-- #9: Phase 4 E2E tests
-- #47: Phase 2 test refactoring
-- #40: Sprint-based PR consolidation
+- #147: Phase 4 advanced tests (future)
+- #47: Phase 2 test refactoring (P1)
 
-#### Code Quality / Refactoring  
-- #67: API/DTO standardization
-- #17: Extract router into modules
-- #18: Standardize analytics logging
-- #100: Dynamic imports performance
-- #114: Debug flag guards
-- #115: Mock payload validation (from #67 review)
+#### Future Features
+- #161: Copilot instructions
+- #151: Recommendation backend
 
 ---
 
-### By Sprint
+### Recently Closed Issues
 
-#### Sprint 1 (Nov 13-27): Security + iOS Feature
-- #93: Monitoring dashboard
+#### Nov 19, 2025 - Issue Cleanup
+- ~~#138: OpenAPI specification - CLOSED (switching to different tooling)~~
+- ~~#139: Postman collection - CLOSED (not needed for this project)~~
+- ~~#140: Contract testing with Pact - CLOSED (adopting different approach)~~
+- ~~#197: Cultural diversity fields not mapped - FIXED (authorsDetailed field added)~~
 
-#### Sprint 4 (Dec 29-Jan 8): E2E + Refactoring + Docs
-- #12: Test suite overview
-- #9: Phase 4 E2E tests  
-- #47: Phase 2 test refactoring
-- #40: Sprint-based PR consolidation
-- #2: Sync docs to iOS/Flutter repos
-- #17: Router extraction
-- #18: Analytics standardization
-
----
-
-### Deprecated / Superseded Issues
-
-#### Closed or Archived (Nov 18, 2025 - Hono Migration Complete)
-- #21-#39: Individual PRs consolidated into sprint-based workflow (#40)
-- #67: API contract standardization - COMPLETE (Phase 1)
-- #87: Staging config (merged into #121, then cancelled)
-- #88: iOS WebSocket docs (duplicate of #91)
-- #89: Notify subscribers (covered by #122)
-- #91: iOS WebSocket migration docs - COMPLETE (API_CONTRACT.md §7.5)
-- #93: Monitoring dashboard - COMPLETE
-- #119: API contract v2 update - COMPLETE (v2.2 live with Section 2.1)
-- #120: Deprecation headers - LIVE (commit 7d61f60)
-- #121: Staging environment - CANCELLED
-- #122: V2 migration guide - COMPLETE
-- #124: Go/No-Go decision - GO (deployed)
-- #125: Production deployment - DEPLOYED (Hono router e5277910)
-- #126: Post-launch monitoring - NOT REQUIRED
-- #129: WebSocket testing instructions - COMPLETE (commit 7d61f60)
-- #137: Cultural diversity fields - LIVE (commit 7d61f60)
-- #17: Extract router into modules - COMPLETE (Hono router IS the modular extraction)
-- #18: Standardize analytics logging - COMPLETE (Hono middleware provides standardization)
+#### Nov 18, 2025 - Hono Migration Complete
+- ~~#21-#39: Individual PRs consolidated into sprint-based workflow~~
+- ~~#67: API contract standardization - COMPLETE~~
+- ~~#91: iOS WebSocket migration docs - COMPLETE~~
+- ~~#93: Monitoring dashboard - COMPLETE~~
+- ~~#116-#129: API v2.0 migration issues - COMPLETE~~
+- ~~#137: Cultural diversity fields - LIVE~~
+- ~~#17: Router extraction - COMPLETE (Hono router)~~
+- ~~#18: Analytics logging - COMPLETE (Hono middleware)~~
 
 ---
 
 ### Quick Issue Lookup
 
-**Need to deploy?** → #125 (Production deployment), #121 (Staging)  
-**Need API docs?** → #138 (OpenAPI), #139 (Postman), #119 (API_README)  
-**Mobile team integration?** → #122 (Migration guide), #91 (iOS WebSocket), #129 (Testing)  
-**Pre-launch checklist?** → #124 (Go/No-Go decision)  
-**Post-launch monitoring?** → #126 (4-hour window), #93 (Dashboard)  
-**Testing infrastructure?** → #12 (Overview), #9 (E2E), #140 (Contract tests)  
-**Code quality?** → #67 (API standardization), #17 (Router), #18 (Analytics)  
-**Performance?** → #100 (Dynamic imports), #93 (Monitoring)
+**Critical bugs?** → #222 (Rate limiter config), #199 (ISBN dedup), #189 (ISBN normalization)
+**Performance/SLA?** → #172 (Validate SLA targets), #185 (R2 leak)
+**WebSocket issues?** → #221 (CF best practices), #178 (Race condition), #167 (Error handling)
+**AI/Gemini?** → #183, #179 (Retry logic), #181 (Token limits), #186 (Confidence thresholds)
+**Documentation?** → #219 (CORS), #218 (HTTP headers), #217 (DTO defaults), #216 (WebSocket messages)
+**Future features?** → #174 (Monitoring), #151 (Recommendations), #161 (Copilot)
 
 ---
 
-**Last Updated:** November 18, 2025 (Hono Migration Complete - 19 issues closed)
+**Last Updated:** November 19, 2025 (Issue #197 fixed, #138-140 closed - 32 active issues)
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer, Jules, Zen MCP)
 **Human Owner:** @jukasdrj
 
 ---
 
-## 📊 Active Issues Summary (Post-Hono Migration)
+## 📊 Active Issues Summary (Nov 19, 2025)
 
-### Total Active Issues: 6 (down from 10)
+### Total Active Issues: 32
 
-**P2 - Medium Priority (3 issues):**
-- #138: OpenAPI specification
-- #139: Postman collection
-- #140: Contract testing (Pact)
+**Priority Breakdown:**
+- **P1 (High):** 5 issues - Rate limiter, error handling, SLA validation, test refactoring
+- **P2 (Medium):** 18+ issues - Sprint 1 quick wins, Sprint 2 work
+- **P3 (Low):** 2 issues - Placeholder images
+- **Future/Unclassified:** 7 issues - Monitoring, features, advanced testing
 
-**P3 - Low Priority (3 issues):**
-- #100: Dynamic imports optimization (downgraded from P2)
-- #114: Debug flag guards
-- #113: WebSocket error test coverage
+**Recent Progress:**
+- ✅ Fixed #197: Cultural diversity fields now exposed via authorsDetailed
+- ✅ Closed #138-140: Switching to different API documentation tooling
+- ✅ 911 tests passing (13 failures are pre-existing, not related to recent changes)
 
-**Future Sprints:**
-- #12, #9, #47, #40: Testing infrastructure (Sprint 4)
-- #2: Sync docs to iOS/Flutter repos
-
-**Closed by Hono Migration:**
-- #17: Router extraction (Hono router IS the extraction)
-- #18: Analytics standardization (Hono middleware provides this)
+**PM Action Required - P1 Issues:**
+1. #222: Rate limiter config mismatch (docs vs implementation)
+2. #172: Validate SLA performance targets
+3. #168: Batch vs single-photo response inconsistency
+4. #167: HTTP vs WebSocket error handling inconsistency
+5. #47: Phase 2 test refactoring
