@@ -88,13 +88,16 @@ export class WebSocketConnectionDO extends DurableObject {
       console.warn(
         `[${jobId}] WebSocket authentication failed - token already used (prevents session hijacking)`,
       );
-      return new Response("Token already consumed. Only one connection per token is allowed.", {
-        status: 401,
-        headers: {
-          ...getCorsHeaders(request),
-          "Content-Type": "text/plain",
+      return new Response(
+        "Token already consumed. Only one connection per token is allowed.",
+        {
+          status: 401,
+          headers: {
+            ...getCorsHeaders(request),
+            "Content-Type": "text/plain",
+          },
         },
-      });
+      );
     }
 
     if (!storedToken || !providedToken || storedToken !== providedToken) {
@@ -127,7 +130,9 @@ export class WebSocketConnectionDO extends DurableObject {
     // This prevents race conditions where multiple clients try to connect simultaneously
     await this.storage.put("authTokenConsumed", true);
 
-    console.log(`[${jobId}] ✅ WebSocket authentication successful (token now invalidated for reuse)`);
+    console.log(
+      `[${jobId}] ✅ WebSocket authentication successful (token now invalidated for reuse)`,
+    );
 
     // Create WebSocket pair
     const pairStartTime = Date.now();

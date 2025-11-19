@@ -1,8 +1,9 @@
 // src/providers/gemini-csv-provider.js
 
-import { CSV_BOOK_SCHEMA } from '../types/gemini-schemas.js';
+import { CSV_BOOK_SCHEMA } from "../types/gemini-schemas.js";
 
-const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
+const GEMINI_API_ENDPOINT =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
 
 /**
  * Sanitize CSV text to prevent prompt injection attacks
@@ -20,18 +21,20 @@ function sanitizeCSVForPrompt(csvText) {
   const MAX_CSV_SIZE = 500 * 1024;
 
   if (csvText.length > MAX_CSV_SIZE) {
-    throw new Error(`CSV too large for processing (max ${MAX_CSV_SIZE / 1024}KB)`);
+    throw new Error(
+      `CSV too large for processing (max ${MAX_CSV_SIZE / 1024}KB)`,
+    );
   }
 
   // Remove control characters that could inject instructions
   // Keep only printable ASCII, tabs, newlines, and common Unicode characters
-  let sanitized = csvText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  let sanitized = csvText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
 
   // Escape special characters that could break prompt context
   sanitized = sanitized
-    .replace(/\\/g, '\\\\')  // Escape backslashes first
-    .replace(/`/g, '\\`')    // Escape backticks (code blocks)
-    .replace(/\${/g, '\\${'); // Escape template literals
+    .replace(/\\/g, "\\\\") // Escape backslashes first
+    .replace(/`/g, "\\`") // Escape backticks (code blocks)
+    .replace(/\${/g, "\\${"); // Escape template literals
 
   // Remove suspicious instruction patterns (case-insensitive)
   const suspiciousPatterns = [
@@ -39,11 +42,11 @@ function sanitizeCSVForPrompt(csvText) {
     /new\s+instructions?:/gi,
     /system\s*:/gi,
     /override\s+(instructions?|system)/gi,
-    /disregard\s+(previous|prior|all)/gi
+    /disregard\s+(previous|prior|all)/gi,
   ];
 
   for (const pattern of suspiciousPatterns) {
-    sanitized = sanitized.replace(pattern, '[REMOVED_SUSPICIOUS_CONTENT]');
+    sanitized = sanitized.replace(pattern, "[REMOVED_SUSPICIOUS_CONTENT]");
   }
 
   return sanitized;
@@ -72,16 +75,17 @@ export async function parseCSVWithGemini(csvText, prompt, apiKey) {
   const fullPrompt = `${prompt}\n\nCSV Data:\n${sanitizedCSV}`;
 
   const response = await fetch(GEMINI_API_ENDPOINT, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'x-goog-api-key': apiKey,
-      'Content-Type': 'application/json'
+      "x-goog-api-key": apiKey,
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       // System instruction: Define the CSV parser's role
       system_instruction: {
-        parts: [{
-          text: `You are an expert book data parser specialized in extracting structured book information from CSV exports.
+        parts: [
+          {
+            text: `You are an expert book data parser specialized in extracting structured book information from CSV exports.
 
 Your primary task is to intelligently map CSV columns to a standardized book data schema, handling various CSV formats from Goodreads, LibraryThing, StoryGraph, and custom exports.
 
@@ -91,23 +95,28 @@ Core capabilities:
 - Normalize data types and formats (dates, ratings, ISBN formats)
 - Handle malformed or incomplete rows gracefully
 
-Always return ONLY a valid JSON array. Do not include explanatory text.`
-        }]
+Always return ONLY a valid JSON array. Do not include explanatory text.`,
+          },
+        ],
       },
-      contents: [{
-        parts: [{
-          text: fullPrompt
-        }]
-      }],
+      contents: [
+        {
+          parts: [
+            {
+              text: fullPrompt,
+            },
+          ],
+        },
+      ],
       generationConfig: {
         temperature: 0.1, // Maximum determinism for structured parsing with Flash-Lite
-        topP: 0.95,       // Nucleus sampling for quality
+        topP: 0.95, // Nucleus sampling for quality
         maxOutputTokens: 8192,
-        responseMimeType: 'application/json',  // Force JSON output (eliminates markdown code blocks)
-        responseSchema: CSV_BOOK_SCHEMA,  // Schema-enforced validation (guarantees title+author)
-        stopSequences: ['\n\n\n']  // Stop on triple newline (prevents unnecessary continuation)
-      }
-    })
+        responseMimeType: "application/json", // Force JSON output (eliminates markdown code blocks)
+        responseSchema: CSV_BOOK_SCHEMA, // Schema-enforced validation (guarantees title+author)
+        stopSequences: ["\n\n\n"], // Stop on triple newline (prevents unnecessary continuation)
+      },
+    }),
   });
 
   if (!response.ok) {
@@ -124,10 +133,12 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`
   const outputTokens = tokenUsage.candidatesTokenCount || 0;
   const totalTokens = tokenUsage.totalTokenCount || 0;
 
-  console.log(`[GeminiCSVProvider] Token usage - Prompt: ${promptTokens}, Output: ${outputTokens}, Total: ${totalTokens}`);
+  console.log(
+    `[GeminiCSVProvider] Token usage - Prompt: ${promptTokens}, Output: ${outputTokens}, Total: ${totalTokens}`,
+  );
 
   if (!textResponse) {
-    throw new Error('Gemini returned empty response');
+    throw new Error("Gemini returned empty response");
   }
 
   // With structured output, response is guaranteed to be valid JSON matching schema
@@ -137,7 +148,7 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`
     // Lightweight defensive check: Catches API bugs, not schema violations
     // (Schema guarantees array of books with title+author, but we verify to catch unexpected API changes)
     if (!Array.isArray(parsed)) {
-      throw new Error('Schema violation: Expected array, got ' + typeof parsed);
+      throw new Error("Schema violation: Expected array, got " + typeof parsed);
     }
 
     // Schema guarantees all books have title+author, no manual filtering needed
