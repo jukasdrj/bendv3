@@ -12,7 +12,11 @@ import { setCached } from "../utils/cache.js";
 import { UnifiedCacheService } from "../services/unified-cache.js";
 import { writeCacheMetrics } from "../utils/analytics.js";
 import { CacheKeyFactory } from "../services/cache-key-factory.js";
-import { detectImageQuality, generateSearchLinks, getPlaceholderCover } from "../utils/book-metadata.js";
+import {
+  detectImageQuality,
+  generateSearchLinks,
+  getPlaceholderCover,
+} from "../utils/book-metadata.js";
 
 /**
  * Search books by title with multi-provider orchestration
@@ -50,7 +54,7 @@ export async function searchByTitle(title, options, env, ctx) {
       cachedResult.age || 0,
       cachedResult.ttl || 0,
       data.items,
-      env
+      env,
     );
 
     // Write cache metrics to Analytics Engine
@@ -135,7 +139,13 @@ export async function searchByTitle(title, options, env, ctx) {
       provider: `orchestrated:${successfulProviders.join("+")}`,
       cached: false,
       responseTime: Date.now() - startTime,
-      _cacheHeaders: await generateCacheHeaders(false, 0, 6 * 60 * 60, dedupedItems, env), // TTL: 6h
+      _cacheHeaders: await generateCacheHeaders(
+        false,
+        0,
+        6 * 60 * 60,
+        dedupedItems,
+        env,
+      ), // TTL: 6h
     };
 
     // Cache for 6 hours
@@ -195,7 +205,7 @@ export async function searchByISBN(isbn, options, env, ctx) {
       cachedResult.age || 0,
       cachedResult.ttl || 0,
       data.items,
-      env
+      env,
     );
 
     // Write cache metrics to Analytics Engine
@@ -427,7 +437,7 @@ function transformWorkToGoogleFormat(work) {
     isbn,
     work.title,
     authors[0], // Primary author
-    volumeId
+    volumeId,
   );
 
   return {
@@ -464,13 +474,13 @@ function deduplicateByISBN(items) {
   return items.filter((item) => {
     const identifiers = item.volumeInfo?.industryIdentifiers || [];
     const isbns = identifiers
-      .filter(id => id.type === 'ISBN_13' || id.type === 'ISBN_10')
-      .map(id => id.identifier);
+      .filter((id) => id.type === "ISBN_13" || id.type === "ISBN_10")
+      .map((id) => id.identifier);
 
     // If book has ISBNs, dedupe by ISBN
     if (isbns && isbns.length > 0) {
-      const hasNewISBN = isbns.some(isbn => {
-        const normalized = isbn.replace(/[-\s]/g, '');
+      const hasNewISBN = isbns.some((isbn) => {
+        const normalized = isbn.replace(/[-\s]/g, "");
         if (seen.has(normalized)) return false;
         seen.add(normalized);
         return true;
@@ -482,7 +492,7 @@ function deduplicateByISBN(items) {
     if (item.volumeInfo?.title) {
       const normalizedTitle = item.volumeInfo.title
         .toLowerCase()
-        .replace(/[^\w\s]/g, '') // Remove punctuation
+        .replace(/[^\w\s]/g, "") // Remove punctuation
         .trim();
 
       if (seenTitles.has(normalizedTitle)) {
@@ -541,14 +551,14 @@ async function analyzeImageQuality(items, env) {
   if (!items || items.length === 0) return "missing";
 
   // Collect all cover URLs for parallel processing
-  const coverUrls = items.map(item => {
+  const coverUrls = items.map((item) => {
     const imageLinks = item.volumeInfo?.imageLinks;
     return imageLinks?.thumbnail || imageLinks?.smallThumbnail || "";
   });
 
   // Detect quality for all covers in parallel (with 2s timeout per image)
   const qualityResults = await Promise.all(
-    coverUrls.map(url => detectImageQuality(url, env))
+    coverUrls.map((url) => detectImageQuality(url, env)),
   );
 
   // Count quality levels
@@ -559,16 +569,16 @@ async function analyzeImageQuality(items, env) {
 
   for (const result of qualityResults) {
     switch (result.quality) {
-      case 'high':
+      case "high":
         highCount++;
         break;
-      case 'medium':
+      case "medium":
         mediumCount++;
         break;
-      case 'low':
+      case "low":
         lowCount++;
         break;
-      case 'missing':
+      case "missing":
         missingCount++;
         break;
     }
