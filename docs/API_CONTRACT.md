@@ -1,14 +1,36 @@
-# BooksTrack API Contract v2.4
+# BooksTrack API Contract v2.4.1
 
 **Status:** Production ✅
-**Effective Date:** November 18, 2025
-**Last Updated:** November 18, 2025 (v2.4 - P1 Fixes: Image Quality + HATEOAS Links)
+**Effective Date:** November 20, 2025
+**Last Updated:** November 20, 2025 (v2.4.1 - WebSocket Performance Optimization)
 **Contract Owner:** Backend Team
 **Audience:** iOS, Flutter, Web Frontend Teams
 
 ---
 
-## 🔥 What's New in v2.4 (P1 Fixes: Image Quality + HATEOAS Links)
+## 🔥 What's New in v2.4.1 (WebSocket Performance Optimization)
+
+### **⚡ PERFORMANCE: WebSocket Hibernation API (Issue #221)**
+- **Change:** Backend migrated to Cloudflare Hibernation WebSocket API
+- **Impact:** Zero user-facing changes - API contract unchanged
+- **Benefits:**
+  - 70-80% reduction in Durable Object costs
+  - Automatic memory management (sleep/wake cycles between messages)
+  - Improved scalability for high-traffic scenarios
+- **Backward Compatibility:** 100% compatible - all message formats unchanged
+- **Action Required:** None - transparent backend optimization
+
+**Technical Details:**
+- WebSocket connections now use `state.acceptWebSocket()` with automatic hibernation
+- State management migrated to Durable Storage (zero in-memory state)
+- Message delivery remains identical (same timing, same formats)
+- Authentication flow unchanged (see v2.3 for secure subprotocol header method)
+
+**See:** Section 7 (WebSocket API) - no changes to client integration
+
+---
+
+## What's New in v2.4 (P1 Fixes: Image Quality + HATEOAS Links)
 
 ### **🔗 NEW: HATEOAS Search Links (Issue #196)**
 - **Feature:** All WorkDTO and EditionDTO responses now include optional `searchLinks` field
