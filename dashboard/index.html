@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BooksTrack Harvest Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 BooksTrack Harvest Dashboard</h1>
+            <div class="header-meta">
+                <span id="last-updated">Last updated: --</span>
+                <button id="refresh-btn" class="refresh-btn">🔄 Refresh</button>
+            </div>
+        </header>
+
+        <!-- System Health Overview -->
+        <section class="section">
+            <h2>System Health Overview</h2>
+            <div class="health-grid">
+                <div class="health-card" id="health-status">
+                    <div class="card-title">Worker Status</div>
+                    <div class="card-value status-badge" id="worker-status">--</div>
+                    <div class="card-meta">
+                        <span id="worker-version">Version: --</span>
+                        <span id="worker-router">Router: --</span>
+                    </div>
+                </div>
+                <div class="health-card" id="request-volume">
+                    <div class="card-title">Request Volume</div>
+                    <div class="card-value" id="request-count">--</div>
+                    <div class="card-meta">requests/hour</div>
+                </div>
+                <div class="health-card" id="error-rate">
+                    <div class="card-title">Error Rate</div>
+                    <div class="card-value" id="error-percentage">--</div>
+                    <div class="card-meta">target: &lt; 1%</div>
+                </div>
+                <div class="health-card" id="health-score">
+                    <div class="card-title">Health Score</div>
+                    <div class="card-value status-badge" id="health-status-text">--</div>
+                    <div class="card-meta" id="health-issues">--</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Cache Performance (Real-Time) -->
+        <section class="section">
+            <h2>Cache Performance</h2>
+            <div class="metrics-grid">
+                <!-- Hit Rate Gauges -->
+                <div class="metric-card">
+                    <div class="card-title">Edge Cache Hit Rate</div>
+                    <div class="gauge-container">
+                        <div class="gauge" id="edge-gauge">
+                            <div class="gauge-fill" id="edge-fill"></div>
+                            <div class="gauge-text" id="edge-text">--</div>
+                        </div>
+                    </div>
+                    <div class="card-meta">Target: 80%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="card-title">KV Cache Hit Rate</div>
+                    <div class="gauge-container">
+                        <div class="gauge" id="kv-gauge">
+                            <div class="gauge-fill" id="kv-fill"></div>
+                            <div class="gauge-text" id="kv-text">--</div>
+                        </div>
+                    </div>
+                    <div class="card-meta">Target: 15%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="card-title">Combined Hit Rate</div>
+                    <div class="gauge-container">
+                        <div class="gauge" id="combined-gauge">
+                            <div class="gauge-fill" id="combined-fill"></div>
+                            <div class="gauge-text" id="combined-text">--</div>
+                        </div>
+                    </div>
+                    <div class="card-meta">Target: 95%</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Cache Volume Breakdown -->
+        <section class="section">
+            <h2>Cache Volume Breakdown</h2>
+            <div class="table-container">
+                <table class="metrics-table">
+                    <thead>
+                        <tr>
+                            <th>Cache Tier</th>
+                            <th>Hits</th>
+                            <th>Percentage</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cache-breakdown">
+                        <tr>
+                            <td colspan="3" class="loading">Loading metrics...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Latency Metrics -->
+        <section class="section">
+            <h2>Response Time Metrics</h2>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="card-title">P50 Latency</div>
+                    <div class="card-value" id="p50-latency">--</div>
+                    <div class="card-meta">median response time</div>
+                </div>
+                <div class="metric-card">
+                    <div class="card-title">P95 Latency</div>
+                    <div class="card-value" id="p95-latency">--</div>
+                    <div class="card-meta">95th percentile</div>
+                </div>
+                <div class="metric-card">
+                    <div class="card-title">P99 Latency</div>
+                    <div class="card-value" id="p99-latency">--</div>
+                    <div class="card-meta">99th percentile</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Cost Tracking -->
+        <section class="section">
+            <h2>Cost Estimates</h2>
+            <div class="table-container">
+                <table class="metrics-table">
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Usage</th>
+                            <th>Cost Estimate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cost-breakdown">
+                        <tr>
+                            <td colspan="3" class="loading">Loading cost data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer>
+            <p>
+                BooksTrack API Monitoring Dashboard | 
+                <a href="https://api.oooefam.net/health" target="_blank">API Health</a> | 
+                <a href="https://api.oooefam.net/metrics" target="_blank">Raw Metrics</a>
+            </p>
+            <p class="auto-refresh-info">
+                <span id="auto-refresh-status">Auto-refresh: ON (30s)</span> | 
+                <label>
+                    <input type="checkbox" id="auto-refresh-toggle" checked> 
+                    Enable auto-refresh
+                </label>
+            </p>
+        </footer>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

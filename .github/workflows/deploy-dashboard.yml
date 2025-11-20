@@ -1,0 +1,32 @@
+name: Deploy Harvest Dashboard to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'dashboard/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Cloudflare Pages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: harvest-dashboard
+          directory: dashboard
+          # Optional: Custom domain will be configured in Cloudflare Pages settings
+          # Custom domain: harvest.oooefam.net
+
+      - name: Verify deployment
+        run: |
+          echo "Dashboard deployed successfully!"
+          echo "Live at: https://harvest.oooefam.net"
