@@ -1,6 +1,6 @@
 // src/prompts/csv-parser-prompt.js
 
-export const PROMPT_VERSION = 'v1';
+export const PROMPT_VERSION = "v1";
 
 export function buildCSVParserPrompt() {
   return `You are a book data parser. Parse this CSV file and return a JSON array of books.

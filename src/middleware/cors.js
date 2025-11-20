@@ -32,12 +32,12 @@
  * Mobile: Capacitor/Ionic schemes for iOS app
  */
 const ALLOWED_ORIGINS = [
-  'https://bookstrack.app',           // Production domain (when deployed)
-  'https://www.bookstrack.app',       // Production with www
-  'http://localhost:3000',            // Local web development
-  'http://localhost:8080',            // Alternative local port
-  'capacitor://localhost',            // iOS Capacitor (if using Capacitor bridge)
-  'ionic://localhost'                 // iOS Ionic (if using Ionic framework)
+  "https://bookstrack.app", // Production domain (when deployed)
+  "https://www.bookstrack.app", // Production with www
+  "http://localhost:3000", // Local web development
+  "http://localhost:8080", // Alternative local port
+  "capacitor://localhost", // iOS Capacitor (if using Capacitor bridge)
+  "ionic://localhost", // iOS Ionic (if using Ionic framework)
 ];
 
 /**
@@ -50,15 +50,16 @@ export function getCorsHeaders(request) {
   // Handle null request (when no request object is available)
   if (!request || !request.headers) {
     return {
-      'Access-Control-Allow-Origin': '*', // Permissive fallback for non-browser clients
-      'Access-Control-Allow-Credentials': 'true',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-AI-Provider',
-      'Access-Control-Max-Age': '86400' // 24 hours preflight cache
+      "Access-Control-Allow-Origin": "*", // Permissive fallback for non-browser clients
+      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers":
+        "Content-Type, Authorization, X-AI-Provider",
+      "Access-Control-Max-Age": "86400", // 24 hours preflight cache
     };
   }
 
-  const origin = request.headers.get('Origin');
+  const origin = request.headers.get("Origin");
   const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : null;
 
   // Log blocked origins for monitoring
@@ -67,11 +68,12 @@ export function getCorsHeaders(request) {
   }
 
   return {
-    'Access-Control-Allow-Origin': allowedOrigin || '*', // Fallback to permissive for iOS app (no Origin header)
-    'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-AI-Provider',
-    'Access-Control-Max-Age': '86400' // 24 hours preflight cache
+    "Access-Control-Allow-Origin": allowedOrigin || "*", // Fallback to permissive for iOS app (no Origin header)
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, X-AI-Provider",
+    "Access-Control-Max-Age": "86400", // 24 hours preflight cache
   };
 }
 
@@ -82,7 +84,7 @@ export function getCorsHeaders(request) {
  * @returns {boolean} - True if origin is allowed
  */
 export function isOriginAllowed(request) {
-  const origin = request.headers.get('Origin');
+  const origin = request.headers.get("Origin");
   return ALLOWED_ORIGINS.includes(origin);
 }
 

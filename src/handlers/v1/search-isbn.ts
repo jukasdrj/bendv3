@@ -5,12 +5,20 @@
  * Refactored to use shared enrichMultipleBooks() service for consistency
  */
 
-import type { BookSearchResponse } from '../../types/responses.js';
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../../utils/response-builder.js';
-import { enrichMultipleBooks } from '../../services/enrichment.ts';
-import { normalizeISBN } from '../../utils/normalization.js';
-import { extractUniqueAuthors, removeAuthorsFromWorks, enrichAuthorsWithCulturalData } from '../../utils/response-transformer.js';
-import { writeCacheMetrics } from '../../utils/analytics.js';
+import type { BookSearchResponse } from "../../types/responses.js";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  ErrorCodes,
+} from "../../utils/response-builder.js";
+import { enrichMultipleBooks } from "../../services/enrichment.ts";
+import { normalizeISBN } from "../../utils/normalization.js";
+import {
+  extractUniqueAuthors,
+  removeAuthorsFromWorks,
+  enrichAuthorsWithCulturalData,
+} from "../../utils/response-transformer.js";
+import { writeCacheMetrics } from "../../utils/analytics.js";
 
 // ISBN validation regex constants (DRY principle - avoids duplication across functions)
 const ISBN10_REGEX = /^\d{9}[\dX]$/i;
@@ -35,7 +43,7 @@ function isValidISBN10Checksum(cleanedIsbn: string): boolean {
   }
 
   const checkChar = cleanedIsbn[9].toUpperCase();
-  const checkDigit = checkChar === 'X' ? 10 : parseInt(checkChar, 10);
+  const checkDigit = checkChar === "X" ? 10 : parseInt(checkChar, 10);
 
   return (sum + checkDigit) % 11 === 0;
 }
@@ -56,7 +64,7 @@ function isValidISBN13Checksum(cleanedIsbn: string): boolean {
   let sum = 0;
   for (let i = 0; i < 12; i++) {
     const digit = parseInt(cleanedIsbn[i], 10);
-    sum += (i % 2 === 0) ? digit : digit * 3;
+    sum += i % 2 === 0 ? digit : digit * 3;
   }
 
   const checkDigit = parseInt(cleanedIsbn[12], 10);
@@ -77,7 +85,7 @@ function isValidISBN13Checksum(cleanedIsbn: string): boolean {
 function isValidISBN(isbn: string): boolean {
   if (!isbn || isbn.trim().length === 0) return false;
 
-  const cleaned = isbn.replace(/[-\s]/g, '');
+  const cleaned = isbn.replace(/[-\s]/g, "");
 
   // ISBN-13: exactly 13 digits
   if (cleaned.length === 13 && ISBN13_REGEX.test(cleaned)) {
@@ -95,38 +103,42 @@ function isValidISBN(isbn: string): boolean {
 export async function handleSearchISBN(
   isbn: string,
   env: any,
-  request: Request | null = null
+  request: Request | null = null,
 ): Promise<Response> {
   const startTime = Date.now();
 
   // Validation
   if (!isbn || isbn.trim().length === 0) {
     return createErrorResponse(
-      'ISBN is required',
+      "ISBN is required",
       400,
       ErrorCodes.INVALID_ISBN,
       { isbn },
-      request
+      request,
     );
   }
 
   if (!isValidISBN(isbn)) {
     return createErrorResponse(
-      'Invalid ISBN format. Must be valid ISBN-10 or ISBN-13',
+      "Invalid ISBN format. Must be valid ISBN-10 or ISBN-13",
       400,
       ErrorCodes.INVALID_ISBN,
       { isbn },
-      request
+      request,
     );
   }
 
   try {
     // Normalize ISBN for consistent cache keys
     const normalizedISBN = normalizeISBN(isbn);
-    console.log(`v1 ISBN search for "${isbn}" (normalized: "${normalizedISBN}") (using enrichMultipleBooks)`);
+    console.log(
+      `v1 ISBN search for "${isbn}" (normalized: "${normalizedISBN}") (using enrichMultipleBooks)`,
+    );
 
     // Use enrichMultipleBooks for consistency with other v1 search endpoints
-    const result = await enrichMultipleBooks({ isbn: normalizedISBN }, env, { maxResults: 1 });
+    const result = await enrichMultipleBooks({ isbn: normalizedISBN }, env, {
+      maxResults: 1,
+    });
 
     const processingTime = Date.now() - startTime;
 
@@ -134,24 +146,24 @@ export async function handleSearchISBN(
       // Book not found in any provider
       // Still log to Analytics Engine for ISBN harvest tracking
       await writeCacheMetrics(env, {
-        endpoint: '/v1/search/isbn',
+        endpoint: "/v1/search/isbn",
         isbn: normalizedISBN,
         cacheHit: false,
         responseTime: processingTime,
-        imageQuality: 'NONE',
+        imageQuality: "NONE",
         dataCompleteness: 0,
-        itemCount: 0
+        itemCount: 0,
       });
 
       return createSuccessResponse(
         { works: [], editions: [], authors: [], resultCount: 0 },
         {
           processingTime,
-          provider: 'none',
+          provider: "none",
           cached: false,
         },
         200,
-        request
+        request,
       );
     }
 
@@ -166,35 +178,41 @@ export async function handleSearchISBN(
 
     // Log ISBN search to Analytics Engine for daily harvest
     const work = cleanWorks[0];
-    const hasCovers = work?.coverImageURL || result.editions?.some((e: any) => e.coverURL);
+    const hasCovers =
+      work?.coverImageURL || result.editions?.some((e: any) => e.coverURL);
     await writeCacheMetrics(env, {
-      endpoint: '/v1/search/isbn',
+      endpoint: "/v1/search/isbn",
       isbn: normalizedISBN,
       cacheHit: false, // enrichMultipleBooks doesn't use cache (direct API calls)
       responseTime: processingTime,
-      imageQuality: hasCovers ? 'MEDIUM' : 'NONE',
+      imageQuality: hasCovers ? "MEDIUM" : "NONE",
       dataCompleteness: work ? 75 : 0, // Simplified: assume 75% completeness for found books
-      itemCount: cleanWorks.length
+      itemCount: cleanWorks.length,
     });
 
     return createSuccessResponse(
-      { works: cleanWorks, editions: result.editions, authors, resultCount: cleanWorks.length },
+      {
+        works: cleanWorks,
+        editions: result.editions,
+        authors,
+        resultCount: cleanWorks.length,
+      },
       {
         processingTime,
         provider: work?.primaryProvider, // Use actual provider from enriched work
         cached: false,
       },
       200,
-      request
+      request,
     );
   } catch (error: any) {
-    console.error('Error in v1 ISBN search:', error);
+    console.error("Error in v1 ISBN search:", error);
     return createErrorResponse(
-      error.message || 'Internal server error',
+      error.message || "Internal server error",
       500,
       ErrorCodes.INTERNAL_ERROR,
       { error: error.toString(), processingTime: Date.now() - startTime },
-      request
+      request,
     );
   }
 }

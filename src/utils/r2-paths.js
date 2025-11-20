@@ -9,7 +9,7 @@
 export function generateR2Path(cacheKey) {
   const now = new Date();
   const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, "0");
 
   return `cold-cache/${year}/${month}/${cacheKey}.json`;
 }
@@ -22,6 +22,6 @@ export function generateR2Path(cacheKey) {
  */
 export function parseR2Path(r2Path) {
   // Remove prefix and .json suffix
-  const filename = r2Path.split('/').pop();
-  return filename.replace(/\.json$/, '');
+  const filename = r2Path.split("/").pop();
+  return filename.replace(/\.json$/, "");
 }

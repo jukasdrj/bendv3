@@ -7,7 +7,11 @@
  * Related: Issue #133 (Summary-only WebSocket completions)
  */
 
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../../utils/response-builder.js';
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  ErrorCodes,
+} from "../../utils/response-builder.js";
 
 /**
  * AI Scan Results Response
@@ -28,9 +32,9 @@ export interface AIScanResults {
       width: number;
       height: number;
     };
-    enrichmentStatus?: 'pending' | 'success' | 'not_found' | 'error';
+    enrichmentStatus?: "pending" | "success" | "not_found" | "error";
     enrichment?: {
-      status: 'success' | 'not_found' | 'error';
+      status: "success" | "not_found" | "error";
       work?: any;
       editions?: any[];
       authors?: any[];
@@ -57,33 +61,33 @@ export interface AIScanResults {
 export async function handleScanResults(
   jobId: string,
   env: any,
-  request: Request | null = null
+  request: Request | null = null,
 ): Promise<Response> {
   const startTime = Date.now();
 
   // Validation
   if (!jobId || jobId.trim().length === 0) {
     return createErrorResponse(
-      'Job ID is required',
+      "Job ID is required",
       400,
       ErrorCodes.INVALID_REQUEST,
       { jobId },
-      request
+      request,
     );
   }
 
   try {
     // Retrieve from KV with metadata (to get expiration timestamp)
     const resultsKey = `scan-results:${jobId}`;
-    const kvResult = await env.KV_CACHE.getWithMetadata(resultsKey, 'json');
+    const kvResult = await env.KV_CACHE.getWithMetadata(resultsKey, "json");
 
     if (!kvResult.value) {
       return createErrorResponse(
-        'Scan results not found or expired. Results are stored for 24 hours after job completion.',
+        "Scan results not found or expired. Results are stored for 24 hours after job completion.",
         404,
         ErrorCodes.NOT_FOUND,
-        { jobId, resultsKey, ttl: '24 hours' },
-        request
+        { jobId, resultsKey, ttl: "24 hours" },
+        request,
       );
     }
 
@@ -98,7 +102,7 @@ export async function handleScanResults(
       : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     console.log(
-      `[v1/scan/results] Retrieved results for job ${jobId}: ${results.totalDetected} books detected, expires at ${expiresAt}`
+      `[v1/scan/results] Retrieved results for job ${jobId}: ${results.totalDetected} books detected, expires at ${expiresAt}`,
     );
 
     return createSuccessResponse(
@@ -109,19 +113,19 @@ export async function handleScanResults(
       {
         processingTime: Date.now() - startTime,
         cached: true,
-        provider: 'kv_cache',
+        provider: "kv_cache",
       },
       200,
-      request
+      request,
     );
   } catch (error: any) {
-    console.error('[v1/scan/results] Error retrieving scan results:', error);
+    console.error("[v1/scan/results] Error retrieving scan results:", error);
     return createErrorResponse(
-      error.message || 'Failed to retrieve scan results',
+      error.message || "Failed to retrieve scan results",
       500,
       ErrorCodes.INTERNAL_ERROR,
       { jobId, error: error.toString() },
-      request
+      request,
     );
   }
 }

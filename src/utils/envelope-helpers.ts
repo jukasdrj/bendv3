@@ -9,9 +9,9 @@ import type {
   ResponseEnvelope,
   SuccessResponse,
   ErrorResponse,
-  ResponseMeta
-} from '../types/responses.js';
-import { statusFromError } from './error-status.js';
+  ResponseMeta,
+} from "../types/responses.js";
+import { statusFromError } from "./error-status.js";
 
 /**
  * Create unified success response envelope
@@ -20,7 +20,12 @@ import { statusFromError } from './error-status.js';
  */
 export function createUnifiedSuccessResponse<T>(
   data: T,
-  meta: { timestamp: string; processingTime?: number; provider?: string; cached?: boolean }
+  meta: {
+    timestamp: string;
+    processingTime?: number;
+    provider?: string;
+    cached?: boolean;
+  },
 ): ResponseEnvelope<T> {
   return {
     data,
@@ -28,9 +33,9 @@ export function createUnifiedSuccessResponse<T>(
       timestamp: meta.timestamp,
       processingTime: meta.processingTime,
       provider: meta.provider,
-      cached: meta.cached
+      cached: meta.cached,
     },
-    error: undefined as any  // Will be serialized as missing key in JSON
+    error: undefined as any, // Will be serialized as missing key in JSON
   };
 }
 
@@ -42,18 +47,18 @@ export function createUnifiedSuccessResponse<T>(
 export function createUnifiedErrorResponse(
   message: string,
   code?: string,
-  details?: any
+  details?: any,
 ): ResponseEnvelope<null> {
   return {
     data: null,
     metadata: {
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     },
     error: {
       message,
       code,
-      details
-    }
+      details,
+    },
   };
 }
 
@@ -66,7 +71,7 @@ export function createUnifiedErrorResponse(
  */
 export function adaptToUnifiedEnvelope<T>(
   legacyResponse: SuccessResponse<T> | ErrorResponse,
-  useUnifiedEnvelope: boolean
+  useUnifiedEnvelope: boolean,
 ): Response {
   // Feature flag OFF: Return legacy format unchanged
   if (!useUnifiedEnvelope) {
@@ -76,19 +81,18 @@ export function adaptToUnifiedEnvelope<T>(
   // Feature flag ON: Transform to unified envelope
   if (legacyResponse.success) {
     // Success response: Transform data + meta
-    return Response.json(createUnifiedSuccessResponse(
-      legacyResponse.data,
-      legacyResponse.meta
-    ));
+    return Response.json(
+      createUnifiedSuccessResponse(legacyResponse.data, legacyResponse.meta),
+    );
   } else {
     // Error response: Transform error + meta
     return Response.json(
       createUnifiedErrorResponse(
         legacyResponse.error.message,
         legacyResponse.error.code,
-        legacyResponse.error.details
+        legacyResponse.error.details,
       ),
-      { status: statusFromError(legacyResponse) }
+      { status: statusFromError(legacyResponse) },
     );
   }
 }

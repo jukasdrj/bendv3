@@ -151,7 +151,8 @@ export async function searchByTitle(title, options, env, ctx) {
 
     // Cache for 6 hours
     const ttl = 6 * 60 * 60; // 21600 seconds
-    ctx.waitUntil(setCached(cacheKey, responseData, ttl, env));
+    const hotTtl = 2 * 60 * 60; // 2 hours (for TTL effectiveness tracking)
+    ctx.waitUntil(setCached(cacheKey, responseData, ttl, env, ctx, hotTtl));
 
     // Write cache metrics to Analytics Engine
     ctx.waitUntil(
@@ -289,7 +290,8 @@ export async function searchByISBN(isbn, options, env, ctx) {
 
     // Cache for 7 days (ISBN data is stable)
     const ttl = 7 * 24 * 60 * 60; // 604800 seconds
-    ctx.waitUntil(setCached(cacheKey, responseData, ttl, env));
+    const hotTtl = 2 * 24 * 60 * 60; // 2 days (for TTL effectiveness tracking)
+    ctx.waitUntil(setCached(cacheKey, responseData, ttl, env, ctx, hotTtl));
 
     // Write cache metrics to Analytics Engine
     ctx.waitUntil(

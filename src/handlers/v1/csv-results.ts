@@ -7,7 +7,11 @@
  * Related: Issue #133 (Summary-only WebSocket completions)
  */
 
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../../utils/response-builder.js';
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  ErrorCodes,
+} from "../../utils/response-builder.js";
 
 /**
  * CSV Import Results Response
@@ -35,33 +39,33 @@ export interface CSVImportResults {
 export async function handleCSVResults(
   jobId: string,
   env: any,
-  request: Request | null = null
+  request: Request | null = null,
 ): Promise<Response> {
   const startTime = Date.now();
 
   // Validation
   if (!jobId || jobId.trim().length === 0) {
     return createErrorResponse(
-      'Job ID is required',
+      "Job ID is required",
       400,
       ErrorCodes.INVALID_REQUEST,
       { jobId },
-      request
+      request,
     );
   }
 
   try {
     // Retrieve from KV with metadata (to get expiration timestamp)
     const resultsKey = `csv-results:${jobId}`;
-    const kvResult = await env.KV_CACHE.getWithMetadata(resultsKey, 'json');
+    const kvResult = await env.KV_CACHE.getWithMetadata(resultsKey, "json");
 
     if (!kvResult.value) {
       return createErrorResponse(
-        'CSV import results not found or expired. Results are stored for 24 hours after job completion.',
+        "CSV import results not found or expired. Results are stored for 24 hours after job completion.",
         404,
         ErrorCodes.NOT_FOUND,
-        { jobId, resultsKey, ttl: '24 hours' },
-        request
+        { jobId, resultsKey, ttl: "24 hours" },
+        request,
       );
     }
 
@@ -76,7 +80,7 @@ export async function handleCSVResults(
       : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     console.log(
-      `[v1/csv/results] Retrieved results for job ${jobId}: ${results.books.length} books imported, expires at ${expiresAt}`
+      `[v1/csv/results] Retrieved results for job ${jobId}: ${results.books.length} books imported, expires at ${expiresAt}`,
     );
 
     return createSuccessResponse(
@@ -87,19 +91,19 @@ export async function handleCSVResults(
       {
         processingTime: Date.now() - startTime,
         cached: true,
-        provider: 'kv_cache',
+        provider: "kv_cache",
       },
       200,
-      request
+      request,
     );
   } catch (error: any) {
-    console.error('[v1/csv/results] Error retrieving CSV results:', error);
+    console.error("[v1/csv/results] Error retrieving CSV results:", error);
     return createErrorResponse(
-      error.message || 'Failed to retrieve CSV import results',
+      error.message || "Failed to retrieve CSV import results",
       500,
       ErrorCodes.INTERNAL_ERROR,
       { jobId, error: error.toString() },
-      request
+      request,
     );
   }
 }

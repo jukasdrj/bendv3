@@ -47,8 +47,8 @@
  * @module types/responses
  */
 
-import type { DataProvider, ApiErrorCode } from './enums.js';
-import type { WorkDTO, EditionDTO, AuthorDTO } from './canonical.js';
+import type { DataProvider, ApiErrorCode } from "./enums.js";
+import type { WorkDTO, EditionDTO, AuthorDTO } from "./canonical.js";
 
 // ============================================================================
 // RESPONSE ENVELOPE
@@ -218,16 +218,16 @@ export interface BookshelfScanInitResponse {
   jobId: string;
   token: string; // WebSocket authentication token
   totalPhotos: number;
-  status: 'started' | 'processing';
+  status: "started" | "processing";
 }
 
 /**
  * BoundingBox - Rectangle coordinates for book spine in image
  */
 export interface BoundingBox {
-  x: number;      // X coordinate (0.0-1.0, normalized)
-  y: number;      // Y coordinate (0.0-1.0, normalized)
-  width: number;  // Width (0.0-1.0, normalized)
+  x: number; // X coordinate (0.0-1.0, normalized)
+  y: number; // Y coordinate (0.0-1.0, normalized)
+  width: number; // Width (0.0-1.0, normalized)
   height: number; // Height (0.0-1.0, normalized)
 }
 
@@ -241,9 +241,9 @@ export interface DetectedBookDTO {
   title?: string;
   author?: string;
   isbn?: string;
-  confidence?: number;  // 0.0-1.0 (AI confidence score)
+  confidence?: number; // 0.0-1.0 (AI confidence score)
   boundingBox?: BoundingBox;
-  enrichmentStatus?: 'pending' | 'success' | 'not_found' | 'error';
+  enrichmentStatus?: "pending" | "success" | "not_found" | "error";
 
   // Flattened edition fields (not nested) - DEPRECATED, use enrichment below
   coverUrl?: string;
@@ -252,7 +252,7 @@ export interface DetectedBookDTO {
 
   // Nested enrichment data (canonical DTOs) - Added Nov 2025 to fix enrichment loss
   enrichment?: {
-    status: 'success' | 'not_found' | 'error';
+    status: "success" | "not_found" | "error";
     work?: WorkDTO;
     editions?: EditionDTO[];
     authors?: AuthorDTO[];
@@ -324,7 +324,7 @@ export interface EnrichedBookDTO {
  */
 export function createSuccessResponseObject<T>(
   data: T,
-  meta: Partial<ResponseMeta> = {}
+  meta: Partial<ResponseMeta> = {},
 ): SuccessResponse<T> {
   return {
     success: true,
@@ -346,7 +346,7 @@ export function createErrorResponseObject(
   message: string,
   code?: ApiErrorCode,
   details?: any,
-  meta: Partial<ResponseMeta> = {}
+  meta: Partial<ResponseMeta> = {},
 ): ErrorResponse {
   return {
     success: false,

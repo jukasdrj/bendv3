@@ -189,6 +189,10 @@ class_name = "WebSocketConnectionDO"
 name = "JOB_STATE_MANAGER_DO"
 class_name = "JobStateManagerDO"
 
+[[durable_objects.bindings]]
+name = "CACHE_METRICS_DO"
+class_name = "CacheMetricsDO"
+
 # Durable Object migrations
 [[migrations]]
 tag = "v1"
@@ -201,6 +205,10 @@ new_classes = ["RateLimiterDO"]
 [[migrations]]
 tag = "v3"
 new_classes = ["WebSocketConnectionDO", "JobStateManagerDO"]
+
+[[migrations]]
+tag = "v4"
+new_classes = ["CacheMetricsDO"]
 
 # Analytics Engine (merged from books-api-proxy and bookshelf-ai-worker)
 [[analytics_engine_datasets]]

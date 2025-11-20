@@ -8,8 +8,8 @@
  * Refactoring Plan: Backend Handler Deduplication - eliminates 39 lines of duplicated code
  */
 
-import type { WorkDTO, AuthorDTO } from '../types/canonical.js';
-import { enrichAuthorWithWikidata } from '../services/wikidata-enrichment.js';
+import type { WorkDTO, AuthorDTO } from "../types/canonical.js";
+import { enrichAuthorWithWikidata } from "../services/wikidata-enrichment.js";
 
 /**
  * Extended WorkDTO with authors property
@@ -42,7 +42,7 @@ export type WorkDTOWithAuthors = WorkDTO & { authors?: AuthorDTO[] };
 export function extractUniqueAuthors(works: WorkDTOWithAuthors[]): AuthorDTO[] {
   const authorsMap = new Map<string, AuthorDTO>();
 
-  works.forEach(work => {
+  works.forEach((work) => {
     (work.authors || []).forEach((author: AuthorDTO) => {
       if (!authorsMap.has(author.name)) {
         authorsMap.set(author.name, author);
@@ -70,7 +70,7 @@ export function extractUniqueAuthors(works: WorkDTOWithAuthors[]): AuthorDTO[] {
  * // Returns: [{ title: "Book 1", subjectTags: [...] }]
  */
 export function removeAuthorsFromWorks(works: WorkDTOWithAuthors[]): WorkDTO[] {
-  return works.map(work => {
+  return works.map((work) => {
     const { authors: _, ...cleanWork } = work;
     return cleanWork;
   });
@@ -102,12 +102,12 @@ export function removeAuthorsFromWorks(works: WorkDTOWithAuthors[]): WorkDTO[] {
  */
 export async function enrichAuthorsWithCulturalData(
   authors: AuthorDTO[],
-  env: any
+  env: any,
 ): Promise<AuthorDTO[]> {
   // Enrich authors in parallel for performance
   const enrichmentPromises = authors.map(async (author) => {
     // Skip enrichment if author already has gender data
-    if (author.gender && author.gender !== 'Unknown') {
+    if (author.gender && author.gender !== "Unknown") {
       return author;
     }
 
@@ -128,7 +128,10 @@ export async function enrichAuthorsWithCulturalData(
         deathYear: wikidataData.deathYear,
       };
     } catch (error: any) {
-      console.error(`[Wikidata] Enrichment failed for "${author.name}":`, error.message);
+      console.error(
+        `[Wikidata] Enrichment failed for "${author.name}":`,
+        error.message,
+      );
       return author; // Keep original on error
     }
   });

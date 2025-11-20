@@ -1,4 +1,4 @@
-import { generateR2Path } from '../utils/r2-paths.js';
+import { generateR2Path } from "../utils/r2-paths.js";
 
 /**
  * Select cache entries that qualify for R2 archival
@@ -17,9 +17,11 @@ export async function selectArchivalCandidates(env, accessStats) {
 
   for (const key of kvKeys.keys) {
     // Skip internal keys
-    if (key.name.startsWith('cold-index:') ||
-        key.name.startsWith('warming:') ||
-        key.name.startsWith('config:')) {
+    if (
+      key.name.startsWith("cold-index:") ||
+      key.name.startsWith("warming:") ||
+      key.name.startsWith("config:")
+    ) {
       continue;
     }
 
@@ -39,7 +41,7 @@ export async function selectArchivalCandidates(env, accessStats) {
         key: key.name,
         data: entry.value,
         age: age,
-        accessCount: accessCount
+        accessCount: accessCount,
       });
     }
   }
@@ -66,24 +68,26 @@ export async function archiveCandidates(candidates, env) {
         customMetadata: {
           originalKey: candidate.key,
           archivedAt: Date.now().toString(),
-          originalTTL: '86400',
-          accessCount: candidate.accessCount.toString()
-        }
+          originalTTL: "86400",
+          accessCount: candidate.accessCount.toString(),
+        },
       });
 
       // 2. Create cold storage index in KV
-      await env.CACHE.put(`cold-index:${candidate.key}`, JSON.stringify({
-        r2Path: r2Path,
-        archivedAt: Date.now(),
-        originalTTL: 86400,
-        archiveReason: `age=${Math.floor(candidate.age / (24 * 60 * 60 * 1000))}d, access=${candidate.accessCount}/month`
-      }));
+      await env.CACHE.put(
+        `cold-index:${candidate.key}`,
+        JSON.stringify({
+          r2Path: r2Path,
+          archivedAt: Date.now(),
+          originalTTL: 86400,
+          archiveReason: `age=${Math.floor(candidate.age / (24 * 60 * 60 * 1000))}d, access=${candidate.accessCount}/month`,
+        }),
+      );
 
       // 3. Delete from KV
       await env.CACHE.delete(candidate.key);
 
       archivedCount++;
-
     } catch (error) {
       console.error(`Failed to archive ${candidate.key}:`, error);
       // Continue with next candidate (don't fail entire batch)

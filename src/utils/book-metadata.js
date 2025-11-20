@@ -5,7 +5,8 @@
 
 // Placeholder cover for books without images (Issue #202)
 // Using placehold.co CDN for reliability and performance
-const PLACEHOLDER_COVER = 'https://placehold.co/300x450/e0e0e0/666666?text=No+Cover'
+const PLACEHOLDER_COVER =
+  "https://placehold.co/300x450/e0e0e0/666666?text=No+Cover";
 
 /**
  * Generate SHA-256 hash of URL for cache key (using Web Crypto API)
@@ -13,12 +14,14 @@ const PLACEHOLDER_COVER = 'https://placehold.co/300x450/e0e0e0/666666?text=No+Co
  * @returns {Promise<string>} First 32 characters of hex hash (16 bytes)
  */
 async function generateUrlHash(url) {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(url)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = new Uint8Array(hashBuffer)
-  const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('')
-  return hashHex.substring(0, 32) // 32 chars (16 bytes) for collision resistance
+  const encoder = new TextEncoder();
+  const data = encoder.encode(url);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = new Uint8Array(hashBuffer);
+  const hashHex = Array.from(hashArray)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return hashHex.substring(0, 32); // 32 chars (16 bytes) for collision resistance
 }
 
 /**
@@ -31,82 +34,82 @@ async function generateUrlHash(url) {
  */
 export async function detectImageQuality(coverUrl, env) {
   if (!coverUrl) {
-    return { quality: 'missing', width: 0, height: 0 }
+    return { quality: "missing", width: 0, height: 0 };
   }
 
   // Generate cache key from URL hash (now async with Web Crypto)
-  const urlHash = await generateUrlHash(coverUrl)
-  const cacheKey = `image-dims:${urlHash}`
+  const urlHash = await generateUrlHash(coverUrl);
+  const cacheKey = `image-dims:${urlHash}`;
 
   // Check KV cache first (24h TTL)
   try {
-    const cached = await env.KV_CACHE.get(cacheKey, 'json')
+    const cached = await env.KV_CACHE.get(cacheKey, "json");
     if (cached && cached.width && cached.height) {
       return {
         quality: classifyQuality(cached.width),
         width: cached.width,
         height: cached.height,
-        cached: true
-      }
+        cached: true,
+      };
     }
   } catch (error) {
-    console.warn('KV cache read failed for image dimensions:', error)
+    console.warn("KV cache read failed for image dimensions:", error);
   }
 
   // Attempt HEAD request with 2s timeout
   try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 2000)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
 
     const response = await fetch(coverUrl, {
-      method: 'HEAD',
-      signal: controller.signal
-    })
+      method: "HEAD",
+      signal: controller.signal,
+    });
 
-    clearTimeout(timeoutId)
+    clearTimeout(timeoutId);
 
     // Validate HTTP response (Grok-4 finding #2)
     if (!response.ok) {
-      throw new Error(`HEAD request failed: ${response.status}`)
+      throw new Error(`HEAD request failed: ${response.status}`);
     }
 
-    const contentType = response.headers.get('content-type')
-    if (!contentType?.startsWith('image/')) {
-      throw new Error('Not an image response')
+    const contentType = response.headers.get("content-type");
+    if (!contentType?.startsWith("image/")) {
+      throw new Error("Not an image response");
     }
 
     // Try to extract dimensions from response headers
-    const dimensions = await extractDimensionsFromResponse(response, coverUrl)
+    const dimensions = await extractDimensionsFromResponse(response, coverUrl);
 
     // Cache the result (24h TTL)
     if (dimensions.width > 0) {
       try {
         await env.KV_CACHE.put(cacheKey, JSON.stringify(dimensions), {
-          expirationTtl: 86400 // 24 hours
-        })
+          expirationTtl: 86400, // 24 hours
+        });
       } catch (error) {
-        console.warn('KV cache write failed for image dimensions:', error)
+        console.warn("KV cache write failed for image dimensions:", error);
       }
 
       return {
         quality: classifyQuality(dimensions.width),
         ...dimensions,
-        cached: false
-      }
+        cached: false,
+      };
     }
   } catch (error) {
     // HEAD request failed (timeout, CORS, network error)
-    console.warn(`HEAD request failed for ${coverUrl}:`, error.message)
+    console.warn(`HEAD request failed for ${coverUrl}:`, error.message);
   }
 
   // Fallback to URL pattern heuristics
-  const heuristicDimensions = inferDimensionsFromUrl(coverUrl)
+  const heuristicDimensions = inferDimensionsFromUrl(coverUrl);
 
   return {
     quality: classifyQuality(heuristicDimensions.width),
     ...heuristicDimensions,
-    fallback: true
-  }
+    fallback: true,
+  };
 }
 
 /**
@@ -120,7 +123,7 @@ export async function detectImageQuality(coverUrl, env) {
 async function extractDimensionsFromResponse(response, url) {
   // Skip content-length heuristics and fall back to URL inference
   // Content-Length doesn't reliably indicate image dimensions
-  return inferDimensionsFromUrl(url)
+  return inferDimensionsFromUrl(url);
 }
 
 /**
@@ -130,28 +133,28 @@ async function extractDimensionsFromResponse(response, url) {
  */
 function inferDimensionsFromUrl(url) {
   // Google Books zoom parameters
-  if (url.includes('zoom=1') || url.includes('zoom=2')) {
-    return { width: 800, height: 1200 }
-  } else if (url.includes('zoom=0')) {
-    return { width: 128, height: 192 }
+  if (url.includes("zoom=1") || url.includes("zoom=2")) {
+    return { width: 800, height: 1200 };
+  } else if (url.includes("zoom=0")) {
+    return { width: 128, height: 192 };
   }
 
   // OpenLibrary size suffixes
-  if (url.includes('-L.jpg')) {
-    return { width: 800, height: 1200 }
-  } else if (url.includes('-M.jpg')) {
-    return { width: 400, height: 600 }
-  } else if (url.includes('-S.jpg')) {
-    return { width: 200, height: 300 }
+  if (url.includes("-L.jpg")) {
+    return { width: 800, height: 1200 };
+  } else if (url.includes("-M.jpg")) {
+    return { width: 400, height: 600 };
+  } else if (url.includes("-S.jpg")) {
+    return { width: 200, height: 300 };
   }
 
   // ISBNdb (typically medium quality)
-  if (url.includes('isbndb.com')) {
-    return { width: 500, height: 750 }
+  if (url.includes("isbndb.com")) {
+    return { width: 500, height: 750 };
   }
 
   // Default fallback
-  return { width: 400, height: 600 }
+  return { width: 400, height: 600 };
 }
 
 /**
@@ -160,10 +163,10 @@ function inferDimensionsFromUrl(url) {
  * @returns {string} 'high' | 'medium' | 'low' | 'missing'
  */
 function classifyQuality(width) {
-  if (width === 0) return 'missing'
-  if (width > 800) return 'high'
-  if (width >= 400) return 'medium'
-  return 'low'
+  if (width === 0) return "missing";
+  if (width > 800) return "high";
+  if (width >= 400) return "medium";
+  return "low";
 }
 
 /**
@@ -177,35 +180,35 @@ function classifyQuality(width) {
  * @returns {Object} { googleBooks: string, openLibrary: string, amazon: string }
  */
 export function generateSearchLinks(isbn, title, author, volumeId = null) {
-  const links = {}
+  const links = {};
 
   // Google Books
   if (volumeId) {
-    links.googleBooks = `https://www.google.com/books/edition/_/${volumeId}`
+    links.googleBooks = `https://www.google.com/books/edition/_/${volumeId}`;
   } else if (isbn) {
-    links.googleBooks = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`
+    links.googleBooks = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`;
   } else if (title) {
-    const query = author ? `${title} ${author}` : title
-    links.googleBooks = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}`
+    const query = author ? `${title} ${author}` : title;
+    links.googleBooks = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}`;
   }
 
   // OpenLibrary
   if (isbn) {
-    links.openLibrary = `https://openlibrary.org/isbn/${isbn}`
+    links.openLibrary = `https://openlibrary.org/isbn/${isbn}`;
   } else if (title) {
-    links.openLibrary = `https://openlibrary.org/search?q=${encodeURIComponent(title)}`
+    links.openLibrary = `https://openlibrary.org/search?q=${encodeURIComponent(title)}`;
   }
 
   // Amazon
   if (isbn) {
-    links.amazon = `https://www.amazon.com/s?k=${isbn}`
+    links.amazon = `https://www.amazon.com/s?k=${isbn}`;
   } else if (title && author) {
-    links.amazon = `https://www.amazon.com/s?k=${encodeURIComponent(title + ' ' + author)}`
+    links.amazon = `https://www.amazon.com/s?k=${encodeURIComponent(title + " " + author)}`;
   } else if (title) {
-    links.amazon = `https://www.amazon.com/s?k=${encodeURIComponent(title)}`
+    links.amazon = `https://www.amazon.com/s?k=${encodeURIComponent(title)}`;
   }
 
-  return links
+  return links;
 }
 
 /**
@@ -213,5 +216,5 @@ export function generateSearchLinks(isbn, title, author, volumeId = null) {
  * @returns {string} Placeholder URL
  */
 export function getPlaceholderCover() {
-  return PLACEHOLDER_COVER
+  return PLACEHOLDER_COVER;
 }

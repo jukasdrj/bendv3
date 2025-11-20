@@ -5,13 +5,21 @@
  * Returns up to 20 results for iOS search UI
  */
 
-import type { BookSearchResponse } from '../../types/responses.js';
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../../utils/response-builder.js';
-import { enrichMultipleBooks } from '../../services/enrichment.ts';
-import { normalizeTitle, normalizeAuthor } from '../../utils/normalization.js';
-import { setCached } from '../../utils/cache.js';
-import { UnifiedCacheService } from '../../services/unified-cache.js';
-import { extractUniqueAuthors, removeAuthorsFromWorks, enrichAuthorsWithCulturalData } from '../../utils/response-transformer.js';
+import type { BookSearchResponse } from "../../types/responses.js";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  ErrorCodes,
+} from "../../utils/response-builder.js";
+import { enrichMultipleBooks } from "../../services/enrichment.ts";
+import { normalizeTitle, normalizeAuthor } from "../../utils/normalization.js";
+import { setCached } from "../../utils/cache.js";
+import { UnifiedCacheService } from "../../services/unified-cache.js";
+import {
+  extractUniqueAuthors,
+  removeAuthorsFromWorks,
+  enrichAuthorsWithCulturalData,
+} from "../../utils/response-transformer.js";
 import { CacheKeyFactory } from "../../services/cache-key-factory.js";
 
 export async function handleSearchAdvanced(
@@ -19,7 +27,7 @@ export async function handleSearchAdvanced(
   author: string,
   env: any,
   ctx: ExecutionContext,
-  request: Request | null = null
+  request: Request | null = null,
 ): Promise<Response> {
   const startTime = Date.now();
 
@@ -33,7 +41,7 @@ export async function handleSearchAdvanced(
       400,
       ErrorCodes.INVALID_QUERY,
       { title, author },
-      request
+      request,
     );
   }
 
@@ -58,7 +66,7 @@ export async function handleSearchAdvanced(
       // Cache hit - return v2 format directly
       // Add resultCount if not present (for backward compatibility with old cache entries)
       const data = cachedResult.data.data;
-      if (data && typeof data.resultCount === 'undefined') {
+      if (data && typeof data.resultCount === "undefined") {
         data.resultCount = data.works?.length || 0;
       }
       return createSuccessResponse(
@@ -69,7 +77,7 @@ export async function handleSearchAdvanced(
           cacheSource: cachedResult.source, // EDGE or KV
         },
         200,
-        request
+        request,
       );
     }
 
@@ -99,7 +107,7 @@ export async function handleSearchAdvanced(
           cached: false,
         },
         200,
-        request
+        request,
       );
     }
 
@@ -113,27 +121,37 @@ export async function handleSearchAdvanced(
     const cleanWorks = removeAuthorsFromWorks(result.works);
 
     const response = createSuccessResponse(
-      { works: cleanWorks, editions: result.editions, authors, resultCount: cleanWorks.length },
+      {
+        works: cleanWorks,
+        editions: result.editions,
+        authors,
+        resultCount: cleanWorks.length,
+      },
       {
         processingTime: Date.now() - startTime,
         provider: cleanWorks[0]?.primaryProvider, // Use actual provider from enriched work
         cached: false,
       },
       200,
-      request
+      request,
     );
 
     // Write to cache (7 days TTL - author data rarely changes)
     // Note: We need to cache the legacy format for backward compatibility with existing cache
     const legacyResponseObject = {
       success: true,
-      data: { works: cleanWorks, editions: result.editions, authors, resultCount: cleanWorks.length },
+      data: {
+        works: cleanWorks,
+        editions: result.editions,
+        authors,
+        resultCount: cleanWorks.length,
+      },
       meta: {
         timestamp: new Date().toISOString(),
         processingTime: Date.now() - startTime,
         provider: cleanWorks[0]?.primaryProvider,
         cached: false,
-      }
+      },
     };
     const ttl = 7 * 24 * 60 * 60; // 604800 seconds (7 days)
     ctx.waitUntil(setCached(cacheKey, legacyResponseObject, ttl, env));
@@ -149,7 +167,7 @@ export async function handleSearchAdvanced(
       500,
       ErrorCodes.INTERNAL_ERROR,
       { error: error.toString(), processingTime: Date.now() - startTime },
-      request
+      request,
     );
   }
 }

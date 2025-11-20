@@ -132,8 +132,10 @@ export async function enrichMultipleBooks(
       console.log(
         `enrichMultipleBooks: Searching Google Books by ISBN "${isbn}"`,
       );
-      const googleResult =
-        await externalApis.searchGoogleBooksByISBN(isbn, env);
+      const googleResult = await externalApis.searchGoogleBooksByISBN(
+        isbn,
+        env,
+      );
 
       if (googleResult && googleResult.works && googleResult.works.length > 0) {
         // Add provenance fields to all works
@@ -210,11 +212,7 @@ export async function enrichMultipleBooks(
       env,
     );
 
-    if (
-      googleResult &&
-      googleResult.works &&
-      googleResult.works.length > 0
-    ) {
+    if (googleResult && googleResult.works && googleResult.works.length > 0) {
       // Add provenance fields to all works
       return {
         works: googleResult.works.map((work: WorkDTO) =>
@@ -251,17 +249,9 @@ export async function enrichMultipleBooks(
       console.log(
         `enrichMultipleBooks: OpenLibrary returned no results, trying ISBNdb`,
       );
-      const isbndbResult = await externalApis.searchISBNdb(
-        title,
-        author,
-        env,
-      );
+      const isbndbResult = await externalApis.searchISBNdb(title, author, env);
 
-      if (
-        isbndbResult &&
-        isbndbResult.works &&
-        isbndbResult.works.length > 0
-      ) {
+      if (isbndbResult && isbndbResult.works && isbndbResult.works.length > 0) {
         console.log(
           `✅ ISBNdb SUCCESS: Found ${isbndbResult.works.length} works`,
         );

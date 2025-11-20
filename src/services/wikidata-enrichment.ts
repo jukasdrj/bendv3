@@ -11,7 +11,7 @@
  * Data: https://www.wikidata.org/wiki/Special:EntityData/{entityId}.json
  */
 
-import type { AuthorGender, CulturalRegion } from '../types/enums.js';
+import type { AuthorGender, CulturalRegion } from "../types/enums.js";
 
 /**
  * Wikidata author enrichment result
@@ -37,20 +37,20 @@ export interface WikidataAuthorData {
  * - Q1097630: intersex
  */
 function mapWikidataGender(genderId?: string): AuthorGender {
-  if (!genderId) return 'Unknown';
+  if (!genderId) return "Unknown";
 
   switch (genderId) {
-    case 'Q6581097': // male
-    case 'Q2449503': // transgender male
-      return 'Male';
-    case 'Q6581072': // female
-    case 'Q1052281': // transgender female
-      return 'Female';
-    case 'Q48270': // non-binary
-    case 'Q1097630': // intersex
-      return 'Non-binary';
+    case "Q6581097": // male
+    case "Q2449503": // transgender male
+      return "Male";
+    case "Q6581072": // female
+    case "Q1052281": // transgender female
+      return "Female";
+    case "Q48270": // non-binary
+    case "Q1097630": // intersex
+      return "Non-binary";
     default:
-      return 'Unknown';
+      return "Unknown";
   }
 }
 
@@ -58,62 +58,104 @@ function mapWikidataGender(genderId?: string): AuthorGender {
  * Map country/nationality to CulturalRegion
  * Based on geographic and cultural groupings
  */
-function mapNationalityToCulturalRegion(nationality: string): CulturalRegion | undefined {
+function mapNationalityToCulturalRegion(
+  nationality: string,
+): CulturalRegion | undefined {
   const nationalityLower = nationality.toLowerCase();
 
   // Africa
-  if (nationalityLower.match(/nigeria|kenya|ghana|south africa|egypt|morocco|ethiopia|tanzania|uganda|algeria|sudan|senegal|zimbabwe|rwanda|tunisia|cameroon|ivory coast|angola|madagascar|zambia|mozambique|botswana|namibia|mauritius|malawi|congo|somalia|mali|burkina faso|sierra leone|togo|benin|chad|liberia|guinea|gabon/)) {
-    return 'Africa';
+  if (
+    nationalityLower.match(
+      /nigeria|kenya|ghana|south africa|egypt|morocco|ethiopia|tanzania|uganda|algeria|sudan|senegal|zimbabwe|rwanda|tunisia|cameroon|ivory coast|angola|madagascar|zambia|mozambique|botswana|namibia|mauritius|malawi|congo|somalia|mali|burkina faso|sierra leone|togo|benin|chad|liberia|guinea|gabon/,
+    )
+  ) {
+    return "Africa";
   }
 
   // Asia
-  if (nationalityLower.match(/china|japan|korea|india|thailand|vietnam|philippines|indonesia|malaysia|singapore|taiwan|hong kong|pakistan|bangladesh|myanmar|cambodia|laos|sri lanka|nepal|mongolia|bhutan|afghanistan|maldives/)) {
-    return 'Asia';
+  if (
+    nationalityLower.match(
+      /china|japan|korea|india|thailand|vietnam|philippines|indonesia|malaysia|singapore|taiwan|hong kong|pakistan|bangladesh|myanmar|cambodia|laos|sri lanka|nepal|mongolia|bhutan|afghanistan|maldives/,
+    )
+  ) {
+    return "Asia";
   }
 
   // Europe
-  if (nationalityLower.match(/uk|england|scotland|wales|ireland|france|germany|italy|spain|russia|poland|ukraine|romania|netherlands|belgium|czech|greece|portugal|sweden|hungary|austria|switzerland|denmark|finland|norway|slovakia|croatia|serbia|bulgaria|belarus|lithuania|slovenia|latvia|estonia|albania|macedonia|bosnia|iceland|malta|luxembourg|montenegro|cyprus/)) {
-    return 'Europe';
+  if (
+    nationalityLower.match(
+      /uk|england|scotland|wales|ireland|france|germany|italy|spain|russia|poland|ukraine|romania|netherlands|belgium|czech|greece|portugal|sweden|hungary|austria|switzerland|denmark|finland|norway|slovakia|croatia|serbia|bulgaria|belarus|lithuania|slovenia|latvia|estonia|albania|macedonia|bosnia|iceland|malta|luxembourg|montenegro|cyprus/,
+    )
+  ) {
+    return "Europe";
   }
 
   // North America
-  if (nationalityLower.match(/united states|usa|canada|mexico|cuba|jamaica|haiti|dominican republic|guatemala|honduras|nicaragua|el salvador|costa rica|panama|bahamas|trinidad|barbados|belize/)) {
-    return 'North America';
+  if (
+    nationalityLower.match(
+      /united states|usa|canada|mexico|cuba|jamaica|haiti|dominican republic|guatemala|honduras|nicaragua|el salvador|costa rica|panama|bahamas|trinidad|barbados|belize/,
+    )
+  ) {
+    return "North America";
   }
 
   // South America
-  if (nationalityLower.match(/brazil|argentina|colombia|venezuela|peru|chile|ecuador|bolivia|paraguay|uruguay|guyana|suriname|french guiana/)) {
-    return 'South America';
+  if (
+    nationalityLower.match(
+      /brazil|argentina|colombia|venezuela|peru|chile|ecuador|bolivia|paraguay|uruguay|guyana|suriname|french guiana/,
+    )
+  ) {
+    return "South America";
   }
 
   // Middle East
-  if (nationalityLower.match(/saudi arabia|iran|iraq|israel|palestine|jordan|lebanon|syria|yemen|oman|kuwait|bahrain|qatar|uae|emirates|turkey/)) {
-    return 'Middle East';
+  if (
+    nationalityLower.match(
+      /saudi arabia|iran|iraq|israel|palestine|jordan|lebanon|syria|yemen|oman|kuwait|bahrain|qatar|uae|emirates|turkey/,
+    )
+  ) {
+    return "Middle East";
   }
 
   // Oceania
-  if (nationalityLower.match(/australia|new zealand|fiji|papua new guinea|samoa|tonga|solomon islands|vanuatu|micronesia|palau|kiribati|marshall islands|nauru|tuvalu/)) {
-    return 'Oceania';
+  if (
+    nationalityLower.match(
+      /australia|new zealand|fiji|papua new guinea|samoa|tonga|solomon islands|vanuatu|micronesia|palau|kiribati|marshall islands|nauru|tuvalu/,
+    )
+  ) {
+    return "Oceania";
   }
 
   // Caribbean (sometimes grouped separately from North America)
-  if (nationalityLower.match(/caribbean|west indies|antigua|grenada|st lucia|st vincent|dominica|st kitts/)) {
-    return 'Caribbean';
+  if (
+    nationalityLower.match(
+      /caribbean|west indies|antigua|grenada|st lucia|st vincent|dominica|st kitts/,
+    )
+  ) {
+    return "Caribbean";
   }
 
   // Central Asia (sometimes grouped separately from Asia)
-  if (nationalityLower.match(/kazakhstan|uzbekistan|turkmenistan|kyrgyzstan|tajikistan/)) {
-    return 'Central Asia';
+  if (
+    nationalityLower.match(
+      /kazakhstan|uzbekistan|turkmenistan|kyrgyzstan|tajikistan/,
+    )
+  ) {
+    return "Central Asia";
   }
 
   // Indigenous peoples (special category)
-  if (nationalityLower.match(/indigenous|aboriginal|maori|native american|first nations|inuit/)) {
-    return 'Indigenous';
+  if (
+    nationalityLower.match(
+      /indigenous|aboriginal|maori|native american|first nations|inuit/,
+    )
+  ) {
+    return "Indigenous";
   }
 
   // International (authors with multiple nationalities or stateless)
   if (nationalityLower.match(/international|stateless|multiple|dual|refugee/)) {
-    return 'International';
+    return "International";
   }
 
   return undefined; // Unknown region
@@ -123,24 +165,29 @@ function mapNationalityToCulturalRegion(nationality: string): CulturalRegion | u
  * Search Wikidata for author by name
  * Returns Wikidata entity ID (e.g., "Q5673")
  */
-async function searchWikidataAuthor(authorName: string): Promise<string | null> {
-  const searchUrl = new URL('https://www.wikidata.org/w/api.php');
-  searchUrl.searchParams.set('action', 'wbsearchentities');
-  searchUrl.searchParams.set('search', authorName);
-  searchUrl.searchParams.set('language', 'en');
-  searchUrl.searchParams.set('type', 'item');
-  searchUrl.searchParams.set('limit', '1');
-  searchUrl.searchParams.set('format', 'json');
+async function searchWikidataAuthor(
+  authorName: string,
+): Promise<string | null> {
+  const searchUrl = new URL("https://www.wikidata.org/w/api.php");
+  searchUrl.searchParams.set("action", "wbsearchentities");
+  searchUrl.searchParams.set("search", authorName);
+  searchUrl.searchParams.set("language", "en");
+  searchUrl.searchParams.set("type", "item");
+  searchUrl.searchParams.set("limit", "1");
+  searchUrl.searchParams.set("format", "json");
 
   try {
     const response = await fetch(searchUrl.toString(), {
       headers: {
-        'User-Agent': 'BooksTrack/1.0 (https://api.oooefam.net; contact@oooefam.net)',
+        "User-Agent":
+          "BooksTrack/1.0 (https://api.oooefam.net; contact@oooefam.net)",
       },
     });
 
     if (!response.ok) {
-      console.error(`[Wikidata] Search failed for "${authorName}": ${response.status}`);
+      console.error(
+        `[Wikidata] Search failed for "${authorName}": ${response.status}`,
+      );
       return null;
     }
 
@@ -156,7 +203,10 @@ async function searchWikidataAuthor(authorName: string): Promise<string | null> 
     console.log(`[Wikidata] Found "${authorName}" → ${entityId}`);
     return entityId;
   } catch (error: any) {
-    console.error(`[Wikidata] Search error for "${authorName}":`, error.message);
+    console.error(
+      `[Wikidata] Search error for "${authorName}":`,
+      error.message,
+    );
     return null;
   }
 }
@@ -170,19 +220,25 @@ async function fetchWikidataEntity(entityId: string): Promise<any> {
   try {
     const response = await fetch(entityUrl, {
       headers: {
-        'User-Agent': 'BooksTrack/1.0 (https://api.oooefam.net; contact@oooefam.net)',
+        "User-Agent":
+          "BooksTrack/1.0 (https://api.oooefam.net; contact@oooefam.net)",
       },
     });
 
     if (!response.ok) {
-      console.error(`[Wikidata] Entity fetch failed for ${entityId}: ${response.status}`);
+      console.error(
+        `[Wikidata] Entity fetch failed for ${entityId}: ${response.status}`,
+      );
       return null;
     }
 
     const data = await response.json();
     return data.entities[entityId];
   } catch (error: any) {
-    console.error(`[Wikidata] Entity fetch error for ${entityId}:`, error.message);
+    console.error(
+      `[Wikidata] Entity fetch error for ${entityId}:`,
+      error.message,
+    );
     return null;
   }
 }
@@ -209,17 +265,17 @@ function getPropertyValue(entity: any, propertyId: string): string | undefined {
   if (!mainSnak?.datavalue) return undefined;
 
   // Handle entity references (e.g., gender, nationality)
-  if (mainSnak.datavalue.type === 'wikibase-entityid') {
+  if (mainSnak.datavalue.type === "wikibase-entityid") {
     return mainSnak.datavalue.value.id;
   }
 
   // Handle time values (e.g., birth/death dates)
-  if (mainSnak.datavalue.type === 'time') {
+  if (mainSnak.datavalue.type === "time") {
     return mainSnak.datavalue.value.time;
   }
 
   // Handle string values
-  if (mainSnak.datavalue.type === 'string') {
+  if (mainSnak.datavalue.type === "string") {
     return mainSnak.datavalue.value;
   }
 
@@ -243,11 +299,11 @@ function getEntityLabel(entity: any): string | undefined {
  */
 export async function enrichAuthorWithWikidata(
   authorName: string,
-  env: any
+  env: any,
 ): Promise<WikidataAuthorData | null> {
   // Check KV cache first (7-day TTL - author metadata is stable)
   const cacheKey = `wikidata:author:${authorName.toLowerCase()}`;
-  const cached = await env.KV_CACHE?.get(cacheKey, 'json');
+  const cached = await env.KV_CACHE?.get(cacheKey, "json");
 
   if (cached) {
     console.log(`[Wikidata] Cache HIT for "${authorName}"`);
@@ -258,7 +314,7 @@ export async function enrichAuthorWithWikidata(
   const entityId = await searchWikidataAuthor(authorName);
   if (!entityId) {
     // Cache negative result (author not found)
-    const notFoundResult: WikidataAuthorData = { gender: 'Unknown' };
+    const notFoundResult: WikidataAuthorData = { gender: "Unknown" };
     await env.KV_CACHE?.put(cacheKey, JSON.stringify(notFoundResult), {
       expirationTtl: 604800, // 7 days
     });
@@ -268,15 +324,15 @@ export async function enrichAuthorWithWikidata(
   // Step 2: Fetch entity data
   const entity = await fetchWikidataEntity(entityId);
   if (!entity) {
-    const notFoundResult: WikidataAuthorData = { gender: 'Unknown' };
+    const notFoundResult: WikidataAuthorData = { gender: "Unknown" };
     return notFoundResult;
   }
 
   // Step 3: Extract properties
-  const genderId = getPropertyValue(entity, 'P21'); // gender
-  const nationalityId = getPropertyValue(entity, 'P27'); // country of citizenship
-  const birthTime = getPropertyValue(entity, 'P569'); // date of birth
-  const deathTime = getPropertyValue(entity, 'P570'); // date of death
+  const genderId = getPropertyValue(entity, "P21"); // gender
+  const nationalityId = getPropertyValue(entity, "P27"); // country of citizenship
+  const birthTime = getPropertyValue(entity, "P569"); // date of birth
+  const deathTime = getPropertyValue(entity, "P570"); // date of death
 
   // Step 4: Resolve nationality label (requires second API call)
   let nationality: string | undefined;
@@ -289,7 +345,9 @@ export async function enrichAuthorWithWikidata(
   const result: WikidataAuthorData = {
     gender: mapWikidataGender(genderId),
     nationality,
-    culturalRegion: nationality ? mapNationalityToCulturalRegion(nationality) : undefined,
+    culturalRegion: nationality
+      ? mapNationalityToCulturalRegion(nationality)
+      : undefined,
     birthYear: extractYearFromWikidataTime(birthTime),
     deathYear: extractYearFromWikidataTime(deathTime),
     wikidataId: entityId,

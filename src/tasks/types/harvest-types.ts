@@ -12,7 +12,7 @@ export interface BookEntry {
  */
 export interface CoverData {
   url: string;
-  source: 'isbndb' | 'google-books';
+  source: "isbndb" | "google-books";
   isbn: string;
 }
 
@@ -21,7 +21,7 @@ export interface CoverData {
  */
 export interface CoverMetadata {
   isbn: string;
-  source: 'isbndb' | 'google-books';
+  source: "isbndb" | "google-books";
   r2Key: string;
   harvestedAt: string; // ISO 8601
   fallback: boolean;
@@ -36,7 +36,7 @@ export interface HarvestResult {
   title: string;
   author: string;
   success: boolean;
-  source?: 'isbndb' | 'google-books';
+  source?: "isbndb" | "google-books";
   error?: string;
 }
 

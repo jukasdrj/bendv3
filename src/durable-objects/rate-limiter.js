@@ -96,7 +96,9 @@ export class RateLimiterDO extends DurableObject {
     if (request.method === "POST") {
       // Extract custom rate limit from header (if provided)
       const maxRequestsHeader = request.headers.get("X-Rate-Limit-Max");
-      const maxRequests = maxRequestsHeader ? parseInt(maxRequestsHeader, 10) : DEFAULT_RATE_LIMIT;
+      const maxRequests = maxRequestsHeader
+        ? parseInt(maxRequestsHeader, 10)
+        : DEFAULT_RATE_LIMIT;
 
       const result = await this.checkAndIncrement(maxRequests);
       return new Response(JSON.stringify(result), {

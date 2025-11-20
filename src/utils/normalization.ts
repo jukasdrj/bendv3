@@ -9,8 +9,8 @@ export function normalizeTitle(title: string): string {
   return title
     .toLowerCase()
     .trim()
-    .replace(/^(the|a|an)\s+/, '')    // "The Hobbit" → "hobbit"
-    .replace(/[^a-z0-9\s]/g, '');     // Remove punctuation
+    .replace(/^(the|a|an)\s+/, "") // "The Hobbit" → "hobbit"
+    .replace(/[^a-z0-9\s]/g, ""); // Remove punctuation
 }
 
 /**
@@ -22,7 +22,7 @@ export function normalizeTitle(title: string): string {
 export function normalizeISBN(isbn: string): string {
   return isbn
     .trim()
-    .replace(/[-\s]/g, '') // Remove only hyphens and spaces
+    .replace(/[-\s]/g, "") // Remove only hyphens and spaces
     .toUpperCase(); // Normalize 'x' to 'X' for ISBN-10 check digit
 }
 
@@ -45,9 +45,9 @@ export function normalizeImageURL(url: string): string {
   try {
     const parsed = new URL(url.trim());
     // Remove query params (e.g., ?zoom=1, ?source=gbs_api)
-    parsed.search = '';
+    parsed.search = "";
     // Force HTTPS
-    parsed.protocol = 'https:';
+    parsed.protocol = "https:";
     return parsed.toString();
   } catch {
     // Invalid URL, return as-is

@@ -7,12 +7,19 @@
  * - Returns typed canonical response format
  */
 
-import { validateCSV } from '../utils/csv-validator.js';
-import { buildCSVParserPrompt, PROMPT_VERSION } from '../prompts/csv-parser-prompt.js';
-import { generateCSVCacheKey } from '../utils/cache-keys.js';
-import { parseCSVWithGemini } from '../providers/gemini-csv-provider.js';
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../utils/response-builder.js';
-import type { CSVImportInitResponse } from '../types/responses.js';
+import { validateCSV } from "../utils/csv-validator.js";
+import {
+  buildCSVParserPrompt,
+  PROMPT_VERSION,
+} from "../prompts/csv-parser-prompt.js";
+import { generateCSVCacheKey } from "../utils/cache-keys.js";
+import { parseCSVWithGemini } from "../providers/gemini-csv-provider.js";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  ErrorCodes,
+} from "../utils/response-builder.js";
+import type { CSVImportInitResponse } from "../types/responses.js";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -35,23 +42,26 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 export async function handleCSVImport(request, env, ctx) {
   try {
     const formData = await request.formData();
-    const csvFile = formData.get('file');
+    const csvFile = formData.get("file");
 
     if (!csvFile) {
       return createErrorResponse(
-        'No file provided',
+        "No file provided",
         400,
-        ErrorCodes.MISSING_PARAMETER
+        ErrorCodes.MISSING_PARAMETER,
       );
     }
 
     // Check file size
     if (csvFile.size > MAX_FILE_SIZE) {
       return createErrorResponse(
-        'CSV file too large (max 10MB)',
+        "CSV file too large (max 10MB)",
         413,
         ErrorCodes.FILE_TOO_LARGE,
-        { suggestion: 'Try splitting your CSV into smaller files or removing unnecessary columns' }
+        {
+          suggestion:
+            "Try splitting your CSV into smaller files or removing unnecessary columns",
+        },
       );
     }
 
@@ -62,7 +72,7 @@ export async function handleCSVImport(request, env, ctx) {
     const authToken = crypto.randomUUID();
 
     // Feature flag: Use new refactored architecture or legacy monolithic DO
-    const useRefactoredDOs = env.ENABLE_REFACTORED_DOS === 'true';
+    const useRefactoredDOs = env.ENABLE_REFACTORED_DOS === "true";
 
     if (useRefactoredDOs) {
       // NEW ARCHITECTURE: Separated concerns
@@ -75,7 +85,7 @@ export async function handleCSVImport(request, env, ctx) {
 
       // Set authentication token and initialize job state
       await wsDoStub.setAuthToken(authToken);
-      await stateDoStub.initializeJobState(jobId, 'csv_import', 0);
+      await stateDoStub.initializeJobState(jobId, "csv_import", 0);
 
       console.log(`[CSV Import] Using new architecture for job ${jobId}`);
 
@@ -84,7 +94,6 @@ export async function handleCSVImport(request, env, ctx) {
       // Paid Plan allows 5-minute max, but alarm-based processing is architecturally superior
       const csvText = await csvFile.text();
       await stateDoStub.scheduleCSVProcessing(csvText, jobId);
-
     } else {
       // LEGACY ARCHITECTURE: Monolithic ProgressWebSocketDO
       const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
@@ -94,7 +103,7 @@ export async function handleCSVImport(request, env, ctx) {
       console.log(`[CSV Import] Auth token generated for job ${jobId}`);
 
       // Initialize job state for CSV import
-      await doStub.initializeJobState('csv_import', 0);
+      await doStub.initializeJobState("csv_import", 0);
 
       // Read CSV content and schedule processing via Durable Object alarm
       const csvText = await csvFile.text();
@@ -106,11 +115,10 @@ export async function handleCSVImport(request, env, ctx) {
     // Return typed CSVImportInitResponse
     const initResponse: CSVImportInitResponse = {
       jobId,
-      token: authToken // WebSocket authentication token
+      token: authToken, // WebSocket authentication token
     };
 
     return createSuccessResponse(initResponse, {}, 202);
-
   } catch (error) {
     return createErrorResponse(error.message, 500, ErrorCodes.INTERNAL_ERROR);
   }
@@ -133,28 +141,35 @@ export async function processCSVImportCore(csvText, jobId, doStub, env) {
   const startTime = Date.now();
 
   try {
-
     // Give the client a predictable window to establish the WebSocket connection.
     // This is a temporary workaround for the race condition where ctx.waitUntil()
     // starts background processing immediately, before iOS can receive HTTP 202
     // response and connect WebSocket. 200ms provides reliable buffer for connection.
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
-    console.log(`[CSV Import] Waiting for WebSocket ready signal for job ${jobId}`);
+    console.log(
+      `[CSV Import] Waiting for WebSocket ready signal for job ${jobId}`,
+    );
     const readyResult = await doStub.waitForReady(10000); // 10 second timeout
 
     if (readyResult.timedOut || readyResult.disconnected) {
-      const reason = readyResult.timedOut ? 'timeout' : 'WebSocket not connected';
-      console.warn(`[CSV Import] WebSocket ready ${reason} for job ${jobId}, proceeding anyway (client may miss early updates)`);
+      const reason = readyResult.timedOut
+        ? "timeout"
+        : "WebSocket not connected";
+      console.warn(
+        `[CSV Import] WebSocket ready ${reason} for job ${jobId}, proceeding anyway (client may miss early updates)`,
+      );
     } else {
-      console.log(`[CSV Import] ✅ WebSocket ready for job ${jobId}, starting processing`);
+      console.log(
+        `[CSV Import] ✅ WebSocket ready for job ${jobId}, starting processing`,
+      );
     }
 
     // Stage 0: Validation (0-5%)
-    await doStub.updateProgress('csv_import', {
+    await doStub.updateProgress("csv_import", {
       progress: 0.02,
-      status: 'Validating CSV file...',
-      processedCount: 0
+      status: "Validating CSV file...",
+      processedCount: 0,
     });
 
     const validation = validateCSV(csvText);
@@ -163,14 +178,14 @@ export async function processCSVImportCore(csvText, jobId, doStub, env) {
     }
 
     // Stage 1: Gemini Parsing (5-50%)
-    await doStub.updateProgress('csv_import', {
+    await doStub.updateProgress("csv_import", {
       progress: 0.05,
-      status: 'Uploading CSV to Gemini...',
-      processedCount: 0
+      status: "Uploading CSV to Gemini...",
+      processedCount: 0,
     });
 
     const cacheKey = await generateCSVCacheKey(csvText, PROMPT_VERSION);
-    let parsedBooks = await env.KV_CACHE.get(cacheKey, 'json');
+    let parsedBooks = await env.KV_CACHE.get(cacheKey, "json");
 
     if (!parsedBooks) {
       // NOTE: setInterval keep-alive removed - it doesn't prevent CPU time limits
@@ -183,31 +198,31 @@ export async function processCSVImportCore(csvText, jobId, doStub, env) {
       // Schema guarantees valid array structure and title+author on all books
       // Only check for empty response (edge case: CSV with no parseable books)
       if (!Array.isArray(parsedBooks) || parsedBooks.length === 0) {
-        throw new Error('No valid books found in CSV');
+        throw new Error("No valid books found in CSV");
       }
 
       // Cache for 7 days
       await env.KV_CACHE.put(cacheKey, JSON.stringify(parsedBooks), {
-        expirationTtl: 604800
+        expirationTtl: 604800,
       });
     }
 
     // Stage 2: Report parsed count (no validation needed - schema enforces requirements)
     // FIX: Removed redundant currentItem (duplicates processedCount info)
-    await doStub.updateProgress('csv_import', {
+    await doStub.updateProgress("csv_import", {
       progress: 0.75,
       status: `Gemini parsed ${parsedBooks.length} books with valid title+author`,
-      processedCount: parsedBooks.length
+      processedCount: parsedBooks.length,
     });
 
     // Validate and shape parsed books to ParsedBookDTO structure
     // Strip extraneous fields from Gemini output to prevent schema drift
     const validatedBooks = parsedBooks
-      .filter(book => book.title && book.author) // Ensure required fields present
-      .map(book => ({
+      .filter((book) => book.title && book.author) // Ensure required fields present
+      .map((book) => ({
         title: String(book.title).trim(),
         author: String(book.author).trim(),
-        isbn: book.isbn ? String(book.isbn).trim() : undefined
+        isbn: book.isbn ? String(book.isbn).trim() : undefined,
       }));
 
     // Store full results in KV for HTTP retrieval (1-hour TTL)
@@ -215,29 +230,28 @@ export async function processCSVImportCore(csvText, jobId, doStub, env) {
     await env.KV_CACHE.put(
       resourceId,
       JSON.stringify({ books: validatedBooks, errors: [] }),
-      { expirationTtl: 3600 } // 1 hour
+      { expirationTtl: 3600 }, // 1 hour
     );
 
     // Send summary-only payload (mobile-optimized)
-    await doStub.complete('csv_import', {
+    await doStub.complete("csv_import", {
       summary: {
         totalProcessed: parsedBooks.length,
         successCount: validatedBooks.length,
         failureCount: parsedBooks.length - validatedBooks.length,
         duration: Date.now() - startTime,
-        resourceId
-      }
+        resourceId,
+      },
     });
-
   } catch (error) {
-    await doStub.sendError('csv_import', {
-      code: 'E_CSV_PROCESSING_FAILED',
+    await doStub.sendError("csv_import", {
+      code: "E_CSV_PROCESSING_FAILED",
       message: error.message,
       retryable: true,
       details: {
         fallbackAvailable: true,
-        suggestion: 'Try manual CSV import instead'
-      }
+        suggestion: "Try manual CSV import instead",
+      },
     });
   }
   // NOTE: No finally block! complete() and fail() handle WebSocket cleanup with
@@ -271,9 +285,8 @@ async function callGemini(csvText, prompt, env) {
     : env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY not configured');
+    throw new Error("GEMINI_API_KEY not configured");
   }
 
   return await parseCSVWithGemini(csvText, prompt, apiKey);
 }
-

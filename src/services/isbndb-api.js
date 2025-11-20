@@ -11,7 +11,7 @@
 export class ISBNdbAPI {
   constructor(apiKey) {
     this.apiKey = apiKey;
-    this.baseUrl = 'https://api2.isbndb.com';
+    this.baseUrl = "https://api2.isbndb.com";
   }
 
   /**
@@ -22,11 +22,11 @@ export class ISBNdbAPI {
   async fetchBook(isbn) {
     try {
       const response = await fetch(`${this.baseUrl}/book/${isbn}`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Authorization': this.apiKey,
-          'Accept': 'application/json'
-        }
+          Authorization: this.apiKey,
+          Accept: "application/json",
+        },
       });
 
       if (response.status === 404) {
@@ -55,12 +55,11 @@ export class ISBNdbAPI {
 
       return {
         image: data.book.image,
-        title: data.book.title || 'Unknown',
+        title: data.book.title || "Unknown",
         authors: data.book.authors || [],
         publisher: data.book.publisher || null,
-        publishedDate: data.book.date_published || null
+        publishedDate: data.book.date_published || null,
       };
-
     } catch (error) {
       console.error(`ISBNdb API error for ${isbn}:`, error.message);
       throw error;
@@ -74,18 +73,18 @@ export class ISBNdbAPI {
   async healthCheck() {
     try {
       // Use a known good ISBN for testing (verified working: 1984 by George Orwell)
-      const testISBN = '9780451524935'; // 1984 by George Orwell
+      const testISBN = "9780451524935"; // 1984 by George Orwell
       const response = await fetch(`${this.baseUrl}/book/${testISBN}`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Authorization': this.apiKey,
-          'Accept': 'application/json'
-        }
+          Authorization: this.apiKey,
+          Accept: "application/json",
+        },
       });
 
       return response.ok || response.status === 404; // 404 is OK (means auth passed)
     } catch (error) {
-      console.error('ISBNdb health check failed:', error);
+      console.error("ISBNdb health check failed:", error);
       return false;
     }
   }

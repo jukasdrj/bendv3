@@ -7,11 +7,19 @@
  * - Uses BookshelfScanInitResponse for initialization
  */
 
-import { scanImageWithGemini } from '../providers/gemini-provider.js';
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../utils/response-builder.js';
-import { enrichBooksParallel } from '../services/parallel-enrichment.js';
-import { handleSearchAdvanced } from './v1/search-advanced.js';
-import type { DetectedBookDTO, BookshelfScanInitResponse, BoundingBox } from '../types/responses.js';
+import { scanImageWithGemini } from "../providers/gemini-provider.js";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  ErrorCodes,
+} from "../utils/response-builder.js";
+import { enrichBooksParallel } from "../services/parallel-enrichment.js";
+import { handleSearchAdvanced } from "./v1/search-advanced.js";
+import type {
+  DetectedBookDTO,
+  BookshelfScanInitResponse,
+  BoundingBox,
+} from "../types/responses.js";
 
 const MAX_PHOTOS_PER_BATCH = 5;
 const MAX_IMAGE_SIZE = 10_000_000; // 10MB per image
@@ -21,7 +29,7 @@ const MAX_IMAGE_SIZE = 10_000_000; // 10MB per image
  * Prevents invalid values from AI provider (e.g., negative or >1)
  */
 function clampBoundingBox(bbox?: any): BoundingBox | undefined {
-  if (!bbox || typeof bbox !== 'object') return undefined;
+  if (!bbox || typeof bbox !== "object") return undefined;
 
   const clamp = (val: number) => Math.max(0, Math.min(1, val));
 
@@ -29,7 +37,7 @@ function clampBoundingBox(bbox?: any): BoundingBox | undefined {
     x: clamp(Number(bbox.x) || 0),
     y: clamp(Number(bbox.y) || 0),
     width: clamp(Number(bbox.width) || 0),
-    height: clamp(Number(bbox.height) || 0)
+    height: clamp(Number(bbox.height) || 0),
   };
 }
 
@@ -45,13 +53,18 @@ function mapToDetectedBook(book): DetectedBookDTO {
     isbn: book?.isbn,
     confidence: book?.confidence,
     boundingBox: clampBoundingBox(book?.boundingBox), // Validate and clamp to [0,1]
-    enrichmentStatus: book?.enrichment?.status || book?.enrichmentStatus || 'pending',
+    enrichmentStatus:
+      book?.enrichment?.status || book?.enrichmentStatus || "pending",
     // Deprecated flat fields (kept for backwards compatibility)
     coverUrl: book?.enrichment?.work?.coverImageURL || book?.coverUrl || null,
-    publisher: book?.enrichment?.editions?.[0]?.publisher || book?.publisher || null,
-    publicationYear: book?.enrichment?.editions?.[0]?.publicationYear || book?.publicationYear || null,
+    publisher:
+      book?.enrichment?.editions?.[0]?.publisher || book?.publisher || null,
+    publicationYear:
+      book?.enrichment?.editions?.[0]?.publicationYear ||
+      book?.publicationYear ||
+      null,
     // Nested enrichment data (canonical DTOs) - FIX for enrichment loss
-    enrichment: book?.enrichment || undefined
+    enrichment: book?.enrichment || undefined,
   };
 }
 
@@ -59,30 +72,46 @@ export async function handleBatchScan(request, env, ctx) {
   try {
     // Set up abort listener for early client disconnect detection
     let clientDisconnected = false;
-    request.signal?.addEventListener('abort', () => {
+    request.signal?.addEventListener("abort", () => {
       clientDisconnected = true;
-      console.log('[Batch Scan] Client disconnected during job initialization');
+      console.log("[Batch Scan] Client disconnected during job initialization");
     });
 
     const { jobId, images } = await request.json();
 
     // Validation
     if (!jobId || !images || !Array.isArray(images)) {
-      return createErrorResponse('Invalid request: jobId and images array required', 400, ErrorCodes.INVALID_REQUEST);
+      return createErrorResponse(
+        "Invalid request: jobId and images array required",
+        400,
+        ErrorCodes.INVALID_REQUEST,
+      );
     }
 
     if (images.length === 0) {
-      return createErrorResponse('At least one image required', 400, ErrorCodes.INVALID_REQUEST);
+      return createErrorResponse(
+        "At least one image required",
+        400,
+        ErrorCodes.INVALID_REQUEST,
+      );
     }
 
     if (images.length > MAX_PHOTOS_PER_BATCH) {
-      return createErrorResponse(`Batch size exceeds maximum ${MAX_PHOTOS_PER_BATCH} photos`, 400, ErrorCodes.BATCH_TOO_LARGE);
+      return createErrorResponse(
+        `Batch size exceeds maximum ${MAX_PHOTOS_PER_BATCH} photos`,
+        400,
+        ErrorCodes.BATCH_TOO_LARGE,
+      );
     }
 
     // Validate R2 binding
     if (!env.BOOKSHELF_IMAGES) {
-      console.error('R2 binding BOOKSHELF_IMAGES not configured');
-      return createErrorResponse('Storage not configured', 500, ErrorCodes.INTERNAL_ERROR);
+      console.error("R2 binding BOOKSHELF_IMAGES not configured");
+      return createErrorResponse(
+        "Storage not configured",
+        500,
+        ErrorCodes.INTERNAL_ERROR,
+      );
     }
 
     // SECURITY FIX (Issue #184): Validate ACTUAL decoded size, not estimated
@@ -94,16 +123,24 @@ export async function handleBatchScan(request, env, ctx) {
     const processedImages: { index: number; buffer: Buffer }[] = [];
 
     for (const img of images) {
-      if (typeof img.index !== 'number' || !img.data) {
-        return createErrorResponse('Each image must have index and data fields', 400, ErrorCodes.INVALID_REQUEST);
+      if (typeof img.index !== "number" || !img.data) {
+        return createErrorResponse(
+          "Each image must have index and data fields",
+          400,
+          ErrorCodes.INVALID_REQUEST,
+        );
       }
 
       // Decode base64 to get actual buffer size (not just estimate)
       let decodedBuffer: Buffer;
       try {
-        decodedBuffer = Buffer.from(img.data, 'base64');
+        decodedBuffer = Buffer.from(img.data, "base64");
       } catch (error: any) {
-        return createErrorResponse(`Image ${img.index} has invalid base64 data: ${error.message}`, 400, ErrorCodes.INVALID_REQUEST);
+        return createErrorResponse(
+          `Image ${img.index} has invalid base64 data: ${error.message}`,
+          400,
+          ErrorCodes.INVALID_REQUEST,
+        );
       }
 
       const actualSize = decodedBuffer.byteLength;
@@ -113,7 +150,7 @@ export async function handleBatchScan(request, env, ctx) {
         return createErrorResponse(
           `Image ${img.index} exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB (actual: ${(actualSize / 1_000_000).toFixed(1)}MB)`,
           413,
-          ErrorCodes.FILE_TOO_LARGE
+          ErrorCodes.FILE_TOO_LARGE,
         );
       }
 
@@ -126,7 +163,7 @@ export async function handleBatchScan(request, env, ctx) {
       return createErrorResponse(
         `Total batch size exceeds maximum of ${MAX_BATCH_SIZE / 1_000_000}MB (actual: ${(totalBatchSize / 1_000_000).toFixed(1)}MB)`,
         413,
-        ErrorCodes.FILE_TOO_LARGE
+        ErrorCodes.FILE_TOO_LARGE,
       );
     }
 
@@ -142,12 +179,18 @@ export async function handleBatchScan(request, env, ctx) {
 
     // Check if client disconnected during validation
     if (clientDisconnected) {
-      console.log(`[Batch Scan] Skipping job ${jobId} - client disconnected before processing started`);
-      return createErrorResponse('Client disconnected', 499, ErrorCodes.CLIENT_DISCONNECTED);
+      console.log(
+        `[Batch Scan] Skipping job ${jobId} - client disconnected before processing started`,
+      );
+      return createErrorResponse(
+        "Client disconnected",
+        499,
+        ErrorCodes.CLIENT_DISCONNECTED,
+      );
     }
 
     // Initialize job state for batch scan
-    await doStub.initializeJobState('ai_scan', images.length);
+    await doStub.initializeJobState("ai_scan", images.length);
 
     // Process batch asynchronously (don't await)
     ctx.waitUntil(processBatchPhotos(jobId, images, env, doStub));
@@ -157,14 +200,17 @@ export async function handleBatchScan(request, env, ctx) {
       jobId,
       token: authToken, // WebSocket authentication token
       totalPhotos: images.length,
-      status: 'processing'
+      status: "processing",
     };
 
     return createSuccessResponse(initResponse, {}, 202);
-
   } catch (error) {
-    console.error('Batch scan error:', error);
-    return createErrorResponse('Internal server error', 500, ErrorCodes.INTERNAL_ERROR);
+    console.error("Batch scan error:", error);
+    return createErrorResponse(
+      "Internal server error",
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+    );
   }
 }
 
@@ -177,11 +223,11 @@ async function processBatchPhotos(jobId, images, env, doStub) {
     // Phase 1: Upload all images to R2 in parallel
     const uploadPromises = images.map(async (img, idx) => {
       try {
-        const imageBuffer = Buffer.from(img.data, 'base64');
+        const imageBuffer = Buffer.from(img.data, "base64");
         const r2Key = `bookshelf-scans/${jobId}/photo-${idx}.jpg`;
 
         await env.BOOKSHELF_IMAGES.put(r2Key, imageBuffer, {
-          httpMetadata: { contentType: 'image/jpeg' }
+          httpMetadata: { contentType: "image/jpeg" },
         });
 
         return { index: idx, r2Key, success: true };
@@ -194,11 +240,11 @@ async function processBatchPhotos(jobId, images, env, doStub) {
     const uploadResults = await Promise.all(uploadPromises);
 
     // Update progress after uploads - send initial processing status
-    await doStub.updateProgress('ai_scan', {
+    await doStub.updateProgress("ai_scan", {
       progress: 0.1,
-      status: 'Photos uploaded, starting AI processing...',
+      status: "Photos uploaded, starting AI processing...",
       processedCount: 0,
-      currentItem: `Uploaded ${uploadResults.length} photos`
+      currentItem: `Uploaded ${uploadResults.length} photos`,
     });
 
     // Phase 2: Process images sequentially with Gemini
@@ -208,8 +254,8 @@ async function processBatchPhotos(jobId, images, env, doStub) {
       if (!upload.success) {
         photoResults.push({
           index: i,
-          status: 'error',
-          error: upload.error
+          status: "error",
+          error: upload.error,
         });
         continue;
       }
@@ -217,17 +263,19 @@ async function processBatchPhotos(jobId, images, env, doStub) {
       // Check if job canceled (batch-specific cancellation check)
       const { canceled: isCanceled } = await doStub.isBatchCanceled();
       if (isCanceled) {
-        console.log(`Job ${jobId} canceled at photo ${i}, returning partial results`);
+        console.log(
+          `Job ${jobId} canceled at photo ${i}, returning partial results`,
+        );
 
         // Return partial results from completed photos
         const partialBooks = deduplicateBooks(allBooks);
 
         // Enrich partial results before returning
-        await doStub.updateProgress('ai_scan', {
+        await doStub.updateProgress("ai_scan", {
           progress: 0.8,
           status: `Job canceled, enriching ${partialBooks.length} partial results...`,
           processedCount: i,
-          currentItem: 'Enrichment phase'
+          currentItem: "Enrichment phase",
         });
 
         const enrichedPartialBooks = await enrichBooksParallel(
@@ -235,9 +283,9 @@ async function processBatchPhotos(jobId, images, env, doStub) {
           async (book) => {
             // Enrichment function: fetch metadata for this book
             const apiResponse = await handleSearchAdvanced(
-              book.title || '',
-              book.author || '',
-              env
+              book.title || "",
+              book.author || "",
+              env,
             );
 
             // Parse canonical ApiResponse<BookSearchResponse>
@@ -249,51 +297,55 @@ async function processBatchPhotos(jobId, images, env, doStub) {
               return {
                 ...book,
                 enrichment: {
-                  status: work ? 'success' : 'not_found',
+                  status: work ? "success" : "not_found",
                   work,
                   editions,
                   authors,
                   provider: apiResponse.meta.provider,
-                  cachedResult: apiResponse.meta.cached || false
-                }
+                  cachedResult: apiResponse.meta.cached || false,
+                },
               };
             } else {
               return {
                 ...book,
                 enrichment: {
-                  status: 'error',
+                  status: "error",
                   error: apiResponse.error.message,
                   work: null,
                   editions: [],
-                  authors: []
-                }
+                  authors: [],
+                },
               };
             }
           },
           async (completed, total, title, hasError) => {
             // Progress callback: update progress after each book
-            const enrichProgress = 0.8 + (0.2 * (completed / total));
-            await doStub.updateProgress('ai_scan', {
+            const enrichProgress = 0.8 + 0.2 * (completed / total);
+            await doStub.updateProgress("ai_scan", {
               progress: enrichProgress,
               status: hasError
                 ? `Enriching canceled job results... (${completed}/${total}, ${title} failed)`
                 : `Enriching canceled job results... (${completed}/${total})`,
               processedCount: completed,
-              currentItem: title || 'Unknown title'
+              currentItem: title || "Unknown title",
             });
           },
-          10 // maxConcurrent
+          10, // maxConcurrent
         );
 
-        const approvedCount = enrichedPartialBooks.filter(b => b.confidence >= 0.6).length;
-        const reviewCount = enrichedPartialBooks.filter(b => b.confidence < 0.6).length;
+        const approvedCount = enrichedPartialBooks.filter(
+          (b) => b.confidence >= 0.6,
+        ).length;
+        const reviewCount = enrichedPartialBooks.filter(
+          (b) => b.confidence < 0.6,
+        ).length;
 
         // Final progress update before completion
-        await doStub.updateProgress('ai_scan', {
+        await doStub.updateProgress("ai_scan", {
           progress: 1.0,
-          status: 'Job canceled, returning partial results...',
+          status: "Job canceled, returning partial results...",
           processedCount: enrichedPartialBooks.length,
-          currentItem: 'Finalizing'
+          currentItem: "Finalizing",
         });
 
         // Store partial results in KV (canceled job)
@@ -301,11 +353,11 @@ async function processBatchPhotos(jobId, images, env, doStub) {
         await env.KV_CACHE.put(
           resourceId,
           JSON.stringify(enrichedPartialBooks.map(mapToDetectedBook)),
-          { expirationTtl: 3600 } // 1 hour
+          { expirationTtl: 3600 }, // 1 hour
         );
 
         // Send summary-only payload (mobile-optimized)
-        await doStub.complete('ai_scan', {
+        await doStub.complete("ai_scan", {
           summary: {
             totalProcessed: enrichedPartialBooks.length,
             successCount: approvedCount,
@@ -314,8 +366,8 @@ async function processBatchPhotos(jobId, images, env, doStub) {
             resourceId,
             totalDetected: enrichedPartialBooks.length,
             approved: approvedCount,
-            needsReview: reviewCount
-          }
+            needsReview: reviewCount,
+          },
         });
 
         return; // Exit early with partial results
@@ -323,11 +375,11 @@ async function processBatchPhotos(jobId, images, env, doStub) {
 
       // Update progress: processing this photo
       const progress = (i + 0.5) / uploadResults.length;
-      await doStub.updateProgress('ai_scan', {
+      await doStub.updateProgress("ai_scan", {
         progress,
         status: `Processing photo ${i + 1} of ${uploadResults.length}...`,
         processedCount: i,
-        currentItem: `Photo ${i + 1}`
+        currentItem: `Photo ${i + 1}`,
       });
 
       try {
@@ -339,36 +391,35 @@ async function processBatchPhotos(jobId, images, env, doStub) {
 
         photoResults.push({
           index: i,
-          status: 'complete',
-          booksFound: result.books.length
+          status: "complete",
+          booksFound: result.books.length,
         });
 
         allBooks.push(...result.books);
 
         // Update progress: photo complete
         const completionProgress = (i + 1) / uploadResults.length;
-        await doStub.updateProgress('ai_scan', {
+        await doStub.updateProgress("ai_scan", {
           progress: completionProgress,
           status: `Completed photo ${i + 1} of ${uploadResults.length} - Found ${result.books.length} books`,
           processedCount: i + 1,
-          currentItem: `Photo ${i + 1}: ${result.books.length} books`
+          currentItem: `Photo ${i + 1}: ${result.books.length} books`,
         });
-
       } catch (error) {
         console.error(`Processing failed for photo ${i}:`, error);
         photoResults.push({
           index: i,
-          status: 'error',
-          error: error.message
+          status: "error",
+          error: error.message,
         });
 
         // Update progress: photo error
         const errorProgress = (i + 1) / uploadResults.length;
-        await doStub.updateProgress('ai_scan', {
+        await doStub.updateProgress("ai_scan", {
           progress: errorProgress,
           status: `Error processing photo ${i + 1}: ${error.message}`,
           processedCount: i + 1,
-          currentItem: `Photo ${i + 1}: Error`
+          currentItem: `Photo ${i + 1}: Error`,
         });
       }
     }
@@ -378,11 +429,11 @@ async function processBatchPhotos(jobId, images, env, doStub) {
 
     // Phase 4: Enrich books with metadata (parallel)
     // Update progress to show enrichment phase starting
-    await doStub.updateProgress('ai_scan', {
+    await doStub.updateProgress("ai_scan", {
       progress: 0.8,
       status: `Enriching ${uniqueBooks.length} books with metadata...`,
       processedCount: uploadResults.length,
-      currentItem: 'Enrichment phase'
+      currentItem: "Enrichment phase",
     });
 
     const enrichedBooks = await enrichBooksParallel(
@@ -390,9 +441,9 @@ async function processBatchPhotos(jobId, images, env, doStub) {
       async (book) => {
         // Enrichment function: fetch metadata for this book
         const apiResponse = await handleSearchAdvanced(
-          book.title || '',
-          book.author || '',
-          env
+          book.title || "",
+          book.author || "",
+          env,
         );
 
         // Parse canonical ApiResponse<BookSearchResponse>
@@ -404,64 +455,66 @@ async function processBatchPhotos(jobId, images, env, doStub) {
           return {
             ...book,
             enrichment: {
-              status: work ? 'success' : 'not_found',
+              status: work ? "success" : "not_found",
               work,
               editions,
               authors,
               provider: apiResponse.meta.provider,
-              cachedResult: apiResponse.meta.cached || false
-            }
+              cachedResult: apiResponse.meta.cached || false,
+            },
           };
         } else {
           return {
             ...book,
             enrichment: {
-              status: 'error',
+              status: "error",
               error: apiResponse.error.message,
               work: null,
               editions: [],
-              authors: []
-            }
+              authors: [],
+            },
           };
         }
       },
       async (completed, total, title, hasError) => {
         // Progress callback: update progress after each book
-        const enrichProgress = 0.8 + (0.2 * (completed / total));
-        await doStub.updateProgress('ai_scan', {
+        const enrichProgress = 0.8 + 0.2 * (completed / total);
+        await doStub.updateProgress("ai_scan", {
           progress: enrichProgress,
           status: hasError
             ? `Enriching books... (${completed}/${total}, ${title} failed)`
             : `Enriching books... (${completed}/${total})`,
           processedCount: completed,
-          currentItem: title || 'Unknown title'
+          currentItem: title || "Unknown title",
         });
       },
-      10 // maxConcurrent
+      10, // maxConcurrent
     );
 
     // Calculate approved vs review queue counts (threshold: 0.6 confidence)
-    const approvedCount = enrichedBooks.filter(b => b.confidence >= 0.6).length;
-    const reviewCount = enrichedBooks.filter(b => b.confidence < 0.6).length;
+    const approvedCount = enrichedBooks.filter(
+      (b) => b.confidence >= 0.6,
+    ).length;
+    const reviewCount = enrichedBooks.filter((b) => b.confidence < 0.6).length;
 
     // Store full results in KV for HTTP retrieval (1-hour TTL)
     const resourceId = `job-results:${jobId}`;
     await env.KV_CACHE.put(
       resourceId,
       JSON.stringify(enrichedBooks.map(mapToDetectedBook)),
-      { expirationTtl: 3600 } // 1 hour
+      { expirationTtl: 3600 }, // 1 hour
     );
 
     // Final progress update before completion (100%)
-    await doStub.updateProgress('ai_scan', {
+    await doStub.updateProgress("ai_scan", {
       progress: 1.0,
-      status: 'Batch scan complete, finalizing results...',
+      status: "Batch scan complete, finalizing results...",
       processedCount: uniqueBooks.length,
-      currentItem: 'Finalizing'
+      currentItem: "Finalizing",
     });
 
     // Send summary-only payload (mobile-optimized)
-    await doStub.complete('ai_scan', {
+    await doStub.complete("ai_scan", {
       summary: {
         totalProcessed: enrichedBooks.length,
         successCount: approvedCount,
@@ -470,19 +523,18 @@ async function processBatchPhotos(jobId, images, env, doStub) {
         resourceId,
         totalDetected: enrichedBooks.length,
         approved: approvedCount,
-        needsReview: reviewCount
-      }
+        needsReview: reviewCount,
+      },
     });
-
   } catch (error) {
-    console.error('Batch processing error:', error);
-    await doStub.sendError('ai_scan', {
-      code: 'E_BATCH_SCAN_FAILED',
+    console.error("Batch processing error:", error);
+    await doStub.sendError("ai_scan", {
+      code: "E_BATCH_SCAN_FAILED",
       message: error.message,
       retryable: true,
       details: {
-        fallbackAvailable: false
-      }
+        fallbackAvailable: false,
+      },
     });
   }
 }

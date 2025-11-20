@@ -38,7 +38,11 @@
 
 import { getCorsHeaders } from "../middleware/cors.js";
 import type { ApiErrorCode } from "../types/enums.js";
-import type { ResponseEnvelope, ResponseMetadata, ApiError } from "../types/responses.js";
+import type {
+  ResponseEnvelope,
+  ResponseMetadata,
+  ApiError,
+} from "../types/responses.js";
 
 /**
  * Standard error codes for consistent error handling across the API
@@ -48,29 +52,29 @@ import type { ResponseEnvelope, ResponseMetadata, ApiError } from "../types/resp
  */
 export const ErrorCodes = {
   // Request validation errors (4xx)
-  MISSING_PARAMETER: 'MISSING_PARAMETER',
-  INVALID_REQUEST: 'INVALID_REQUEST',
-  INVALID_ISBN: 'INVALID_ISBN',
-  INVALID_QUERY: 'INVALID_QUERY',
-  INVALID_FILE: 'INVALID_FILE',
-  FILE_TOO_LARGE: 'FILE_TOO_LARGE',
-  BATCH_TOO_LARGE: 'BATCH_TOO_LARGE',
-  EMPTY_BATCH: 'EMPTY_BATCH',
+  MISSING_PARAMETER: "MISSING_PARAMETER",
+  INVALID_REQUEST: "INVALID_REQUEST",
+  INVALID_ISBN: "INVALID_ISBN",
+  INVALID_QUERY: "INVALID_QUERY",
+  INVALID_FILE: "INVALID_FILE",
+  FILE_TOO_LARGE: "FILE_TOO_LARGE",
+  BATCH_TOO_LARGE: "BATCH_TOO_LARGE",
+  EMPTY_BATCH: "EMPTY_BATCH",
 
   // Resource errors (4xx)
-  NOT_FOUND: 'NOT_FOUND',
-  UNAUTHORIZED: 'UNAUTHORIZED',
-  FORBIDDEN: 'FORBIDDEN',
-  CLIENT_DISCONNECTED: 'CLIENT_DISCONNECTED',
+  NOT_FOUND: "NOT_FOUND",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  CLIENT_DISCONNECTED: "CLIENT_DISCONNECTED",
 
   // External service errors (5xx or 4xx)
-  RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
-  PROVIDER_ERROR: 'PROVIDER_ERROR',
-  PROVIDER_TIMEOUT: 'PROVIDER_TIMEOUT',
-  CACHE_ERROR: 'CACHE_ERROR',
+  RATE_LIMIT_EXCEEDED: "RATE_LIMIT_EXCEEDED",
+  PROVIDER_ERROR: "PROVIDER_ERROR",
+  PROVIDER_TIMEOUT: "PROVIDER_TIMEOUT",
+  CACHE_ERROR: "CACHE_ERROR",
 
   // Internal errors (5xx)
-  INTERNAL_ERROR: 'INTERNAL_ERROR',
+  INTERNAL_ERROR: "INTERNAL_ERROR",
 } as const;
 
 // ============================================================================
@@ -139,7 +143,7 @@ export function createErrorResponse(
   details?: any,
   corsRequest: Request | null = null,
 ): Response {
-  console.error(`Error [${code || 'UNKNOWN'}]:`, message);
+  console.error(`Error [${code || "UNKNOWN"}]:`, message);
 
   const envelope: ResponseEnvelope<null> = {
     data: null,
@@ -217,9 +221,9 @@ export function errorResponse(
 ): Response {
   // Add error code header for analytics tracking
   const headersWithErrorCode = {
-    'X-Error-Type': code,
+    "X-Error-Type": code,
     ...extraHeaders,
-  }
+  };
 
   return jsonResponse(
     {

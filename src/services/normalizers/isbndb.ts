@@ -2,10 +2,10 @@
  * ISBNdb API → Canonical DTO Normalizers
  */
 
-import type { WorkDTO, EditionDTO, AuthorDTO } from '../../types/canonical.js';
-import type { EditionFormat } from '../../types/enums.js';
-import { GenreNormalizer } from '../genre-normalizer.js';
-import { getPlaceholderCover } from '../../utils/book-metadata.js';
+import type { WorkDTO, EditionDTO, AuthorDTO } from "../../types/canonical.js";
+import type { EditionFormat } from "../../types/enums.js";
+import { GenreNormalizer } from "../genre-normalizer.js";
+import { getPlaceholderCover } from "../../utils/book-metadata.js";
 
 // Create genre normalizer instance (reused across all normalizations)
 const genreNormalizer = new GenreNormalizer();
@@ -25,25 +25,32 @@ function extractYear(dateString?: string): number | undefined {
  * ISBNdb provides: "Hardcover", "Paperback", "Mass Market Paperback", "eBook", "Library Binding", etc.
  */
 function normalizeBinding(binding?: string): EditionFormat {
-  if (!binding) return 'Paperback';
-  
+  if (!binding) return "Paperback";
+
   const bindingLower = binding.toLowerCase();
-  
-  if (bindingLower.includes('hardcover') || bindingLower.includes('hardback')) {
-    return 'Hardcover';
+
+  if (bindingLower.includes("hardcover") || bindingLower.includes("hardback")) {
+    return "Hardcover";
   }
-  if (bindingLower.includes('paperback') || bindingLower.includes('trade paper')) {
-    return 'Paperback';
+  if (
+    bindingLower.includes("paperback") ||
+    bindingLower.includes("trade paper")
+  ) {
+    return "Paperback";
   }
-  if (bindingLower.includes('ebook') || bindingLower.includes('kindle') || bindingLower.includes('digital')) {
-    return 'E-book';
+  if (
+    bindingLower.includes("ebook") ||
+    bindingLower.includes("kindle") ||
+    bindingLower.includes("digital")
+  ) {
+    return "E-book";
   }
-  if (bindingLower.includes('audio')) {
-    return 'Audiobook';
+  if (bindingLower.includes("audio")) {
+    return "Audiobook";
   }
-  
+
   // Default to Paperback
-  return 'Paperback';
+  return "Paperback";
 }
 
 /**
@@ -51,21 +58,21 @@ function normalizeBinding(binding?: string): EditionFormat {
  */
 export function normalizeISBNdbToWork(book: any): WorkDTO {
   return {
-    title: book.title || 'Unknown',
-    subjectTags: genreNormalizer.normalize(book.subjects || [], 'isbndb'),
+    title: book.title || "Unknown",
+    subjectTags: genreNormalizer.normalize(book.subjects || [], "isbndb"),
     originalLanguage: book.language || undefined,
     firstPublicationYear: extractYear(book.date_published),
     description: book.synopsis || undefined,
     synthetic: false,
-    primaryProvider: 'isbndb',
-    contributors: ['isbndb'],
+    primaryProvider: "isbndb",
+    contributors: ["isbndb"],
     isbndbID: book.isbn13 || book.isbn || undefined, // Fallback to ISBN-10 if ISBN-13 missing
     goodreadsWorkIDs: [],
     amazonASINs: [],
     librarythingIDs: [],
     googleBooksVolumeIDs: [],
     isbndbQuality: calculateISBNdbQuality(book),
-    reviewStatus: 'verified',
+    reviewStatus: "verified",
   };
 }
 
@@ -89,8 +96,8 @@ export function normalizeISBNdbToEdition(book: any): EditionDTO {
     editionTitle: book.title_long !== book.title ? book.title_long : undefined,
     editionDescription: book.synopsis,
     language: book.language,
-    primaryProvider: 'isbndb',
-    contributors: ['isbndb'],
+    primaryProvider: "isbndb",
+    contributors: ["isbndb"],
     isbndbID: book.isbn13 || book.isbn || undefined, // Fallback to ISBN-10 if ISBN-13 missing
     amazonASINs: [],
     googleBooksVolumeIDs: [],
@@ -108,7 +115,7 @@ export function normalizeISBNdbToEdition(book: any): EditionDTO {
 export function normalizeISBNdbToAuthor(authorName: string): AuthorDTO {
   return {
     name: authorName,
-    gender: 'Unknown', // Enriched via Wikidata in enrichment service
+    gender: "Unknown", // Enriched via Wikidata in enrichment service
   };
 }
 

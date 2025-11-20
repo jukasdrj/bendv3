@@ -5,37 +5,49 @@
  * Returns up to 20 results for iOS search UI
  */
 
-import type { BookSearchResponse } from '../../types/responses.js';
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../../utils/response-builder.js';
-import { enrichMultipleBooks } from '../../services/enrichment.ts';
-import { normalizeTitle } from '../../utils/normalization.js';
-import { extractUniqueAuthors, removeAuthorsFromWorks, enrichAuthorsWithCulturalData } from '../../utils/response-transformer.js';
+import type { BookSearchResponse } from "../../types/responses.js";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  ErrorCodes,
+} from "../../utils/response-builder.js";
+import { enrichMultipleBooks } from "../../services/enrichment.ts";
+import { normalizeTitle } from "../../utils/normalization.js";
+import {
+  extractUniqueAuthors,
+  removeAuthorsFromWorks,
+  enrichAuthorsWithCulturalData,
+} from "../../utils/response-transformer.js";
 
 export async function handleSearchTitle(
   query: string,
   env: any,
-  request: Request | null = null
+  request: Request | null = null,
 ): Promise<Response> {
   const startTime = Date.now();
 
   // Validation
   if (!query || query.trim().length === 0) {
     return createErrorResponse(
-      'Search query is required',
+      "Search query is required",
       400,
       ErrorCodes.INVALID_QUERY,
       { query },
-      request
+      request,
     );
   }
 
   try {
     // Normalize title for consistent cache keys
     const normalizedTitle = normalizeTitle(query);
-    console.log(`v1 title search for "${query}" (normalized: "${normalizedTitle}") (using enrichMultipleBooks, maxResults: 20)`);
+    console.log(
+      `v1 title search for "${query}" (normalized: "${normalizedTitle}") (using enrichMultipleBooks, maxResults: 20)`,
+    );
 
     // Use enrichMultipleBooks for search endpoints (returns up to 20 results)
-    const result = await enrichMultipleBooks({ title: normalizedTitle }, env, { maxResults: 20 });
+    const result = await enrichMultipleBooks({ title: normalizedTitle }, env, {
+      maxResults: 20,
+    });
 
     if (!result || !result.works || result.works.length === 0) {
       // No books found in any provider
@@ -43,11 +55,11 @@ export async function handleSearchTitle(
         { works: [], editions: [], authors: [], resultCount: 0 },
         {
           processingTime: Date.now() - startTime,
-          provider: 'none',
+          provider: "none",
           cached: false,
         },
         200,
-        request
+        request,
       );
     }
 
@@ -61,23 +73,28 @@ export async function handleSearchTitle(
     const cleanWorks = removeAuthorsFromWorks(result.works);
 
     return createSuccessResponse(
-      { works: cleanWorks, editions: result.editions, authors, resultCount: cleanWorks.length },
+      {
+        works: cleanWorks,
+        editions: result.editions,
+        authors,
+        resultCount: cleanWorks.length,
+      },
       {
         processingTime: Date.now() - startTime,
         provider: cleanWorks[0]?.primaryProvider, // Use actual provider from enriched work
         cached: false,
       },
       200,
-      request
+      request,
     );
   } catch (error: any) {
-    console.error('Error in v1 title search:', error);
+    console.error("Error in v1 title search:", error);
     return createErrorResponse(
-      error.message || 'Internal server error',
+      error.message || "Internal server error",
       500,
       ErrorCodes.INTERNAL_ERROR,
       { error: error.toString(), processingTime: Date.now() - startTime },
-      request
+      request,
     );
   }
 }

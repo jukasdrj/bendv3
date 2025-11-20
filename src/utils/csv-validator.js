@@ -26,7 +26,7 @@ function countColumns(line) {
       }
       inQuotes = !inQuotes;
     }
-    if (char === ',' && !inQuotes) {
+    if (char === "," && !inQuotes) {
       count++;
     }
   }
@@ -58,25 +58,26 @@ export function validateCSV(csvText) {
   if (!csvText || csvText.trim().length === 0) {
     return {
       valid: false,
-      error: 'CSV file is empty'
+      error: "CSV file is empty",
     };
   }
 
-  const lines = csvText.split('\n').filter(line => line.trim());
+  const lines = csvText.split("\n").filter((line) => line.trim());
 
   // Must have at least header + 1 data row
   if (lines.length < 2) {
     return {
       valid: false,
-      error: 'CSV must have at least a header and one data row'
+      error: "CSV must have at least a header and one data row",
     };
   }
 
   // Check row limit
-  if (lines.length > MAX_ROWS + 1) { // +1 for header
+  if (lines.length > MAX_ROWS + 1) {
+    // +1 for header
     return {
       valid: false,
-      error: `CSV exceeds maximum of ${MAX_ROWS} rows`
+      error: `CSV exceeds maximum of ${MAX_ROWS} rows`,
     };
   }
 
@@ -87,7 +88,7 @@ export function validateCSV(csvText) {
   if (columnCount < 2) {
     return {
       valid: false,
-      error: 'CSV must have at least 2 columns'
+      error: "CSV must have at least 2 columns",
     };
   }
 
@@ -99,7 +100,7 @@ export function validateCSV(csvText) {
   if (quoteCount % 2 !== 0) {
     return {
       valid: false,
-      error: 'CSV has unclosed quotes'
+      error: "CSV has unclosed quotes",
     };
   }
 
@@ -110,7 +111,7 @@ export function validateCSV(csvText) {
     if (cols !== columnCount) {
       return {
         valid: false,
-        error: `CSV has inconsistent column count (row ${i + 1})`
+        error: `CSV has inconsistent column count (row ${i + 1})`,
       };
     }
   }
@@ -118,6 +119,6 @@ export function validateCSV(csvText) {
   return {
     valid: true,
     rowCount: lines.length - 1, // Exclude header
-    columnCount
+    columnCount,
   };
 }

@@ -2,9 +2,9 @@
  * OpenLibrary API → Canonical DTO Normalizers
  */
 
-import type { WorkDTO, EditionDTO, AuthorDTO } from '../../types/canonical.js';
-import { GenreNormalizer } from '../genre-normalizer.js';
-import { getPlaceholderCover } from '../../utils/book-metadata.js';
+import type { WorkDTO, EditionDTO, AuthorDTO } from "../../types/canonical.js";
+import { GenreNormalizer } from "../genre-normalizer.js";
+import { getPlaceholderCover } from "../../utils/book-metadata.js";
 
 // Create genre normalizer instance (reused across all normalizations)
 const genreNormalizer = new GenreNormalizer();
@@ -15,10 +15,10 @@ const genreNormalizer = new GenreNormalizer();
  */
 function extractYear(dateString?: string | number): number | undefined {
   if (!dateString) return undefined;
-  
+
   // Handle numeric year directly
-  if (typeof dateString === 'number') return dateString;
-  
+  if (typeof dateString === "number") return dateString;
+
   // Extract year from string
   const match = dateString.match(/\b(\d{4})\b/);
   return match ? parseInt(match[1], 10) : undefined;
@@ -29,8 +29,8 @@ function extractYear(dateString?: string | number): number | undefined {
  */
 export function normalizeOpenLibraryToWork(doc: any): WorkDTO {
   return {
-    title: doc.title || 'Unknown',
-    subjectTags: genreNormalizer.normalize(doc.subject || [], 'openlibrary'),
+    title: doc.title || "Unknown",
+    subjectTags: genreNormalizer.normalize(doc.subject || [], "openlibrary"),
     originalLanguage: doc.language?.[0],
     firstPublicationYear: extractYear(doc.first_publish_year),
     description: undefined, // OpenLibrary search doesn't include descriptions
@@ -38,15 +38,15 @@ export function normalizeOpenLibraryToWork(doc: any): WorkDTO {
       ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
       : getPlaceholderCover(),
     synthetic: false,
-    primaryProvider: 'openlibrary',
-    contributors: ['openlibrary'],
+    primaryProvider: "openlibrary",
+    contributors: ["openlibrary"],
     openLibraryWorkID: extractWorkId(doc.key), // Canonical field
     goodreadsWorkIDs: doc.id_goodreads || [],
     amazonASINs: doc.id_amazon || [],
     librarythingIDs: doc.id_librarything || [],
     googleBooksVolumeIDs: doc.id_google || [],
     isbndbQuality: 0,
-    reviewStatus: 'verified',
+    reviewStatus: "verified",
   };
 }
 
@@ -71,8 +71,8 @@ export function normalizeOpenLibraryToEdition(doc: any): EditionDTO {
       ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
       : getPlaceholderCover(),
     language: doc.language?.[0],
-    primaryProvider: 'openlibrary',
-    contributors: ['openlibrary'],
+    primaryProvider: "openlibrary",
+    contributors: ["openlibrary"],
     openLibraryID: extractEditionId(doc.key),
     openLibraryEditionID: extractEditionId(doc.key),
     amazonASINs: doc.id_amazon || [],
@@ -91,7 +91,7 @@ export function normalizeOpenLibraryToEdition(doc: any): EditionDTO {
 export function normalizeOpenLibraryToAuthor(authorName: string): AuthorDTO {
   return {
     name: authorName,
-    gender: 'Unknown', // Enriched via Wikidata in enrichment service
+    gender: "Unknown", // Enriched via Wikidata in enrichment service
   };
 }
 
@@ -119,7 +119,7 @@ function extractEditionId(key?: string): string | undefined {
  * Infer format from OpenLibrary data
  * OpenLibrary doesn't always provide format explicitly
  */
-function inferFormat(doc: any): 'Paperback' | 'Hardcover' | 'E-book' {
+function inferFormat(doc: any): "Paperback" | "Hardcover" | "E-book" {
   // Default to Paperback (most common format)
-  return 'Paperback';
+  return "Paperback";
 }
