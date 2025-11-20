@@ -846,7 +846,50 @@ type CulturalRegion =
 
 ---
 
-### 5.4 BookSearchResponse
+### 5.4 DTO Field Defaults
+
+**Default Value Pattern:** Optional fields default to `undefined` (NOT `null` or zero)
+
+**Common Defaults:**
+
+| Field Type | Default Value | Example Fields |
+|------------|---------------|----------------|
+| Optional string | `undefined` | `originalLanguage`, `description`, `coverImageURL` |
+| Optional number | `undefined` | `pageCount`, `firstPublicationYear`, `publicationYear` |
+| Optional object | `undefined` | `searchLinks`, `enrichment` |
+| Required array | `[]` (empty array) | `subjectTags`, `goodreadsWorkIDs`, `amazonASINs` |
+| Optional array | `undefined` | N/A (all arrays are required) |
+| Optional boolean | `undefined` | `synthetic` |
+
+**Type Safety Notes:**
+- **TypeScript**: Optional fields use `field?: type` (not `field: type | null`)
+- **JSON Serialization**: `undefined` fields are omitted from JSON (not sent as `null`)
+- **Client Handling**: Check for `undefined` or use nullish coalescing (`??`) for defaults
+
+**Examples:**
+
+```typescript
+// ✅ CORRECT: Check for undefined
+if (work.searchLinks !== undefined) {
+  // searchLinks exists
+}
+
+// ✅ CORRECT: Nullish coalescing
+const title = work.title ?? "Unknown Title";
+const pageCount = edition.pageCount ?? 0;
+
+// ❌ INCORRECT: Checking for null
+if (work.searchLinks !== null) { // Will miss undefined
+  // ...
+}
+
+// ❌ INCORRECT: Assuming default zero
+const pages = edition.pageCount; // Could be undefined, not 0!
+```
+
+---
+
+### 5.5 BookSearchResponse
 
 Used by: `/v1/search/title`, `/v1/search/isbn`, `/v1/search/advanced`
 
