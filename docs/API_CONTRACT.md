@@ -364,11 +364,21 @@ wss://api.oooefam.net/ws/progress?jobId={jobId}&token={token}
 
 **Implementation:** Token refresh is handled **automatically by the Durable Object** when the connection is active and approaching expiration (within 30 minutes of expiry).
 
+**Backend Implementation:**
+- **Alarm System:** Durable Object schedules alarms every 15 minutes to check token expiration
+- **Refresh Window:** Automatic refresh triggers when token has < 30 minutes remaining
+- **Method:** `scheduleTokenRefreshCheck()` in `progress-socket.js:698`
+- **Auto-Refresh:** `autoRefreshToken()` generates new token and extends expiration by 2 hours
+- **Token Storage:** New tokens stored in KV with `authToken` and `authTokenExpiration` keys
+- **Token Blacklist:** Old tokens blacklisted with 2.5-hour TTL to prevent reuse
+- **Conflict Prevention:** Token refresh alarms delayed if job processing alarm is active (single alarm per DO)
+
 **Refresh Window:**
 - Tokens are **automatically refreshed** in the last 30 minutes before expiration
-- No client-side code needed - handled server-side
-- New token extends expiration by another 2 hours
+- No client-side code needed - handled server-side via Durable Object alarms
+- New token extends expiration by another 2 hours from refresh time
 - Client receives updated token via internal state (transparent)
+- Old token blacklisted but usable during 5-minute grace period for reconnections
 
 **Client Implementation Examples:**
 
@@ -1243,8 +1253,8 @@ Expected Upgrade: websocket
 5. Server closes connection with code 1000 (NORMAL_CLOSURE) on completion
 
 **Heartbeat:**
-- Server sends `ping` every 30 seconds
-- Client should respond with `pong` (optional)
+- Not required - Cloudflare Workers automatically handles connection health
+- Connections remain active for duration of job (up to 2 hours with auto token refresh)
 
 **Local Testing with Wrangler:**
 ```bash
@@ -1311,9 +1321,6 @@ type MessageType =
   | "batch-complete"  // Server → Client: Batch scan complete
   | "batch-canceling" // Server → Client: Batch cancellation in progress
 
-  // Keep-alive (planned, not yet implemented)
-  | "ping"
-  | "pong";
 ```
 
 **Pipeline:**
