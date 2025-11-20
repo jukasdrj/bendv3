@@ -40,8 +40,8 @@ compatibility_flags = [
 
 # Custom domain routes (oooefam.net)
 routes = [
-  { pattern = "api.oooefam.net/*", zone_name = "oooefam.net" },
-  { pattern = "harvest.oooefam.net/*", zone_name = "oooefam.net" }
+  { pattern = "api.oooefam.net/*", zone_name = "oooefam.net" }
+  # harvest.oooefam.net is served by Cloudflare Pages (harvest-dashboard project)
 ]
 
 # Environment variables merged from all workers
