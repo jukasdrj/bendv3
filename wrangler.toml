@@ -98,7 +98,7 @@ ENABLE_REFACTORED_DOS = "false"  # Default: legacy architecture
 # When false: Uses traditional ProgressWebSocketDO with manual event listeners (default, 100% backward compatible)
 # Migration strategy: Parallel deployment with gradual rollout (1% → 10% → 50% → 100%)
 # Risk: LOW - Feature flag allows instant rollback if issues detected
-ENABLE_HIBERNATION_WEBSOCKET = "false"  # Default: traditional WebSocket (Phase 1 deployment validation)
+ENABLE_HIBERNATION_WEBSOCKET = "true"  # ENABLED: Hibernation WebSocket DO (Phase 2A - 70-80% cost reduction)
 
 # KV Namespaces (consolidated from books-api-proxy and external-apis-worker)
 # Note: Set remote = true to access production KV during local development (Wrangler v4.37+)
