@@ -2,8 +2,8 @@
 
 **Cloudflare Workers API** for book search, enrichment, and AI-powered scanning.
 
-**Production URL:** https://api.oooefam.net
-**Harvest Dashboard:** https://harvest.oooefam.net
+**Production URL:** https://api.oooefam.net  
+**Harvest Dashboard:** https://harvest.oooefam.net 📊 (Real-time monitoring)
 
 ## Repository Structure
 
@@ -21,6 +21,11 @@
 │   ├── middleware/           # CORS, rate limiting, validation
 │   ├── types/                # TypeScript type definitions
 │   └── utils/                # Shared utilities
+├── dashboard/                # 📊 Harvest monitoring dashboard
+│   ├── index.html            # Dashboard UI
+│   ├── styles.css            # Dark mode styles
+│   ├── dashboard.js          # Data fetching logic
+│   └── README.md             # Dashboard documentation
 ├── tests/                    # All tests and fixtures
 │   ├── unit/                 # Unit tests
 │   ├── integration/          # Integration tests
@@ -181,6 +186,28 @@ We welcome contributions! Please see our [CONTRIBUTING.md](./.github/CONTRIBUTIN
 
 ## Monitoring
 
+### 📊 Harvest Dashboard (NEW)
+
+**Live Dashboard:** https://harvest.oooefam.net
+
+Visual, real-time monitoring dashboard with:
+- System health overview (worker status, request volume, error rate)
+- Cache performance gauges (edge, KV, combined hit rates)
+- Response time metrics (P50/P95/P99 latency)
+- Cost tracking (KV/R2 reads)
+- Auto-refresh every 30 seconds
+- Mobile-friendly, dark mode
+
+**Quick Start:**
+```bash
+# Local development
+cd dashboard
+python3 -m http.server 8080
+open http://localhost:8080
+```
+
+See [Dashboard README](dashboard/README.md) for features and [Deployment Guide](docs/deployment/DASHBOARD_DEPLOYMENT.md) for setup.
+
 ### Production Logs
 
 ```bash
@@ -203,6 +230,7 @@ npx wrangler tail --remote --format pretty
 
 ### Deployment & Operations
 - **[Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Complete deployment guide with rollback procedures
+- **[Dashboard Deployment](docs/deployment/DASHBOARD_DEPLOYMENT.md)** - Harvest dashboard setup and configuration
 - **[Staging Testing Guide](docs/STAGING_TESTING_GUIDE.md)** - Staging environment testing procedures
 - **[Secrets Setup](docs/deployment/SECRETS_SETUP.md)** - Step-by-step guide for configuring GitHub secrets
 - **[Monitoring Dashboard](docs/deployment/MONITORING_DASHBOARD.md)** - Cloudflare monitoring setup
