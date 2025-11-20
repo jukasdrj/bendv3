@@ -1130,8 +1130,26 @@ Same structure as `/v1/scan/results/{jobId}`.
 wss://api.oooefam.net/ws/progress?jobId={jobId}&token={token}
 ```
 
+**⚠️ CRITICAL: HTTP/1.1 Required (Issue #227)**
+
+WebSocket connections **MUST** use HTTP/1.1. HTTP/2 and HTTP/3 are not supported by the WebSocket protocol (RFC 6455).
+
+**iOS URLSession Configuration:**
+```swift
+let configuration = URLSessionConfiguration.default
+configuration.httpProtocolOptions = [.http1_1Only: true]
+let session = URLSession(configuration: configuration)
+let websocketTask = session.webSocketTask(with: request)
+```
+
+**Error if using HTTP/2:**
+```
+HTTP/2 426 Upgrade Required
+Expected Upgrade: websocket
+```
+
 **Connection Lifecycle:**
-1. Client connects with valid `jobId` and `token`
+1. Client connects with valid `jobId` and `token` (HTTP/1.1 only)
 2. Client sends `ready` signal when ready to receive messages
 3. Server sends `ready_ack` acknowledgment
 4. Server sends job updates (`job_started`, `job_progress`, `job_complete`)
