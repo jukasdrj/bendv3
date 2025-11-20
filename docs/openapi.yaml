@@ -18,7 +18,7 @@ info:
     - New endpoints: `/v1/scan/results/{jobId}`, `/v1/csv/results/{jobId}`, `POST /api/batch-scan`.
     - Enhanced WebSocket API with reconnection support and batch scanning messages.
     - Input validation limits for DoS prevention.
-    - Function-based CORS policy (see `API_CONTRACT.md` Section 2.1 for details on allowed origins).
+    - Function-based CORS policy (see `API_CONTRACT.md` Section 3.2 for details on allowed origins).
 
     **Important Notes:**
     - All `/v1/*` HTTP endpoints use a consistent `ResponseEnvelope` format.
@@ -1457,14 +1457,14 @@ components:
     MessageType:
       type: string
       description: |
-        All WebSocket message types (13 total).
+        All WebSocket message types (11 total).
 
-        **Active message types (11)**:
+        **Active message types**:
         - job_started, job_progress, job_complete, error
         - ready, ready_ack, reconnected
         - batch-init, batch-progress, batch-complete, batch-canceling
 
-        **Planned for future (2)**: ping, pong (keep-alive functionality)
+        **Note**: ping/pong removed in v2.4 (never implemented)
       enum:
         - job_started
         - job_progress
@@ -1477,8 +1477,6 @@ components:
         - batch-progress
         - batch-complete
         - batch-canceling
-        - ping
-        - pong
 
     # --- Endpoint Specific Payloads ---
     BookSearchResponse:
