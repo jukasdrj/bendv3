@@ -1,6 +1,8 @@
 // src/providers/gemini-csv-provider.js
+// Issue #179: Retry logic with exponential backoff for Gemini API failures
 
 import { CSV_BOOK_SCHEMA } from "../types/gemini-schemas.js";
+import { retryWithBackoff } from "../utils/retry.js";
 
 const GEMINI_API_ENDPOINT =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
@@ -75,13 +77,15 @@ export async function parseCSVWithGemini(csvText, prompt, apiKey) {
   const sanitizedCSV = sanitizeCSVForPrompt(csvText);
   const fullPrompt = `${prompt}\n\nCSV Data:\n${sanitizedCSV}`;
 
-  const response = await fetch(GEMINI_API_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "x-goog-api-key": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  // Issue #179: Wrap fetch with retry logic (exponential backoff on transient failures)
+  const response = await retryWithBackoff(async () => {
+    const res = await fetch(GEMINI_API_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "x-goog-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
       // System instruction: Define the CSV parser's role
       system_instruction: {
         parts: [
@@ -118,12 +122,15 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
         stopSequences: ["\n\n\n"], // Stop on triple newline (prevents unnecessary continuation)
       },
     }),
-  });
+    });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Gemini API error: ${error}`);
-  }
+    if (!res.ok) {
+      const error = await res.text();
+      throw new Error(`Gemini API error: ${res.status} - ${error}`);
+    }
+
+    return res;
+  });
 
   const data = await response.json();
   const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
