@@ -17,12 +17,13 @@ const GEMINI_API_ENDPOINT =
  * @returns {string} Sanitized CSV content safe for use in prompts
  */
 function sanitizeCSVForPrompt(csvText) {
-  // Maximum safe CSV size: ~500KB (Gemini 2M token context with overhead)
-  const MAX_CSV_SIZE = 500 * 1024;
+  // Approximates Gemini 2.0 Flash 2M token context (assuming ~4 bytes per token)
+  // Issue #181: Aligned with MAX_FILE_SIZE in csv-import.ts for consistency
+  const MAX_CSV_SIZE = 8 * 1024 * 1024; // 8MB
 
   if (csvText.length > MAX_CSV_SIZE) {
     throw new Error(
-      `CSV too large for processing (max ${MAX_CSV_SIZE / 1024}KB)`,
+      `CSV too large for processing (max ${MAX_CSV_SIZE / 1024 / 1024}MB to fit 2M token limit)`,
     );
   }
 

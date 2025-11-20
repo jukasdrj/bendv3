@@ -1943,11 +1943,16 @@ queued → processing → complete | error
 |-------|-------|--------|
 | **Min Photos** | 1 | Single photo uses `/api/scan-bookshelf` endpoint |
 | **Max Photos** | **5** | AI processing time (5 photos × 10s = 50s max, within Workers' 60s limit) |
-| **Max Photo Size** | 10 MB | Gemini API limit |
-| **Total Upload Size** | 50 MB | 5 photos × 10 MB each |
+| **Max Photo Size** | 10 MB | Per individual photo (enforced on decoded size to prevent malformed base64 bypass); matches Gemini API limits |
+| **Total Upload Size** | 50 MB | Per batch (5 photos × 10 MB each); prevents memory exhaustion |
 | **Rate Limit** | 5 requests/minute | Per IP, applies to batch requests (not individual photos) |
 
 **⚠️ Common Mistake:** Confusing "50 MB" with "50 photos". The limit is **5 photos**, not 50.
+
+**Single-Photo Scanning Limits (via `/api/scan-bookshelf`):**
+- Max Photo Size: 10 MB per photo (same as batch per-photo limit)
+- Enforcement: Checked on imageData byteLength before processing
+- Error: Throws error if exceeded, with message suggesting compression
 
 **iOS Pagination Pattern (20+ Photos):**
 ```swift
