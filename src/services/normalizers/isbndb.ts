@@ -6,6 +6,7 @@ import type { WorkDTO, EditionDTO, AuthorDTO } from "../../types/canonical.js";
 import type { EditionFormat } from "../../types/enums.js";
 import { GenreNormalizer } from "../genre-normalizer.js";
 import { getPlaceholderCover } from "../../utils/book-metadata.js";
+import { ISBNDB_QUALITY_WEIGHTS as W } from "../../utils/quality-scoring.js";
 
 // Create genre normalizer instance (reused across all normalizations)
 const genreNormalizer = new GenreNormalizer();
@@ -124,17 +125,17 @@ export function normalizeISBNdbToAuthor(authorName: string): AuthorDTO {
  * Based on completeness and publisher reputation
  */
 function calculateISBNdbQuality(book: any): number {
-  let score = 50; // Base score
+  let score = W.BASE; // Base score
 
   // Add points for data completeness
-  if (book.image) score += 20;
-  if (book.synopsis && book.synopsis.length > 50) score += 10;
-  if (book.pages && book.pages > 0) score += 5;
-  if (book.publisher) score += 5;
-  if (book.subjects && book.subjects.length > 0) score += 5;
-  if (book.authors && book.authors.length > 0) score += 5;
+  if (book.image) score += W.IMAGE;
+  if (book.synopsis && book.synopsis.length > 50) score += W.SYNOPSIS;
+  if (book.pages && book.pages > 0) score += W.PAGES;
+  if (book.publisher) score += W.PUBLISHER;
+  if (book.subjects && book.subjects.length > 0) score += W.SUBJECTS;
+  if (book.authors && book.authors.length > 0) score += W.AUTHORS;
 
   // Ensure score is always a valid number between 0-100
   const finalScore = Math.min(Math.max(score, 0), 100);
-  return isNaN(finalScore) ? 50 : finalScore; // Default to 50 if NaN
+  return isNaN(finalScore) ? W.BASE : finalScore; // Default to base score if NaN
 }
