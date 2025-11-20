@@ -108,6 +108,18 @@ GET /v1/search/advanced?title=Harry%20Potter&author=Rowling
 
 ## 📡 WebSocket Integration
 
+### **⚠️ CRITICAL: HTTP/1.1 Required (Issue #227)**
+
+WebSocket connections **MUST** use HTTP/1.1. iOS URLSession defaults to HTTP/2, which causes handshake failures.
+
+**iOS Fix:**
+```swift
+let configuration = URLSessionConfiguration.default
+configuration.httpProtocolOptions = [.http1_1Only: true]
+let session = URLSession(configuration: configuration)
+let websocketTask = session.webSocketTask(with: request)
+```
+
 ### **Connection Flow**
 
 ```typescript
