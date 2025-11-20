@@ -268,8 +268,7 @@ app.get("/search/author", async (c) => {
   }
 
   // Support both 'limit' (new) and 'maxResults' (iOS compatibility)
-  const limitParam =
-    c.req.query("limit") || c.req.query("maxResults") || "50";
+  const limitParam = c.req.query("limit") || c.req.query("maxResults") || "50";
   const limit = parseInt(limitParam);
   const offset = parseInt(c.req.query("offset") || "0");
   const sortBy = c.req.query("sortBy") || "publicationYear";
@@ -409,8 +408,7 @@ app.post("/search/advanced", async (c) => {
         {
           error: {
             code: "MISSING_PARAM",
-            message:
-              "At least one search parameter required (title or author)",
+            message: "At least one search parameter required (title or author)",
           },
         },
         400,
@@ -827,18 +825,47 @@ app.onError((err, c) => {
   console.error("[Hono] Unhandled error:", err);
 
   // Log to Analytics Engine asynchronously (doesn't block response)
-  if (c.env.PERFORMANCE_ANALYTICS) {
-    c.executionCtx.waitUntil(
-      c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
-        blobs: ["router_error", err.message, c.req.path, c.req.method],
-        doubles: [1], // Error count
-        indexes: ["hono"], // Router type
-      }).catch((analyticsErr) => {
-        console.error(
-          "[Hono] Failed to log error to Analytics Engine:",
-          analyticsErr,
-        );
-      }),
+  // Enhanced error handling: ensure writeDataPoint exists and returns a Promise
+  if (
+    c.env.PERFORMANCE_ANALYTICS &&
+    typeof c.env.PERFORMANCE_ANALYTICS.writeDataPoint === "function"
+  ) {
+    try {
+      // Wrap in Promise.resolve() to guarantee a Promise for .catch()
+      const dataPointPromise = Promise.resolve(
+        c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
+          blobs: ["router_error", err.message, c.req.path, c.req.method],
+          doubles: [1], // Error count
+          indexes: ["hono"], // Router type
+        }),
+      );
+      c.executionCtx.waitUntil(
+        dataPointPromise.catch((analyticsErr) => {
+          console.error(
+            "[Hono] Failed to log error to Analytics Engine:",
+            analyticsErr,
+          );
+          // Note: Simple retry omitted to avoid exceeding Workers execution limits
+          // Analytics failures are logged but not retried to maintain performance
+        }),
+      );
+    } catch (syncError) {
+      // Catch synchronous errors during writeDataPoint invocation
+      console.error(
+        "[Hono] Synchronous error when attempting to log to Analytics Engine:",
+        syncError,
+      );
+      // Log sync errors via waitUntil to ensure they're captured
+      c.executionCtx.waitUntil(
+        Promise.resolve().then(() => {
+          console.warn("[Hono] Analytics sync error captured in error handler");
+        }),
+      );
+    }
+  } else {
+    // Warn if Analytics binding is missing or misconfigured
+    console.warn(
+      "[Hono] PERFORMANCE_ANALYTICS binding missing or invalid - error metrics will not be logged",
     );
   }
 
