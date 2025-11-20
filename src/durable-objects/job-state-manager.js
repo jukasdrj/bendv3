@@ -227,13 +227,26 @@ export class JobStateManagerDO extends DurableObject {
     const wsDoId = this.env.WEBSOCKET_CONNECTION_DO.idFromName(jobState.jobId);
     const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
 
+    // BREAKING CHANGE (Issue #167): Align WebSocket errors with HTTP canonical format
     await wsDoStub.send({
       type: "error",
       jobId: jobState.jobId,
       pipeline,
       timestamp: Date.now(),
       version: "2.0.0",
-      payload,
+      payload: {
+        type: "error",
+        data: null, // Always null for errors (matches HTTP ResponseEnvelope)
+        metadata: {
+          timestamp: new Date().toISOString(),
+        },
+        error: {
+          message: payload.message,
+          code: payload.code,
+          details: payload.details,
+        },
+        retryable: payload.retryable,
+      },
     });
 
     // Schedule cleanup after 24 hours

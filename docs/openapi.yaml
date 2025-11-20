@@ -1744,7 +1744,8 @@ components:
           example: 1700000000000
         version:
           type: string
-          example: 1.0.0
+          description: WebSocket protocol version. v2.0.0 includes breaking changes to error format.
+          example: '2.0.0'
         payload:
           type: object # Can be one of the specific payload types below
           description: Type-specific data for the message.
@@ -1849,29 +1850,55 @@ components:
         - resultsUrl
     ErrorPayload:
       type: object
+      description: |
+        **BREAKING CHANGE (v2.0.0 - Issue #167):**
+        WebSocket error payload now matches HTTP canonical format (ResponseEnvelope) for consistency.
+        Migration: Update clients to parse `error` object instead of flat `code`/`message` fields.
       properties:
         type:
           type: string
           enum: [error]
-        code:
-          type: string
-          example: E_CSV_PROCESSING_FAILED
-        message:
-          type: string
-          example: Invalid CSV format: Missing title column
+        data:
+          type: "null"
+          description: Always null for errors (matches HTTP ResponseEnvelope).
+        metadata:
+          type: object
+          description: Metadata including timestamp in ISO 8601 format.
+          properties:
+            timestamp:
+              type: string
+              format: date-time
+              example: '2025-01-15T10:00:00.000Z'
+          required:
+            - timestamp
+        error:
+          type: object
+          description: Canonical error object (matches HTTP format).
+          properties:
+            message:
+              type: string
+              example: Invalid CSV format: Missing title column
+            code:
+              type: string
+              nullable: true
+              example: E_CSV_PROCESSING_FAILED
+            details:
+              type: object
+              nullable: true
+              example:
+                lineNumber: 42
+          required:
+            - message
         retryable:
           type: boolean
-          example: true
-        details:
-          type: object
+          description: WebSocket-specific extension indicating if the operation can be retried.
           nullable: true
-          example:
-            lineNumber: 42
+          example: true
       required:
         - type
-        - code
-        - message
-        - retryable
+        - data
+        - metadata
+        - error
     ReadyMessage:
       type: object
       description: |

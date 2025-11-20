@@ -283,15 +283,33 @@ export interface BoundingBox {
 }
 
 // =============================================================================
-// Error Payload
+// Error Payload (Aligned with HTTP Canonical Format)
 // =============================================================================
 
+/**
+ * Error payload aligned with HTTP canonical error format (ResponseEnvelope)
+ *
+ * **Breaking Change (v2.0.0):** WebSocket errors now match HTTP error structure
+ * for consistent client-side error handling.
+ *
+ * Migration: Update clients to expect `data: null` and `error` object instead
+ * of flat `code`/`message` fields.
+ *
+ * @see src/types/responses.ts - ApiError interface
+ * @see src/utils/response-builder.ts - createErrorResponse()
+ */
 export interface ErrorPayload {
   type: "error";
-  code: string;             // Machine-readable error code
-  message: string;          // Human-readable error message
-  details?: any;            // Optional: Additional error context
-  retryable?: boolean;      // Optional: Can client retry?
+  data: null;               // Always null for errors (matches HTTP format)
+  metadata: {
+    timestamp: string;      // ISO 8601 timestamp
+  };
+  error: {
+    message: string;        // Human-readable error message
+    code?: string;          // Machine-readable error code (e.g., "PROCESSING_FAILED")
+    details?: any;          // Optional: Additional error context
+  };
+  retryable?: boolean;      // Optional: Can client retry? (WebSocket-specific extension)
 }
 
 // =============================================================================
