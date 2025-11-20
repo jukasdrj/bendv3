@@ -554,6 +554,22 @@ paths:
         **WebSocket URL Pattern:**
         `wss://api.oooefam.net/ws/progress?jobId={jobId}&token={token}&reconnect={true/false}`
 
+        **⚠️ CRITICAL: HTTP/1.1 Required (Issue #227)**
+        WebSocket connections MUST use HTTP/1.1. HTTP/2 and HTTP/3 are not supported by the WebSocket protocol (RFC 6455).
+
+        **iOS URLSession Configuration:**
+        ```swift
+        let configuration = URLSessionConfiguration.default
+        configuration.httpProtocolOptions = [.http1_1Only: true]
+        let session = URLSession(configuration: configuration)
+        ```
+
+        **Error if using HTTP/2:**
+        ```
+        HTTP/2 426 Upgrade Required
+        Expected Upgrade: websocket
+        ```
+
         **Authentication:**
         Requires `jobId` and `token` obtained from the initial `POST` request (e.g., `/api/batch-scan`).
 
