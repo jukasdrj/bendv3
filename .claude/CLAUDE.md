@@ -579,16 +579,17 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 
 ## Open Issues Organization
 
-### Current Active Issues: 22 (as of Nov 20, 2025)
+### Current Active Issues: 20 (as of Nov 20, 2025)
 
 **Sprint 2 Completed:** 6 documentation issues resolved (#219, #218, #217, #216, #489, #497)
+**Sprint 3 Phase 1 Completed:** 2 critical reliability issues resolved (#185, #178)
 
 ### By Priority
 
 #### P1 - High Priority (1 issue)
 - #172: Validate SLA performance targets (requires production metrics)
 
-#### P2 - Medium Priority (18+ issues)
+#### P2 - Medium Priority (16 issues)
 **Sprint 1 Quick Wins:**
 - #199: ISBN deduplication fails for books without ISBNs
 - #194: Duplicate transform logic in search handlers
@@ -604,16 +605,18 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 - ~~#489: WebSocket ping/pong clarification~~ ✅ COMPLETE
 - ~~#497: Token refresh backend implementation details~~ ✅ COMPLETE
 
-**Sprint 3 Work (Remaining P2 Issues):**
+**Sprint 3 Phase 1 (COMPLETED):**
+- ~~#185: R2 storage leak - failed uploads not cleaned up~~ ✅ FIXED (commit 6e3668e)
+- ~~#178: WebSocket race condition in CSV import~~ ✅ FIXED (commit 63f46a8)
+
+**Sprint 3 Remaining Work:**
 - #221: Review WebSocket implementation against CF best practices
 - #198: Author array handling (5 inconsistent formats)
 - #188: Add ISBNdb to ISBN search fallback chain
-- #185: R2 storage leak - failed uploads not cleaned up
 - #183: Add retry logic for Gemini Vision API failures
 - #181: Token limit mismatch in CSV validation
 - #180: Eliminate code duplication in CSV processing
 - #179: Add retry logic for Gemini API failures
-- #178: WebSocket race condition in CSV import
 - #171: Clarify 10 MB photo size enforcement
 - #170: Add max concurrent WebSocket connections limit
 
@@ -644,10 +647,10 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 
 #### WebSocket / Durable Objects
 - #221: Review against CF best practices (P2)
-- #216: Remove unimplemented message types (P2)
-- #178: Race condition in CSV import (P2)
+- ~~#216: Remove unimplemented message types~~ ✅ COMPLETE (Sprint 2)
+- ~~#178: Race condition in CSV import~~ ✅ FIXED (Sprint 3 Phase 1)
 - #170: Max concurrent connections limit (P2)
-- #167: Error handling inconsistency (P1)
+- ~~#167: Error handling inconsistency~~ ✅ COMPLETE (Nov 19, 2025)
 
 #### AI / Gemini Integration
 - #183: Retry logic for Vision API (P2)
@@ -664,7 +667,7 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 - #202: Placeholder cover image URL (P3)
 
 #### Storage / Infrastructure
-- #185: R2 storage leak (P2)
+- ~~#185: R2 storage leak~~ ✅ FIXED (Sprint 3 Phase 1)
 - #174: Monitoring Dashboard (future)
 - #158: New monitoring worker (future)
 
@@ -730,13 +733,24 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 
 ## 📊 Active Issues Summary (Nov 20, 2025)
 
-### Total Active Issues: 22 (down from 28)
+### Total Active Issues: 20 (down from 22)
 
 **Priority Breakdown:**
 - **P1 (High):** 1 issue - SLA validation (requires production metrics)
-- **P2 (Medium):** 12 issues - Sprint 1 quick wins (5), Sprint 3 work (11 remaining)
+- **P2 (Medium):** 16 issues - Sprint 1 quick wins (5), Sprint 3 remaining (9)
 - **P3 (Low):** 2 issues - Placeholder images, test refactoring
 - **Future/Unclassified:** 7 issues - Monitoring, features, advanced testing
+
+**Sprint 3 Phase 1 Complete (Nov 20, 2025):**
+- ✅ **#185 FIXED:** R2 storage leak - comprehensive cleanup strategy (commit 6e3668e)
+  - Created `src/utils/r2-utils.ts` for batch deletion
+  - Cleanup on job failure and cancellation
+  - Proper tracking of uploaded R2 keys
+- ✅ **#178 FIXED:** WebSocket race condition eliminated (commit 63f46a8)
+  - Removed unnecessary 200ms hardcoded delay
+  - Increased waitForReady timeout 10s → 15s
+  - Added connection timing logging
+  - 61/62 CSV tests passing
 
 **Sprint 2 Complete (Nov 20, 2025):**
 - ✅ **#219 DOCUMENTED:** CORS policies added to API_CONTRACT.md
