@@ -33,10 +33,12 @@ import { parseCSVWithGemini } from "../providers/gemini-csv-provider.js";
  * @returns {Promise<void>}
  */
 export async function processCSVImport(csvText, progressReporter, env, jobId) {
+  const startTime = Date.now();
   try {
-    // Wait for client to be ready before starting processing
+    // Wait for client to establish WebSocket and send ready signal
+    // Issue #178: Increased timeout to 15 seconds to handle slow network connections
     console.log("[CSV Processor] Waiting for client ready signal");
-    const readyResult = await progressReporter.waitForReady(10000);
+    const readyResult = await progressReporter.waitForReady(15000);
 
     if (readyResult.timedOut || readyResult.disconnected) {
       const reason = readyResult.timedOut ? "timeout" : "not connected";
@@ -44,7 +46,8 @@ export async function processCSVImport(csvText, progressReporter, env, jobId) {
         `[CSV Processor] Client ready ${reason}, proceeding anyway (client may miss early updates)`,
       );
     } else {
-      console.log("[CSV Processor] ✅ Client ready, starting processing");
+      const elapsedMs = Date.now() - startTime;
+      console.log(`[CSV Processor] ✅ Client ready after ${elapsedMs}ms`);
     }
 
     // Stage 0: Validation (0-5%)
