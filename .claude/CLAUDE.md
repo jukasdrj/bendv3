@@ -579,7 +579,9 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 
 ## Open Issues Organization
 
-### Current Active Issues: 28 (as of Nov 19, 2025)
+### Current Active Issues: 22 (as of Nov 20, 2025)
+
+**Sprint 2 Completed:** 6 documentation issues resolved (#219, #218, #217, #216, #489, #497)
 
 ### By Priority
 
@@ -594,12 +596,16 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 - #189: ISBN normalization too aggressive
 - #186: Confidence threshold inconsistency
 
-**Sprint 2 Work:**
+**Sprint 2 Documentation (COMPLETED):**
+- ~~#219: Document CORS policies~~ ✅ COMPLETE
+- ~~#218: Add HTTP headers documentation~~ ✅ COMPLETE
+- ~~#217: Add DTO field defaults documentation~~ ✅ COMPLETE
+- ~~#216: Remove unimplemented WebSocket message types~~ ✅ COMPLETE
+- ~~#489: WebSocket ping/pong clarification~~ ✅ COMPLETE
+- ~~#497: Token refresh backend implementation details~~ ✅ COMPLETE
+
+**Sprint 3 Work (Remaining P2 Issues):**
 - #221: Review WebSocket implementation against CF best practices
-- #219: Document CORS policies
-- #218: Add HTTP headers documentation
-- #217: Add DTO field defaults documentation
-- #216: Remove unimplemented WebSocket message types
 - #198: Author array handling (5 inconsistent formats)
 - #188: Add ISBNdb to ISBN search fallback chain
 - #185: R2 storage leak - failed uploads not cleaned up
@@ -677,6 +683,14 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 
 ### Recently Closed Issues
 
+#### Nov 20, 2025 - Sprint 2 Documentation Complete ✅
+- ~~#219: CORS policies - DOCUMENTED (API_CONTRACT.md)~~
+- ~~#218: HTTP headers documentation - DOCUMENTED (API_CONTRACT.md)~~
+- ~~#217: DTO field defaults - DOCUMENTED (API_CONTRACT.md)~~
+- ~~#216: WebSocket ping/pong - REMOVED (not needed for Cloudflare Workers)~~
+- ~~#489: WebSocket heartbeat clarification - DOCUMENTED (Cloudflare auto-handles)~~
+- ~~#497: Token refresh implementation - DOCUMENTED (alarm system details added)~~
+
 #### Nov 19, 2025 - P1 Issues Resolution
 - ~~#222: Rate limiter config - CLOSED (already aligned at 5 req/min)~~
 - ~~#168: Batch vs single-photo response inconsistency - CLOSED (no inconsistency exists)~~
@@ -703,38 +717,42 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 **Performance/SLA?** → #172 (Validate SLA targets), #185 (R2 leak)
 **WebSocket issues?** → #221 (CF best practices), #178 (Race condition), #167 (Error handling)
 **AI/Gemini?** → #183, #179 (Retry logic), #181 (Token limits), #186 (Confidence thresholds)
-**Documentation?** → #219 (CORS), #218 (HTTP headers), #217 (DTO defaults), #216 (WebSocket messages)
+**Documentation?** → ✅ Sprint 2 complete (6 issues resolved)
 **Future features?** → #174 (Monitoring), #151 (Recommendations), #161 (Copilot)
 
 ---
 
-**Last Updated:** November 19, 2025 (P1 issues resolved: 4/5 complete, 1 pending)
+**Last Updated:** November 20, 2025 (Sprint 2 complete: 6 documentation issues resolved)
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer, Jules, Zen MCP)
 **Human Owner:** @jukasdrj
 
 ---
 
-## 📊 Active Issues Summary (Nov 19, 2025)
+## 📊 Active Issues Summary (Nov 20, 2025)
 
-### Total Active Issues: 28
+### Total Active Issues: 22 (down from 28)
 
 **Priority Breakdown:**
 - **P1 (High):** 1 issue - SLA validation (requires production metrics)
-- **P2 (Medium):** 18+ issues - Sprint 1 quick wins, Sprint 2 work
+- **P2 (Medium):** 12 issues - Sprint 1 quick wins (5), Sprint 3 work (11 remaining)
 - **P3 (Low):** 2 issues - Placeholder images, test refactoring
 - **Future/Unclassified:** 7 issues - Monitoring, features, advanced testing
 
-**Recent Progress:**
+**Sprint 2 Complete (Nov 20, 2025):**
+- ✅ **#219 DOCUMENTED:** CORS policies added to API_CONTRACT.md
+- ✅ **#218 DOCUMENTED:** HTTP headers documentation added
+- ✅ **#217 DOCUMENTED:** DTO field defaults documented
+- ✅ **#216 REMOVED:** WebSocket ping/pong (not needed for Cloudflare Workers)
+- ✅ **#489 CLARIFIED:** Heartbeat handling (Cloudflare auto-manages)
+- ✅ **#497 DETAILED:** Token refresh backend implementation (alarm system, blacklist, grace period)
+- 📄 **Created:** FRONTEND_QUESTIONS_RESPONSE.md (363 lines of implementation details)
+
+**Previous Progress (Nov 19, 2025):**
 - ✅ **#167 IMPLEMENTED:** WebSocket errors now use HTTP canonical format (breaking change v2.0.0)
 - ✅ **#222 CLOSED:** Rate limiter already aligned (5 req/min)
 - ✅ **#168 CLOSED:** No inconsistency exists - unified `/api/batch-scan` endpoint
 - ✅ **#47 DOWNGRADED:** Test refactoring moved to P3
 - ✅ 911 tests passing (all WebSocket error tests updated and passing)
-
-**Breaking Changes:**
-- **#167:** WebSocket error payload now matches HTTP ResponseEnvelope format
-- **Migration required:** Clients must update error parsing (30-day deprecation notice)
-- **Version bump:** WebSocket protocol v1.0.0 → v2.0.0
 
 **Remaining P1 Work:**
 - #172: SLA validation (pending - requires production data access)
