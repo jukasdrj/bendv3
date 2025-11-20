@@ -425,7 +425,51 @@ final channel = WebSocketChannel.connect(
 - Disconnected clients can reconnect with old token during auto-refresh (5-minute grace period)
 - Expired tokens cannot be refreshed (must start new job)
 
-### 3.2 Rate Limiting
+### 3.2 CORS (Cross-Origin Resource Sharing)
+
+**Policy:** Specific origins only (NOT wildcard `*`)
+
+**Allowed Origins:**
+- `https://bookstrack.oooefam.net` - Production frontend
+- `capacitor://localhost` - iOS/Android Capacitor apps
+- `http://localhost:8787` - Local development
+
+**Implementation:** `src/middleware/cors.js`
+
+**Headers Set:**
+```
+Access-Control-Allow-Origin: {allowed-origin}
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization
+Access-Control-Max-Age: 86400
+```
+
+**Preflight Requests:** OPTIONS requests return `204 No Content` with CORS headers
+
+**WebSocket CORS:** WebSocket connections follow same origin policy (validated in Durable Object)
+
+### 3.3 HTTP Headers
+
+**Required Headers:**
+- `Content-Type: application/json` - Required for POST/PUT requests with body
+
+**Optional Headers:**
+- `Authorization: Bearer {token}` - For future authentication (not currently enforced)
+- `User-Agent` - Recommended for analytics/debugging
+- `X-Request-ID` - Optional correlation ID for request tracking
+
+**Response Headers:**
+All API responses include:
+- `Content-Type: application/json`
+- `X-Request-ID` - Correlation ID (if provided in request)
+- `X-Response-Time` - Server-side processing time in milliseconds
+
+**WebSocket-Specific Headers:**
+- `Sec-WebSocket-Protocol: bookstrack-auth.{token}` - Authentication (see 3.1)
+- `Upgrade: websocket` - Protocol upgrade
+- `Connection: Upgrade`
+
+### 3.4 Rate Limiting
 
 **Global Limits:**
 - **1000 requests/hour** per IP address
