@@ -3,9 +3,11 @@
  * Extracted from ai-scanner service for compartmentalization
  *
  * Uses Gemini 2.5 Flash (production-stable) for high-accuracy bookshelf scanning
+ * Issue #183: Retry logic with exponential backoff for Vision API failures
  */
 
 import { BOOKSHELF_RESPONSE_SCHEMA } from "../types/gemini-schemas.js";
+import { retryWithBackoff } from "../utils/retry.js";
 
 /**
  * Scan bookshelf image using Gemini AI
@@ -52,16 +54,17 @@ export async function scanImageWithGemini(imageData, env) {
   // After: 5MB image = ~100ms encoding (600x performance improvement!)
   const base64Image = Buffer.from(imageData).toString("base64");
 
-  // Call Gemini API with optimized prompting strategy
-  const response = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-    {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+  // Call Gemini API with retry logic (Issue #183: exponential backoff on transient failures)
+  const response = await retryWithBackoff(async () => {
+    const res = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
         // System instruction: Define role and output format (static, won't change)
         system_instruction: {
           parts: [
@@ -121,14 +124,17 @@ Extract all visible book information now.`,
         },
       }),
     },
-  );
+    );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[GeminiProvider] Gemini API error: ${response.status}`);
-    console.error(`[GeminiProvider] Error details:`, errorText);
-    throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
-  }
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`[GeminiProvider] Gemini API error: ${res.status}`);
+      console.error(`[GeminiProvider] Error details:`, errorText);
+      throw new Error(`Gemini API error: ${res.status} - ${errorText}`);
+    }
+
+    return res;
+  });
 
   console.log("[GeminiProvider] Gemini API response OK, parsing JSON...");
   const geminiData = await response.json();
