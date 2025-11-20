@@ -9,6 +9,7 @@
 import { handleSearchAdvanced } from "../handlers/v1/search-advanced.js";
 import { scanImageWithGemini } from "../providers/gemini-provider.js";
 import { enrichBooksParallel } from "./parallel-enrichment.js";
+import { categorizeBooks } from "../utils/confidence.js";
 
 /**
  * Debug logging helper - only logs verbose details in DEBUG mode
@@ -216,9 +217,7 @@ export async function processBookshelfScan(
     );
 
     // Separate high/low confidence results
-    const threshold = parseFloat(env.CONFIDENCE_THRESHOLD || "0.6");
-    const approved = enrichedBooks.filter((b) => b.confidence >= threshold);
-    const review = enrichedBooks.filter((b) => b.confidence < threshold);
+    const { approved, review } = categorizeBooks(enrichedBooks, env);
 
     const processingTime = Date.now() - startTime;
 

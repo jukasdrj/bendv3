@@ -15,6 +15,7 @@ import {
 } from "../utils/response-builder.js";
 import { enrichBooksParallel } from "../services/parallel-enrichment.js";
 import { handleSearchAdvanced } from "./v1/search-advanced.js";
+import { getConfidenceThreshold } from "../utils/confidence.js";
 import type {
   DetectedBookDTO,
   BookshelfScanInitResponse,
@@ -333,11 +334,12 @@ async function processBatchPhotos(jobId, images, env, doStub) {
           10, // maxConcurrent
         );
 
+        const threshold = getConfidenceThreshold(env);
         const approvedCount = enrichedPartialBooks.filter(
-          (b) => b.confidence >= 0.6,
+          (b) => b.confidence >= threshold,
         ).length;
         const reviewCount = enrichedPartialBooks.filter(
-          (b) => b.confidence < 0.6,
+          (b) => b.confidence < threshold,
         ).length;
 
         // Final progress update before completion
@@ -491,11 +493,14 @@ async function processBatchPhotos(jobId, images, env, doStub) {
       10, // maxConcurrent
     );
 
-    // Calculate approved vs review queue counts (threshold: 0.6 confidence)
+    // Calculate approved vs review queue counts (using env threshold)
+    const threshold = getConfidenceThreshold(env);
     const approvedCount = enrichedBooks.filter(
-      (b) => b.confidence >= 0.6,
+      (b) => b.confidence >= threshold,
     ).length;
-    const reviewCount = enrichedBooks.filter((b) => b.confidence < 0.6).length;
+    const reviewCount = enrichedBooks.filter(
+      (b) => b.confidence < threshold,
+    ).length;
 
     // Store full results in KV for HTTP retrieval (1-hour TTL)
     const resourceId = `job-results:${jobId}`;

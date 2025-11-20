@@ -1,0 +1,988 @@
+<GENERATED-CODE>
+1. Create new file `src/utils/confidence.ts` containing the `getConfidenceThreshold` and `categorizeBooks` utility functions, including JSDoc and validation logic.
+2. Update existing file `src/services/ai-scanner.js` to import and use the `categorizeBooks` utility, replacing the inline confidence threshold calculation and filtering.
+3. Update existing file `src/handlers/batch-scan-handler.ts` to import and use the `getConfidenceThreshold` utility, replacing the hardcoded `0.6` values used for filtering.
+
+<NEWFILE: src/utils/confidence.ts>
+/**
+ * @file Utility functions for managing and applying confidence thresholds.
+ * This module centralizes logic for retrieving a configurable confidence threshold
+ * and categorizing books based on their confidence scores.
+ */
+
+/**
+ * Minimal environment interface required by confidence utilities.
+ * Assumes `CONFIDENCE_THRESHOLD` is an optional string environment variable.
+ */
+interface Env {
+  CONFIDENCE_THRESHOLD?: string;
+}
+
+/**
+ * Represents a book object with a confidence score.
+ * This interface is used to type-hint objects processed by `categorizeBooks`.
+ */
+interface BookWithConfidence {
+  confidence: number;
+  // Other properties can be added here if needed for broader context,
+  // but `confidence` is the only one strictly required by these functions.
+}
+
+/**
+ * Retrieves the confidence threshold from environment variables,
+ * applying validation and a fallback default.
+ *
+ * It parses the `CONFIDENCE_THRESHOLD` environment variable as a float.
+ * If the variable is not set, is empty, or cannot be parsed as a number,
+ * or if the parsed number is outside the valid range [0.0, 1.0],
+ * it defaults to 0.6. A warning is logged for invalid configurations.
+ *
+ * @param {Env} env - The environment object containing configuration.
+ * @returns {number} The validated confidence threshold (0.0 to 1.0).
+ */
+export function getConfidenceThreshold(env: Env): number {
+  const defaultThreshold = 0.6;
+  const rawThreshold = env.CONFIDENCE_THRESHOLD;
+
+  if (rawThreshold === undefined || rawThreshold === null || rawThreshold === "") {
+    return defaultThreshold;
+  }
+
+  const parsedThreshold = parseFloat(rawThreshold);
+
+  if (isNaN(parsedThreshold) || parsedThreshold < 0.0 || parsedThreshold > 1.0) {
+    // Log a warning for invalid configuration, but don't crash the application.
+    // Fallback to default to ensure graceful degradation.
+    console.warn(
+      `[Confidence Utility] Invalid CONFIDENCE_THRESHOLD '${rawThreshold}' found in environment. ` +
+      `Expected a number between 0.0 and 1.0. Falling back to default: ${defaultThreshold}.`
+    );
+    return defaultThreshold;
+  }
+
+  return parsedThreshold;
+}
+
+/**
+ * Categorizes a list of books into 'approved' and 'needs review' based on a confidence threshold.
+ * The threshold is retrieved from the provided environment object using `getConfidenceThreshold`.
+ *
+ * Books with a confidence score greater than or equal to the threshold are placed in the 'approved' array.
+ * Books with a confidence score less than the threshold are placed in the 'review' array.
+ *
+ * @template T - A type extending `BookWithConfidence` to preserve original book object types.
+ * @param {T[]} books - An array of book objects, each expected to have a 'confidence' property.
+ * @param {Env} env - The environment object from which to retrieve the confidence threshold.
+ * @returns {{ approved: T[]; review: T[] }} An object containing two arrays:
+ *   `approved` for books meeting or exceeding the threshold, and `review` for books below it.
+ */
+export function categorizeBooks<T extends BookWithConfidence>(
+  books: T[],
+  env: Env
+): { approved: T[]; review: T[] } {
+  const threshold = getConfidenceThreshold(env);
+
+  const approved: T[] = [];
+  const review: T[] = [];
+
+  for (const book of books) {
+    if (book.confidence >= threshold) {
+      approved.push(book);
+    } else {
+      review.push(book);
+    }
+  }
+
+  return { approved, review };
+}
+</NEWFILE>
+
+<UPDATED_EXISTING_FILE: src/services/ai-scanner.js>
+import { handleSearchAdvanced } from "../handlers/v1/search-advanced.js";
+import { scanImageWithGemini } from "../providers/gemini-provider.js";
+import { enrichBooksParallel } from "./parallel-enrichment.js";
+import { categorizeBooks } from "../utils/confidence.js"; // NEW: Import categorizeBooks utility
+
+/**
+ * Debug logging helper - only logs verbose details in DEBUG mode
+ * Prevents production log spam (Issue #114)
+ *
+ * @param {Object} env - Worker environment
+ * @param {Function} logFn - Function to execute for logging
+ */
+function debugLog(env, logFn) {
+  if (env.LOG_LEVEL === "DEBUG") {
+    logFn();
+  }
+}
+
+/**
+ * AI Scanner Progress Stages
+ * Defines progress percentages for each stage of the AI scanning pipeline
+ */
+const PROGRESS_STAGES = {
+  QUALITY_ANALYSIS: 0.1, // Image quality check (10%)
+  AI_PROCESSING: 0.3, // Gemini AI vision processing (30%)
+  DETECTION_COMPLETE: 0.5, // Book detection complete (50%)
+  ENRICHMENT_START: 0.7, // Begin parallel enrichment (70%)
+  ENRICHMENT_DELTA: 0.25, // Enrichment progress range (70% → 95%)
+  FINALIZATION: 1.0, // Complete and send results (100%)
+};
+
+/**
+ * Process bookshelf image scan with AI vision
+ *
+ * @param {string} jobId - Unique job identifier
+ * @param {ArrayBuffer} imageData - Raw image data
+ * @param {Request} request - Request object with X-AI-Provider header
+ * @param {Object} env - Worker environment bindings
+ * @param {Object} doStub - ProgressWebSocketDO stub for status updates
+ * @param {ExecutionContext} ctx - Execution context for waitUntil
+ */
+export async function processBookshelfScan(
+  jobId,
+  imageData,
+  request,
+  env,
+  doStub,
+  ctx,
+) {
+  const startTime = Date.now();
+
+  try {
+    console.log(
+      `[AI Scanner] Starting scan for job ${jobId}, image size: ${imageData.byteLength} bytes`,
+    );
+
+    // NEW: Check if WebSocket is ready (should have been done in index.js, but double-check)
+    const elapsedMs = Date.now() - startTime;
+    if (elapsedMs > 6000) {
+      console.warn(
+        `[AI Scanner] Job ${jobId} started ${elapsedMs}ms after request - possible ready timeout`,
+      );
+    }
+
+    // Initialize job state
+    await doStub.initializeJobState("ai_scan", 3); // 3 stages total
+
+    // Stage 1: Image quality analysis (10% progress)
+    await doStub.updateProgress("ai_scan", {
+      progress: PROGRESS_STAGES.QUALITY_ANALYSIS,
+      status: "Analyzing image quality...",
+      processedCount: 0,
+      currentItem: "Image quality check",
+    });
+    // ISSUE #114: Guard verbose logging - only in DEBUG mode
+    debugLog(env, () => {
+      console.log(
+        `[AI Scanner] Progress pushed: ${PROGRESS_STAGES.QUALITY_ANALYSIS * 100}% (image quality analysis)`,
+      );
+    });
+
+    // Stage 2: AI processing with Gemini 2.0 Flash
+    await doStub.updateProgress("ai_scan", {
+      progress: PROGRESS_STAGES.AI_PROCESSING,
+      status: "Processing with Gemini AI...",
+      processedCount: 1,
+      currentItem: "Gemini AI processing",
+    });
+
+    console.log(`[AI Scanner] Job ${jobId} - Using Gemini 2.0 Flash`);
+
+    let scanResult;
+    let modelUsed = "unknown"; // Default fallback
+    try {
+      scanResult = await scanImageWithGemini(imageData, env);
+      console.log("[AI Scanner] Gemini processing complete");
+
+      /**
+       * Extract model name from AI provider metadata for completion response.
+       *
+       * DEFENSIVE PROGRAMMING: Fallback to 'unknown' if metadata is incomplete.
+       * This prevents runtime errors in the following scenarios:
+       * 1. Future AI providers may have different metadata structures
+       * 2. Gemini API response structure could change in future versions
+       * 3. Network issues could result in partial/corrupted responses
+       *
+       * Without this fallback, missing metadata would cause:
+       * - "providerParam is not defined" error at completion stage
+       * - Premature WebSocket closure (code 1001 instead of clean 1000)
+       * - iOS client receiving "Scan failed" despite successful AI processing
+       *
+       * @see ai-scanner-metadata.test.js for test coverage of this fallback
+       */
+      modelUsed = scanResult.metadata?.model || "unknown";
+      console.log(`[AI Scanner] Model used: ${modelUsed}`);
+    } catch (aiError) {
+      console.error("[AI Scanner] Gemini processing failed:", aiError.message);
+      throw aiError;
+    }
+
+    const detectedBooks = scanResult.books;
+    const suggestions = scanResult.suggestions || [];
+
+    console.log(
+      `[AI Scanner] ${detectedBooks.length} books detected (${scanResult.metadata.processingTimeMs}ms)`,
+    );
+
+    await doStub.updateProgress("ai_scan", {
+      progress: PROGRESS_STAGES.DETECTION_COMPLETE,
+      status: `Detected ${detectedBooks.length} books, enriching data...`,
+      processedCount: 1,
+      currentItem: `${detectedBooks.length} books detected`,
+    });
+
+    // Stage 3: Enrichment (70% → 100% progress)
+    // OPTIMIZED: Parallel enrichment with 10 concurrent requests
+    const enrichedBooks = await enrichBooksParallel(
+      detectedBooks,
+      async (book) => {
+        // Direct function call - NO RPC, no circular dependency!
+        // Use v1 canonical handler
+        // ISSUE #114: Guard verbose logging - only in DEBUG mode
+        debugLog(env, () => {
+          console.log(
+            `[AI Scanner] Enriching book: "${book.title}" by ${book.author || "unknown"}`,
+          );
+        });
+        const apiResponse = await handleSearchAdvanced(
+          book.title || "",
+          book.author || "",
+          env,
+          ctx, // Pass execution context for waitUntil support
+        );
+
+        // Parse canonical ApiResponse<BookSearchResponse>
+        if (apiResponse.success) {
+          const work = apiResponse.data.works?.[0] || null;
+          const editions = apiResponse.data.editions || []; // FIX: Editions are at top level, not nested in works
+          const authors = apiResponse.data.authors || [];
+
+          // ISSUE #114: Guard verbose logging - only in DEBUG mode
+          debugLog(env, () => {
+            console.log(
+              `[AI Scanner] ✅ Enrichment ${work ? "found" : "not found"} for "${book.title}": work=${!!work}, editions=${editions.length}, authors=${authors.length}`,
+            );
+          });
+
+          return {
+            ...book,
+            enrichment: {
+              status: work ? "success" : "not_found",
+              work,
+              editions,
+              authors,
+              provider: apiResponse.meta.provider,
+              cachedResult: apiResponse.meta.cached || false,
+            },
+          };
+        } else {
+          console.error(
+            `[AI Scanner] ❌ Enrichment failed for "${book.title}": ${apiResponse.error.message}`,
+          );
+          return {
+            ...book,
+            enrichment: {
+              status: "error",
+              error: apiResponse.error.message,
+              work: null,
+              editions: [],
+              authors: [],
+            },
+          };
+        }
+      },
+      async (completed, total, title, hasError) => {
+        const progress =
+          PROGRESS_STAGES.ENRICHMENT_START +
+          (PROGRESS_STAGES.ENRICHMENT_DELTA * completed) / total;
+        await doStub.updateProgress("ai_scan", {
+          progress,
+          status: hasError
+            ? `Enriched ${completed}/${total} books (${title} failed)`
+            : `Enriched ${completed}/${total} books`,
+          processedCount: 2,
+          currentItem: `Enriching: ${title}`,
+        });
+      },
+      10, // 10 concurrent requests (matches CSV import concurrency)
+    );
+
+    // Separate high/low confidence results using the new utility
+    const { approved, review } = categorizeBooks(enrichedBooks, env);
+
+    const processingTime = Date.now() - startTime;
+
+    // Stage 4: Complete (100%)
+    // Build unified books array using AIScanCompletePayload structure
+    const books = enrichedBooks.map((b) => ({
+      title: b.title,
+      author: b.author,
+      isbn: b.isbn || null,
+      confidence: b.confidence,
+      boundingBox: b.boundingBox,
+      enrichmentStatus: b.enrichment?.status || "pending",
+      coverUrl: b.enrichment?.work?.coverImageURL || null,
+      publisher: b.enrichment?.editions?.[0]?.publisher || null,
+      publicationYear: b.enrichment?.editions?.[0]?.publicationYear || null,
+    }));
+
+    // ISSUE #114: Guard verbose logging - only in DEBUG mode
+    debugLog(env, () => {
+      console.log(
+        `[AI Scanner] 📦 Built books array with ${books.length} books:`,
+      );
+      console.log(
+        `[AI Scanner] Sample book 0:`,
+        JSON.stringify(books[0], null, 2),
+      );
+      console.log(
+        `[AI Scanner] Enrichment summary: ${enrichedBooks.filter((b) => b.enrichment?.status === "success").length} success, ${enrichedBooks.filter((b) => b.enrichment?.status === "not_found").length} not_found, ${enrichedBooks.filter((b) => b.enrichment?.status === "error").length} error`,
+      );
+    });
+
+    // Final progress update before completion (100%)
+    await doStub.updateProgress("ai_scan", {
+      progress: PROGRESS_STAGES.FINALIZATION,
+      status: "Scan complete, finalizing results...",
+      processedCount: 3,
+      currentItem: "Finalizing",
+    });
+
+    // ISSUE #133: Store full results in KV to avoid multi-MB WebSocket payloads
+    // Store complete results with 24-hour expiration
+    const resultsKey = `scan-results:${jobId}`;
+    const fullResults = {
+      totalDetected: detectedBooks.length,
+      approved: approved.length,
+      needsReview: review.length,
+      books,
+      metadata: {
+        modelUsed,
+        processingTime,
+        timestamp: Date.now(),
+      },
+    };
+
+    await env.KV_CACHE.put(resultsKey, JSON.stringify(fullResults), {
+      expirationTtl: 86400, // 24 hours
+    });
+
+    // ISSUE #114: Guard verbose logging - only in DEBUG mode
+    debugLog(env, () => {
+      console.log(
+        `[AI Scanner] 💾 Stored full results in KV: ${resultsKey} (${books.length} books)`,
+      );
+    });
+
+    // Send summary-only completion via WebSocket
+    const completionPayload = {
+      totalDetected: detectedBooks.length,
+      approved: approved.length,
+      needsReview: review.length,
+      resultsUrl: `/v1/scan/results/${jobId}`, // Client fetches full results via HTTP GET
+      metadata: {
+        modelUsed,
+        processingTime,
+      },
+    };
+
+    // ISSUE #114: Guard verbose logging - only in DEBUG mode
+    debugLog(env, () => {
+      console.log(
+        `[AI Scanner] 📤 Sending summary-only completion:`,
+        JSON.stringify(completionPayload),
+      );
+    });
+    await doStub.complete("ai_scan", completionPayload);
+
+    console.log(
+      `[AI Scanner] Scan complete for job ${jobId}: ${detectedBooks.length} books, ${processingTime}ms`,
+    );
+  } catch (error) {
+    console.error(`[AI Scanner] Scan failed for job ${jobId}:`, error);
+
+    // Send error using unified schema
+    await doStub.sendError("ai_scan", {
+      code: "E_AI_SCAN_FAILED",
+      message: error.message,
+      retryable: true,
+      details: {
+        jobId,
+        stage: "AI processing",
+      },
+    });
+  }
+  // NOTE: No finally block needed! complete() and sendError() handle WebSocket cleanup
+}
+</UPDATED_EXISTING_FILE>
+
+<UPDATED_EXISTING_FILE: src/handlers/batch-scan-handler.ts>
+   1│ /**
+   2│  * Batch Bookshelf Scan Handler
+   3│  * Handles multiple photos in one job with sequential processing
+   4│  *
+   5│  * Phase 2: Canonical API Contract Implementation
+   6│  * - Uses DetectedBookDTO for flattened book structure
+   7│  * - Uses BookshelfScanInitResponse for initialization
+   8│  */
+   9│ 
+  10│ import { scanImageWithGemini } from "../providers/gemini-provider.js";
+  11│ import {
+  12│   createSuccessResponse,
+  13│   createErrorResponse,
+  14│   ErrorCodes,
+  15│ } from "../utils/response-builder.js";
+  16│ import { enrichBooksParallel } from "../services/parallel-enrichment.js";
+  17│ import { handleSearchAdvanced } from "./v1/search-advanced.js";
+  18│ import type {
+  19│   DetectedBookDTO,
+  20│   BookshelfScanInitResponse,
+  21│   BoundingBox,
+  22│ } from "../types/responses.js";
+  23│ import { getConfidenceThreshold } from "../utils/confidence.js"; // NEW: Import getConfidenceThreshold utility
+  24│ 
+  25│ const MAX_PHOTOS_PER_BATCH = 5;
+  26│ const MAX_IMAGE_SIZE = 10_000_000; // 10MB per image
+  27│ 
+  28│ /**
+  29│  * Clamp BoundingBox coordinates to valid range [0, 1]
+  30│  * Prevents invalid values from AI provider (e.g., negative or >1)
+  31│  */
+  32│ function clampBoundingBox(bbox?: any): BoundingBox | undefined {
+  33│   if (!bbox || typeof bbox !== "object") return undefined;
+  34│ 
+  35│   const clamp = (val: number) => Math.max(0, Math.min(1, val));
+  36│ 
+  37│   return {
+  38│     x: clamp(Number(bbox.x) || 0),
+  39│     y: clamp(Number(bbox.y) || 0),
+  40│     width: clamp(Number(bbox.width) || 0),
+  41│     height: clamp(Number(bbox.height) || 0),
+  42│   };
+  43│ }
+  44│ 
+  45│ /**
+  46│  * Helper function to map book objects to DetectedBookDTO format
+  47│  * Centralizes transformation logic to ensure consistency across all code paths
+  47│  * @returns {DetectedBookDTO} Hybrid structure with flat fields + nested enrichment
+  48│  */
+  49│ function mapToDetectedBook(book): DetectedBookDTO {
+  50│   return {
+  51│     title: book?.title,
+  52│     author: book?.author,
+  53│     isbn: book?.isbn,
+  54│     confidence: book?.confidence,
+  55│     boundingBox: clampBoundingBox(book?.boundingBox), // Validate and clamp to [0,1]
+  56│     enrichmentStatus:
+  57│       book?.enrichment?.status || book?.enrichmentStatus || "pending",
+  58│     // Deprecated flat fields (kept for backwards compatibility)
+  59│     coverUrl: book?.enrichment?.work?.coverImageURL || book?.coverUrl || null,
+  60│     publisher:
+  61│       book?.enrichment?.editions?.[0]?.publisher || book?.publisher || null,
+  62│     publicationYear:
+  63│       book?.enrichment?.editions?.[0]?.publicationYear ||
+  64│       book?.publicationYear ||
+  65│       null,
+  66│     // Nested enrichment data (canonical DTOs) - FIX for enrichment loss
+  67│     enrichment: book?.enrichment || undefined,
+  68│   };
+  69│ }
+  70│ 
+  71│ export async function handleBatchScan(request, env, ctx) {
+  72│   try {
+  73│     // Set up abort listener for early client disconnect detection
+  74│     let clientDisconnected = false;
+  75│     request.signal?.addEventListener("abort", () => {
+  76│       clientDisconnected = true;
+  77│       console.log("[Batch Scan] Client disconnected during job initialization");
+  77│     });
+  78│ 
+  79│     const { jobId, images } = await request.json();
+  80│ 
+  81│     // Validation
+  82│     if (!jobId || !images || !Array.isArray(images)) {
+  83│       return createErrorResponse(
+  84│         "Invalid request: jobId and images array required",
+  85│         400,
+  86│         ErrorCodes.INVALID_REQUEST,
+  87│       );
+  88│     }
+  89│ 
+  90│     if (images.length === 0) {
+  91│       return createErrorResponse(
+  92│         "At least one image required",
+  93│         400,
+  94│         ErrorCodes.INVALID_REQUEST,
+  95│       );
+  96│     }
+  97│ 
+  98│     if (images.length > MAX_PHOTOS_PER_BATCH) {
+  99│       return createErrorResponse(
+ 100│         `Batch size exceeds maximum ${MAX_PHOTOS_PER_BATCH} photos`,
+ 101│         400,
+ 102│         ErrorCodes.BATCH_TOO_LARGE,
+ 103│       );
+ 104│     }
+ 105│ 
+ 106│     // Validate R2 binding
+ 107│     if (!env.BOOKSHELF_IMAGES) {
+ 108│       console.error("R2 binding BOOKSHELF_IMAGES not configured");
+ 109│       return createErrorResponse(
+ 110│         "Storage not configured",
+ 111│         500,
+ 112│         ErrorCodes.INTERNAL_ERROR,
+ 113│       );
+ 114│     }
+ 115│ 
+ 116│     // SECURITY FIX (Issue #184): Validate ACTUAL decoded size, not estimated
+ 117│     // Before: Attacker could bypass with malformed base64 (estimate 9.9MB, decode to 13MB)
+ 118│     // After: Decode first, validate actual buffer size, prevent DoS via memory exhaustion
+ 119│     const MAX_BATCH_SIZE = 50_000_000; // 50MB total batch size limit
+ 120│ 
+ 121│     let totalBatchSize = 0;
+ 122│     const processedImages: { index: number; buffer: Buffer }[] = [];
+ 123│ 
+ 124│     for (const img of images) {
+ 125│       if (typeof img.index !== "number" || !img.data) {
+ 126│         return createErrorResponse(
+ 127│           "Each image must have index and data fields",
+ 128│           400,
+ 129│           ErrorCodes.INVALID_REQUEST,
+ 130│         );
+ 131│       }
+ 132│ 
+ 133│       // Decode base64 to get actual buffer size (not just estimate)
+ 134│       let decodedBuffer: Buffer;
+ 135│       try {
+ 136│         decodedBuffer = Buffer.from(img.data, "base64");
+ 137│       } catch (error: any) {
+ 138│         return createErrorResponse(
+ 139│           `Image ${img.index} has invalid base64 data: ${error.message}`,
+ 140│           400,
+ 141│           ErrorCodes.INVALID_REQUEST,
+ 142│         );
+ 143│       }
+ 144│ 
+ 145│       const actualSize = decodedBuffer.byteLength;
+ 146│ 
+ 147│       // Validate actual decoded size (not estimate)
+ 148│       if (actualSize > MAX_IMAGE_SIZE) {
+ 149│         return createErrorResponse(
+ 150│           `Image ${img.index} exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB (actual: ${(actualSize / 1_000_000).toFixed(1)}MB)`,
+ 151│           413,
+ 152│           ErrorCodes.FILE_TOO_LARGE,
+ 153│         );
+ 154│       }
+ 155│ 
+ 156│       totalBatchSize += actualSize;
+ 157│       processedImages.push({ index: img.index, buffer: decodedBuffer });
+ 158│     }
+ 159│ 
+ 160│     // Validate total batch size (prevents 5x 13MB = 65MB memory spike)
+ 161│     if (totalBatchSize > MAX_BATCH_SIZE) {
+ 162│       return createErrorResponse(
+ 163│         `Total batch size exceeds maximum of ${MAX_BATCH_SIZE / 1_000_000}MB (actual: ${(totalBatchSize / 1_000_000).toFixed(1)}MB)`,
+ 164│         413,
+ 165│         ErrorCodes.FILE_TOO_LARGE,
+ 166│       );
+ 167│     }
+ 168│ 
+ 169│     // Initialize batch job in Durable Object
+ 170│     const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
+ 171│     const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+ 172│ 
+ 173│     // SECURITY: Generate authentication token for WebSocket connection
+ 174│     const authToken = crypto.randomUUID();
+ 175│     await doStub.setAuthToken(authToken);
+ 176│ 
+ 177│     console.log(`[Batch Scan] Auth token generated for job ${jobId}`);
+ 178│ 
+ 179│     // Check if client disconnected during validation
+ 180│     if (clientDisconnected) {
+ 181│       console.log(
+ 182│         `[Batch Scan] Skipping job ${jobId} - client disconnected before processing started`,
+ 183│       );
+ 184│       return createErrorResponse(
+ 185│         "Client disconnected",
+ 186│         499,
+ 187│         ErrorCodes.CLIENT_DISCONNECTED,
+ 188│       );
+ 189│     }
+ 190│ 
+ 191│     // Initialize job state for batch scan
+ 192│     await doStub.initializeJobState("ai_scan", images.length);
+ 193│ 
+ 194│     // Process batch asynchronously (don't await)
+ 195│     ctx.waitUntil(processBatchPhotos(jobId, images, env, doStub));
+ 196│ 
+ 197│     // Return accepted response immediately with auth token (BookshelfScanInitResponse)
+ 198│     const initResponse: BookshelfScanInitResponse = {
+ 199│       jobId,
+ 200│       token: authToken, // WebSocket authentication token
+ 201│       totalPhotos: images.length,
+ 202│       status: "processing",
+ 203│     };
+ 204│ 
+ 205│     return createSuccessResponse(initResponse, {}, 202);
+ 206│   } catch (error) {
+ 207│     console.error("Batch scan error:", error);
+ 208│     return createErrorResponse(
+ 209│       "Internal server error",
+ 210│       500,
+ 211│       ErrorCodes.INTERNAL_ERROR,
+ 212│     );
+  213│   }
+  214│ }
+  215│ 
+  216│ async function processBatchPhotos(jobId, images, env, doStub) {
+  217│   const startTime = Date.now(); // Track processing duration for metrics
+  218│   const allBooks = [];
+  219│   const photoResults = [];
+  220│ 
+  221│   try {
+  222│     // Phase 1: Upload all images to R2 in parallel
+  223│     const uploadPromises = images.map(async (img, idx) => {
+  224│       try {
+  225│         const imageBuffer = Buffer.from(img.data, "base64");
+  226│         const r2Key = `bookshelf-scans/${jobId}/photo-${idx}.jpg`;
+  227│ 
+  228│         await env.BOOKSHELF_IMAGES.put(r2Key, imageBuffer, {
+  229│           httpMetadata: { contentType: "image/jpeg" },
+  230│         });
+  231│ 
+  232│         return { index: idx, r2Key, success: true };
+  233│       } catch (error) {
+  234│         console.error(`Upload failed for photo ${idx}:`, error);
+  235│         return { index: idx, success: false, error: error.message };
+  236│       }
+  237│     });
+  238│ 
+  239│     const uploadResults = await Promise.all(uploadPromises);
+  240│ 
+  241│     // Update progress after uploads - send initial processing status
+  242│     await doStub.updateProgress("ai_scan", {
+  243│       progress: 0.1,
+  244│       status: "Photos uploaded, starting AI processing...",
+  245│       processedCount: 0,
+  246│       currentItem: `Uploaded ${uploadResults.length} photos`,
+  247│     });
+  248│ 
+  249│     // Phase 2: Process images sequentially with Gemini
+  250│     for (let i = 0; i < uploadResults.length; i++) {
+  251│       const upload = uploadResults[i];
+  252│ 
+  253│       if (!upload.success) {
+  254│         photoResults.push({
+  255│           index: i,
+  256│           status: "error",
+  257│           error: upload.error,
+  258│         });
+  259│         continue;
+  260│       }
+  261│ 
+  262│       // Check if job canceled (batch-specific cancellation check)
+  263│       const { canceled: isCanceled } = await doStub.isBatchCanceled();
+  264│       if (isCanceled) {
+  265│         console.log(
+  266│           `Job ${jobId} canceled at photo ${i}, returning partial results`,
+  267│         );
+  268│ 
+  269│         // Return partial results from completed photos
+  270│         const partialBooks = deduplicateBooks(allBooks);
+  271│ 
+  272│         // Enrich partial results before returning
+  273│         await doStub.updateProgress("ai_scan", {
+  274│           progress: 0.8,
+  275│           status: `Job canceled, enriching ${partialBooks.length} partial results...`,
+  276│           processedCount: i,
+  277│           currentItem: "Enrichment phase",
+  278│         });
+  279│ 
+  280│         const enrichedPartialBooks = await enrichBooksParallel(
+  281│           partialBooks,
+  282│           async (book) => {
+  283│             // Enrichment function: fetch metadata for this book
+  284│             const apiResponse = await handleSearchAdvanced(
+  285│               book.title || "",
+  286│               book.author || "",
+  287│               env,
+  288│             );
+  289│ 
+  290│             // Parse canonical ApiResponse<BookSearchResponse>
+  291│             if (apiResponse.success) {
+  292│               const work = apiResponse.data.works?.[0] || null;
+  293│               const editions = apiResponse.data.editions || [];
+  294│               const authors = apiResponse.data.authors || [];
+  295│ 
+  296│               return {
+  297│                 ...book,
+  298│                 enrichment: {
+  299│                   status: work ? "success" : "not_found",
+  300│                   work,
+  301│                   editions,
+  302│                   authors,
+  303│                   provider: apiResponse.meta.provider,
+  304│                   cachedResult: apiResponse.meta.cached || false,
+  305│                 },
+  306│               };
+  307│             } else {
+  308│               return {
+  309│                 ...book,
+  310│                 enrichment: {
+  311│                   status: "error",
+  312│                   error: apiResponse.error.message,
+  313│                   work: null,
+  314│                   editions: [],
+  315│                   authors: [],
+  316│                 },
+  317│               };
+  318│             }
+  319│           },
+  320│           async (completed, total, title, hasError) => {
+  321│             // Progress callback: update progress after each book
+  322│             const enrichProgress = 0.8 + 0.2 * (completed / total);
+  323│             await doStub.updateProgress("ai_scan", {
+  324│               progress: enrichProgress,
+  325│               status: hasError
+  326│                 ? `Enriching canceled job results... (${completed}/${total}, ${title} failed)`
+  327│                 : `Enriching canceled job results... (${completed}/${total})`,
+  328│               processedCount: completed,
+  329│               currentItem: title || "Unknown title",
+  330│             });
+  331│           },
+  332│           10, // maxConcurrent
+  333│         );
+  334│ 
+  335│         // Use the utility function to get the confidence threshold
+  336│         const threshold = getConfidenceThreshold(env);
+  337│         const approvedCount = enrichedPartialBooks.filter(
+  338│           (b) => b.confidence >= threshold,
+  339│         ).length;
+  340│         const reviewCount = enrichedPartialBooks.filter(
+  341│           (b) => b.confidence < threshold,
+  342│         ).length;
+  343│ 
+  344│         // Final progress update before completion
+  345│         await doStub.updateProgress("ai_scan", {
+  346│           progress: 1.0,
+  347│           status: "Job canceled, returning partial results...",
+  348│           processedCount: enrichedPartialBooks.length,
+  349│           currentItem: "Finalizing",
+  350│         });
+  351│ 
+  352│         // Store partial results in KV (canceled job)
+  353│         const resourceId = `job-results:${jobId}`;
+  354│         await env.KV_CACHE.put(
+  355│           resourceId,
+  356│           JSON.stringify(enrichedPartialBooks.map(mapToDetectedBook)),
+  357│           { expirationTtl: 3600 }, // 1 hour
+  358│         );
+  359│ 
+  360│         // Send summary-only payload (mobile-optimized)
+  361│         await doStub.complete("ai_scan", {
+  362│           summary: {
+  363│             totalProcessed: enrichedPartialBooks.length,
+  364│             successCount: approvedCount,
+  365│             failureCount: reviewCount,
+  366│             duration: Date.now() - startTime,
+  367│             resourceId,
+  368│             totalDetected: enrichedPartialBooks.length,
+  369│             approved: approvedCount,
+  370│             needsReview: reviewCount,
+  371│           },
+  372│         });
+  373│ 
+  374│         return; // Exit early with partial results
+  375│       }
+  376│ 
+  377│       // Update progress: processing this photo
+  378│       const progress = (i + 0.5) / uploadResults.length;
+  379│       await doStub.updateProgress("ai_scan", {
+  380│         progress,
+  381│         status: `Processing photo ${i + 1} of ${uploadResults.length}...`,
+  382│         processedCount: i,
+  383│         currentItem: `Photo ${i + 1}`,
+  384│       });
+  385│ 
+  386│       try {
+  387│         // Call Gemini provider directly (already imported at top)
+  388│         const r2Object = await env.BOOKSHELF_IMAGES.get(upload.r2Key);
+  389│         const imageBuffer = await r2Object.arrayBuffer();
+  390│ 
+  391│         const result = await scanImageWithGemini(imageBuffer, env);
+  392│ 
+  393│         photoResults.push({
+  394│           index: i,
+  395│           status: "complete",
+  396│           booksFound: result.books.length,
+  397│         });
+  398│ 
+  399│         allBooks.push(...result.books);
+  400│ 
+  401│         // Update progress: photo complete
+  402│         const completionProgress = (i + 1) / uploadResults.length;
+  403│         await doStub.updateProgress("ai_scan", {
+  404│           progress: completionProgress,
+  405│           status: `Completed photo ${i + 1} of ${uploadResults.length} - Found ${result.books.length} books`,
+  406│           processedCount: i + 1,
+  407│           currentItem: `Photo ${i + 1}: ${result.books.length} books`,
+  408│         });
+  409│       } catch (error) {
+  410│         console.error(`Processing failed for photo ${i}:`, error);
+  411│         photoResults.push({
+  412│           index: i,
+  413│           status: "error",
+  414│           error: error.message,
+  415│         });
+  416│ 
+  417│         // Update progress: photo error
+  418│         const errorProgress = (i + 1) / uploadResults.length;
+  419│         await doStub.updateProgress("ai_scan", {
+  420│           progress: errorProgress,
+  421│           status: `Error processing photo ${i + 1}: ${error.message}`,
+  422│           processedCount: i + 1,
+  423│           currentItem: `Photo ${i + 1}: Error`,
+  424│         });
+  425│       }
+  426│     }
+  427│ 
+  428│     // Phase 3: Deduplicate books by ISBN
+  429│     const uniqueBooks = deduplicateBooks(allBooks);
+  430│ 
+  431│     // Phase 4: Enrich books with metadata (parallel)
+  432│     // Update progress to show enrichment phase starting
+  433│     await doStub.updateProgress("ai_scan", {
+  434│       progress: 0.8,
+  435│       status: `Enriching ${uniqueBooks.length} books with metadata...`,
+  436│       processedCount: uploadResults.length,
+  437│       currentItem: "Enrichment phase",
+  438│     });
+  439│ 
+  440│     const enrichedBooks = await enrichBooksParallel(
+  441│       uniqueBooks,
+  442│       async (book) => {
+  443│         // Enrichment function: fetch metadata for this book
+  444│         const apiResponse = await handleSearchAdvanced(
+  445│           book.title || "",
+  446│           book.author || "",
+  447│           env,
+  448│         );
+  449│ 
+  450│         // Parse canonical ApiResponse<BookSearchResponse>
+  451│         if (apiResponse.success) {
+  452│           const work = apiResponse.data.works?.[0] || null;
+  453│           const editions = apiResponse.data.editions || [];
+  454│           const authors = apiResponse.data.authors || [];
+  455│ 
+  456│           return {
+  457│             ...book,
+  458│             enrichment: {
+  459│               status: work ? "success" : "not_found",
+  460│               work,
+  461│               editions,
+  462│               authors,
+  463│               provider: apiResponse.meta.provider,
+  464│               cachedResult: apiResponse.meta.cached || false,
+  465│             },
+  466│           };
+  467│         } else {
+  468│           return {
+  469│             ...book,
+  470│             enrichment: {
+  471│               status: "error",
+  472│               error: apiResponse.error.message,
+  473│               work: null,
+  474│               editions: [],
+  475│               authors: [],
+  476│             },
+  477│           };
+  478│         }
+  479│       },
+  480│       async (completed, total, title, hasError) => {
+  481│         // Progress callback: update progress after each book
+  482│         const enrichProgress = 0.8 + 0.2 * (completed / total);
+  483│         await doStub.updateProgress("ai_scan", {
+  484│           progress: enrichProgress,
+  485│           status: hasError
+  486│             ? `Enriching books... (${completed}/${total}, ${title} failed)`
+  487│             : `Enriching books... (${completed}/${total})`,
+  488│           processedCount: completed,
+  489│           currentItem: title || "Unknown title",
+  490│         });
+  491│       },
+  492│       10, // maxConcurrent
+  493│     );
+  494│ 
+  495│     // Calculate approved vs review queue counts (using configurable threshold)
+  496│     const threshold = getConfidenceThreshold(env);
+  497│     const approvedCount = enrichedBooks.filter(
+  498│       (b) => b.confidence >= threshold,
+  499│     ).length;
+  500│     const reviewCount = enrichedBooks.filter((b) => b.confidence < threshold).length;
+  501│ 
+  502│     // Store full results in KV for HTTP retrieval (1-hour TTL)
+  503│     const resourceId = `job-results:${jobId}`;
+  504│     await env.KV_CACHE.put(
+  505│       resourceId,
+  506│       JSON.stringify(enrichedBooks.map(mapToDetectedBook)),
+  507│       { expirationTtl: 3600 }, // 1 hour
+  508│     );
+  509│ 
+  510│     // Final progress update before completion (100%)
+  511│     await doStub.updateProgress("ai_scan", {
+  512│       progress: 1.0,
+  513│       status: "Batch scan complete, finalizing results...",
+  514│       processedCount: uniqueBooks.length,
+  515│       currentItem: "Finalizing",
+  516│     });
+  517│ 
+  518│     // Send summary-only payload (mobile-optimized)
+  519│     await doStub.complete("ai_scan", {
+  520│       summary: {
+  521│         totalProcessed: enrichedBooks.length,
+  522│         successCount: approvedCount,
+  523│         failureCount: reviewCount,
+  524│         duration: Date.now() - startTime,
+  525│         resourceId,
+  526│         totalDetected: enrichedBooks.length,
+  527│         approved: approvedCount,
+  528│         needsReview: reviewCount,
+  529│       },
+  530│     });
+  531│   } catch (error) {
+  532│     console.error("Batch processing error:", error);
+  533│     await doStub.sendError("ai_scan", {
+  534│       code: "E_BATCH_SCAN_FAILED",
+  535│       message: error.message,
+  536│       retryable: true,
+  537│       details: {
+  538│         fallbackAvailable: false,
+  539│       },
+  540│     });
+  541│   }
+  542│ }
+  543│ 
+  544│ function deduplicateBooks(books) {
+  545│   const seen = new Map();
+  546│ 
+  547│   for (const book of books) {
+  548│     // Use ISBN as primary key, fallback to title+author
+  549│     const key = book.isbn || `${book.title}::${book.author}`;
+  550│ 
+  551│     if (!seen.has(key)) {
+  552│       seen.set(key, book);
+  553│     } else {
+  554│       // Keep book with higher confidence
+  555│       const existing = seen.get(key);
+  556│       if ((book.confidence || 0) > (existing.confidence || 0)) {
+  557│         seen.set(key, book);
+  558│       }
+  558│     }
+  559│   }
+  560│ 
+  561│   return Array.from(seen.values());
+  562│ }
+  563│ 
+</UPDATED_EXISTING_FILE>
+</GENERATED-CODE>
