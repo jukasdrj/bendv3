@@ -14,6 +14,7 @@ import {
   ErrorCodes,
 } from "../utils/response-builder.js";
 import { generateSearchLinks } from "../utils/book-metadata.js";
+import { transformWorkToGoogleFormat } from "../utils/transform-work.js";
 
 // Request coalescing: Map of in-flight requests by cache key
 const IN_FLIGHT_REQUESTS = new Map();
@@ -187,69 +188,9 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
       );
 
       if (googleResult && googleResult.works && googleResult.works.length > 0) {
-        // Convert normalized works back to Google Books volumeInfo format
-        // This maintains compatibility with the existing enrichment code
-        const items = googleResult.works.flatMap((work) =>
-          work.editions.map((edition) => {
-            const isbn = edition.isbn13 || edition.isbn10 || null;
-            const volumeId = edition.googleBooksVolumeId || `synthetic-${isbn}`;
-            const primaryAuthor = work.authors[0]?.name || null;
-
-            // Map authorsDetailed with cultural diversity fields
-            const authorsDetailed = work.authors
-              .filter((a) => typeof a === "object" && a !== null)
-              .map((a) => ({
-                name: a.name,
-                gender: a.gender || "Unknown",
-                ...(a.culturalRegion && { culturalRegion: a.culturalRegion }),
-                ...(a.nationality && { nationality: a.nationality }),
-                ...(a.birthYear && { birthYear: a.birthYear }),
-                ...(a.deathYear && { deathYear: a.deathYear }),
-                ...(a.openLibraryID && { openLibraryID: a.openLibraryID }),
-                ...(a.isbndbID && { isbndbID: a.isbndbID }),
-                ...(a.googleBooksID && { googleBooksID: a.googleBooksID }),
-                ...(a.goodreadsID && { goodreadsID: a.goodreadsID }),
-                ...(a.bookCount && { bookCount: a.bookCount }),
-              }));
-
-            return {
-              id: volumeId,
-              volumeInfo: {
-                title: work.title,
-                subtitle: work.subtitle,
-                authors: work.authors.map((a) => a.name),
-                authorsDetailed:
-                  authorsDetailed.length > 0 ? authorsDetailed : undefined,
-                publishedDate: edition.publicationDate || edition.publishDate,
-                publisher: edition.publisher,
-                pageCount: edition.pageCount || edition.pages,
-                categories: edition.genres || [],
-                description: edition.description,
-                imageLinks: edition.coverImageURL
-                  ? {
-                      thumbnail: edition.coverImageURL,
-                      smallThumbnail: edition.coverImageURL,
-                    }
-                  : undefined,
-                industryIdentifiers: [
-                  edition.isbn13
-                    ? { type: "ISBN_13", identifier: edition.isbn13 }
-                    : null,
-                  edition.isbn10
-                    ? { type: "ISBN_10", identifier: edition.isbn10 }
-                    : null,
-                ].filter(Boolean),
-                previewLink: edition.previewLink,
-                infoLink: edition.infoLink,
-              },
-              searchLinks: generateSearchLinks(
-                isbn,
-                work.title,
-                primaryAuthor,
-                volumeId,
-              ),
-            };
-          }),
+        // Convert normalized works to Google Books format using shared utility
+        const items = googleResult.works.map((work) =>
+          transformWorkToGoogleFormat(work),
         );
 
         const resultItems = items.slice(0, maxResults);
@@ -274,67 +215,9 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
       );
 
       if (olResult && olResult.works && olResult.works.length > 0) {
-        // Convert OpenLibrary format to Google Books-compatible format
-        const items = olResult.works.flatMap((work) =>
-          work.editions.map((edition) => {
-            const isbn = edition.isbn13 || edition.isbn10 || null;
-            const volumeId =
-              work.externalIds?.openLibraryWorkId ||
-              `ol-${work.title.replace(/\s+/g, "-").toLowerCase()}`;
-            const primaryAuthor = work.authors[0]?.name || null;
-
-            // Map authorsDetailed with cultural diversity fields
-            const authorsDetailed = work.authors
-              .filter((a) => typeof a === "object" && a !== null)
-              .map((a) => ({
-                name: a.name,
-                gender: a.gender || "Unknown",
-                ...(a.culturalRegion && { culturalRegion: a.culturalRegion }),
-                ...(a.nationality && { nationality: a.nationality }),
-                ...(a.birthYear && { birthYear: a.birthYear }),
-                ...(a.deathYear && { deathYear: a.deathYear }),
-                ...(a.openLibraryID && { openLibraryID: a.openLibraryID }),
-                ...(a.isbndbID && { isbndbID: a.isbndbID }),
-                ...(a.googleBooksID && { googleBooksID: a.googleBooksID }),
-                ...(a.goodreadsID && { goodreadsID: a.goodreadsID }),
-                ...(a.bookCount && { bookCount: a.bookCount }),
-              }));
-
-            return {
-              id: volumeId,
-              volumeInfo: {
-                title: work.title,
-                subtitle: work.subtitle,
-                authors: work.authors.map((a) => a.name),
-                authorsDetailed:
-                  authorsDetailed.length > 0 ? authorsDetailed : undefined,
-                publishedDate: edition.publicationDate,
-                publisher: edition.publisher,
-                pageCount: edition.pageCount,
-                categories: work.subjects?.slice(0, 5) || [],
-                imageLinks: edition.coverImageURL
-                  ? {
-                      thumbnail: edition.coverImageURL,
-                      smallThumbnail: edition.coverImageURL,
-                    }
-                  : undefined,
-                industryIdentifiers: [
-                  edition.isbn13
-                    ? { type: "ISBN_13", identifier: edition.isbn13 }
-                    : null,
-                  edition.isbn10
-                    ? { type: "ISBN_10", identifier: edition.isbn10 }
-                    : null,
-                ].filter(Boolean),
-              },
-              searchLinks: generateSearchLinks(
-                isbn,
-                work.title,
-                primaryAuthor,
-                volumeId,
-              ),
-            };
-          }),
+        // Convert OpenLibrary works to Google Books format using shared utility
+        const items = olResult.works.map((work) =>
+          transformWorkToGoogleFormat(work),
         );
 
         const resultItems = items.slice(0, maxResults);

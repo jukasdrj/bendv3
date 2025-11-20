@@ -17,6 +17,7 @@ import {
   generateSearchLinks,
   getPlaceholderCover,
 } from "../utils/book-metadata.js";
+import { transformWorkToGoogleFormat } from "../utils/transform-work.js";
 
 /**
  * Search books by title with multi-provider orchestration
@@ -317,136 +318,6 @@ export async function searchByISBN(isbn, options, env, ctx) {
   }
 }
 
-/**
- * Transform OpenLibrary work to Google Books format
- * Simplified version for api-worker
- */
-function transformWorkToGoogleFormat(work) {
-  const primaryEdition =
-    work.editions && work.editions.length > 0 ? work.editions[0] : null;
-
-  // Handle different author formats
-  let authors = [];
-  let authorsDetailed = [];
-
-  if (work.authors) {
-    if (Array.isArray(work.authors)) {
-      authors = work.authors.map((a) => {
-        if (typeof a === "string") return a;
-        if (a && a.name) return a.name;
-        return String(a);
-      });
-
-      // Preserve full AuthorDTO objects for cultural diversity fields
-      authorsDetailed = work.authors
-        .filter((a) => typeof a === "object" && a !== null)
-        .map((a) => ({
-          name: a.name,
-          gender: a.gender || "Unknown",
-          ...(a.culturalRegion && { culturalRegion: a.culturalRegion }),
-          ...(a.nationality && { nationality: a.nationality }),
-          ...(a.birthYear && { birthYear: a.birthYear }),
-          ...(a.deathYear && { deathYear: a.deathYear }),
-          ...(a.openLibraryID && { openLibraryID: a.openLibraryID }),
-          ...(a.isbndbID && { isbndbID: a.isbndbID }),
-          ...(a.googleBooksID && { googleBooksID: a.googleBooksID }),
-          ...(a.goodreadsID && { goodreadsID: a.goodreadsID }),
-          ...(a.bookCount && { bookCount: a.bookCount }),
-        }));
-    } else if (typeof work.authors === "string") {
-      authors = [work.authors];
-      authorsDetailed = [{ name: work.authors, gender: "Unknown" }];
-    }
-  }
-
-  // If no authors in work, try edition
-  if (authors.length === 0 && primaryEdition?.authors) {
-    authors = Array.isArray(primaryEdition.authors)
-      ? primaryEdition.authors.map((a) =>
-          typeof a === "string" ? a : a.name || String(a),
-        )
-      : [String(primaryEdition.authors)];
-
-    // Also try to preserve detailed author info from edition
-    if (Array.isArray(primaryEdition.authors)) {
-      authorsDetailed = primaryEdition.authors
-        .filter((a) => typeof a === "object" && a !== null)
-        .map((a) => ({
-          name: a.name,
-          gender: a.gender || "Unknown",
-          ...(a.culturalRegion && { culturalRegion: a.culturalRegion }),
-          ...(a.nationality && { nationality: a.nationality }),
-          ...(a.birthYear && { birthYear: a.birthYear }),
-          ...(a.deathYear && { deathYear: a.deathYear }),
-          ...(a.openLibraryID && { openLibraryID: a.openLibraryID }),
-          ...(a.isbndbID && { isbndbID: a.isbndbID }),
-          ...(a.googleBooksID && { googleBooksID: a.googleBooksID }),
-          ...(a.goodreadsID && { goodreadsID: a.goodreadsID }),
-          ...(a.bookCount && { bookCount: a.bookCount }),
-        }));
-    }
-  }
-
-  // Prepare industry identifiers
-  const industryIdentifiers = [];
-  if (primaryEdition?.isbn13) {
-    industryIdentifiers.push({
-      type: "ISBN_13",
-      identifier: primaryEdition.isbn13,
-    });
-  }
-  if (primaryEdition?.isbn10) {
-    industryIdentifiers.push({
-      type: "ISBN_10",
-      identifier: primaryEdition.isbn10,
-    });
-  }
-
-  // Get cover URL with placeholder fallback
-  const coverImageURL = primaryEdition?.coverImageURL || getPlaceholderCover();
-
-  const volumeInfo = {
-    title: work.title,
-    subtitle: work.subtitle,
-    authors: authors,
-    authorsDetailed: authorsDetailed.length > 0 ? authorsDetailed : undefined,
-    publisher: primaryEdition?.publisher,
-    publishedDate: work.firstPublicationYear
-      ? work.firstPublicationYear.toString()
-      : primaryEdition?.publicationDate,
-    description: work.description || primaryEdition?.description,
-    industryIdentifiers: industryIdentifiers,
-    pageCount: primaryEdition?.pageCount,
-    categories: work.subjects,
-    imageLinks: {
-      thumbnail: coverImageURL,
-      smallThumbnail: coverImageURL,
-    },
-  };
-
-  const volumeId =
-    work.id ||
-    work.openLibraryWorkKey ||
-    `synthetic-${work.title.replace(/\s+/g, "-").toLowerCase()}`;
-
-  // Extract ISBN for search links (prefer ISBN-13)
-  const isbn = primaryEdition?.isbn13 || primaryEdition?.isbn10 || null;
-
-  // Generate HATEOAS search links
-  const searchLinks = generateSearchLinks(
-    isbn,
-    work.title,
-    authors[0], // Primary author
-    volumeId,
-  );
-
-  return {
-    kind: "books#volume",
-    id: volumeId,
-    volumeInfo: volumeInfo,
-    searchLinks: searchLinks, // HATEOAS compliance
-  };
-}
 
 /**
  * Deduplicate items by title (case-insensitive)
