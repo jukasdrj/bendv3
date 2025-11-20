@@ -1,73 +1,150 @@
 /**
  * GET /api/cache/metrics - Cache performance and cost metrics
  *
+ * Returns real-time cache statistics from CacheMetricsDO
+ *
+ * Query params:
+ * - window: 'minute' | 'hour' | 'day' | 'total' (default: 'hour')
+ *
  * @param {Request} request
  * @param {Object} env
- * @returns {Response} Metrics summary
+ * @returns {Response} Metrics summary with hit rates and per-prefix breakdown
  */
 export async function handleCacheMetrics(request, env) {
   try {
     const url = new URL(request.url);
-    const period = url.searchParams.get("period") || "24h";
+    const window = url.searchParams.get("window") || "hour";
 
-    // NOTE: Analytics Engine queries must be done via Cloudflare API/GraphQL
-    // Workers only have writeDataPoint() available
-    // For now, return instructions on how to query via API
-
-    const metrics = {
-      period: period,
-      message:
-        "Analytics Engine queries must be performed via Cloudflare API or GraphQL",
-      queryInstructions: {
-        method: "GraphQL",
-        endpoint: "https://api.cloudflare.com/client/v4/graphql",
-        sampleQuery: `
-query {
-  viewer {
-    accounts(filter: { accountTag: $accountId }) {
-      analyticsEngineDatasets(filter: { name: "books_api_cache_metrics" }) {
-        query(
-          filter: { timestamp_geq: $startTime }
-          orderBy: [timestamp_DESC]
-        ) {
-          index1
-          count
-        }
-      }
+    // Validate window parameter
+    const validWindows = ["minute", "hour", "day", "total"];
+    if (!validWindows.includes(window)) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: "INVALID_PARAM",
+            message: `window must be one of: ${validWindows.join(", ")}`,
+          },
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
-  }
-}
-        `,
-        alternativeSQL: `
-SELECT
-  index1 as cache_tier,
-  COUNT(*) as hits
-FROM CACHE_ANALYTICS
-WHERE timestamp > NOW() - INTERVAL '${period}'
-GROUP BY index1
-        `,
-      },
-      realTimeMetrics: {
-        note: "Real-time metrics are written but require external query",
-        dataset: "books_api_cache_metrics",
-        indices: [
-          "edge_hit",
-          "kv_hit",
-          "cold_check",
-          "r2_rehydrated",
-          "api_miss",
-        ],
-      },
+
+    // Get CacheMetricsDO singleton
+    const id = env.CACHE_METRICS_DO.idFromName("cache-metrics-singleton");
+    const stub = env.CACHE_METRICS_DO.get(id);
+
+    // Fetch stats from DO
+    const response = await stub.fetch("http://do/stats", { method: "GET" });
+
+    if (!response.ok) {
+      console.error(
+        "Failed to fetch cache stats from DO:",
+        response.status,
+        response.statusText,
+      );
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Failed to retrieve cache statistics",
+          },
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const stats = await response.json();
+
+    // Extract requested window
+    const windowMap = {
+      minute: stats.currentMinute,
+      hour: stats.currentHour,
+      day: stats.currentDay,
+      total: stats.total,
     };
 
-    return new Response(JSON.stringify(metrics, null, 2), {
-      headers: { "Content-Type": "application/json" },
-    });
+    const windowStats = windowMap[window];
+
+    // Calculate hit rate
+    const totalReads = windowStats.total.reads || 0;
+    const hits = windowStats.total.hits || 0;
+    const misses = windowStats.total.misses || 0;
+    const hitRate = totalReads > 0 ? (hits / totalReads) * 100 : 0;
+
+    // Build per-prefix breakdown
+    const prefixBreakdown = {};
+    for (const [prefix, prefixStats] of Object.entries(
+      windowStats.prefixes || {},
+    )) {
+      const prefixReads = prefixStats.reads || 0;
+      const prefixHits = prefixStats.hits || 0;
+      const prefixHitRate = prefixReads > 0 ? (prefixHits / prefixReads) * 100 : 0;
+
+      prefixBreakdown[prefix] = {
+        hits: prefixStats.hits,
+        misses: prefixStats.misses,
+        reads: prefixStats.reads,
+        writes: prefixStats.writes,
+        churns: prefixStats.churns,
+        hitRate: Math.round(prefixHitRate * 100) / 100,
+        ttlEffectiveHits: prefixStats.ttl_effective_hits || 0,
+      };
+    }
+
+    // Return canonical response format
+    return new Response(
+      JSON.stringify(
+        {
+          success: true,
+          data: {
+            window,
+            timestamp: new Date().toISOString(),
+            lastUpdated: new Date(stats.lastUpdated).toISOString(),
+            overall: {
+              hits,
+              misses,
+              reads: totalReads,
+              writes: windowStats.total.writes || 0,
+              churns: windowStats.total.churns || 0,
+              hitRate: Math.round(hitRate * 100) / 100,
+              ttlEffectiveHits: windowStats.total.ttl_effective_hits || 0,
+            },
+            byPrefix: prefixBreakdown,
+          },
+          metadata: {
+            source: "cache_metrics_do",
+            cached: false,
+            timestamp: new Date().toISOString(),
+          },
+        },
+        null,
+        2,
+      ),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache", // Real-time data, don't cache
+        },
+      },
+    );
   } catch (error) {
+    console.error("Failed to fetch cache metrics:", error);
     return new Response(
       JSON.stringify({
-        error: "Failed to fetch metrics",
-        message: error.message,
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to fetch cache metrics",
+          details: error.message,
+        },
       }),
       {
         status: 500,

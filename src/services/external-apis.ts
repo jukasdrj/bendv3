@@ -335,7 +335,29 @@ function normalizeGoogleBooksResponse(
     const edition = normalizeGoogleBooksToEdition(item);
 
     // Extract authors and create AuthorDTOs
-    const authorNames = volumeInfo.authors || ["Unknown Author"];
+    // Normalize to string[] to handle inconsistent provider formats:
+    // - string[] (expected)
+    // - string (single author)
+    // - object[] ({name: string})
+    // - undefined/null
+    const rawAuthors = volumeInfo.authors;
+    let authorNames: string[];
+
+    if (!rawAuthors || (Array.isArray(rawAuthors) && rawAuthors.length === 0)) {
+      authorNames = ["Unknown Author"];
+    } else if (typeof rawAuthors === "string") {
+      authorNames = [rawAuthors];
+    } else if (Array.isArray(rawAuthors)) {
+      authorNames = rawAuthors.map((a) => {
+        if (typeof a === "string") return a;
+        if (typeof a === "object" && a !== null && "name" in a)
+          return String(a.name);
+        return "Unknown Author";
+      });
+    } else {
+      authorNames = ["Unknown Author"];
+    }
+
     const authors: AuthorDTO[] = authorNames.map((name) => ({
       name,
       gender: "Unknown" as const, // Required field per canonical contract

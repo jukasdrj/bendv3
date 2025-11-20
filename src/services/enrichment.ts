@@ -179,17 +179,44 @@ export async function enrichMultipleBooks(
         };
       }
       // No results from OpenLibrary either
-      console.log(`enrichMultipleBooks: OpenLibrary returned no results`);
+      console.log(
+        `enrichMultipleBooks: OpenLibrary returned no results, trying ISBNdb`,
+      );
     } catch (error) {
       // OpenLibrary failed too
       console.error(
         `enrichMultipleBooks: OpenLibrary error for ISBN "${isbn}":`,
         error,
       );
+      console.log(`enrichMultipleBooks: Trying ISBNdb fallback`);
+    }
+
+    // Fallback to ISBNdb ISBN search (with isolated error handling)
+    try {
+      const isbndbResult = await externalApis.getISBNdbBookByISBN(isbn, env);
+
+      if (isbndbResult && isbndbResult.work) {
+        // Add provenance fields to work
+        return {
+          works: [addProvenanceFields(isbndbResult.work, "isbndb")],
+          editions: isbndbResult.edition ? [isbndbResult.edition] : [],
+          authors: isbndbResult.authors || [],
+        };
+      }
+      // No results from ISBNdb either
+      console.log(`enrichMultipleBooks: ISBNdb returned no results`);
+    } catch (error) {
+      // ISBNdb failed too
+      console.error(
+        `enrichMultipleBooks: ISBNdb error for ISBN "${isbn}":`,
+        error,
+      );
     }
 
     // No results from any provider
-    console.log(`enrichMultipleBooks: No results for ISBN "${isbn}"`);
+    console.log(
+      `enrichMultipleBooks: No results for ISBN "${isbn}" from any provider (Google Books, OpenLibrary, ISBNdb)`,
+    );
     return { works: [], editions: [], authors: [] };
   }
 

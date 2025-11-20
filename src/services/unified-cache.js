@@ -171,12 +171,74 @@ export class UnifiedCacheService {
   }
 
   /**
+   * Extract cache key prefix (e.g., "book:isbn:123" → "book")
+   * @param {string} cacheKey - Full cache key
+   * @returns {string} Prefix
+   */
+  extractPrefix(cacheKey) {
+    const parts = cacheKey.split(":");
+    return parts[0] || "unknown";
+  }
+
+  /**
+   * Track cache event to CacheMetricsDO
+   * @param {string} type - Event type ('hit', 'miss', 'write')
+   * @param {string} cacheKey - Cache key
+   * @param {Object} options - Additional metadata
+   */
+  trackCacheEvent(type, cacheKey, options = {}) {
+    if (!this.env.CACHE_METRICS_DO) return;
+
+    try {
+      const prefix = this.extractPrefix(cacheKey);
+      const timestamp = Date.now();
+
+      // Get DO singleton
+      const id = this.env.CACHE_METRICS_DO.idFromName("cache-metrics-singleton");
+      const stub = this.env.CACHE_METRICS_DO.get(id);
+
+      // Send event asynchronously (non-blocking)
+      this.ctx.waitUntil(
+        stub
+          .fetch("http://do/event", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type,
+              prefix,
+              key: cacheKey,
+              timestamp,
+              ...options,
+            }),
+          })
+          .catch((error) => {
+            console.error("Failed to track cache event:", error);
+          }),
+      );
+    } catch (error) {
+      console.error("Failed to track cache event:", error);
+    }
+  }
+
+  /**
    * Log cache metrics to Analytics Engine
    * @param {string} event - Event type (edge_hit, kv_hit, api_miss)
    * @param {string} cacheKey - Cache key
    * @param {number} latency - Latency in milliseconds
    */
   logMetrics(event, cacheKey, latency) {
+    // Track to CacheMetricsDO
+    if (event === "edge_hit_fresh" || event === "edge_hit_stale") {
+      this.trackCacheEvent("hit", cacheKey, { source: "edge" });
+    } else if (event === "kv_hit") {
+      this.trackCacheEvent("hit", cacheKey, { source: "kv" });
+    } else if (event === "api_miss") {
+      this.trackCacheEvent("miss", cacheKey);
+    } else if (event === "r2_rehydrated") {
+      this.trackCacheEvent("hit", cacheKey, { source: "r2" });
+    }
+
+    // Also log to Analytics Engine (legacy)
     if (!this.env.CACHE_ANALYTICS) return;
 
     try {
