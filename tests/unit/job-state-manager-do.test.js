@@ -336,11 +336,23 @@ describe('JobStateManagerDO', () => {
 
       await doInstance.sendError('csv_import', payload);
 
+      // UPDATED (Issue #167): Verify new canonical error format
       expect(mockWsStub.send).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'error',
           pipeline: 'csv_import',
-          payload
+          version: '2.0.0',
+          payload: expect.objectContaining({
+            type: 'error',
+            data: null,
+            metadata: expect.objectContaining({
+              timestamp: expect.any(String)
+            }),
+            error: expect.objectContaining({
+              code: 'E_TEST_ERROR',
+              message: 'Test error'
+            })
+          })
         })
       );
     });

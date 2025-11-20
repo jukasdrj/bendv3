@@ -1360,15 +1360,26 @@ export class ProgressWebSocketDO extends DurableObject {
       return { success: false };
     }
 
+    // BREAKING CHANGE (Issue #167): Align WebSocket errors with HTTP canonical format
+    // WebSocket errors now use ResponseEnvelope structure for consistency
     const message = {
       type: "error",
       jobId: this.jobId,
       pipeline,
       timestamp: Date.now(),
-      version: "1.0.0",
+      version: "2.0.0", // Bumped to 2.0.0 for breaking change
       payload: {
         type: "error",
-        ...payload,
+        data: null, // Always null for errors (matches HTTP ResponseEnvelope)
+        metadata: {
+          timestamp: new Date().toISOString(), // ISO 8601 format (matches HTTP)
+        },
+        error: {
+          message: payload.message,
+          code: payload.code,
+          details: payload.details,
+        },
+        retryable: payload.retryable, // WebSocket-specific extension
       },
     };
 

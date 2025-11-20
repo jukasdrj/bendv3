@@ -1117,6 +1117,12 @@ Same structure as `/v1/scan/results/{jobId}`.
 
 ## 7. WebSocket API
 
+> **🚨 BREAKING CHANGE (v2.0.0 - Issue #167):**
+> WebSocket error messages now use HTTP canonical format (ResponseEnvelope) for consistency.
+> **Deployment:** Coordinated backend + frontend deployment (Nov 19, 2025).
+> **Action Required:** Update WebSocket error parsing to new format immediately (see [Migration Guide](#error-migration-guide-v1-v2)).
+> **No Backward Compatibility:** v1 format removed - all clients must use v2.
+
 ### 7.1 Connection
 
 **URL Pattern:**
@@ -1310,23 +1316,74 @@ GET https://api.oooefam.net/v1/scan/results/uuid-12345
 
 Sent when job fails.
 
+**⚠️ BREAKING CHANGE (v2.0.0):** Error payload now matches HTTP canonical format (ResponseEnvelope) for consistency.
+
 ```json
 {
   "type": "error",
   "jobId": "uuid-12345",
   "pipeline": "csv_import",
   "timestamp": 1700000700000,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "payload": {
     "type": "error",
-    "code": "E_CSV_PROCESSING_FAILED",
-    "message": "Invalid CSV format: Missing title column",
-    "retryable": true,
-    "details": {
-      "lineNumber": 42
-    }
+    "data": null,
+    "metadata": {
+      "timestamp": "2025-01-15T10:00:00.000Z"
+    },
+    "error": {
+      "message": "Invalid CSV format: Missing title column",
+      "code": "E_CSV_PROCESSING_FAILED",
+      "details": {
+        "lineNumber": 42
+      }
+    },
+    "retryable": true
   }
 }
+```
+
+**Migration Guide (v1 → v2):**
+
+```typescript
+// ❌ OLD (v1.0.0) - Deprecated
+const { code, message, details } = wsMessage.payload;
+
+// ✅ NEW (v2.0.0) - Canonical format
+const { error, retryable } = wsMessage.payload;
+const { code, message, details } = error;
+```
+
+```swift
+// Swift (iOS) Migration Example
+
+// ❌ OLD (v1.0.0) - Deprecated
+let code = payload["code"] as? String
+let message = payload["message"] as? String
+let details = payload["details"] as? [String: Any]
+
+// ✅ NEW (v2.0.0) - Canonical format
+let error = payload["error"] as? [String: Any]
+let retryable = payload["retryable"] as? Bool
+let code = error?["code"] as? String
+let message = error?["message"] as? String
+let details = error?["details"] as? [String: Any]
+```
+
+```dart
+// Dart (Flutter) Migration Example
+
+// ❌ OLD (v1.0.0) - Deprecated
+final code = payload['code'] as String?;
+final message = payload['message'] as String?;
+final details = payload['details'] as Map<String, dynamic>?;
+
+// ✅ NEW (v2.0.0) - Canonical format
+final error = payload['error'] as Map<String, dynamic>?;
+final retryable = payload['retryable'] as bool?;
+final code = error?['code'] as String?;
+final message = error?['message'] as String?;
+final details = error?['details'] as Map<String, dynamic>?;
 ```
 
 ---
@@ -1849,15 +1906,25 @@ for (index, batch) in allPhotos.chunked(into: batchSize).enumerated() {
 ```json
 {
   "type": "error",
+  "jobId": "uuid-67890",
   "pipeline": "ai_scan",
+  "timestamp": 1700000800000,
+  "version": "2.0.0",
   "payload": {
-    "code": "BATCH_SCAN_ERROR",
-    "message": "All photos failed processing",
+    "type": "error",
+    "data": null,
+    "metadata": {
+      "timestamp": "2025-01-15T10:15:00.000Z"
+    },
+    "error": {
+      "message": "All photos failed processing",
+      "code": "BATCH_SCAN_ERROR"
+    },
     "retryable": true
   }
 }
 ```
-- WebSocket closes with code 1011 (INTERNAL_ERROR)
+- WebSocket closes with code 1011 (INTERNAL_ERROR) after 1 second delay
 
 ---
 
