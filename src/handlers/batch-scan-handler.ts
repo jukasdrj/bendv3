@@ -16,6 +16,7 @@ import {
 import { enrichBooksParallel } from "../services/parallel-enrichment.js";
 import { handleSearchAdvanced } from "./v1/search-advanced.js";
 import { getConfidenceThreshold } from "../utils/confidence.js";
+import { deleteR2Objects } from "../utils/r2-utils.js";
 import type {
   DetectedBookDTO,
   BookshelfScanInitResponse,
@@ -219,6 +220,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
   const startTime = Date.now(); // Track processing duration for metrics
   const allBooks = [];
   const photoResults = [];
+  const uploadedR2Keys: string[] = []; // Track successful uploads for cleanup on error
 
   try {
     // Phase 1: Upload all images to R2 in parallel
@@ -231,6 +233,8 @@ async function processBatchPhotos(jobId, images, env, doStub) {
           httpMetadata: { contentType: "image/jpeg" },
         });
 
+        uploadedR2Keys.push(r2Key); // Track successful upload for potential cleanup
+
         return { index: idx, r2Key, success: true };
       } catch (error) {
         console.error(`Upload failed for photo ${idx}:`, error);
@@ -241,11 +245,12 @@ async function processBatchPhotos(jobId, images, env, doStub) {
     const uploadResults = await Promise.all(uploadPromises);
 
     // Update progress after uploads - send initial processing status
+    const successfulUploads = uploadResults.filter((r) => r.success).length;
     await doStub.updateProgress("ai_scan", {
       progress: 0.1,
       status: "Photos uploaded, starting AI processing...",
       processedCount: 0,
-      currentItem: `Uploaded ${uploadResults.length} photos`,
+      currentItem: `Uploaded ${successfulUploads} photos`,
     });
 
     // Phase 2: Process images sequentially with Gemini
@@ -357,6 +362,14 @@ async function processBatchPhotos(jobId, images, env, doStub) {
           JSON.stringify(enrichedPartialBooks.map(mapToDetectedBook)),
           { expirationTtl: 3600 }, // 1 hour
         );
+
+        // Cleanup: Delete uploaded R2 objects (job was canceled, storage no longer needed)
+        if (uploadedR2Keys.length > 0) {
+          console.log(
+            `[Batch Scan] Cleaning up ${uploadedR2Keys.length} R2 objects after job cancellation`,
+          );
+          await deleteR2Objects(env.BOOKSHELF_IMAGES, uploadedR2Keys);
+        }
 
         // Send summary-only payload (mobile-optimized)
         await doStub.complete("ai_scan", {
@@ -533,6 +546,15 @@ async function processBatchPhotos(jobId, images, env, doStub) {
     });
   } catch (error) {
     console.error("Batch processing error:", error);
+
+    // Cleanup: Delete any successfully uploaded R2 objects on failure
+    if (uploadedR2Keys.length > 0) {
+      console.log(
+        `[Batch Scan] Cleaning up ${uploadedR2Keys.length} uploaded images due to job failure`,
+      );
+      await deleteR2Objects(env.BOOKSHELF_IMAGES, uploadedR2Keys);
+    }
+
     await doStub.sendError("ai_scan", {
       code: "E_BATCH_SCAN_FAILED",
       message: error.message,
