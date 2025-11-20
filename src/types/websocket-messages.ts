@@ -106,9 +106,7 @@ export type MessageType =
   | "error"
   | "ready" // Client → Server: Client is ready to receive messages
   | "ready_ack" // Server → Client: Server acknowledges ready state
-  | "reconnected" // Server → Client: Reconnection successful with state sync
-  | "ping"
-  | "pong";
+  | "reconnected"; // Server → Client: Reconnection successful with state sync
 
 /**
  * Pipeline identifier for job source tracking
@@ -138,9 +136,7 @@ export type MessagePayload =
   | JobStartedPayload
   | JobProgressPayload
   | JobCompletePayload
-  | ErrorPayload
-  | PingPayload
-  | PongPayload;
+  | ErrorPayload;
 
 // =============================================================================
 // Job Started Payload
@@ -311,21 +307,6 @@ export interface ErrorPayload {
 }
 
 // =============================================================================
-// Ping/Pong Payloads
-// =============================================================================
-
-export interface PingPayload {
-  type: "ping";
-  timestamp: number;
-}
-
-export interface PongPayload {
-  type: "pong";
-  timestamp: number;
-  latency?: number; // Optional: Server-measured round-trip time
-}
-
-// =============================================================================
 // WebSocket Message Factory
 // =============================================================================
 
@@ -415,47 +396,6 @@ export class WebSocketMessageFactory {
       payload: {
         type: "error",
         ...payload,
-      },
-    };
-  }
-
-  /**
-   * Create a ping message
-   */
-  static createPing(jobId: string, pipeline: PipelineType): WebSocketMessage {
-    const timestamp = Date.now();
-    return {
-      type: "ping",
-      jobId,
-      pipeline,
-      timestamp,
-      version: this.VERSION,
-      payload: {
-        type: "ping",
-        timestamp,
-      },
-    };
-  }
-
-  /**
-   * Create a pong message
-   */
-  static createPong(
-    jobId: string,
-    pipeline: PipelineType,
-    pingTimestamp: number,
-  ): WebSocketMessage {
-    const timestamp = Date.now();
-    return {
-      type: "pong",
-      jobId,
-      pipeline,
-      timestamp,
-      version: this.VERSION,
-      payload: {
-        type: "pong",
-        timestamp,
-        latency: timestamp - pingTimestamp,
       },
     };
   }
