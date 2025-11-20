@@ -19,6 +19,7 @@ import {
   enrichAuthorsWithCulturalData,
 } from "../../utils/response-transformer.js";
 import { writeCacheMetrics } from "../../utils/analytics.js";
+import { ISBNdbAPI } from "../../services/isbndb-api.js"; // Issue #188: ISBNdb fallback
 
 // ISBN validation regex constants (DRY principle - avoids duplication across functions)
 const ISBN10_REGEX = /^\d{9}[\dX]$/i;
@@ -135,10 +136,58 @@ export async function handleSearchISBN(
       `v1 ISBN search for "${isbn}" (normalized: "${normalizedISBN}") (using enrichMultipleBooks)`,
     );
 
-    // Use enrichMultipleBooks for consistency with other v1 search endpoints
-    const result = await enrichMultipleBooks({ isbn: normalizedISBN }, env, {
+    // Use enrichMultipleBooks for consistency with other v1 search endpoints (Google Books + OpenLibrary)
+    let result = await enrichMultipleBooks({ isbn: normalizedISBN }, env, {
       maxResults: 1,
     });
+
+    let provider = result?.works?.[0]?.primaryProvider || "none";
+
+    // Issue #188: Fallback to ISBNdb if no results from primary sources
+    if (!result || !result.works || result.works.length === 0) {
+      console.log(`[ISBN Search] Primary sources failed, falling back to ISBNdb for ${normalizedISBN}`);
+
+      try {
+        const isbndb = new ISBNdbAPI(env.ISBNDB_API_KEY);
+        const isbndbResult = await isbndb.fetchBook(normalizedISBN);
+
+        if (isbndbResult) {
+          // Map ISBNdb result to canonical format
+          result = {
+            works: [{
+              title: isbndbResult.title,
+              subjectTags: [],
+              goodreadsWorkIDs: [],
+              amazonASINs: [],
+              librarythingIDs: [],
+              googleBooksVolumeIDs: [],
+              isbndbQuality: 100,
+              reviewStatus: "verified",
+              coverImageURL: isbndbResult.image,
+              primaryProvider: "isbndb",
+              synthetic: false,
+            }],
+            editions: [{
+              isbns: [normalizedISBN],
+              format: "Unknown",
+              amazonASINs: [],
+              googleBooksVolumeIDs: [],
+              librarythingIDs: [],
+              isbndbQuality: 100,
+              publisher: isbndbResult.publisher,
+              publicationDate: isbndbResult.publishedDate,
+              coverImageURL: isbndbResult.image,
+              primaryProvider: "isbndb",
+            }],
+            authors: isbndbResult.authors.map((name: string) => ({ name })),
+          };
+          provider = "isbndb";
+          console.log(`[ISBN Search] ✅ ISBNdb fallback successful for ${normalizedISBN}`);
+        }
+      } catch (isbndbError) {
+        console.warn(`[ISBN Search] ISBNdb fallback failed:`, isbndbError);
+      }
+    }
 
     const processingTime = Date.now() - startTime;
 
@@ -199,7 +248,7 @@ export async function handleSearchISBN(
       },
       {
         processingTime,
-        provider: work?.primaryProvider, // Use actual provider from enriched work
+        provider: provider, // Issue #188: Updated to reflect actual provider (includes isbndb fallback)
         cached: false,
       },
       200,
