@@ -21,7 +21,9 @@ import {
 } from "../utils/response-builder.js";
 import type { CSVImportInitResponse } from "../types/responses.js";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// Aligned with Gemini 2.0 Flash 2M token context (approximating ~8MB at 4 bytes/token)
+// Issue #181: Consistent with MAX_CSV_SIZE in gemini-csv-provider.js
+const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8MB
 
 /**
  * Handle CSV import request (POST /api/import/csv-gemini)
@@ -52,10 +54,10 @@ export async function handleCSVImport(request, env, ctx) {
       );
     }
 
-    // Check file size
+    // Check file size (aligned with 2M token limit)
     if (csvFile.size > MAX_FILE_SIZE) {
       return createErrorResponse(
-        "CSV file too large (max 10MB)",
+        "CSV file too large (max 8MB to fit 2M token limit)",
         413,
         ErrorCodes.FILE_TOO_LARGE,
         {

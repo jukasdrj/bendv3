@@ -60,6 +60,8 @@ export async function processCSVImport(csvText, progressReporter, env, jobId) {
     }
 
     // Stage 1: Gemini Parsing (5-50%)
+    // Note: Token limit enforced in gemini-csv-provider.js to 8MB (~2M tokens at 4 bytes/token)
+    // This aligns with Gemini 2.0 Flash's 2M context window across all CSV processing.
     await progressReporter.updateProgress("csv_import", {
       progress: 0.05,
       status: "Uploading CSV to Gemini...",

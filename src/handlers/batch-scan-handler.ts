@@ -24,7 +24,8 @@ import type {
 } from "../types/responses.js";
 
 const MAX_PHOTOS_PER_BATCH = 5;
-const MAX_IMAGE_SIZE = 10_000_000; // 10MB per image
+const MAX_IMAGE_SIZE = 10_000_000; // 10MB per individual photo (Issue #171: enforced per image to match Gemini API limits)
+const MAX_BATCH_SIZE = 50_000_000; // 50MB total for all photos in batch (prevents memory exhaustion; 5 photos max at 10MB each)
 
 /**
  * Clamp BoundingBox coordinates to valid range [0, 1]
@@ -150,7 +151,7 @@ export async function handleBatchScan(request, env, ctx) {
       // Validate actual decoded size (not estimate)
       if (actualSize > MAX_IMAGE_SIZE) {
         return createErrorResponse(
-          `Image ${img.index} exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB (actual: ${(actualSize / 1_000_000).toFixed(1)}MB)`,
+          `Image ${img.index} exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB per photo (actual: ${(actualSize / 1_000_000).toFixed(1)}MB). Please compress or resize the image.`,
           413,
           ErrorCodes.FILE_TOO_LARGE,
         );
@@ -163,7 +164,7 @@ export async function handleBatchScan(request, env, ctx) {
     // Validate total batch size (prevents 5x 13MB = 65MB memory spike)
     if (totalBatchSize > MAX_BATCH_SIZE) {
       return createErrorResponse(
-        `Total batch size exceeds maximum of ${MAX_BATCH_SIZE / 1_000_000}MB (actual: ${(totalBatchSize / 1_000_000).toFixed(1)}MB)`,
+        `Total batch size exceeds maximum of ${MAX_BATCH_SIZE / 1_000_000}MB (actual: ${(totalBatchSize / 1_000_000).toFixed(1)}MB). Reduce number of photos or compress images (max 5 photos at 10MB each).`,
         413,
         ErrorCodes.FILE_TOO_LARGE,
       );

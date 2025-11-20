@@ -58,6 +58,12 @@ export async function processBookshelfScan(
   const startTime = Date.now();
 
   try {
+    // Enforce 10MB per-photo limit for single scans (Issue #171) – consistent with batch handler
+    const MAX_IMAGE_SIZE = 10_000_000; // 10MB per photo (matches Gemini API limits and batch enforcement)
+    if (imageData.byteLength > MAX_IMAGE_SIZE) {
+      throw new Error(`Image exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB (actual: ${(imageData.byteLength / 1_000_000).toFixed(1)}MB). Please compress or resize the image.`);
+    }
+
     console.log(
       `[AI Scanner] Starting scan for job ${jobId}, image size: ${imageData.byteLength} bytes`,
     );
