@@ -125,7 +125,7 @@ describe('GET /v1/search/advanced - Cache Behavior', () => {
     expect(cacheKey1).toContain('f. scott fitzgerald'); // normalized author (lowercase)
   });
 
-  it('should handle cache with 6 hour TTL', async () => {
+  it('should handle cache with 7 day TTL', async () => {
     let ttl = 0;
 
     const mockEnv = {
@@ -144,7 +144,7 @@ describe('GET /v1/search/advanced - Cache Behavior', () => {
     // Wait for waitUntil promises
     await Promise.all(mockCtx.getWaitUntilPromises());
 
-    expect(ttl).toBe(6 * 60 * 60); // 21600 seconds
+    expect(ttl).toBe(7 * 24 * 60 * 60); // 604800 seconds (7 days)
   });
 
   it('should handle title-only search with cache', async () => {

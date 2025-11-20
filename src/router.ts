@@ -21,6 +21,7 @@ import { handleBatchEnrichment } from './handlers/batch-enrichment'
 import { handleBatchScan } from './handlers/batch-scan-handler'
 import { handleCSVImport } from './handlers/csv-import'
 import { handleMetricsRequest } from './handlers/metrics-handler'
+import { handleCacheMetrics } from './handlers/cache-metrics.js'
 import { getProgressDOStub } from './utils/durable-object-helpers'
 import { analyticsMiddleware } from './middleware/hono-analytics'
 import { checkRateLimit } from './middleware/rate-limiter'
@@ -156,6 +157,11 @@ app.post('/api/import/csv-gemini', rateLimitMiddleware, async (c) => {
 // ============================================================================
 app.get('/metrics', async (c) => {
   return await handleMetricsRequest(c.req.raw, c.env, c.executionCtx)
+})
+
+// GET /api/cache/metrics - Cache performance metrics
+app.get('/api/cache/metrics', async (c) => {
+  return await handleCacheMetrics(c.req.raw, c.env)
 })
 
 // ============================================================================

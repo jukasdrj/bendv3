@@ -123,7 +123,7 @@ export async function handleSearchAdvanced(
       request
     );
 
-    // Write to cache (6h TTL, same as /search/title)
+    // Write to cache (7 days TTL - author data rarely changes)
     // Note: We need to cache the legacy format for backward compatibility with existing cache
     const legacyResponseObject = {
       success: true,
@@ -135,7 +135,7 @@ export async function handleSearchAdvanced(
         cached: false,
       }
     };
-    const ttl = 6 * 60 * 60; // 21600 seconds
+    const ttl = 7 * 24 * 60 * 60; // 604800 seconds (7 days)
     ctx.waitUntil(setCached(cacheKey, legacyResponseObject, ttl, env));
     console.log(
       `💾 Cache WRITE: /v1/search/advanced (${cacheKey}, TTL: ${ttl}s)`,
