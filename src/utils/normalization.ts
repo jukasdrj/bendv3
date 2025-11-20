@@ -15,12 +15,15 @@ export function normalizeTitle(title: string): string {
 
 /**
  * Normalizes ISBN for cache key generation
- * - Remove hyphens (ISBN-10/ISBN-13 formatting)
- * - Trim whitespace
- * - Preserve digits and 'X' only (ISBN-10 check digit)
+ * - Remove only hyphens and spaces (common in valid ISBNs)
+ * - Preserve other characters for validation to catch
+ * - Normalize 'x' to 'X' for ISBN-10 check digit
  */
 export function normalizeISBN(isbn: string): string {
-  return isbn.trim().replace(/[^0-9X]/gi, '');
+  return isbn
+    .trim()
+    .replace(/[-\s]/g, '') // Remove only hyphens and spaces
+    .toUpperCase(); // Normalize 'x' to 'X' for ISBN-10 check digit
 }
 
 /**
