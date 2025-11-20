@@ -18,6 +18,7 @@ import type {
   EnrichmentJobInitResponse,
   EnrichedBookDTO,
 } from "../types/responses.js";
+import { getProgressDOStub } from "../utils/durable-object-helpers.js";
 
 /**
  * Handle batch enrichment request (POST /api/enrichment/batch)
@@ -135,9 +136,8 @@ export async function handleBatchEnrichment(request, env, ctx) {
       if (book.isbn) book.isbn = book.isbn.trim();
     }
 
-    // Get WebSocket DO stub
-    const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-    const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+    // Get WebSocket DO stub (supports hibernation API migration via Issue #221)
+    const doStub = getProgressDOStub(jobId, env);
 
     // Generate and store auth token for WebSocket authentication
     const authToken = crypto.randomUUID();

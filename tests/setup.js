@@ -117,6 +117,7 @@ const env = {
 
   // Durable Objects
   PROGRESS_WEBSOCKET_DO: mockDurableObjects,
+  PROGRESS_WEBSOCKET_DO_HIBERNATION: mockDurableObjects, // Phase 2: Hibernation API migration
   RATE_LIMITER_DO: mockDurableObjects,
 
   // Queues
@@ -214,15 +215,39 @@ export function createMockDOStorage() {
   const alarms = [];
 
   return {
-    get: vi.fn(async (key) => {
-      return store.get(key);
+    // Single key/value operations
+    get: vi.fn(async (keyOrKeys) => {
+      // Hibernation DO uses batch reads: storage.get([key1, key2])
+      if (Array.isArray(keyOrKeys)) {
+        const result = new Map();
+        for (const key of keyOrKeys) {
+          if (store.has(key)) {
+            result.set(key, store.get(key));
+          }
+        }
+        return result;
+      }
+      // Traditional single key get
+      return store.get(keyOrKeys);
     }),
 
-    put: vi.fn(async (key, value) => {
-      if (typeof value === 'object') {
-        store.set(key, JSON.parse(JSON.stringify(value)));
+    put: vi.fn(async (keyOrObject, value) => {
+      // Hibernation DO uses batch writes: storage.put({key1: val1, key2: val2})
+      if (typeof keyOrObject === 'object' && value === undefined) {
+        for (const [key, val] of Object.entries(keyOrObject)) {
+          if (typeof val === 'object' && val !== null) {
+            store.set(key, JSON.parse(JSON.stringify(val)));
+          } else {
+            store.set(key, val);
+          }
+        }
       } else {
-        store.set(key, value);
+        // Traditional single key/value put
+        if (typeof value === 'object' && value !== null) {
+          store.set(keyOrObject, JSON.parse(JSON.stringify(value)));
+        } else {
+          store.set(keyOrObject, value);
+        }
       }
     }),
 
@@ -232,6 +257,22 @@ export function createMockDOStorage() {
 
     list: vi.fn(async () => {
       return { keys: Array.from(store.keys()) };
+    }),
+
+    // Transaction support for hibernation DO (connection counting)
+    transaction: vi.fn(async (callback) => {
+      // Simple mock: execute callback with storage API
+      await callback({
+        get: async (key) => store.get(key),
+        put: async (key, value) => {
+          if (typeof value === 'object' && value !== null) {
+            store.set(key, JSON.parse(JSON.stringify(value)));
+          } else {
+            store.set(key, value);
+          }
+        },
+        delete: async (key) => store.delete(key),
+      });
     }),
 
     setAlarm: vi.fn(async (alarmTime) => {
@@ -260,6 +301,7 @@ export function createMockDOStorage() {
 /**
  * Mock WebSocket Pair
  * Used for testing WebSocket upgrade and messaging
+ * Supports both traditional and hibernation API patterns
  */
 export function createMockWebSocketPair() {
   const serverListeners = {};
@@ -278,6 +320,7 @@ export function createMockWebSocketPair() {
       }
     }),
 
+    // Traditional WebSocket API
     accept: vi.fn(() => {
       // Accept connection
     }),
@@ -289,6 +332,9 @@ export function createMockWebSocketPair() {
     removeEventListener: vi.fn((event) => {
       delete serverListeners[event];
     }),
+
+    // Hibernation API: Backpressure monitoring
+    bufferedAmount: 0,
   };
 
   const client = {
@@ -311,7 +357,47 @@ export function createMockWebSocketPair() {
     removeEventListener: vi.fn((event) => {
       delete clientListeners[event];
     }),
+
+    // Hibernation API: Backpressure monitoring
+    bufferedAmount: 0,
   };
 
   return { server, client, serverListeners, clientListeners };
+}
+
+/**
+ * Mock Hibernation API State
+ * Used for testing Durable Objects with hibernation WebSocket support
+ */
+export function createMockHibernationState() {
+  const webSockets = [];
+  const storage = createMockDOStorage();
+
+  return {
+    storage,
+
+    // Hibernation API: Accept WebSocket
+    acceptWebSocket: vi.fn((ws) => {
+      webSockets.push(ws);
+      console.log(`[Mock Hibernation State] Accepted WebSocket (${webSockets.length} total)`);
+    }),
+
+    // Hibernation API: Get all connected WebSockets
+    getWebSockets: vi.fn(() => {
+      return [...webSockets];
+    }),
+
+    // Test helper to simulate WebSocket disconnection
+    __removeWebSocket: (ws) => {
+      const index = webSockets.indexOf(ws);
+      if (index > -1) {
+        webSockets.splice(index, 1);
+      }
+    },
+
+    // Test helper to clear all WebSockets
+    __clearWebSockets: () => {
+      webSockets.length = 0;
+    },
+  };
 }

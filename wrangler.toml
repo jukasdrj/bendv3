@@ -93,6 +93,13 @@ ENABLE_UNIFIED_ENVELOPE = "true"
 # When false: Uses legacy monolithic ProgressWebSocketDO (default for backward compatibility)
 ENABLE_REFACTORED_DOS = "false"  # Default: legacy architecture
 
+# WebSocket Hibernation API Migration (Issue #221 - Phase 1: Foundation)
+# When true: Uses ProgressWebSocketDO_Hibernation with Cloudflare hibernation API (70-80% cost reduction)
+# When false: Uses traditional ProgressWebSocketDO with manual event listeners (default, 100% backward compatible)
+# Migration strategy: Parallel deployment with gradual rollout (1% → 10% → 50% → 100%)
+# Risk: LOW - Feature flag allows instant rollback if issues detected
+ENABLE_HIBERNATION_WEBSOCKET = "false"  # Default: traditional WebSocket (Phase 1 deployment validation)
+
 # KV Namespaces (consolidated from books-api-proxy and external-apis-worker)
 # Note: Set remote = true to access production KV during local development (Wrangler v4.37+)
 [[kv_namespaces]]
@@ -180,6 +187,11 @@ class_name = "ProgressWebSocketDO"
 name = "RATE_LIMITER_DO"
 class_name = "RateLimiterDO"
 
+# WebSocket Hibernation API (Issue #221: Cloudflare best practices)
+[[durable_objects.bindings]]
+name = "PROGRESS_WEBSOCKET_DO_HIBERNATION"
+class_name = "ProgressWebSocketDO_Hibernation"
+
 # New refactored Durable Objects (Phase 2: Architectural Refactoring)
 [[durable_objects.bindings]]
 name = "WEBSOCKET_CONNECTION_DO"
@@ -209,6 +221,10 @@ new_classes = ["WebSocketConnectionDO", "JobStateManagerDO"]
 [[migrations]]
 tag = "v4"
 new_classes = ["CacheMetricsDO"]
+
+[[migrations]]
+tag = "v5"
+new_classes = ["ProgressWebSocketDO_Hibernation"]
 
 # Analytics Engine (merged from books-api-proxy and bookshelf-ai-worker)
 [[analytics_engine_datasets]]
