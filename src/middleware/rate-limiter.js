@@ -26,11 +26,11 @@ const RATE_LIMIT_WINDOW = 60; // 60 seconds
  * AI-heavy endpoints require stricter limits due to cost and processing time
  */
 const RATE_LIMITS = {
-  default: 100,           // Generic search endpoints (v1/search/*)
-  batchEnrichment: 10,    // /v1/enrichment/batch
-  aiScan: 5,              // /api/batch-scan (AI photo scanning)
-  csvImport: 5,           // /api/import/csv-gemini (AI parsing)
-  bookshelfScan: 5        // /api/scan-bookshelf/batch (AI scanning)
+  default: 100, // Generic search endpoints (v1/search/*)
+  batchEnrichment: 10, // /v1/enrichment/batch
+  aiScan: 5, // /api/batch-scan (AI photo scanning)
+  csvImport: 5, // /api/import/csv-gemini (AI parsing)
+  bookshelfScan: 5, // /api/scan-bookshelf/batch (AI scanning)
 };
 
 /**
@@ -40,11 +40,12 @@ const RATE_LIMITS = {
  * @returns {number} - Max requests per minute for this endpoint
  */
 export function getRateLimitForEndpoint(pathname) {
-  if (pathname === '/api/batch-scan') return RATE_LIMITS.aiScan;
-  if (pathname === '/api/import/csv-gemini') return RATE_LIMITS.csvImport;
-  if (pathname === '/api/scan-bookshelf/batch') return RATE_LIMITS.bookshelfScan;
-  if (pathname === '/v1/enrichment/batch') return RATE_LIMITS.batchEnrichment;
-  if (pathname.startsWith('/v1/search/')) return RATE_LIMITS.default;
+  if (pathname === "/api/batch-scan") return RATE_LIMITS.aiScan;
+  if (pathname === "/api/import/csv-gemini") return RATE_LIMITS.csvImport;
+  if (pathname === "/api/scan-bookshelf/batch")
+    return RATE_LIMITS.bookshelfScan;
+  if (pathname === "/v1/enrichment/batch") return RATE_LIMITS.batchEnrichment;
+  if (pathname.startsWith("/v1/search/")) return RATE_LIMITS.default;
 
   return RATE_LIMITS.default;
 }
@@ -69,7 +70,8 @@ export async function checkRateLimit(request, env, maxRequests = null) {
 
   // Determine rate limit for this endpoint
   const pathname = new URL(request.url).pathname;
-  const limitForEndpoint = maxRequests !== null ? maxRequests : getRateLimitForEndpoint(pathname);
+  const limitForEndpoint =
+    maxRequests !== null ? maxRequests : getRateLimitForEndpoint(pathname);
 
   try {
     // Get Durable Object stub for this IP's rate limit counter
@@ -83,8 +85,8 @@ export async function checkRateLimit(request, env, maxRequests = null) {
       new Request("http://localhost/check", {
         method: "POST",
         headers: {
-          "X-Rate-Limit-Max": limitForEndpoint.toString()
-        }
+          "X-Rate-Limit-Max": limitForEndpoint.toString(),
+        },
       }),
     );
 
@@ -132,4 +134,3 @@ export async function checkRateLimit(request, env, maxRequests = null) {
     return null;
   }
 }
-

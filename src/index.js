@@ -2,6 +2,7 @@ import { ProgressWebSocketDO } from "./durable-objects/progress-socket.js";
 import { RateLimiterDO } from "./durable-objects/rate-limiter.js";
 import { WebSocketConnectionDO } from "./durable-objects/websocket-connection.js";
 import { JobStateManagerDO } from "./durable-objects/job-state-manager.js";
+import { CacheMetricsDO } from "./durable-objects/cache-metrics.js";
 import honoRouter from "./router.ts";
 import * as externalApis from "./services/external-apis.ts";
 import * as enrichment from "./services/enrichment.ts";
@@ -50,6 +51,7 @@ export {
   RateLimiterDO,
   WebSocketConnectionDO,
   JobStateManagerDO,
+  CacheMetricsDO,
 };
 
 export default {

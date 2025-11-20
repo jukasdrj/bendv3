@@ -45,7 +45,7 @@
  * @module types/websocket-messages
  */
 
-import type { SingleEnrichmentResult } from '../services/enrichment.ts';
+import type { SingleEnrichmentResult } from "../services/enrichment.ts";
 
 // =============================================================================
 // WebSocket Close Codes (RFC 6455)
@@ -83,13 +83,14 @@ export const WebSocketCloseCodes = {
   SERVICE_RESTART: 1012,
 
   /** Try again later (temporary overload, resource exhaustion) */
-  TRY_AGAIN_LATER: 1013
+  TRY_AGAIN_LATER: 1013,
 } as const;
 
 /**
  * Type for WebSocket close codes
  */
-export type WebSocketCloseCode = typeof WebSocketCloseCodes[keyof typeof WebSocketCloseCodes];
+export type WebSocketCloseCode =
+  (typeof WebSocketCloseCodes)[keyof typeof WebSocketCloseCodes];
 
 // =============================================================================
 // Core Types & Enums
@@ -103,19 +104,16 @@ export type MessageType =
   | "job_progress"
   | "job_complete"
   | "error"
-  | "ready"           // Client → Server: Client is ready to receive messages
-  | "ready_ack"       // Server → Client: Server acknowledges ready state
-  | "reconnected"     // Server → Client: Reconnection successful with state sync
+  | "ready" // Client → Server: Client is ready to receive messages
+  | "ready_ack" // Server → Client: Server acknowledges ready state
+  | "reconnected" // Server → Client: Reconnection successful with state sync
   | "ping"
   | "pong";
 
 /**
  * Pipeline identifier for job source tracking
  */
-export type PipelineType =
-  | "batch_enrichment"
-  | "csv_import"
-  | "ai_scan";
+export type PipelineType = "batch_enrichment" | "csv_import" | "ai_scan";
 
 // =============================================================================
 // Base Message Envelope
@@ -126,10 +124,10 @@ export type PipelineType =
  */
 export interface WebSocketMessage {
   type: MessageType;
-  jobId: string;           // Client correlation ID
-  pipeline: PipelineType;  // Source identification
-  timestamp: number;       // Server time (ms since epoch)
-  version: string;         // Schema version (e.g., "1.0.0")
+  jobId: string; // Client correlation ID
+  pipeline: PipelineType; // Source identification
+  timestamp: number; // Server time (ms since epoch)
+  version: string; // Schema version (e.g., "1.0.0")
   payload: MessagePayload; // Type-specific data
 }
 
@@ -150,7 +148,7 @@ export type MessagePayload =
 
 export interface JobStartedPayload {
   type: "job_started";
-  totalCount?: number;      // Optional: Total items to process
+  totalCount?: number; // Optional: Total items to process
   estimatedDuration?: number; // Optional: Estimated seconds
 }
 
@@ -160,11 +158,11 @@ export interface JobStartedPayload {
 
 export interface JobProgressPayload {
   type: "job_progress";
-  progress: number;         // 0.0 - 1.0
-  status: string;           // Human-readable status message
-  processedCount?: number;  // Optional: Items processed so far
-  currentItem?: string;     // Optional: Current item being processed
-  keepAlive?: boolean;      // Optional: True for keep-alive pings
+  progress: number; // 0.0 - 1.0
+  status: string; // Human-readable status message
+  processedCount?: number; // Optional: Items processed so far
+  currentItem?: string; // Optional: Current item being processed
+  keepAlive?: boolean; // Optional: True for keep-alive pings
 }
 
 // =============================================================================
@@ -184,8 +182,8 @@ export interface JobCompletionSummary {
   totalProcessed: number;
   successCount: number;
   failureCount: number;
-  duration: number;          // Milliseconds
-  resourceId?: string;       // Optional: KV key for full results (e.g., "job-results:uuid")
+  duration: number; // Milliseconds
+  resourceId?: string; // Optional: KV key for full results (e.g., "job-results:uuid")
 }
 
 export type JobCompletePayload =
@@ -257,9 +255,9 @@ export interface AIScanCompletePayload {
   type: "job_complete";
   pipeline: "ai_scan";
   summary: JobCompletionSummary & {
-    totalDetected?: number;  // Optional: AI-specific stat
-    approved?: number;       // Optional: Books auto-approved
-    needsReview?: number;    // Optional: Books requiring manual review
+    totalDetected?: number; // Optional: AI-specific stat
+    approved?: number; // Optional: Books auto-approved
+    needsReview?: number; // Optional: Books requiring manual review
   };
 }
 
@@ -300,16 +298,16 @@ export interface BoundingBox {
  */
 export interface ErrorPayload {
   type: "error";
-  data: null;               // Always null for errors (matches HTTP format)
+  data: null; // Always null for errors (matches HTTP format)
   metadata: {
-    timestamp: string;      // ISO 8601 timestamp
+    timestamp: string; // ISO 8601 timestamp
   };
   error: {
-    message: string;        // Human-readable error message
-    code?: string;          // Machine-readable error code (e.g., "PROCESSING_FAILED")
-    details?: any;          // Optional: Additional error context
+    message: string; // Human-readable error message
+    code?: string; // Machine-readable error code (e.g., "PROCESSING_FAILED")
+    details?: any; // Optional: Additional error context
   };
-  retryable?: boolean;      // Optional: Can client retry? (WebSocket-specific extension)
+  retryable?: boolean; // Optional: Can client retry? (WebSocket-specific extension)
 }
 
 // =============================================================================
@@ -324,7 +322,7 @@ export interface PingPayload {
 export interface PongPayload {
   type: "pong";
   timestamp: number;
-  latency?: number;         // Optional: Server-measured round-trip time
+  latency?: number; // Optional: Server-measured round-trip time
 }
 
 // =============================================================================
@@ -343,7 +341,7 @@ export class WebSocketMessageFactory {
   static createJobStarted(
     jobId: string,
     pipeline: PipelineType,
-    payload: Omit<JobStartedPayload, "type">
+    payload: Omit<JobStartedPayload, "type">,
   ): WebSocketMessage {
     return {
       type: "job_started",
@@ -353,8 +351,8 @@ export class WebSocketMessageFactory {
       version: this.VERSION,
       payload: {
         type: "job_started",
-        ...payload
-      }
+        ...payload,
+      },
     };
   }
 
@@ -364,7 +362,7 @@ export class WebSocketMessageFactory {
   static createJobProgress(
     jobId: string,
     pipeline: PipelineType,
-    payload: Omit<JobProgressPayload, "type">
+    payload: Omit<JobProgressPayload, "type">,
   ): WebSocketMessage {
     return {
       type: "job_progress",
@@ -374,8 +372,8 @@ export class WebSocketMessageFactory {
       version: this.VERSION,
       payload: {
         type: "job_progress",
-        ...payload
-      }
+        ...payload,
+      },
     };
   }
 
@@ -385,7 +383,7 @@ export class WebSocketMessageFactory {
   static createJobComplete(
     jobId: string,
     pipeline: PipelineType,
-    payload: Omit<JobCompletePayload, "type">
+    payload: Omit<JobCompletePayload, "type">,
   ): WebSocketMessage {
     return {
       type: "job_complete",
@@ -395,8 +393,8 @@ export class WebSocketMessageFactory {
       version: this.VERSION,
       payload: {
         type: "job_complete",
-        ...payload
-      }
+        ...payload,
+      },
     };
   }
 
@@ -406,7 +404,7 @@ export class WebSocketMessageFactory {
   static createError(
     jobId: string,
     pipeline: PipelineType,
-    payload: Omit<ErrorPayload, "type">
+    payload: Omit<ErrorPayload, "type">,
   ): WebSocketMessage {
     return {
       type: "error",
@@ -416,18 +414,15 @@ export class WebSocketMessageFactory {
       version: this.VERSION,
       payload: {
         type: "error",
-        ...payload
-      }
+        ...payload,
+      },
     };
   }
 
   /**
    * Create a ping message
    */
-  static createPing(
-    jobId: string,
-    pipeline: PipelineType
-  ): WebSocketMessage {
+  static createPing(jobId: string, pipeline: PipelineType): WebSocketMessage {
     const timestamp = Date.now();
     return {
       type: "ping",
@@ -437,8 +432,8 @@ export class WebSocketMessageFactory {
       version: this.VERSION,
       payload: {
         type: "ping",
-        timestamp
-      }
+        timestamp,
+      },
     };
   }
 
@@ -448,7 +443,7 @@ export class WebSocketMessageFactory {
   static createPong(
     jobId: string,
     pipeline: PipelineType,
-    pingTimestamp: number
+    pingTimestamp: number,
   ): WebSocketMessage {
     const timestamp = Date.now();
     return {
@@ -460,8 +455,8 @@ export class WebSocketMessageFactory {
       payload: {
         type: "pong",
         timestamp,
-        latency: timestamp - pingTimestamp
-      }
+        latency: timestamp - pingTimestamp,
+      },
     };
   }
 }

@@ -7,11 +7,17 @@
  * - Uses EnrichedBookDTO for flattened book structure (no nested objects)
  */
 
-import { enrichBooksParallel } from '../services/parallel-enrichment.js';
-import { enrichSingleBook } from '../services/enrichment.ts';
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../utils/response-builder.js';
-import type { EnrichmentJobInitResponse, EnrichedBookDTO } from '../types/responses.js';
-
+import { enrichBooksParallel } from "../services/parallel-enrichment.js";
+import { enrichSingleBook } from "../services/enrichment.ts";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  ErrorCodes,
+} from "../utils/response-builder.js";
+import type {
+  EnrichmentJobInitResponse,
+  EnrichedBookDTO,
+} from "../types/responses.js";
 
 /**
  * Handle batch enrichment request (POST /api/enrichment/batch)
@@ -35,23 +41,35 @@ export async function handleBatchEnrichment(request, env, ctx) {
 
     // Validate request structure
     if (!books || !Array.isArray(books)) {
-      return createErrorResponse('Invalid books array', 400, ErrorCodes.INVALID_REQUEST);
+      return createErrorResponse(
+        "Invalid books array",
+        400,
+        ErrorCodes.INVALID_REQUEST,
+      );
     }
 
     if (!jobId) {
-      return createErrorResponse('Missing jobId', 400, ErrorCodes.INVALID_REQUEST);
+      return createErrorResponse(
+        "Missing jobId",
+        400,
+        ErrorCodes.INVALID_REQUEST,
+      );
     }
 
     // DoS Protection: Limit batch size to prevent cost explosion
     if (books.length === 0) {
-      return createErrorResponse('Empty books array', 400, ErrorCodes.EMPTY_BATCH);
+      return createErrorResponse(
+        "Empty books array",
+        400,
+        ErrorCodes.EMPTY_BATCH,
+      );
     }
 
     if (books.length > 100) {
       return createErrorResponse(
-        'Batch size exceeds maximum of 100 books',
+        "Batch size exceeds maximum of 100 books",
         400,
-        ErrorCodes.BATCH_TOO_LARGE
+        ErrorCodes.BATCH_TOO_LARGE,
       );
     }
 
@@ -60,11 +78,11 @@ export async function handleBatchEnrichment(request, env, ctx) {
       const book = books[i];
 
       // Title validation
-      if (!book.title || typeof book.title !== 'string') {
+      if (!book.title || typeof book.title !== "string") {
         return createErrorResponse(
           `Invalid title for book at index ${i}`,
           400,
-          ErrorCodes.INVALID_REQUEST
+          ErrorCodes.INVALID_REQUEST,
         );
       }
 
@@ -73,16 +91,16 @@ export async function handleBatchEnrichment(request, env, ctx) {
         return createErrorResponse(
           `Title exceeds maximum length of 500 characters at index ${i}`,
           400,
-          ErrorCodes.INVALID_REQUEST
+          ErrorCodes.INVALID_REQUEST,
         );
       }
 
       // Optional fields validation
-      if (book.author && typeof book.author !== 'string') {
+      if (book.author && typeof book.author !== "string") {
         return createErrorResponse(
           `Invalid author for book at index ${i}`,
           400,
-          ErrorCodes.INVALID_REQUEST
+          ErrorCodes.INVALID_REQUEST,
         );
       }
 
@@ -90,15 +108,15 @@ export async function handleBatchEnrichment(request, env, ctx) {
         return createErrorResponse(
           `Author exceeds maximum length of 300 characters at index ${i}`,
           400,
-          ErrorCodes.INVALID_REQUEST
+          ErrorCodes.INVALID_REQUEST,
         );
       }
 
-      if (book.isbn && typeof book.isbn !== 'string') {
+      if (book.isbn && typeof book.isbn !== "string") {
         return createErrorResponse(
           `Invalid ISBN for book at index ${i}`,
           400,
-          ErrorCodes.INVALID_ISBN
+          ErrorCodes.INVALID_ISBN,
         );
       }
 
@@ -106,7 +124,7 @@ export async function handleBatchEnrichment(request, env, ctx) {
         return createErrorResponse(
           `ISBN exceeds maximum length of 17 characters at index ${i}`,
           400,
-          ErrorCodes.INVALID_ISBN
+          ErrorCodes.INVALID_ISBN,
         );
       }
 
@@ -129,7 +147,7 @@ export async function handleBatchEnrichment(request, env, ctx) {
 
     // Initialize job state for batch enrichment (CRITICAL: Must be done BEFORE returning response)
     // This sets currentPipeline so ready_ack messages will have the correct pipeline field
-    await doStub.initializeJobState('batch_enrichment', books.length);
+    await doStub.initializeJobState("batch_enrichment", books.length);
 
     // Start background enrichment
     ctx.waitUntil(processBatchEnrichment(books, doStub, env, jobId));
@@ -146,11 +164,10 @@ export async function handleBatchEnrichment(request, env, ctx) {
       success: true,
       processedCount: 0,
       totalCount: books.length,
-      token: authToken  // WebSocket authentication token
+      token: authToken, // WebSocket authentication token
     };
 
     return createSuccessResponse(initResponse, {}, 202);
-
   } catch (error) {
     return createErrorResponse(error.message, 500, ErrorCodes.INTERNAL_ERROR);
   }
@@ -177,9 +194,9 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
           {
             title: book.title,
             author: book.author,
-            isbn: book.isbn
+            isbn: book.isbn,
           },
-          env
+          env,
         );
 
         // Return EnrichedBookDTO structure (iOS expects nested 'enriched' field)
@@ -192,8 +209,8 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
             enriched: {
               work: enriched.work,
               edition: enriched.edition,
-              authors: enriched.authors || []
-            }
+              authors: enriched.authors || [],
+            },
           };
         } else {
           return {
@@ -201,7 +218,7 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
             author: book.author,
             isbn: book.isbn,
             success: false,
-            error: 'Book not found in any provider'
+            error: "Book not found in any provider",
           };
         }
       },
@@ -212,18 +229,18 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
           : `Enriching (${completed}/${total}): ${title}`;
 
         // Call DO with pipeline and payload (DO constructs the message envelope)
-        await doStub.updateProgress('batch_enrichment', {
+        await doStub.updateProgress("batch_enrichment", {
           progress,
           status,
           processedCount: completed,
           currentItem: title,
         });
       },
-      10 // Concurrency limit
+      10, // Concurrency limit
     );
 
     const totalProcessed = enrichedBooks.length;
-    const successCount = enrichedBooks.filter(b => b.success === true).length;
+    const successCount = enrichedBooks.filter((b) => b.success === true).length;
     const failureCount = totalProcessed - successCount;
     const duration = Date.now() - startTime;
 
@@ -232,24 +249,23 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
     await env.KV_CACHE.put(
       resourceId,
       JSON.stringify(enrichedBooks),
-      { expirationTtl: 3600 } // 1 hour
+      { expirationTtl: 3600 }, // 1 hour
     );
 
     // Send summary-only payload to DO (mobile-optimized)
-    await doStub.complete('batch_enrichment', {
+    await doStub.complete("batch_enrichment", {
       summary: {
         totalProcessed,
         successCount,
         failureCount,
         duration,
         resourceId,
-      }
+      },
     });
-
   } catch (error) {
     // Call sendError on DO (DO constructs the error message)
-    await doStub.sendError('batch_enrichment', {
-      code: 'E_BATCH_PROCESSING_FAILED',
+    await doStub.sendError("batch_enrichment", {
+      code: "E_BATCH_PROCESSING_FAILED",
       message: error.message,
       retryable: true,
     });

@@ -1,6 +1,6 @@
 // src/services/unified-cache.js
-import { EdgeCacheService } from './edge-cache.js';
-import { KVCacheService } from './kv-cache.js';
+import { EdgeCacheService } from "./edge-cache.js";
+import { KVCacheService } from "./kv-cache.js";
 
 /**
  * Unified Cache Service - Single entry point for all cache operations
@@ -14,8 +14,8 @@ import { KVCacheService } from './kv-cache.js';
  */
 export class UnifiedCacheService {
   constructor(env, ctx) {
-    this.edgeCache = new EdgeCacheService();
-    this.kvCache = new KVCacheService(env);
+    this.edgeCache = new EdgeCacheService(env, ctx);
+    this.kvCache = new KVCacheService(env, ctx);
     this.env = env;
     this.ctx = ctx;
   }
@@ -32,25 +32,25 @@ export class UnifiedCacheService {
 
     // Tier 1: Edge Cache (fastest, 80% hit rate) with SWR support
     const edgeResult = await this.edgeCache.get(cacheKey, {
-      maxAge: 3600,          // 1 hour fresh
-      staleWhileRevalidate: 86400  // 24 hours stale
+      maxAge: 3600, // 1 hour fresh
+      staleWhileRevalidate: 86400, // 24 hours stale
     });
 
     if (edgeResult) {
       // Fresh hit - return immediately
       if (!edgeResult.stale) {
-        this.logMetrics('edge_hit_fresh', cacheKey, Date.now() - startTime);
+        this.logMetrics("edge_hit_fresh", cacheKey, Date.now() - startTime);
         return edgeResult;
       }
 
       // Stale hit - return stale data but trigger background refresh
-      this.logMetrics('edge_hit_stale', cacheKey, Date.now() - startTime);
-      console.log(`🔄 Serving stale edge cache (age: ${edgeResult.age}s), triggering background refresh`);
+      this.logMetrics("edge_hit_stale", cacheKey, Date.now() - startTime);
+      console.log(
+        `🔄 Serving stale edge cache (age: ${edgeResult.age}s), triggering background refresh`,
+      );
 
       // Background refresh (non-blocking)
-      this.ctx.waitUntil(
-        this.refreshStaleCache(cacheKey, endpoint, options)
-      );
+      this.ctx.waitUntil(this.refreshStaleCache(cacheKey, endpoint, options));
 
       return edgeResult;
     }
@@ -60,30 +60,31 @@ export class UnifiedCacheService {
     if (kvResult) {
       // Populate edge cache for next request (async, non-blocking)
       this.ctx.waitUntil(
-        this.edgeCache.set(cacheKey, kvResult.data, 6 * 60 * 60) // 6h edge TTL
+        this.edgeCache.set(cacheKey, kvResult.data, 6 * 60 * 60), // 6h edge TTL
       );
 
-      this.logMetrics('kv_hit', cacheKey, Date.now() - startTime);
+      this.logMetrics("kv_hit", cacheKey, Date.now() - startTime);
       return kvResult;
     }
 
     // NEW: Tier 2.5: Check Cold Storage Index
-    const coldIndex = await this.env.CACHE.get(`cold-index:${cacheKey}`, 'json');
+    const coldIndex = await this.env.CACHE.get(
+      `cold-index:${cacheKey}`,
+      "json",
+    );
     if (coldIndex) {
-      this.logMetrics('cold_check', cacheKey, Date.now() - startTime);
+      this.logMetrics("cold_check", cacheKey, Date.now() - startTime);
 
       // Trigger background rehydration (non-blocking)
-      this.ctx.waitUntil(
-        this.rehydrateFromR2(cacheKey, coldIndex, endpoint)
-      );
+      this.ctx.waitUntil(this.rehydrateFromR2(cacheKey, coldIndex, endpoint));
 
       // Return null immediately (user gets fresh API data)
-      return { data: null, source: 'COLD', latency: Date.now() - startTime };
+      return { data: null, source: "COLD", latency: Date.now() - startTime };
     }
 
     // Tier 3: API Miss
-    this.logMetrics('api_miss', cacheKey, Date.now() - startTime);
-    return { data: null, source: 'MISS', latency: Date.now() - startTime };
+    this.logMetrics("api_miss", cacheKey, Date.now() - startTime);
+    return { data: null, source: "MISS", latency: Date.now() - startTime };
   }
 
   /**
@@ -119,7 +120,9 @@ export class UnifiedCacheService {
       //   await this.edgeCache.set(cacheKey, result, 6 * 60 * 60);
       // }
 
-      console.log(`⚠️ Background refresh stub - not yet implemented (deferred to Sprint 3-4)`);
+      console.log(
+        `⚠️ Background refresh stub - not yet implemented (deferred to Sprint 3-4)`,
+      );
     } catch (error) {
       console.error(`❌ Background refresh failed for ${cacheKey}:`, error);
       // Don't throw - background refresh failures are non-critical
@@ -148,7 +151,7 @@ export class UnifiedCacheService {
 
       // 2. Restore to KV with extended TTL (7 days)
       await this.kvCache.set(cacheKey, data, endpoint, {
-        ttl: 7 * 24 * 60 * 60
+        ttl: 7 * 24 * 60 * 60,
       });
 
       // 3. Populate Edge cache
@@ -158,10 +161,9 @@ export class UnifiedCacheService {
       await this.env.CACHE.delete(`cold-index:${cacheKey}`);
 
       // 5. Log rehydration
-      this.logMetrics('r2_rehydrated', cacheKey, 0);
+      this.logMetrics("r2_rehydrated", cacheKey, 0);
 
       console.log(`Successfully rehydrated ${cacheKey}`);
-
     } catch (error) {
       console.error(`Rehydration failed for ${cacheKey}:`, error);
       // Log error but don't throw (background operation)
@@ -181,10 +183,10 @@ export class UnifiedCacheService {
       this.env.CACHE_ANALYTICS.writeDataPoint({
         blobs: [event, cacheKey],
         doubles: [latency],
-        indexes: [event]
+        indexes: [event],
       });
     } catch (error) {
-      console.error('Failed to log cache metrics:', error);
+      console.error("Failed to log cache metrics:", error);
     }
   }
 }

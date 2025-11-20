@@ -4,25 +4,76 @@
  */
 
 /**
+ * Track cache event in CacheMetricsDO (fire-and-forget)
+ * This function dispatches events without blocking or requiring ctx
+ */
+function trackCacheEvent(env, ctx, event) {
+  if (!env.CACHE_METRICS_DO) {
+    return; // Skip if DO not available
+  }
+
+  const doFetch = async () => {
+    try {
+      const id = env.CACHE_METRICS_DO.idFromName("cache-metrics-singleton");
+      const stub = env.CACHE_METRICS_DO.get(id);
+      await stub.fetch("http://do/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(event),
+      });
+    } catch (error) {
+      console.error("Failed to track cache event:", error);
+    }
+  };
+
+  // Use ctx.waitUntil if available, otherwise fire-and-forget
+  if (ctx && ctx.waitUntil) {
+    ctx.waitUntil(doFetch());
+  } else {
+    // Fire-and-forget (best effort) - don't await
+    doFetch();
+  }
+}
+
+/**
+ * Extract prefix from cache key (e.g., "book:isbn:123" -> "book")
+ */
+function extractPrefix(key) {
+  const parts = key.split(":");
+  return parts[0] || "unknown";
+}
+
+/**
  * Get cached data from KV store with metadata
  * @param {string} key - Cache key
  * @param {Object} env - Worker environment bindings
+ * @param {ExecutionContext} ctx - Execution context for waitUntil (optional)
  * @returns {Promise<Object|null>} Cached data with metadata or null if not found
  */
-export async function getCached(key, env) {
+export async function getCached(key, env, ctx = null) {
+  const timestamp = Date.now();
+  const prefix = extractPrefix(key);
+
   try {
-    const cached = await env.CACHE.get(key, "json");
-    if (cached) {
-      console.log(`Cache HIT: ${key}`);
+    const { value, metadata } = await env.CACHE.getWithMetadata(key, "json");
+    if (value) {
+      // Track cache hit (non-blocking)
+      trackCacheEvent(env, ctx, {
+        type: "hit",
+        prefix,
+        key,
+        timestamp,
+        hotTtlExpiry: metadata?.hotTtlExpiry,
+      });
 
       // Handle both old format (direct data) and new format (with metadata)
-      if (cached.data && cached.cachedAt) {
+      if (value.data && value.cachedAt) {
         // New format with metadata
-        const age = Math.floor((Date.now() - cached.cachedAt) / 1000); // Age in seconds
-        const ttl = cached.ttl || 0;
+        const age = Math.floor((Date.now() - value.cachedAt) / 1000); // Age in seconds
+        const ttl = value.ttl || 0;
 
         return {
-          data: cached.data,
+          data: value.data,
           cacheMetadata: {
             hit: true,
             age: age,
@@ -32,7 +83,7 @@ export async function getCached(key, env) {
       } else {
         // Old format (direct data) - backward compatibility
         return {
-          data: cached,
+          data: value,
           cacheMetadata: {
             hit: true,
             age: 0,
@@ -45,7 +96,14 @@ export async function getCached(key, env) {
     console.error("Cache read error:", error);
   }
 
-  console.log(`Cache MISS: ${key}`);
+  // Track cache miss (non-blocking)
+  trackCacheEvent(env, ctx, {
+    type: "miss",
+    prefix,
+    key,
+    timestamp,
+  });
+
   return null;
 }
 
@@ -55,20 +113,43 @@ export async function getCached(key, env) {
  * @param {Object} value - Data to cache
  * @param {number} ttl - Time to live in seconds
  * @param {Object} env - Worker environment bindings
+ * @param {ExecutionContext} ctx - Execution context for waitUntil (optional)
+ * @param {number} hotTtl - Hot TTL in seconds for effectiveness tracking (optional)
  * @returns {Promise<void>}
  */
-export async function setCached(key, value, ttl, env) {
+export async function setCached(
+  key,
+  value,
+  ttl,
+  env,
+  ctx = null,
+  hotTtl = null,
+) {
+  const timestamp = Date.now();
+  const prefix = extractPrefix(key);
+
   try {
     const cachedWithMeta = {
       data: value,
-      cachedAt: Date.now(), // Timestamp for age calculation
+      cachedAt: timestamp, // Timestamp for age calculation
       ttl: ttl, // Original TTL for headers
     };
 
+    // Calculate hot TTL expiry for effectiveness tracking
+    const hotTtlExpiry = hotTtl ? timestamp + hotTtl * 1000 : null;
+
     await env.CACHE.put(key, JSON.stringify(cachedWithMeta), {
       expirationTtl: ttl,
+      metadata: hotTtlExpiry ? { hotTtlExpiry } : {},
     });
-    console.log(`Cache SET: ${key} (TTL: ${ttl}s)`);
+
+    // Track cache write (non-blocking)
+    trackCacheEvent(env, ctx, {
+      type: "write",
+      prefix,
+      key,
+      timestamp,
+    });
   } catch (error) {
     console.error("Cache write error:", error);
   }

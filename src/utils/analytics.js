@@ -43,7 +43,7 @@
  */
 export async function writeCacheMetrics(env, metrics) {
   if (!env.CACHE_ANALYTICS) {
-    console.warn('CACHE_ANALYTICS binding not available');
+    console.warn("CACHE_ANALYTICS binding not available");
     return;
   }
 
@@ -52,7 +52,7 @@ export async function writeCacheMetrics(env, metrics) {
     // Analytics harvest script expects: blob1=<isbn_number>, blob2='isbn_search', index1='google-books-isbn'
     // For other searches, log endpoint and image quality (legacy format)
     const blobs = metrics.isbn
-      ? [metrics.isbn, 'isbn_search']  // blob1=<isbn_number>, blob2='isbn_search'
+      ? [metrics.isbn, "isbn_search"] // blob1=<isbn_number>, blob2='isbn_search'
       : [metrics.endpoint, metrics.imageQuality];
 
     // Analytics Engine supports maximum of 1 index per data point
@@ -60,20 +60,20 @@ export async function writeCacheMetrics(env, metrics) {
     // For other searches, use cache hit/miss status as index
     // Note: Cache hit status is still available in blobs array for all searches
     const indexes = metrics.isbn
-      ? ['google-books-isbn']  // Primary index for ISBN search filtering
-      : [metrics.cacheHit ? 'HIT' : 'MISS'];  // Cache status for non-ISBN searches
+      ? ["google-books-isbn"] // Primary index for ISBN search filtering
+      : [metrics.cacheHit ? "HIT" : "MISS"]; // Cache status for non-ISBN searches
 
     await env.CACHE_ANALYTICS.writeDataPoint({
       blobs,
       doubles: [
         metrics.responseTime,
         metrics.dataCompleteness,
-        metrics.itemCount
+        metrics.itemCount,
       ],
-      indexes
+      indexes,
     });
   } catch (error) {
-    console.error('Failed to write cache metrics:', error);
+    console.error("Failed to write cache metrics:", error);
     // TODO: Add error tracking metric (env.ANALYTICS_ERRORS.increment())
     // Don't throw - would break search requests. Silent failure acceptable for analytics.
   }

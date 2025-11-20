@@ -32,7 +32,7 @@ export class RateLimiter {
     // Refill tokens based on time passed
     this.tokens = Math.min(
       this.tokensPerSecond,
-      this.tokens + timePassed * this.tokensPerSecond
+      this.tokens + timePassed * this.tokensPerSecond,
     );
     this.lastRefill = now;
 
@@ -61,7 +61,7 @@ export class RateLimiter {
    * @param {number} ms - Milliseconds to sleep
    */
   sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -80,7 +80,7 @@ export class RateLimiter {
     const timePassed = (now - this.lastRefill) / 1000;
     return Math.min(
       this.tokensPerSecond,
-      this.tokens + timePassed * this.tokensPerSecond
+      this.tokens + timePassed * this.tokensPerSecond,
     );
   }
 }

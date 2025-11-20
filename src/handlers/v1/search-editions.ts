@@ -5,14 +5,25 @@
  * Used by iOS "Find Different Edition" feature
  */
 
-import type { BookSearchResponse } from '../../types/responses.js';
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../../utils/response-builder.js';
-import { normalizeTitle, normalizeAuthor, normalizeISBN } from '../../utils/normalization.js';
-import { setCached, generateCacheKey } from '../../utils/cache.js';
-import { UnifiedCacheService } from '../../services/unified-cache.js';
-import { extractUniqueAuthors, removeAuthorsFromWorks } from '../../utils/response-transformer.js';
-import * as externalApis from '../../services/external-apis.ts';
-import type { EditionDTO, WorkDTO, AuthorDTO } from '../../types/canonical.js';
+import type { BookSearchResponse } from "../../types/responses.js";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  ErrorCodes,
+} from "../../utils/response-builder.js";
+import {
+  normalizeTitle,
+  normalizeAuthor,
+  normalizeISBN,
+} from "../../utils/normalization.js";
+import { setCached, generateCacheKey } from "../../utils/cache.js";
+import { UnifiedCacheService } from "../../services/unified-cache.js";
+import {
+  extractUniqueAuthors,
+  removeAuthorsFromWorks,
+} from "../../utils/response-transformer.js";
+import * as externalApis from "../../services/external-apis.ts";
+import type { EditionDTO, WorkDTO, AuthorDTO } from "../../types/canonical.js";
 
 /**
  * Calculate Levenshtein distance for fuzzy string matching
@@ -36,9 +47,9 @@ function levenshteinDistance(str1: string, str2: string): number {
     for (let j = 1; j <= len2; j++) {
       const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
       matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,      // deletion
-        matrix[i][j - 1] + 1,      // insertion
-        matrix[i - 1][j - 1] + cost // substitution
+        matrix[i - 1][j] + 1, // deletion
+        matrix[i][j - 1] + 1, // insertion
+        matrix[i - 1][j - 1] + cost, // substitution
       );
     }
   }
@@ -53,37 +64,42 @@ function levenshteinDistance(str1: string, str2: string): number {
 function isTitleMatch(title1: string, title2: string): boolean {
   const normalized1 = normalizeTitle(title1);
   const normalized2 = normalizeTitle(title2);
-  
+
   // Exact match after normalization
   if (normalized1 === normalized2) return true;
-  
+
   // Check if one title contains the other (for subtitle variations)
   if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) {
     return true;
   }
-  
+
   // Fuzzy match using Levenshtein distance
   const maxLen = Math.max(normalized1.length, normalized2.length);
   if (maxLen === 0) return false;
-  
+
   const distance = levenshteinDistance(normalized1, normalized2);
-  const similarity = 1 - (distance / maxLen);
-  
+  const similarity = 1 - distance / maxLen;
+
   return similarity >= 0.7; // 70% similarity threshold
 }
 
 /**
  * Check if an author name matches any author in the list
  */
-function isAuthorMatch(searchAuthor: string, editionAuthors: string[]): boolean {
+function isAuthorMatch(
+  searchAuthor: string,
+  editionAuthors: string[],
+): boolean {
   const normalizedSearch = normalizeAuthor(searchAuthor);
-  
-  return editionAuthors.some(author => {
+
+  return editionAuthors.some((author) => {
     const normalizedAuthor = normalizeAuthor(author);
     // Check if either contains the other (handles "Andy Weir" vs "Weir, Andy")
-    return normalizedAuthor.includes(normalizedSearch) || 
-           normalizedSearch.includes(normalizedAuthor) ||
-           normalizedAuthor === normalizedSearch;
+    return (
+      normalizedAuthor.includes(normalizedSearch) ||
+      normalizedSearch.includes(normalizedAuthor) ||
+      normalizedAuthor === normalizedSearch
+    );
   });
 }
 
@@ -93,15 +109,15 @@ function isAuthorMatch(searchAuthor: string, editionAuthors: string[]): boolean 
  */
 function isbn10To13(isbn10: string): string {
   if (isbn10.length !== 10) return isbn10;
-  
-  const base = '978' + isbn10.substring(0, 9);
+
+  const base = "978" + isbn10.substring(0, 9);
   let sum = 0;
-  
+
   for (let i = 0; i < 12; i++) {
     const digit = parseInt(base[i]);
     sum += digit * (i % 2 === 0 ? 1 : 3);
   }
-  
+
   const checkDigit = (10 - (sum % 10)) % 10;
   return base + checkDigit;
 }
@@ -123,7 +139,7 @@ function normalizeISBNForDedup(isbn: string): string {
  */
 function deduplicateEditions(editions: EditionDTO[]): EditionDTO[] {
   const isbnMap = new Map<string, EditionDTO>();
-  
+
   for (const edition of editions) {
     // Get all ISBNs for this edition (primary + array)
     const isbns = new Set<string>();
@@ -135,7 +151,7 @@ function deduplicateEditions(editions: EditionDTO[]): EditionDTO[] {
         isbns.add(normalizeISBNForDedup(isbn));
       }
     }
-    
+
     // Check if we've already seen any of these ISBNs
     let isDuplicate = false;
     for (const isbn of isbns) {
@@ -149,14 +165,14 @@ function deduplicateEditions(editions: EditionDTO[]): EditionDTO[] {
         break;
       }
     }
-    
+
     // If not a duplicate, add all ISBNs to map
     if (!isDuplicate && isbns.size > 0) {
       const primaryISBN = Array.from(isbns)[0];
       isbnMap.set(primaryISBN, edition);
     }
   }
-  
+
   return Array.from(isbnMap.values());
 }
 
@@ -169,11 +185,11 @@ function deduplicateEditions(editions: EditionDTO[]): EditionDTO[] {
  */
 function sortEditions(editions: EditionDTO[]): EditionDTO[] {
   const formatPriority: Record<string, number> = {
-    'Hardcover': 1,
-    'Paperback': 2,
-    'E-book': 3,
-    'Audiobook': 4,
-    'Other': 5
+    Hardcover: 1,
+    Paperback: 2,
+    "E-book": 3,
+    Audiobook: 4,
+    Other: 5,
   };
 
   return editions.sort((a, b) => {
@@ -191,8 +207,8 @@ function sortEditions(editions: EditionDTO[]): EditionDTO[] {
     }
 
     // Finally by publication date (newest first)
-    const dateA = a.publicationDate || '0000';
-    const dateB = b.publicationDate || '0000';
+    const dateA = a.publicationDate || "0000";
+    const dateB = b.publicationDate || "0000";
     return dateB.localeCompare(dateA);
   });
 }
@@ -203,28 +219,28 @@ export async function handleSearchEditions(
   limit: number = 20,
   env: any,
   ctx: ExecutionContext,
-  request: Request | null = null
+  request: Request | null = null,
 ): Promise<Response> {
   const startTime = Date.now();
 
   // Validation
   if (!workTitle || workTitle.trim().length === 0) {
     return createErrorResponse(
-      'workTitle parameter is required',
+      "workTitle parameter is required",
       400,
       ErrorCodes.INVALID_QUERY,
       { workTitle, author },
-      request
+      request,
     );
   }
 
   if (!author || author.trim().length === 0) {
     return createErrorResponse(
-      'author parameter is required',
+      "author parameter is required",
       400,
       ErrorCodes.INVALID_QUERY,
       { workTitle, author },
-      request
+      request,
     );
   }
 
@@ -234,14 +250,14 @@ export async function handleSearchEditions(
     const normalizedAuthor = normalizeAuthor(author);
 
     // Check cache first (7-day TTL as specified)
-    const cacheKey = generateCacheKey('v1:editions', {
+    const cacheKey = generateCacheKey("v1:editions", {
       title: normalizedTitle,
-      author: normalizedAuthor
+      author: normalizedAuthor,
     });
 
     const cache = new UnifiedCacheService(env, ctx);
-    const cachedResult = await cache.get(cacheKey, 'editions', {
-      query: `${workTitle} by ${author}`
+    const cachedResult = await cache.get(cacheKey, "editions", {
+      query: `${workTitle} by ${author}`,
     });
 
     if (cachedResult?.data) {
@@ -251,23 +267,23 @@ export async function handleSearchEditions(
         {
           ...cachedResult.data.meta,
           cached: true,
-          cacheSource: cachedResult.source // EDGE or KV
+          cacheSource: cachedResult.source, // EDGE or KV
         },
         200,
-        request
+        request,
       );
     }
 
     console.log(
       `v1 editions search - workTitle: "${workTitle}" (normalized: "${normalizedTitle}"), ` +
-      `author: "${author}" (normalized: "${normalizedAuthor}"), limit: ${limit}`
+        `author: "${author}" (normalized: "${normalizedAuthor}"), limit: ${limit}`,
     );
 
     // Primary: Query ISBNdb for editions (trim to handle whitespace)
     const isbndbResult = await externalApis.getISBNdbEditionsForWork(
       workTitle.trim(),
       author.trim(),
-      env
+      env,
     );
 
     // Fallback: Query Google Books for additional coverage (trim to handle whitespace)
@@ -275,7 +291,7 @@ export async function handleSearchEditions(
     const googleResult = await externalApis.searchGoogleBooks(
       googleQuery,
       { maxResults: 40 }, // Request more to account for filtering
-      env
+      env,
     );
 
     // Combine editions from both providers
@@ -292,9 +308,10 @@ export async function handleSearchEditions(
     }
 
     // Filter editions to ensure they match the work
-    const filteredEditions = allEditions.filter(edition => {
+    const filteredEditions = allEditions.filter((edition) => {
       // Check title match (fuzzy)
-      const titleMatches = edition.title && isTitleMatch(workTitle, edition.title);
+      const titleMatches =
+        edition.title && isTitleMatch(workTitle, edition.title);
       if (!titleMatches) return false;
 
       // Check author match (if we have author data for the edition)
@@ -320,7 +337,7 @@ export async function handleSearchEditions(
         404,
         ErrorCodes.NOT_FOUND,
         { workTitle, author, processingTime: Date.now() - startTime },
-        request
+        request,
       );
     }
 
@@ -328,22 +345,22 @@ export async function handleSearchEditions(
     const limitedEditions = sortedEditions.slice(0, limit);
 
     // Determine provider for metadata
-    let provider = 'none';
+    let provider = "none";
     if (limitedEditions.length > 0) {
       const providers = new Set(
-        limitedEditions.map(e => e.primaryProvider).filter(Boolean)
+        limitedEditions.map((e) => e.primaryProvider).filter(Boolean),
       );
       if (providers.size === 1) {
-        provider = Array.from(providers)[0] || 'unknown';
+        provider = Array.from(providers)[0] || "unknown";
       } else if (providers.size > 1) {
-        provider = 'orchestrated:' + Array.from(providers).join('+');
+        provider = "orchestrated:" + Array.from(providers).join("+");
       }
     }
 
     const responseData = {
       works: [], // Empty - not needed for editions endpoint
       editions: limitedEditions,
-      authors: [] // Empty - not needed for editions endpoint
+      authors: [], // Empty - not needed for editions endpoint
     };
 
     const response = createSuccessResponse(
@@ -354,7 +371,7 @@ export async function handleSearchEditions(
         cached: false,
       },
       200,
-      request
+      request,
     );
 
     // Write to cache (7-day TTL as specified) - save legacy format for compatibility
@@ -366,33 +383,35 @@ export async function handleSearchEditions(
         processingTime: Date.now() - startTime,
         provider,
         cached: false,
-      }
+      },
     };
     const ttl = 7 * 24 * 60 * 60; // 604800 seconds
     ctx.waitUntil(setCached(cacheKey, legacyResponseObject, ttl, env));
-    console.log(`💾 Cache WRITE: /v1/editions/search (${cacheKey}, TTL: ${ttl}s)`);
+    console.log(
+      `💾 Cache WRITE: /v1/editions/search (${cacheKey}, TTL: ${ttl}s)`,
+    );
 
     return response;
   } catch (error: any) {
-    console.error('Error in v1 editions search:', error);
+    console.error("Error in v1 editions search:", error);
 
     // Check if all providers failed
-    if (error.message?.includes('API') || error.message?.includes('fetch')) {
+    if (error.message?.includes("API") || error.message?.includes("fetch")) {
       return createErrorResponse(
-        'All book data providers failed',
+        "All book data providers failed",
         503,
         ErrorCodes.PROVIDER_ERROR,
         { error: error.toString(), processingTime: Date.now() - startTime },
-        request
+        request,
       );
     }
 
     return createErrorResponse(
-      error.message || 'Internal server error',
+      error.message || "Internal server error",
       500,
       ErrorCodes.INTERNAL_ERROR,
       { error: error.toString(), processingTime: Date.now() - startTime },
-      request
+      request,
     );
   }
 }

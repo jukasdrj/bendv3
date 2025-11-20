@@ -26,24 +26,33 @@ function scoreEdition(volumeInfo) {
   }
 
   // Edition type (30 points max)
-  const description = (volumeInfo.description || '').toLowerCase();
-  const title = (volumeInfo.title || '').toLowerCase();
+  const description = (volumeInfo.description || "").toLowerCase();
+  const title = (volumeInfo.title || "").toLowerCase();
 
-  if (description.includes('illustrated') || title.includes('illustrated')) {
+  if (description.includes("illustrated") || title.includes("illustrated")) {
     score += 30;
-  } else if (description.includes('first edition') || title.includes('first edition')) {
+  } else if (
+    description.includes("first edition") ||
+    title.includes("first edition")
+  ) {
     score += 25;
-  } else if (description.includes('collector') || title.includes('collector')) {
+  } else if (description.includes("collector") || title.includes("collector")) {
     score += 25;
-  } else if (description.includes('anniversary') || title.includes('anniversary')) {
+  } else if (
+    description.includes("anniversary") ||
+    title.includes("anniversary")
+  ) {
     score += 20;
   }
 
   // Binding type (15 points max)
-  if (volumeInfo.printType === 'BOOK') {
-    if (title.includes('hardcover') || description.includes('hardcover')) {
+  if (volumeInfo.printType === "BOOK") {
+    if (title.includes("hardcover") || description.includes("hardcover")) {
       score += 15;
-    } else if (title.includes('paperback') || description.includes('paperback')) {
+    } else if (
+      title.includes("paperback") ||
+      description.includes("paperback")
+    ) {
       score += 10;
     }
   }
@@ -81,23 +90,25 @@ export async function discoverEditions(workMetadata, env) {
   const { title, authors } = workMetadata;
 
   if (!title || !authors || authors.length === 0) {
-    console.warn('Missing title or authors for edition discovery');
+    console.warn("Missing title or authors for edition discovery");
     return [];
   }
 
   try {
     // Build Google Books search query
     // Format: intitle:"Exact Title" inauthor:"Author Name"
-    const titleQuery = `intitle:"${title.replace(/"/g, '')}"`;
-    const authorQuery = authors.map(a => `inauthor:"${a.replace(/"/g, '')}"`).join(' ');
+    const titleQuery = `intitle:"${title.replace(/"/g, "")}"`;
+    const authorQuery = authors
+      .map((a) => `inauthor:"${a.replace(/"/g, "")}"`)
+      .join(" ");
     const query = `${titleQuery} ${authorQuery}`;
 
     // Query Google Books API
-    const url = new URL('https://www.googleapis.com/books/v1/volumes');
-    url.searchParams.set('q', query);
-    url.searchParams.set('maxResults', '40'); // Max allowed by Google Books
-    url.searchParams.set('printType', 'books'); // Exclude magazines
-    url.searchParams.set('orderBy', 'relevance');
+    const url = new URL("https://www.googleapis.com/books/v1/volumes");
+    url.searchParams.set("q", query);
+    url.searchParams.set("maxResults", "40"); // Max allowed by Google Books
+    url.searchParams.set("printType", "books"); // Exclude magazines
+    url.searchParams.set("orderBy", "relevance");
 
     const response = await fetch(url.toString());
 
@@ -115,14 +126,14 @@ export async function discoverEditions(workMetadata, env) {
 
     // Score each edition
     const editions = data.items
-      .map(item => {
+      .map((item) => {
         const volumeInfo = item.volumeInfo;
         const score = scoreEdition(volumeInfo);
 
         // Extract ISBN-13 (prefer over ISBN-10)
         const identifiers = volumeInfo.industryIdentifiers || [];
-        const isbn13 = identifiers.find(id => id.type === 'ISBN_13');
-        const isbn10 = identifiers.find(id => id.type === 'ISBN_10');
+        const isbn13 = identifiers.find((id) => id.type === "ISBN_13");
+        const isbn10 = identifiers.find((id) => id.type === "ISBN_10");
         const isbn = isbn13?.identifier || isbn10?.identifier;
 
         return {
@@ -141,21 +152,27 @@ export async function discoverEditions(workMetadata, env) {
             hasExtraLargeImage: !!volumeInfo.imageLinks?.extraLarge,
             hasLargeImage: !!volumeInfo.imageLinks?.large,
             hasMediumImage: !!volumeInfo.imageLinks?.medium,
-            isIllustrated: (volumeInfo.description || volumeInfo.title || '').toLowerCase().includes('illustrated'),
-            isFirstEdition: (volumeInfo.description || volumeInfo.title || '').toLowerCase().includes('first edition'),
+            isIllustrated: (volumeInfo.description || volumeInfo.title || "")
+              .toLowerCase()
+              .includes("illustrated"),
+            isFirstEdition: (volumeInfo.description || volumeInfo.title || "")
+              .toLowerCase()
+              .includes("first edition"),
             binding: volumeInfo.printType,
-            publicationYear: volumeInfo.publishedDate?.substring(0, 4)
-          }
+            publicationYear: volumeInfo.publishedDate?.substring(0, 4),
+          },
         };
       })
-      .filter(edition => edition.isbn) // Only keep editions with ISBNs
+      .filter((edition) => edition.isbn) // Only keep editions with ISBNs
       .sort((a, b) => b.score - a.score); // Sort by score descending
 
-    console.log(`Discovered ${editions.length} editions for "${title}" (top score: ${editions[0]?.score || 0})`);
+    console.log(
+      `Discovered ${editions.length} editions for "${title}" (top score: ${editions[0]?.score || 0})`,
+    );
 
     return editions;
   } catch (error) {
-    console.error('Edition discovery error:', error);
+    console.error("Edition discovery error:", error);
     return [];
   }
 }
@@ -177,17 +194,22 @@ export async function getTopEditions(workMetadata, env, limit = 3) {
   const topEditions = allEditions.slice(0, limit);
 
   // Log edition selection for debugging
-  console.log(`Selected top ${topEditions.length} editions for "${workMetadata.title}":`);
+  console.log(
+    `Selected top ${topEditions.length} editions for "${workMetadata.title}":`,
+  );
   topEditions.forEach((ed, idx) => {
-    console.log(`  ${idx + 1}. ISBN: ${ed.isbn}, Score: ${ed.score}, Publisher: ${ed.publisher || 'Unknown'}`);
+    console.log(
+      `  ${idx + 1}. ISBN: ${ed.isbn}, Score: ${ed.score}, Publisher: ${ed.publisher || "Unknown"}`,
+    );
   });
 
-  return topEditions.map(ed => ({
+  return topEditions.map((ed) => ({
     isbn: ed.isbn,
     title: ed.title,
     score: ed.score,
-    imageUrl: ed.imageLinks?.large || ed.imageLinks?.medium || ed.imageLinks?.thumbnail,
+    imageUrl:
+      ed.imageLinks?.large || ed.imageLinks?.medium || ed.imageLinks?.thumbnail,
     publisher: ed.publisher,
-    publishedDate: ed.publishedDate
+    publishedDate: ed.publishedDate,
   }));
 }

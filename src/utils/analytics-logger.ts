@@ -67,7 +67,7 @@ export async function logExternalApiCall<T>(
       const resultCount = (result as any)?.works?.length ?? 0;
 
       env.ANALYTICS_ENGINE.writeDataPoint({
-        blobs: [query || isbn || 'unknown', eventType, provider],
+        blobs: [query || isbn || "unknown", eventType, provider],
         doubles: [processingTime, resultCount],
         indexes: [`${provider.toLowerCase()}-success`],
       });
@@ -85,7 +85,7 @@ export async function logExternalApiCall<T>(
       const eventType = isbn ? "isbn_search_error" : "search_error";
 
       env.ANALYTICS_ENGINE.writeDataPoint({
-        blobs: [query || isbn || 'unknown', eventType, provider, errorMessage],
+        blobs: [query || isbn || "unknown", eventType, provider, errorMessage],
         doubles: [processingTime, 0],
         indexes: [`${provider.toLowerCase()}-error`],
       });

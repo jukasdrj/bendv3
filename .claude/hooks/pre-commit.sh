@@ -28,7 +28,7 @@ SENSITIVE_FILES=(
 )
 
 for pattern in "${SENSITIVE_FILES[@]}"; do
-  if git diff --cached --name-only | grep -q "$pattern"; then
+  if git diff --cached --name-only | grep -qF "$pattern"; then
     echo -e "${RED}✗ Blocked: Attempting to commit sensitive file matching '$pattern'${NC}"
     FAILED=1
   fi

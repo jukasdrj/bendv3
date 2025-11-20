@@ -9,36 +9,36 @@
  */
 const CANONICAL_GENRES: Record<string, string[]> = {
   // Fiction categories
-  'Science Fiction': ['Sci-Fi', 'Science Fiction', 'SF', 'Scifi'],
-  'Fantasy': ['Fantasy', 'Fantasie'],
-  'Mystery': ['Mystery', 'Detective', 'Whodunit', 'Mystrey'],
-  'Thriller': ['Thriller', 'Suspense'],
-  'Romance': ['Romance', 'Love Story'],
-  'Horror': ['Horror', 'Scary'],
-  'Literary Fiction': ['Literary', 'Literature', 'Literary Fiction'],
-  'Historical Fiction': ['Historical Fiction', 'Historical Novel'],
+  "Science Fiction": ["Sci-Fi", "Science Fiction", "SF", "Scifi"],
+  Fantasy: ["Fantasy", "Fantasie"],
+  Mystery: ["Mystery", "Detective", "Whodunit", "Mystrey"],
+  Thriller: ["Thriller", "Suspense"],
+  Romance: ["Romance", "Love Story"],
+  Horror: ["Horror", "Scary"],
+  "Literary Fiction": ["Literary", "Literature", "Literary Fiction"],
+  "Historical Fiction": ["Historical Fiction", "Historical Novel"],
 
   // Non-fiction categories
-  'Biography': ['Biography', 'Memoir', 'Autobiography'],
-  'History': ['History', 'Historical'],
-  'Science': ['Science', 'Popular Science'],
-  'Philosophy': ['Philosophy', 'Philosophical'],
-  'Self-Help': ['Self-Help', 'Self Improvement', 'Personal Development'],
-  'Business': ['Business', 'Economics', 'Entrepreneurship'],
-  'True Crime': ['True Crime', 'Crime'],
+  Biography: ["Biography", "Memoir", "Autobiography"],
+  History: ["History", "Historical"],
+  Science: ["Science", "Popular Science"],
+  Philosophy: ["Philosophy", "Philosophical"],
+  "Self-Help": ["Self-Help", "Self Improvement", "Personal Development"],
+  Business: ["Business", "Economics", "Entrepreneurship"],
+  "True Crime": ["True Crime", "Crime"],
 
   // Age groups
-  'Young Adult': ['Young Adult', 'YA', 'Teen'],
-  "Children's": ["Children's", 'Kids', 'Juvenile'],
-  'Middle Grade': ['Middle Grade', 'MG'],
+  "Young Adult": ["Young Adult", "YA", "Teen"],
+  "Children's": ["Children's", "Kids", "Juvenile"],
+  "Middle Grade": ["Middle Grade", "MG"],
 
   // Special categories
-  'Classics': ['Classic', 'Classics', 'Classical'],
-  'Contemporary': ['Contemporary', 'Modern'],
-  'Graphic Novels': ['Graphic Novel', 'Comics', 'Manga'],
-  'Poetry': ['Poetry', 'Poems', 'Verse'],
-  'Dystopian': ['Dystopian', 'Dystopia'],
-  'Fiction': ['Fiction']
+  Classics: ["Classic", "Classics", "Classical"],
+  Contemporary: ["Contemporary", "Modern"],
+  "Graphic Novels": ["Graphic Novel", "Comics", "Manga"],
+  Poetry: ["Poetry", "Poems", "Verse"],
+  Dystopian: ["Dystopian", "Dystopia"],
+  Fiction: ["Fiction"],
 };
 
 /**
@@ -47,33 +47,37 @@ const CANONICAL_GENRES: Record<string, string[]> = {
  */
 const PROVIDER_MAPPINGS: Record<string, string[]> = {
   // Google Books hierarchical format
-  'Fiction / Science Fiction / General': ['Science Fiction', 'Fiction'],
-  'Fiction / Science Fiction / Dystopian': ['Science Fiction', 'Dystopian', 'Fiction'],
-  'Fiction / Fantasy / General': ['Fantasy', 'Fiction'],
-  'Fiction / Fantasy / Epic': ['Fantasy', 'Fiction'],
-  'Fiction / Mystery & Detective / General': ['Mystery', 'Fiction'],
-  'Fiction / Thrillers / General': ['Thriller', 'Fiction'],
-  'Fiction / Romance / General': ['Romance', 'Fiction'],
-  'Fiction / Horror': ['Horror', 'Fiction'],
-  'Fiction / Literary': ['Literary Fiction', 'Fiction'],
-  'Fiction / Historical / General': ['Historical Fiction', 'Fiction'],
+  "Fiction / Science Fiction / General": ["Science Fiction", "Fiction"],
+  "Fiction / Science Fiction / Dystopian": [
+    "Science Fiction",
+    "Dystopian",
+    "Fiction",
+  ],
+  "Fiction / Fantasy / General": ["Fantasy", "Fiction"],
+  "Fiction / Fantasy / Epic": ["Fantasy", "Fiction"],
+  "Fiction / Mystery & Detective / General": ["Mystery", "Fiction"],
+  "Fiction / Thrillers / General": ["Thriller", "Fiction"],
+  "Fiction / Romance / General": ["Romance", "Fiction"],
+  "Fiction / Horror": ["Horror", "Fiction"],
+  "Fiction / Literary": ["Literary Fiction", "Fiction"],
+  "Fiction / Historical / General": ["Historical Fiction", "Fiction"],
 
   // ISBNDB uses "&" separators
-  'Science Fiction & Fantasy': ['Science Fiction', 'Fantasy'],
-  'Mystery & Thriller': ['Mystery', 'Thriller'],
-  'Romance & Fiction': ['Romance', 'Fiction'],
+  "Science Fiction & Fantasy": ["Science Fiction", "Fantasy"],
+  "Mystery & Thriller": ["Mystery", "Thriller"],
+  "Romance & Fiction": ["Romance", "Fiction"],
 
   // OpenLibrary descriptive subjects
-  'Dystopian fiction': ['Dystopian', 'Science Fiction'],
-  'Science fiction': ['Science Fiction'],
-  'Classic Literature': ['Classics', 'Literary Fiction'],
-  'Fantasy fiction': ['Fantasy'],
-  'Detective and mystery stories': ['Mystery'],
+  "Dystopian fiction": ["Dystopian", "Science Fiction"],
+  "Science fiction": ["Science Fiction"],
+  "Classic Literature": ["Classics", "Literary Fiction"],
+  "Fantasy fiction": ["Fantasy"],
+  "Detective and mystery stories": ["Mystery"],
 
   // Gemini AI free-form genres
-  'Sci-fi dystopia': ['Science Fiction', 'Dystopian'],
-  'Post-apocalyptic fiction': ['Science Fiction', 'Dystopian'],
-  'Epic fantasy': ['Fantasy'],
+  "Sci-fi dystopia": ["Science Fiction", "Dystopian"],
+  "Post-apocalyptic fiction": ["Science Fiction", "Dystopian"],
+  "Epic fantasy": ["Fantasy"],
 };
 
 /**
@@ -99,7 +103,7 @@ function levenshteinDistance(a: string, b: string): number {
         matrix[i][j] = Math.min(
           matrix[i - 1][j - 1] + 1,
           matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
+          matrix[i - 1][j] + 1,
         );
       }
     }
@@ -131,7 +135,7 @@ export class GenreNormalizer {
       // 2. Exact mapping lookup
       const exactMatch = PROVIDER_MAPPINGS[cleaned];
       if (exactMatch) {
-        exactMatch.forEach(tag => normalized.add(tag));
+        exactMatch.forEach((tag) => normalized.add(tag));
         continue;
       }
 
@@ -167,19 +171,19 @@ export class GenreNormalizer {
     let cleaned = raw.trim();
 
     // Provider-specific transformations
-    if (provider === 'google-books') {
+    if (provider === "google-books") {
       // Google Books uses hierarchical format "Fiction / Science Fiction / General"
       // We check the full string first in PROVIDER_MAPPINGS
       // If not found, we'll fuzzy match
       return cleaned;
     }
 
-    if (provider === 'isbndb') {
+    if (provider === "isbndb") {
       // ISBNDB uses "&" separators - but we check full string first
       return cleaned;
     }
 
-    if (provider === 'openlibrary') {
+    if (provider === "openlibrary") {
       // OpenLibrary uses lowercase descriptive subjects
       // Capitalize first letter for consistency
       return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
@@ -195,7 +199,7 @@ export class GenreNormalizer {
     const lowerGenre = genre.toLowerCase();
 
     for (const [canonical, variations] of Object.entries(CANONICAL_GENRES)) {
-      if (variations.some(v => v.toLowerCase() === lowerGenre)) {
+      if (variations.some((v) => v.toLowerCase() === lowerGenre)) {
         return canonical;
       }
     }

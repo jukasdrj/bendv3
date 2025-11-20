@@ -1,6 +1,6 @@
 // src/utils/cache-keys.js
 
-import { normalizeISBN } from './normalization.js';
+import { normalizeISBN } from "./normalization.js";
 
 /**
  * Generate SHA-256 hash of string using Web Crypto API
@@ -11,9 +11,9 @@ import { normalizeISBN } from './normalization.js';
 async function sha256(text) {
   const encoder = new TextEncoder();
   const data = encoder.encode(text);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /**

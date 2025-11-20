@@ -7,8 +7,8 @@
  * Related: GitHub Issue #398
  */
 
-import type { ApiErrorCode } from '../types/enums.js';
-import type { ErrorResponse } from '../types/responses.js';
+import type { ApiErrorCode } from "../types/enums.js";
+import type { ErrorResponse } from "../types/responses.js";
 
 /**
  * Type-safe HTTP status codes
@@ -30,7 +30,10 @@ const ERROR_STATUS_MAP = {
   INVALID_ISBN: 400,
   NOT_FOUND: 404,
   INTERNAL_ERROR: 500,
-} as const satisfies Record<Exclude<ApiErrorCode, 'PROVIDER_ERROR'>, HttpStatus>;
+} as const satisfies Record<
+  Exclude<ApiErrorCode, "PROVIDER_ERROR">,
+  HttpStatus
+>;
 
 /**
  * Determine HTTP status for provider errors with nuanced logic
@@ -42,21 +45,22 @@ function providerErrorStatus(error: ErrorResponse): HttpStatus {
   const message = error.error.message.toLowerCase();
 
   // Convert details to string (handles objects, primitives, etc.)
-  let detailsStr = '';
+  let detailsStr = "";
   if (error.error.details) {
-    detailsStr = typeof error.error.details === 'object'
-      ? JSON.stringify(error.error.details).toLowerCase()
-      : String(error.error.details).toLowerCase();
+    detailsStr =
+      typeof error.error.details === "object"
+        ? JSON.stringify(error.error.details).toLowerCase()
+        : String(error.error.details).toLowerCase();
   }
 
   // 503 Service Unavailable: Temporary conditions
   if (
-    message.includes('timeout') ||
-    message.includes('unavailable') ||
-    message.includes('rate limit') ||
-    message.includes('too many requests') ||
-    detailsStr.includes('timeout') ||
-    detailsStr.includes('rate limit')
+    message.includes("timeout") ||
+    message.includes("unavailable") ||
+    message.includes("rate limit") ||
+    message.includes("too many requests") ||
+    detailsStr.includes("timeout") ||
+    detailsStr.includes("rate limit")
   ) {
     return 503;
   }
@@ -79,7 +83,7 @@ function providerErrorStatus(error: ErrorResponse): HttpStatus {
  */
 export function statusFromError(error: ErrorResponse | unknown): HttpStatus {
   // Type guard: ensure we have an ErrorResponse
-  if (!error || typeof error !== 'object' || !('error' in error)) {
+  if (!error || typeof error !== "object" || !("error" in error)) {
     return 500; // Unknown error format
   }
 
@@ -97,11 +101,12 @@ export function statusFromError(error: ErrorResponse | unknown): HttpStatus {
   }
 
   // 3. Provider error (nuanced logic)
-  if (errorCode === 'PROVIDER_ERROR') {
+  if (errorCode === "PROVIDER_ERROR") {
     return providerErrorStatus(errorResponse);
   }
 
   // 4. Standard mapping
-  const mappedStatus = ERROR_STATUS_MAP[errorCode as keyof typeof ERROR_STATUS_MAP];
+  const mappedStatus =
+    ERROR_STATUS_MAP[errorCode as keyof typeof ERROR_STATUS_MAP];
   return mappedStatus ?? 500; // Default to 500 for unmapped codes
 }

@@ -13,7 +13,7 @@ import type {
   CulturalRegion,
   ReviewStatus,
   DataProvider,
-} from './enums.js';
+} from "./enums.js";
 
 // ============================================================================
 // CORE ENTITIES

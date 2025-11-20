@@ -1,5 +1,5 @@
 // src/services/kv-cache.js
-import { getCached, setCached } from '../utils/cache.js';
+import { getCached, setCached } from "../utils/cache.js";
 
 /**
  * KV Cache Service with extended TTLs optimized for Paid Plan
@@ -11,19 +11,20 @@ import { getCached, setCached } from '../utils/cache.js';
  * - Enrichment: 90d - Metadata very stable
  */
 export class KVCacheService {
-  constructor(env) {
+  constructor(env, ctx = null) {
     this.env = env;
+    this.ctx = ctx;
     // Optimized TTLs based on data staleness analysis:
     // - ISBNs never change (365 days)
     // - Titles get new editions occasionally (7 days, was 24h)
     // - Authors get new books (7 days, unchanged)
     // - Enrichment metadata is very stable (180 days, was 90d)
     this.ttls = {
-      title: 7 * 24 * 60 * 60,         // 7 days (was 24h)
-      isbn: 365 * 24 * 60 * 60,        // 365 days (was 30d)
-      author: 7 * 24 * 60 * 60,        // 7 days (unchanged)
-      enrichment: 180 * 24 * 60 * 60,  // 180 days (was 90d)
-      cover: 365 * 24 * 60 * 60        // 365 days (max practical - was Infinity which breaks KV writes)
+      title: 7 * 24 * 60 * 60, // 7 days (was 24h)
+      isbn: 365 * 24 * 60 * 60, // 365 days (was 30d)
+      author: 7 * 24 * 60 * 60, // 7 days (unchanged)
+      enrichment: 180 * 24 * 60 * 60, // 180 days (was 90d)
+      cover: 365 * 24 * 60 * 60, // 365 days (max practical - was Infinity which breaks KV writes)
     };
   }
 
@@ -35,13 +36,13 @@ export class KVCacheService {
    */
   async get(cacheKey, endpoint) {
     try {
-      const result = await getCached(cacheKey, this.env);
+      const result = await getCached(cacheKey, this.env, this.ctx);
       if (result) {
         return {
           data: result.data,
-          source: 'KV',
+          source: "KV",
           age: result.cacheMetadata.age,
-          latency: '30-50ms'
+          latency: "30-50ms",
         };
       }
     } catch (error) {
@@ -82,8 +83,8 @@ export class KVCacheService {
    * @returns {number} Adjusted TTL in seconds
    */
   adjustTTLByQuality(baseTTL, quality) {
-    if (quality > 0.8) return baseTTL * 2;      // High quality → 2x TTL
-    if (quality < 0.4) return baseTTL * 0.5;    // Low quality → 0.5x TTL
+    if (quality > 0.8) return baseTTL * 2; // High quality → 2x TTL
+    if (quality < 0.4) return baseTTL * 0.5; // Low quality → 0.5x TTL
     return baseTTL; // Medium quality → unchanged
   }
 
@@ -103,7 +104,11 @@ export class KVCacheService {
       const quality = this.assessDataQuality(data);
       const adjustedTTL = this.adjustTTLByQuality(baseTTL, quality);
 
-      await setCached(cacheKey, data, adjustedTTL, this.env);
+      // For TTL effectiveness tracking, use original base TTL as "hot" TTL
+      // This allows us to measure if extended TTLs are actually useful
+      const hotTTL = baseTTL;
+
+      await setCached(cacheKey, data, adjustedTTL, this.env, this.ctx, hotTTL);
     } catch (error) {
       console.error(`KV cache set failed for ${cacheKey}:`, error);
       // Don't throw - cache failures shouldn't break user requests

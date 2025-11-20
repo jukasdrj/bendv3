@@ -30,34 +30,34 @@ export const BOOKSHELF_RESPONSE_SCHEMA = {
     properties: {
       title: {
         type: "string",
-        description: "Book title extracted from spine"
+        description: "Book title extracted from spine",
       },
       author: {
         type: "string",
         description: "Author name if visible on spine",
-        nullable: true
+        nullable: true,
       },
       isbn: {
         type: "string",
         description: "ISBN-10 or ISBN-13 if visible",
-        nullable: true
+        nullable: true,
       },
       format: {
         type: "string",
         enum: ["hardcover", "paperback", "mass-market", "unknown"],
         description: "Physical format detected from visual cues",
-        nullable: true
+        nullable: true,
       },
       confidence: {
         type: "number",
         description: "Detection confidence level (0.0-1.0)",
         minimum: 0.0,
         maximum: 1.0,
-        nullable: true
-      }
+        nullable: true,
+      },
     },
-    required: ["title"]
-  }
+    required: ["title"],
+  },
 };
 
 /**
@@ -83,56 +83,56 @@ export const CSV_BOOK_SCHEMA = {
     properties: {
       title: {
         type: "string",
-        description: "Book title (required)"
+        description: "Book title (required)",
       },
       author: {
         type: "string",
-        description: "Author name (required)"
+        description: "Author name (required)",
       },
       isbn: {
         type: "string",
         description: "ISBN-10 or ISBN-13",
-        nullable: true
+        nullable: true,
       },
       publicationYear: {
         type: "integer",
         description: "Year of publication",
-        nullable: true
+        nullable: true,
       },
       publisher: {
         type: "string",
         description: "Publisher name",
-        nullable: true
+        nullable: true,
       },
       pageCount: {
         type: "integer",
         description: "Number of pages",
         nullable: true,
-        minimum: 1
+        minimum: 1,
       },
       genre: {
         type: "string",
         description: "Primary genre or subject",
-        nullable: true
+        nullable: true,
       },
       rating: {
         type: "number",
         description: "User rating (0-5 scale)",
         nullable: true,
         minimum: 0,
-        maximum: 5
+        maximum: 5,
       },
       dateRead: {
         type: "string",
         description: "Date finished reading (YYYY-MM-DD format)",
-        nullable: true
+        nullable: true,
       },
       notes: {
         type: "string",
         description: "User notes or review",
-        nullable: true
-      }
+        nullable: true,
+      },
     },
-    required: ["title", "author"]
-  }
+    required: ["title", "author"],
+  },
 };

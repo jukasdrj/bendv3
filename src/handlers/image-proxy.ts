@@ -1,4 +1,4 @@
-import { normalizeImageURL } from '../utils/normalization.js';
+import { normalizeImageURL } from "../utils/normalization.js";
 
 /**
  * Environment bindings for image proxy handler
@@ -21,31 +21,34 @@ interface Env {
  * - 85% quality (visually lossless for book covers)
  * - Metadata stored for cache analytics
  */
-export async function handleImageProxy(request: Request, env: Env): Promise<Response> {
+export async function handleImageProxy(
+  request: Request,
+  env: Env,
+): Promise<Response> {
   const url = new URL(request.url);
-  const imageUrl = url.searchParams.get('url');
-  const size = url.searchParams.get('size') || 'medium'; // small, medium, large
+  const imageUrl = url.searchParams.get("url");
+  const size = url.searchParams.get("size") || "medium"; // small, medium, large
 
   // Validation
   if (!imageUrl) {
-    return new Response('Missing url parameter', { status: 400 });
+    return new Response("Missing url parameter", { status: 400 });
   }
 
   // Security: Only allow known book cover domains
   // Using Set for O(1) lookup performance vs O(n) for array.includes()
   const allowedDomains = new Set([
-    'books.google.com',
-    'covers.openlibrary.org',
-    'images-na.ssl-images-amazon.com'
+    "books.google.com",
+    "covers.openlibrary.org",
+    "images-na.ssl-images-amazon.com",
   ]);
 
   try {
     const parsedUrl = new URL(imageUrl);
     if (!allowedDomains.has(parsedUrl.hostname)) {
-      return new Response('Domain not allowed', { status: 403 });
+      return new Response("Domain not allowed", { status: 403 });
     }
   } catch {
-    return new Response('Invalid URL', { status: 400 });
+    return new Response("Invalid URL", { status: 400 });
   }
 
   // Normalize URL for consistent caching
@@ -59,10 +62,13 @@ export async function handleImageProxy(request: Request, env: Env): Promise<Resp
     try {
       console.log(`Image cache HIT: ${cacheKey}`);
       const imageData = await cached.arrayBuffer();
-      const contentType = cached.httpMetadata?.contentType || 'image/jpeg';
+      const contentType = cached.httpMetadata?.contentType || "image/jpeg";
       return resizeImage(imageData, size, contentType);
     } catch (err) {
-      console.error(`Error reading cached image from R2 for key ${cacheKey}:`, err);
+      console.error(
+        `Error reading cached image from R2 for key ${cacheKey}:`,
+        err,
+      );
       // Fall through to fetch from origin
     }
   }
@@ -71,34 +77,38 @@ export async function handleImageProxy(request: Request, env: Env): Promise<Resp
 
   // Cache miss - fetch from origin
   const origin = await fetch(normalizedUrl, {
-    headers: { 'User-Agent': 'BooksTrack/3.0 (book-cover-proxy)' }
+    headers: { "User-Agent": "BooksTrack/3.0 (book-cover-proxy)" },
   });
 
   if (!origin.ok) {
     console.error(`Failed to fetch image from origin: ${origin.status}`);
-    return new Response('Failed to fetch image', { status: 502 });
+    return new Response("Failed to fetch image", { status: 502 });
   }
 
   // Compress and store in R2 for future requests
   const imageData = await origin.arrayBuffer();
-  const contentType = origin.headers.get('content-type') || 'image/jpeg';
+  const contentType = origin.headers.get("content-type") || "image/jpeg";
   const originalSize = imageData.byteLength;
 
   // Compress to WebP for 60% size reduction (only for JPEG/PNG originals)
   let compressedData = imageData;
   let finalContentType = contentType;
 
-  if (contentType.includes('jpeg') || contentType.includes('png')) {
+  if (contentType.includes("jpeg") || contentType.includes("png")) {
     try {
       const compressed = await compressToWebP(imageData, 85); // 85% quality
       if (compressed && compressed.byteLength < originalSize) {
         compressedData = compressed;
-        finalContentType = 'image/webp';
-        const savings = Math.round(((originalSize - compressed.byteLength) / originalSize) * 100);
-        console.log(`Compressed ${originalSize} → ${compressed.byteLength} bytes (${savings}% savings)`);
+        finalContentType = "image/webp";
+        const savings = Math.round(
+          ((originalSize - compressed.byteLength) / originalSize) * 100,
+        );
+        console.log(
+          `Compressed ${originalSize} → ${compressed.byteLength} bytes (${savings}% savings)`,
+        );
       }
     } catch (error) {
-      console.error('WebP compression failed, storing original:', error);
+      console.error("WebP compression failed, storing original:", error);
       // Fall back to original
     }
   }
@@ -108,8 +118,8 @@ export async function handleImageProxy(request: Request, env: Env): Promise<Resp
     customMetadata: {
       originalSize: originalSize.toString(),
       compressedSize: compressedData.byteLength.toString(),
-      compressionRatio: (compressedData.byteLength / originalSize).toFixed(2)
-    }
+      compressionRatio: (compressedData.byteLength / originalSize).toFixed(2),
+    },
   });
 
   console.log(`Stored in R2: ${cacheKey} (${compressedData.byteLength} bytes)`);
@@ -125,9 +135,9 @@ export async function handleImageProxy(request: Request, env: Env): Promise<Resp
 async function hashURL(url: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(url);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /**
@@ -136,15 +146,18 @@ async function hashURL(url: string): Promise<string> {
  * @param quality - Quality 1-100 (85 recommended for book covers)
  * @returns Compressed WebP image or null on failure
  */
-async function compressToWebP(imageData: ArrayBuffer, quality: number): Promise<ArrayBuffer | null> {
+async function compressToWebP(
+  imageData: ArrayBuffer,
+  quality: number,
+): Promise<ArrayBuffer | null> {
   try {
     // Create a Response with the image data
     const imageResponse = new Response(imageData, {
       headers: {
-        'Content-Type': 'image/jpeg', // Cloudflare will convert from this
-        'CF-Image-Format': 'webp',
-        'CF-Image-Quality': quality.toString()
-      }
+        "Content-Type": "image/jpeg", // Cloudflare will convert from this
+        "CF-Image-Format": "webp",
+        "CF-Image-Quality": quality.toString(),
+      },
     });
 
     // Use Cloudflare's image transformation
@@ -152,10 +165,10 @@ async function compressToWebP(imageData: ArrayBuffer, quality: number): Promise<
     const transformed = await fetch(imageResponse.url, {
       cf: {
         image: {
-          format: 'webp',
-          quality: quality
-        }
-      }
+          format: "webp",
+          quality: quality,
+        },
+      },
     });
 
     if (!transformed.ok) {
@@ -164,7 +177,7 @@ async function compressToWebP(imageData: ArrayBuffer, quality: number): Promise<
 
     return await transformed.arrayBuffer();
   } catch (error) {
-    console.error('WebP compression error:', error);
+    console.error("WebP compression error:", error);
     return null;
   }
 }
@@ -172,22 +185,26 @@ async function compressToWebP(imageData: ArrayBuffer, quality: number): Promise<
 /**
  * Resize image using Cloudflare Image Resizing
  */
-function resizeImage(imageData: ArrayBuffer, size: string, contentType: string): Response {
+function resizeImage(
+  imageData: ArrayBuffer,
+  size: string,
+  contentType: string,
+): Response {
   const SIZE_MAP: Record<string, { width: number; height: number }> = {
     small: { width: 128, height: 192 },
     medium: { width: 256, height: 384 },
-    large: { width: 512, height: 768 }
+    large: { width: 512, height: 768 },
   };
 
   const dimensions = SIZE_MAP[size] || SIZE_MAP.medium;
 
   return new Response(imageData, {
     headers: {
-      'Content-Type': contentType,
-      'Cache-Control': 'public, max-age=2592000, immutable', // 30 days
-      'CF-Image-Width': dimensions.width.toString(),
-      'CF-Image-Height': dimensions.height.toString(),
-      'CF-Image-Fit': 'scale-down'
-    }
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=2592000, immutable", // 30 days
+      "CF-Image-Width": dimensions.width.toString(),
+      "CF-Image-Height": dimensions.height.toString(),
+      "CF-Image-Fit": "scale-down",
+    },
   });
 }
