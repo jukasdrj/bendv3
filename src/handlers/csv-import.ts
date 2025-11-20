@@ -20,6 +20,7 @@ import {
   ErrorCodes,
 } from "../utils/response-builder.js";
 import type { CSVImportInitResponse } from "../types/responses.js";
+import { getProgressDOStub } from "../utils/durable-object-helpers.js";
 
 // Aligned with Gemini 2.0 Flash 2M token context (approximating ~8MB at 4 bytes/token)
 // Issue #181: Consistent with MAX_CSV_SIZE in gemini-csv-provider.js
@@ -98,8 +99,8 @@ export async function handleCSVImport(request, env, ctx) {
       await stateDoStub.scheduleCSVProcessing(csvText, jobId);
     } else {
       // LEGACY ARCHITECTURE: Monolithic ProgressWebSocketDO
-      const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-      const doStub = env.PROGRESS_WEBSOCKET_DO.get(doId);
+      // Uses getProgressDOStub() to support hibernation API migration (Issue #221)
+      const doStub = getProgressDOStub(jobId, env);
 
       await doStub.setAuthToken(authToken);
       console.log(`[CSV Import] Auth token generated for job ${jobId}`);
