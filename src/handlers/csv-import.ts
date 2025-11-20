@@ -143,16 +143,14 @@ export async function processCSVImportCore(csvText, jobId, doStub, env) {
   const startTime = Date.now();
 
   try {
-    // Give the client a predictable window to establish the WebSocket connection.
-    // This is a temporary workaround for the race condition where ctx.waitUntil()
-    // starts background processing immediately, before iOS can receive HTTP 202
-    // response and connect WebSocket. 200ms provides reliable buffer for connection.
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
+    // Wait for client to establish WebSocket and send ready signal
+    // Issue #178: Increased timeout to 15 seconds to handle slow network connections
+    // The waitForReady() method properly polls for connection and ready signal,
+    // eliminating need for hardcoded initial delay
     console.log(
       `[CSV Import] Waiting for WebSocket ready signal for job ${jobId}`,
     );
-    const readyResult = await doStub.waitForReady(10000); // 10 second timeout
+    const readyResult = await doStub.waitForReady(15000); // 15 second timeout (increased from 10s)
 
     if (readyResult.timedOut || readyResult.disconnected) {
       const reason = readyResult.timedOut
@@ -162,8 +160,9 @@ export async function processCSVImportCore(csvText, jobId, doStub, env) {
         `[CSV Import] WebSocket ready ${reason} for job ${jobId}, proceeding anyway (client may miss early updates)`,
       );
     } else {
+      const elapsedMs = Date.now() - startTime;
       console.log(
-        `[CSV Import] ✅ WebSocket ready for job ${jobId}, starting processing`,
+        `[CSV Import] ✅ WebSocket ready for job ${jobId} after ${elapsedMs}ms`,
       );
     }
 

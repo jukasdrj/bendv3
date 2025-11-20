@@ -69,7 +69,7 @@ describe("CSV Processor Service", () => {
 
       await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
-      expect(mockProgressReporter.waitForReady).toHaveBeenCalledWith(10000);
+      expect(mockProgressReporter.waitForReady).toHaveBeenCalledWith(15000);
     });
 
     it("should continue processing if client ready times out", async () => {
