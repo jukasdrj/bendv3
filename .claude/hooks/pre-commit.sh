@@ -116,7 +116,25 @@ if [ -n "$STAGED_JS" ]; then
   fi
 fi
 
-# 6. Check wrangler.toml validity (if modified)
+# 6. Check API documentation sync (CRITICAL)
+STAGED_API_FILES=$(git diff --cached --name-only | grep -E "docs/API_CONTRACT.md|docs/openapi.yaml|src/types/websocket-messages.ts|src/types/responses.ts" || true)
+
+if [ -n "$STAGED_API_FILES" ]; then
+  echo "🔄 Checking API documentation sync..."
+
+  if [ -f "scripts/check-api-sync.sh" ]; then
+    if ! bash scripts/check-api-sync.sh; then
+      echo -e "${RED}✗ API documentation sync check failed${NC}"
+      echo "  Fix the errors above before committing."
+      FAILED=1
+    fi
+  else
+    echo -e "${YELLOW}⚠ Warning: scripts/check-api-sync.sh not found${NC}"
+    echo "  Cannot verify API documentation sync."
+  fi
+fi
+
+# 7. Check wrangler.toml validity (if modified)
 if git diff --cached --name-only | grep -q "wrangler.toml"; then
   echo "⚙️  Checking wrangler.toml validity..."
 
