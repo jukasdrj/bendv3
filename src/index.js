@@ -38,10 +38,9 @@ import {
 } from "./middleware/size-validator.js";
 import { getCorsHeaders } from "./middleware/cors.js";
 import {
-  jsonResponse,
-  errorResponse,
-  acceptedResponse,
-  notFoundResponse,
+  createSuccessResponse,
+  createErrorResponse,
+  ErrorCodes,
 } from "./utils/response-builder.ts";
 import { getProgressDOStub } from "./utils/durable-object-helpers.ts";
 import { trackRequestMetrics, addAnalyticsHeaders } from "./utils/analytics.js";
@@ -115,10 +114,11 @@ export default {
       if (url.pathname === "/ws/progress") {
         const jobId = url.searchParams.get("jobId");
         if (!jobId) {
-          return errorResponse(
-            "MISSING_PARAM",
+          return createErrorResponse(
             "Missing jobId parameter",
             400,
+            ErrorCodes.MISSING_PARAMETER,
+            undefined,
             null,
           );
         }
@@ -140,10 +140,11 @@ export default {
           const { jobId, oldToken } = await request.json();
 
           if (!jobId || !oldToken) {
-            return errorResponse(
-              "INVALID_REQUEST",
+            return createErrorResponse(
               "Invalid request: jobId and oldToken required",
               400,
+              ErrorCodes.INVALID_REQUEST,
+              undefined,
               request,
             );
           }
@@ -155,25 +156,27 @@ export default {
           const result = await doStub.refreshAuthToken(oldToken);
 
           if (result.error) {
-            return errorResponse("AUTH_ERROR", result.error, 401, request);
+            return createErrorResponse(result.error, 401, "AUTH_ERROR", undefined, request);
           }
 
           // Return new token
-          return jsonResponse(
+          return createSuccessResponse(
             {
               jobId,
               token: result.token,
               expiresIn: result.expiresIn,
             },
+            {},
             200,
             request,
           );
         } catch (error) {
           console.error("Failed to refresh token:", error);
-          return errorResponse(
-            "INTERNAL_ERROR",
+          return createErrorResponse(
             `Failed to refresh token: ${error.message}`,
             500,
+            ErrorCodes.INTERNAL_ERROR,
+            undefined,
             request,
           );
         }
@@ -188,10 +191,11 @@ export default {
           const jobId = url.pathname.split("/").pop();
 
           if (!jobId) {
-            return errorResponse(
-              "INVALID_REQUEST",
+            return createErrorResponse(
               "Invalid request: jobId required",
               400,
+              ErrorCodes.INVALID_REQUEST,
+              undefined,
               request,
             );
           }
@@ -200,10 +204,11 @@ export default {
           const authHeader = request.headers.get("Authorization");
           const providedToken = authHeader?.replace("Bearer ", "");
           if (!providedToken) {
-            return errorResponse(
-              "AUTH_ERROR",
+            return createErrorResponse(
               "Missing authorization token",
               401,
+              "AUTH_ERROR",
+              undefined,
               request,
             );
           }
@@ -215,8 +220,11 @@ export default {
           const result = await doStub.getJobStateAndAuth();
 
           if (!result) {
-            return notFoundResponse(
+            return createErrorResponse(
               "Job not found or state not initialized",
+              404,
+              ErrorCodes.NOT_FOUND,
+              undefined,
               request,
             );
           }
@@ -229,22 +237,24 @@ export default {
             providedToken !== authToken ||
             Date.now() > authTokenExpiration
           ) {
-            return errorResponse(
-              "AUTH_ERROR",
+            return createErrorResponse(
               "Invalid or expired token",
               401,
+              "AUTH_ERROR",
+              undefined,
               request,
             );
           }
 
           // Return job state
-          return jsonResponse(jobState, 200, request);
+          return createSuccessResponse(jobState, {}, 200, request);
         } catch (error) {
           console.error("Failed to get job state:", error);
-          return errorResponse(
-            "INTERNAL_ERROR",
+          return createErrorResponse(
             `Failed to get job state: ${error.message}`,
             500,
+            ErrorCodes.INTERNAL_ERROR,
+            undefined,
             request,
           );
         }
@@ -274,19 +284,21 @@ export default {
 
           // Validate request
           if (!jobId || !workIds || !Array.isArray(workIds)) {
-            return errorResponse(
-              "INVALID_REQUEST",
+            return createErrorResponse(
               "Invalid request: jobId and workIds (array) required",
               400,
+              ErrorCodes.INVALID_REQUEST,
+              undefined,
               null,
             );
           }
 
           if (workIds.length === 0) {
-            return errorResponse(
-              "INVALID_REQUEST",
+            return createErrorResponse(
               "Invalid request: workIds array cannot be empty",
               400,
+              ErrorCodes.INVALID_REQUEST,
+              undefined,
               null,
             );
           }
@@ -320,10 +332,11 @@ export default {
           return response;
         } catch (error) {
           console.error("Failed to start enrichment:", error);
-          return errorResponse(
-            "INTERNAL_ERROR",
+          return createErrorResponse(
             `Failed to start enrichment: ${error.message}`,
             500,
+            ErrorCodes.INTERNAL_ERROR,
+            undefined,
             null,
           );
         }
@@ -339,10 +352,11 @@ export default {
 
           // Validate request
           if (!jobId) {
-            return errorResponse(
-              "INVALID_REQUEST",
+            return createErrorResponse(
               "Invalid request: jobId required",
               400,
+              ErrorCodes.INVALID_REQUEST,
+              undefined,
               null,
             );
           }
@@ -356,21 +370,23 @@ export default {
           );
 
           // Return success response
-          return jsonResponse(
+          return createSuccessResponse(
             {
               jobId,
               status: "canceled",
               message: "Enrichment job canceled successfully",
             },
+            {},
             200,
             request,
           );
         } catch (error) {
           console.error("Failed to cancel enrichment:", error);
-          return errorResponse(
-            "INTERNAL_ERROR",
+          return createErrorResponse(
             `Failed to cancel enrichment: ${error.message}`,
             500,
+            ErrorCodes.INTERNAL_ERROR,
+            undefined,
             null,
           );
         }
@@ -410,20 +426,21 @@ export default {
           const { jobId } = await request.json();
 
           if (!jobId) {
-            return errorResponse("MISSING_PARAM", "jobId required", 400, null);
+            return createErrorResponse("jobId required", 400, ErrorCodes.MISSING_PARAMETER, undefined, null);
           }
 
           // Call Durable Object to cancel batch
           const doStub = getProgressDOStub(jobId, env);
           const result = await doStub.cancelBatch();
 
-          return jsonResponse(result, 200, request);
+          return createSuccessResponse(result, {}, 200, request);
         } catch (error) {
           console.error("Cancel batch error:", error);
-          return errorResponse(
-            "INTERNAL_ERROR",
+          return createErrorResponse(
             "Failed to cancel batch",
             500,
+            ErrorCodes.INTERNAL_ERROR,
+            undefined,
             null,
           );
         }
@@ -502,10 +519,11 @@ export default {
           // Validate content type
           const contentType = request.headers.get("content-type") || "";
           if (!contentType.startsWith("image/")) {
-            return errorResponse(
-              "INVALID_REQUEST",
+            return createErrorResponse(
               "Invalid content type: image/* required",
               400,
+              ErrorCodes.INVALID_REQUEST,
+              undefined,
               null,
             );
           }
@@ -585,7 +603,7 @@ export default {
           ];
 
           // Return 202 Accepted immediately with stages metadata and auth token
-          return acceptedResponse(
+          return createSuccessResponse(
             {
               jobId,
               token: authToken, // NEW: Token for WebSocket authentication
@@ -598,14 +616,17 @@ export default {
               stages,
               estimatedRange,
             },
+            {},
+            202,
             request,
           );
         } catch (error) {
           console.error("Failed to start AI scan:", error);
-          return errorResponse(
-            "INTERNAL_ERROR",
+          return createErrorResponse(
             `Failed to start AI scan: ${error.message}`,
             500,
+            ErrorCodes.INTERNAL_ERROR,
+            undefined,
             null,
           );
         }
@@ -702,10 +723,11 @@ export default {
       if (url.pathname === "/search/title") {
         const query = url.searchParams.get("q");
         if (!query) {
-          return errorResponse(
-            "MISSING_PARAM",
+          return createErrorResponse(
             'Missing query parameter "q"',
             400,
+            ErrorCodes.MISSING_PARAMETER,
+            undefined,
             null,
           );
         }
@@ -722,7 +744,7 @@ export default {
         const cacheHeaders = result._cacheHeaders || {};
         delete result._cacheHeaders; // Don't expose internal field to client
 
-        const response = jsonResponse(result, 200, request);
+        const response = createSuccessResponse(result, {}, 200, request);
         // Add cache headers
         Object.entries(cacheHeaders).forEach(([key, value]) => {
           response.headers.set(key, value);
@@ -745,10 +767,11 @@ export default {
       if (url.pathname === "/search/isbn") {
         const isbn = url.searchParams.get("isbn");
         if (!isbn) {
-          return errorResponse(
-            "MISSING_PARAM",
+          return createErrorResponse(
             "Missing ISBN parameter",
             400,
+            ErrorCodes.MISSING_PARAMETER,
+            undefined,
             null,
           );
         }
@@ -765,7 +788,7 @@ export default {
         const cacheHeaders = result._cacheHeaders || {};
         delete result._cacheHeaders; // Don't expose internal field to client
 
-        const response = jsonResponse(result, 200, request);
+        const response = createSuccessResponse(result, {}, 200, request);
         // Add cache headers
         Object.entries(cacheHeaders).forEach(([key, value]) => {
           response.headers.set(key, value);
@@ -788,10 +811,11 @@ export default {
       if (url.pathname === "/search/author") {
         const authorName = url.searchParams.get("q");
         if (!authorName) {
-          return errorResponse(
-            "MISSING_PARAM",
+          return createErrorResponse(
             'Missing query parameter "q"',
             400,
+            ErrorCodes.MISSING_PARAMETER,
+            undefined,
             null,
           );
         }
@@ -807,19 +831,21 @@ export default {
 
         // Validate parameters
         if (limit < 1 || limit > 100) {
-          return errorResponse(
-            "INVALID_PARAM",
+          return createErrorResponse(
             "Limit must be between 1 and 100",
             400,
+            "INVALID_PARAM",
+            undefined,
             null,
           );
         }
 
         if (offset < 0) {
-          return errorResponse(
-            "INVALID_PARAM",
+          return createErrorResponse(
             "Offset must be >= 0",
             400,
+            "INVALID_PARAM",
+            undefined,
             null,
           );
         }
@@ -831,10 +857,11 @@ export default {
           "popularity",
         ];
         if (!validSortOptions.includes(sortBy)) {
-          return errorResponse(
-            "INVALID_PARAM",
+          return createErrorResponse(
             `sortBy must be one of: ${validSortOptions.join(", ")}`,
             400,
+            "INVALID_PARAM",
+            undefined,
             null,
           );
         }
@@ -850,7 +877,7 @@ export default {
         const cacheStatus = result.cached ? "HIT" : "MISS";
         const cacheSource = result.cacheSource || "NONE";
 
-        const response = jsonResponse(result, 200, request);
+        const response = createSuccessResponse(result, {}, 200, request);
         // Add cache and provider headers
         response.headers.set("Cache-Control", "public, max-age=21600"); // 6h cache
         response.headers.set("X-Cache", cacheStatus);
@@ -899,21 +926,24 @@ export default {
             maxResults = searchParams.maxResults || 20;
           } else {
             // Only GET and POST allowed
-            return errorResponse(
-              "METHOD_NOT_ALLOWED",
+            const response = createErrorResponse(
               "Use GET with query parameters or POST with JSON body",
               405,
+              "METHOD_NOT_ALLOWED",
+              undefined,
               null,
-              { Allow: "GET, POST" },
             );
+            response.headers.set("Allow", "GET, POST");
+            return response;
           }
 
           // Validate that at least one search parameter is provided
           if (!bookTitle && !authorName) {
-            return errorResponse(
-              "MISSING_PARAM",
+            return createErrorResponse(
               "At least one search parameter required (title or author)",
               400,
+              ErrorCodes.MISSING_PARAMETER,
+              undefined,
               null,
             );
           }
@@ -925,7 +955,7 @@ export default {
             env,
           );
 
-          const response = jsonResponse(result, 200, request);
+          const response = createSuccessResponse(result, {}, 200, request);
           // Add cache header for GET requests (like /search/title)
           if (request.method === "GET") {
             response.headers.set("Cache-Control", "public, max-age=21600"); // 6h cache
@@ -944,10 +974,11 @@ export default {
           return response;
         } catch (error) {
           console.error("Advanced search failed:", error);
-          return errorResponse(
-            "INTERNAL_ERROR",
+          return createErrorResponse(
             `Advanced search failed: ${error.message}`,
             500,
+            ErrorCodes.INTERNAL_ERROR,
+            undefined,
             null,
           );
         }
@@ -961,10 +992,11 @@ export default {
       if (url.pathname === "/external/google-books") {
         const query = url.searchParams.get("q");
         if (!query) {
-          return errorResponse(
-            "MISSING_PARAM",
+          return createErrorResponse(
             "Missing query parameter",
             400,
+            ErrorCodes.MISSING_PARAMETER,
+            undefined,
             null,
           );
         }
@@ -976,34 +1008,36 @@ export default {
           env,
         );
 
-        return jsonResponse(result, 200, null);
+        return createSuccessResponse(result, {}, 200, null);
       }
 
       // Google Books ISBN search
       if (url.pathname === "/external/google-books-isbn") {
         const isbn = url.searchParams.get("isbn");
         if (!isbn) {
-          return errorResponse(
-            "MISSING_PARAM",
+          return createErrorResponse(
             "Missing isbn parameter",
             400,
+            ErrorCodes.MISSING_PARAMETER,
+            undefined,
             null,
           );
         }
 
         const result = await externalApis.searchGoogleBooksByISBN(isbn, env);
 
-        return jsonResponse(result, 200, null);
+        return createSuccessResponse(result, {}, 200, null);
       }
 
       // OpenLibrary search
       if (url.pathname === "/external/openlibrary") {
         const query = url.searchParams.get("q");
         if (!query) {
-          return errorResponse(
-            "MISSING_PARAM",
+          return createErrorResponse(
             "Missing query parameter",
             400,
+            ErrorCodes.MISSING_PARAMETER,
+            undefined,
             null,
           );
         }
@@ -1015,17 +1049,18 @@ export default {
           env,
         );
 
-        return jsonResponse(result, 200, null);
+        return createSuccessResponse(result, {}, 200, null);
       }
 
       // OpenLibrary author works
       if (url.pathname === "/external/openlibrary-author") {
         const author = url.searchParams.get("author");
         if (!author) {
-          return errorResponse(
-            "MISSING_PARAM",
+          return createErrorResponse(
             "Missing author parameter",
             400,
+            ErrorCodes.MISSING_PARAMETER,
+            undefined,
             null,
           );
         }
@@ -1035,17 +1070,18 @@ export default {
           env,
         );
 
-        return jsonResponse(result, 200, null);
+        return createSuccessResponse(result, {}, 200, null);
       }
 
       // ISBNdb search
       if (url.pathname === "/external/isbndb") {
         const title = url.searchParams.get("title");
         if (!title) {
-          return errorResponse(
-            "MISSING_PARAM",
+          return createErrorResponse(
             "Missing title parameter",
             400,
+            ErrorCodes.MISSING_PARAMETER,
+            undefined,
             null,
           );
         }
@@ -1053,7 +1089,7 @@ export default {
         const author = url.searchParams.get("author") || "";
         const result = await externalApis.searchISBNdb(title, author, env);
 
-        return jsonResponse(result, 200, null);
+        return createSuccessResponse(result, {}, 200, null);
       }
 
       // ISBNdb editions for work
@@ -1062,10 +1098,11 @@ export default {
         const author = url.searchParams.get("author");
 
         if (!title || !author) {
-          return errorResponse(
-            "MISSING_PARAM",
+          return createErrorResponse(
             "Missing title or author parameter",
             400,
+            ErrorCodes.MISSING_PARAMETER,
+            undefined,
             null,
           );
         }
@@ -1076,24 +1113,25 @@ export default {
           env,
         );
 
-        return jsonResponse(result, 200, null);
+        return createSuccessResponse(result, {}, 200, null);
       }
 
       // ISBNdb book by ISBN
       if (url.pathname === "/external/isbndb-isbn") {
         const isbn = url.searchParams.get("isbn");
         if (!isbn) {
-          return errorResponse(
-            "MISSING_PARAM",
+          return createErrorResponse(
             "Missing isbn parameter",
             400,
+            ErrorCodes.MISSING_PARAMETER,
+            undefined,
             null,
           );
         }
 
         const result = await externalApis.getISBNdbBookByISBN(isbn, env);
 
-        return jsonResponse(result, 200, null);
+        return createSuccessResponse(result, {}, 200, null);
       }
 
       // ========================================================================
@@ -1108,10 +1146,10 @@ export default {
 
           const result = await doStub.initBatch({ jobId, totalPhotos, status });
 
-          return jsonResponse(result, 200, request);
+          return createSuccessResponse(result, {}, 200, request);
         } catch (error) {
           console.error("Test init-batch failed:", error);
-          return errorResponse("INTERNAL_ERROR", error.message, 500, null);
+          return createErrorResponse(error.message, 500, ErrorCodes.INTERNAL_ERROR, undefined, null);
         }
       }
 
@@ -1120,10 +1158,11 @@ export default {
         try {
           const jobId = url.searchParams.get("jobId");
           if (!jobId) {
-            return errorResponse(
-              "MISSING_PARAM",
+            return createErrorResponse(
               "Missing jobId parameter",
               400,
+              ErrorCodes.MISSING_PARAMETER,
+              undefined,
               null,
             );
           }
@@ -1133,13 +1172,13 @@ export default {
           const state = await doStub.getState();
 
           if (!state || Object.keys(state).length === 0) {
-            return notFoundResponse("Job not found", null);
+            return createErrorResponse("Job not found", 404, ErrorCodes.NOT_FOUND, undefined, null);
           }
 
-          return jsonResponse(state, 200, request);
+          return createSuccessResponse(state, {}, 200, request);
         } catch (error) {
           console.error("Test get-state failed:", error);
-          return errorResponse("INTERNAL_ERROR", error.message, 500, null);
+          return createErrorResponse(error.message, 500, ErrorCodes.INTERNAL_ERROR, undefined, null);
         }
       }
 
@@ -1166,12 +1205,12 @@ export default {
           });
 
           if (result.error) {
-            return notFoundResponse(result.error, request);
+            return createErrorResponse(result.error, 404, ErrorCodes.NOT_FOUND, undefined, request);
           }
-          return jsonResponse(result, 200, request);
+          return createSuccessResponse(result, {}, 200, request);
         } catch (error) {
           console.error("Test update-photo failed:", error);
-          return errorResponse("INTERNAL_ERROR", error.message, 500, null);
+          return createErrorResponse(error.message, 500, ErrorCodes.INTERNAL_ERROR, undefined, null);
         }
       }
 
@@ -1192,10 +1231,10 @@ export default {
             books,
           });
 
-          return jsonResponse(result, 200, request);
+          return createSuccessResponse(result, {}, 200, request);
         } catch (error) {
           console.error("Test complete-batch failed:", error);
-          return errorResponse("INTERNAL_ERROR", error.message, 500, null);
+          return createErrorResponse(error.message, 500, ErrorCodes.INTERNAL_ERROR, undefined, null);
         }
       }
 
@@ -1204,10 +1243,11 @@ export default {
         try {
           const jobId = url.searchParams.get("jobId");
           if (!jobId) {
-            return errorResponse(
-              "MISSING_PARAM",
+            return createErrorResponse(
               "Missing jobId parameter",
               400,
+              ErrorCodes.MISSING_PARAMETER,
+              undefined,
               null,
             );
           }
@@ -1216,10 +1256,10 @@ export default {
 
           const result = await doStub.isBatchCanceled();
 
-          return jsonResponse(result, 200, request);
+          return createSuccessResponse(result, {}, 200, request);
         } catch (error) {
           console.error("Test is-canceled failed:", error);
-          return errorResponse("INTERNAL_ERROR", error.message, 500, null);
+          return createErrorResponse(error.message, 500, ErrorCodes.INTERNAL_ERROR, undefined, null);
         }
       }
 
@@ -1234,16 +1274,16 @@ export default {
 
           const result = await doStub.cancelBatch();
 
-          return jsonResponse(result, 200, request);
+          return createSuccessResponse(result, {}, 200, request);
         } catch (error) {
           console.error("Test cancel-batch failed:", error);
-          return errorResponse("INTERNAL_ERROR", error.message, 500, null);
+          return createErrorResponse(error.message, 500, ErrorCodes.INTERNAL_ERROR, undefined, null);
         }
       }
 
       // Health check endpoint
       if (url.pathname === "/health") {
-        return jsonResponse(
+        return createSuccessResponse(
           {
             status: "ok",
             worker: "api-worker",
@@ -1268,6 +1308,7 @@ export default {
               "/external/isbndb-isbn?isbn={isbn}",
             ],
           },
+          {},
           200,
           null,
         );
@@ -1297,10 +1338,11 @@ export default {
           authHeader !== env.HARVEST_SECRET &&
           authHeader !== "test-local-dev"
         ) {
-          return errorResponse(
-            "UNAUTHORIZED",
+          return createErrorResponse(
             "Invalid or missing X-Harvest-Secret header",
             401,
+            ErrorCodes.UNAUTHORIZED,
+            undefined,
             null,
           );
         }
@@ -1309,37 +1351,43 @@ export default {
         const result = await handleScheduledHarvest(env);
 
         if (result.success) {
-          return jsonResponse(
+          return createSuccessResponse(
             {
               success: result.success,
               stats: result.stats,
               message: "Harvest completed successfully",
             },
+            {},
             200,
             null,
           );
         } else {
-          return errorResponse(
-            "INTERNAL_ERROR",
+          return createErrorResponse(
             `Harvest failed: ${result.error}`,
             500,
+            ErrorCodes.INTERNAL_ERROR,
+            undefined,
             null,
           );
         }
       }
 
       // Default 404
-      response = notFoundResponse(
+      response = createErrorResponse(
         "The requested endpoint does not exist. Use /health to see available endpoints.",
+        404,
+        ErrorCodes.NOT_FOUND,
+        undefined,
         null,
       );
       errorCode = "NOT_FOUND";
     } catch (error) {
       console.error("[Worker] Unhandled error:", error);
-      response = errorResponse(
-        "INTERNAL_ERROR",
+      response = createErrorResponse(
         `Internal server error: ${error.message}`,
         500,
+        ErrorCodes.INTERNAL_ERROR,
+        undefined,
         request,
       );
       errorCode = "INTERNAL_ERROR";
