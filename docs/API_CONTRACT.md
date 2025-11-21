@@ -1,14 +1,39 @@
-# BooksTrack API Contract v2.4.1
+# BooksTrack API Contract v2.5.0
 
 **Status:** Production ✅
-**Effective Date:** November 20, 2025
-**Last Updated:** November 20, 2025 (v2.4.1 - WebSocket Performance Optimization)
+**Effective Date:** November 21, 2025
+**Last Updated:** November 21, 2025 (v2.5.0 - Author-Driven Harvest System)
 **Contract Owner:** Backend Team
 **Audience:** iOS, Flutter, Web Frontend Teams
 
 ---
 
-## 🔥 What's New in v2.4.1 (WebSocket Performance Optimization)
+## 🔥 What's New in v2.5.0 (Author-Driven Harvest System)
+
+### **📚 IMPROVED: Cover Harvest System (4.8x Performance Increase)**
+- **Change:** Complete overhaul from random work-based to author-organized harvesting
+- **Impact:** No user-facing API changes - transparent backend optimization
+- **Performance:**
+  - Daily harvest volume: 1,050 ISBNs → 5,000 ISBNs (4.8x increase)
+  - Intelligent cache depth checking prevents redundant harvesting
+  - Complete author bibliographies (instead of random scattered covers)
+- **Benefits:**
+  - Better author page coverage (complete bibliographies vs random gaps)
+  - Zero wasted API quota (skips authors with ≥50% cache coverage)
+  - Daily runs restored (fixed cron bug that caused weekly-only harvests)
+- **Backward Compatibility:** 100% compatible - no API contract changes
+
+**Technical Details:**
+- New services: author discovery, cache depth analysis, bibliography expansion
+- Data sources: OpenLibrary (bibliographies) + Google Books (edition discovery)
+- Smart prioritization: Lowest coverage authors harvested first
+- Harvest schedule: Daily at 3 AM UTC (fixed from weekly bug)
+
+**See:** Section 10 (Admin Endpoints) - harvest dashboard shows new metrics
+
+---
+
+## What's New in v2.4.1 (WebSocket Performance Optimization)
 
 ### **⚡ PERFORMANCE: WebSocket Hibernation API (Issue #221)**
 - **Change:** Backend migrated to Cloudflare Hibernation WebSocket API
