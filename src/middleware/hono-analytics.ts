@@ -28,21 +28,25 @@ export const analyticsMiddleware = (): MiddlewareHandler<{ Bindings: Env }> => {
     // Log performance metrics to Analytics Engine (async, non-blocking)
     // Use 10% sampling to reduce overhead in production
     if (c.env.ENABLE_PERFORMANCE_LOGGING === "true" && Math.random() < 0.1 && c.env.PERFORMANCE_ANALYTICS) {
-      c.executionCtx.waitUntil(
-        c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
-          blobs: [
-            "hono_router",
-            c.req.method,
-            c.req.path,
-            c.res.status.toString(),
-            `${responseTime}ms`,
-          ],
-          doubles: [responseTime],
-          indexes: [new Date().toISOString()],
-        }).catch((err) => {
-          console.error("[Hono Analytics] Failed to log performance:", err);
-        }),
-      );
+      // ExecutionContext is passed via fetch() but may not be available in Hono context
+      const ctx = (c as any).executionCtx as ExecutionContext | undefined;
+      if (ctx) {
+        ctx.waitUntil(
+          c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
+            blobs: [
+              "hono_router",
+              c.req.method,
+              c.req.path,
+              c.res.status.toString(),
+              `${responseTime}ms`,
+            ],
+            doubles: [responseTime],
+            indexes: [new Date().toISOString()],
+          }).catch((err) => {
+            console.error("[Hono Analytics] Failed to log performance:", err);
+          }),
+        );
+      }
     }
   };
 };
