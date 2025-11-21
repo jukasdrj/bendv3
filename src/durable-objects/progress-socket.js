@@ -63,6 +63,7 @@ const THROTTLE_CONFIG = {
 export class ProgressWebSocketDO extends DurableObject {
   constructor(state, env) {
     super(state, env);
+    this.state = state; // Ensure state is available outside of storage helpers
     this.storage = state.storage; // Durable Object storage for cancellation state
     this.webSocket = null;
     this.jobId = null;
@@ -96,7 +97,7 @@ export class ProgressWebSocketDO extends DurableObject {
     const upgradeHeader = request.headers.get("Upgrade");
 
     console.log("[ProgressDO] Incoming request", {
-      url: url.toString(),
+      path: url.pathname,
       upgradeHeader,
       method: request.method,
       timestamp: upgradeStartTime,
@@ -494,8 +495,8 @@ export class ProgressWebSocketDO extends DurableObject {
     // SECURITY FIX (Issue #163): Include Sec-WebSocket-Protocol in upgrade response
     const headers = getCorsHeaders(request);
     if (tokenSource === "subprotocol") {
-      // Confirm the bookstrack-auth subprotocol (required by WebSocket RFC 6455)
-      headers["Sec-WebSocket-Protocol"] = "bookstrack-auth";
+      // Echo the exact subprotocol value offered by the client (RFC 6455 requirement)
+      headers["Sec-WebSocket-Protocol"] = wsProtocol;
     }
 
     return new Response(null, {
