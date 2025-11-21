@@ -894,6 +894,97 @@ app.post("/api/batch-scan", rateLimitMiddleware, async (c) => {
   return await handleBatchScan(c.req.raw, c.env, getCtx(c));
 });
 
+// POST /api/scan-bookshelf/batch - Batch photo scanning (alias for /api/batch-scan)
+app.post("/api/scan-bookshelf/batch", rateLimitMiddleware, async (c) => {
+  return await handleBatchScan(c.req.raw, c.env, getCtx(c));
+});
+
+// POST /api/scan-bookshelf/cancel - Cancel batch scan job
+app.post("/api/scan-bookshelf/cancel", async (c) => {
+  try {
+    const { jobId } = await c.req.json();
+
+    if (!jobId) {
+      return c.json(
+        {
+          error: {
+            code: "MISSING_PARAMETER",
+            message: "jobId is required",
+          },
+        },
+        400,
+      );
+    }
+
+    // Get DO stub and cancel the batch
+    const doStub = getProgressDOStub(jobId, c.env);
+    await doStub.cancelBatch();
+
+    return c.json({
+      data: {
+        jobId,
+        canceled: true,
+      },
+      metadata: {
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("[Scan Cancel] Error:", error);
+    return c.json(
+      {
+        error: {
+          code: "INTERNAL_ERROR",
+          message: error.message,
+        },
+      },
+      500,
+    );
+  }
+});
+
+// ============================================================================
+// Additional V1 API Routes
+// ============================================================================
+
+// GET /v1/editions/search - Search for book editions by ISBN
+app.get("/v1/editions/search", async (c) => {
+  const isbn = c.req.query("isbn");
+
+  if (!isbn) {
+    return c.json(
+      {
+        error: {
+          code: "MISSING_PARAMETER",
+          message: "isbn query parameter is required",
+        },
+      },
+      400,
+    );
+  }
+
+  return await handleSearchEditions(isbn, c.env, c.req.raw);
+});
+
+// GET /images/proxy - Proxy external images through API (CORS, caching)
+app.get("/images/proxy", async (c) => {
+  const imageUrl = c.req.query("url");
+
+  if (!imageUrl) {
+    return c.json(
+      {
+        error: {
+          code: "MISSING_PARAMETER",
+          message: "url query parameter is required",
+        },
+      },
+      400,
+    );
+  }
+
+  return await handleImageProxy(imageUrl, c.env);
+});
+
 // ============================================================================
 // Test Route (DEBUG mode only - for testing error handler)
 // ============================================================================
