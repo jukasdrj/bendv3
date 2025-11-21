@@ -393,6 +393,12 @@ export class ProgressWebSocketDO extends DurableObject {
               },
             }),
           );
+
+          // CRITICAL FIX (Issue #178 / POSIX error 57):
+          // Return here to keep WebSocket connection alive for progress updates.
+          // Without this return, the code falls through to the else block which
+          // treats ready_ack as an unknown message type and closes the connection.
+          return;
         } else {
           // Unknown message type is a protocol violation
           console.warn(
@@ -1317,7 +1323,7 @@ export class ProgressWebSocketDO extends DurableObject {
       version: "1.0.0",
       payload: {
         type: "job_complete",
-        pipeline,
+        pipeline, // Keep for backward compatibility with clients expecting it
         ...payload,
         expiresAt, // Add expiry timestamp to payload
       },

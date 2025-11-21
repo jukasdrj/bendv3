@@ -98,7 +98,10 @@ ENABLE_REFACTORED_DOS = "false"  # Default: legacy architecture
 # When false: Uses traditional ProgressWebSocketDO with manual event listeners (default, 100% backward compatible)
 # Migration strategy: Parallel deployment with gradual rollout (1% → 10% → 50% → 100%)
 # Risk: LOW - Feature flag allows instant rollback if issues detected
-ENABLE_HIBERNATION_WEBSOCKET = "true"  # ENABLED: Hibernation WebSocket DO (Phase 2A - 70-80% cost reduction)
+# TEMPORARY ROLLBACK (Nov 21, 2025): Disabled due to "code has been updated" storage errors
+# After code change in progress-socket.js:401, old hibernated instances cannot access storage
+# Using non-hibernation DO until instances expire (24-48 hours), then re-enable
+ENABLE_HIBERNATION_WEBSOCKET = "false"  # DISABLED: Temporary rollback to traditional WebSocket DO
 
 # KV Namespaces (consolidated from books-api-proxy and external-apis-worker)
 # Note: Set remote = true to access production KV during local development (Wrangler v4.37+)
@@ -225,6 +228,9 @@ new_classes = ["CacheMetricsDO"]
 [[migrations]]
 tag = "v5"
 new_classes = ["ProgressWebSocketDO_Hibernation"]
+
+# NOTE: Migration v6/v7 removed - cannot delete class with active binding
+# Using feature flag fallback instead (see ENABLE_HIBERNATION_WEBSOCKET below)
 
 # Analytics Engine (merged from books-api-proxy and bookshelf-ai-worker)
 [[analytics_engine_datasets]]

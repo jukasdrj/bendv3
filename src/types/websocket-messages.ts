@@ -210,6 +210,7 @@ export interface BatchEnrichmentCompletePayload {
   type: "job_complete";
   pipeline: "batch_enrichment";
   summary: JobCompletionSummary;
+  expiresAt: string; // ISO 8601 timestamp - when results expire from KV cache (24 hours)
 }
 
 /**
@@ -222,6 +223,7 @@ export interface CSVImportCompletePayload {
   type: "job_complete";
   pipeline: "csv_import";
   summary: JobCompletionSummary;
+  expiresAt: string; // ISO 8601 timestamp - when results expire from KV cache (24 hours)
 }
 
 export interface ParsedBook {
@@ -255,6 +257,7 @@ export interface AIScanCompletePayload {
     approved?: number; // Optional: Books auto-approved
     needsReview?: number; // Optional: Books requiring manual review
   };
+  expiresAt: string; // ISO 8601 timestamp - when results expire from KV cache (24 hours)
 }
 
 export interface DetectedBook {
