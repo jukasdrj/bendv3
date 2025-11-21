@@ -813,6 +813,60 @@ X-RateLimit-Reset: 1700000060
 }
 ```
 
+### 3.2.1 WebSocket Connection Limits
+
+**Purpose:** Prevent resource exhaustion and ensure fair allocation of Durable Object resources.
+
+**Concurrent Connections:**
+- **5 connections per job** (per Durable Object instance)
+- Each job gets its own Durable Object, so total system capacity is unbounded
+- Limit applies per-job to prevent single job from monopolizing DO resources
+
+**Limit Exceeded Behavior:**
+
+When the 6th connection attempt is made to the same job, the client receives:
+
+1. **WebSocket Error Message:**
+```json
+{
+  "type": "error",
+  "payload": {
+    "code": "CONNECTION_LIMIT_EXCEEDED",
+    "message": "Maximum concurrent connections (5) exceeded",
+    "retryable": true,
+    "details": {
+      "currentConnections": 5,
+      "limit": 5
+    }
+  }
+}
+```
+
+2. **WebSocket Close:**
+- **Close Code:** `1008` (POLICY_VIOLATION)
+- **Close Reason:** "Connection limit exceeded"
+
+**Client Handling:**
+```swift
+// iOS Example
+func webSocket(_ webSocket: URLSessionWebSocket, didCloseWith closeCode: URLSessionWebSocketCloseCode, reason: Data?) {
+    if closeCode.rawValue == 1008 {
+        // Connection limit exceeded - existing connections need to close first
+        print("⚠️ Too many connections to this job. Close existing connections before reconnecting.")
+    }
+}
+```
+
+**Use Cases:**
+- **Normal:** User opens app on 1-2 devices simultaneously (< 5 connections)
+- **Edge Case:** User opens app on 5+ devices (6th connection rejected)
+- **Abuse Prevention:** Prevents single job from exhausting DO memory
+
+**Important Notes:**
+- Connections are automatically cleaned up when clients disconnect
+- Limit applies **per-job**, not per-user or per-IP
+- Different jobs use different Durable Objects (no cross-job limits)
+
 ---
 
 ## 4. Response Envelope (Universal)

@@ -25,7 +25,7 @@ import { processBookshelfScan } from "../services/ai-scanner.js";
  */
 
 // Constants
-const MAX_CONNECTIONS = 100; // Issue #170: Prevent resource exhaustion
+const MAX_CONNECTIONS = 5; // Issue #170: Prevent resource exhaustion (5 per jobId/DO instance)
 const BLACKLIST_TTL_SECONDS = 2.5 * 60 * 60; // 2.5 hours (token validity window)
 const BUFFER_THRESHOLD = 1024 * 1024; // 1MB backpressure threshold
 const MAX_INCOMING_SIZE = 10 * 1024; // 10KB max incoming message size
@@ -294,15 +294,56 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     );
 
     // Check connection limit (Issue #170)
-    await this.storage.transaction(async (txn) => {
-      const count = (await txn.get(STORAGE_KEYS.CONNECTION_COUNT)) || 0;
-      if (count >= MAX_CONNECTIONS) {
-        throw new Error(
-          `Connection limit reached (${MAX_CONNECTIONS} max connections)`,
-        );
-      }
-      await txn.put(STORAGE_KEYS.CONNECTION_COUNT, count + 1);
-    });
+    let connectionCount = 0;
+    try {
+      await this.storage.transaction(async (txn) => {
+        const count = (await txn.get(STORAGE_KEYS.CONNECTION_COUNT)) || 0;
+        connectionCount = count;
+
+        if (count >= MAX_CONNECTIONS) {
+          throw new Error(
+            `Connection limit reached (${MAX_CONNECTIONS} max connections)`,
+          );
+        }
+        await txn.put(STORAGE_KEYS.CONNECTION_COUNT, count + 1);
+      });
+    } catch (error) {
+      // Connection limit exceeded - send proper error message via WebSocket
+      console.warn(
+        `[Hibernation DO ${jobId}] ⚠️ Connection limit exceeded: ${connectionCount}/${MAX_CONNECTIONS}`,
+      );
+
+      // Create temporary WebSocket to send error message
+      const [client, server] = Object.values(new WebSocketPair());
+      this.state.acceptWebSocket(server);
+
+      // Send error message matching API contract
+      const errorMessage = {
+        type: "error",
+        payload: {
+          code: "CONNECTION_LIMIT_EXCEEDED",
+          message: `Maximum concurrent connections (${MAX_CONNECTIONS}) exceeded`,
+          retryable: true,
+          details: {
+            currentConnections: connectionCount,
+            limit: MAX_CONNECTIONS,
+          },
+        },
+      };
+
+      server.send(JSON.stringify(errorMessage));
+
+      // Close with policy violation code (1008)
+      server.close(
+        WebSocketCloseCodes.POLICY_VIOLATION,
+        "Connection limit exceeded",
+      );
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+      });
+    }
 
     // Create WebSocket pair
     const [client, server] = Object.values(new WebSocketPair());
