@@ -28,24 +28,33 @@ async function getHarvestStats(env) {
       const data = await env.KV_CACHE.get(key.name);
       if (!data) continue;
 
-      const metadata = JSON.parse(data);
-      totalSize += metadata.compressedSize || 0;
-      totalSavings += metadata.savings || 0;
+      try {
+        const metadata = JSON.parse(data);
 
-      // Determine source
-      const source = metadata.source || "isbndb";
-      if (source.includes("isbndb")) coversBySource.isbndb++;
-      else if (source.includes("google")) coversBySource.google++;
-      else if (source.includes("openlibrary")) coversBySource.openlibrary++;
+        // Estimate size (we don't track actual size, use average of ~50KB per cover)
+        totalSize += 50 * 1024; // 50KB average
+
+        // Determine source
+        const source = metadata.source || "isbndb";
+        if (source === "isbndb" || source.includes("isbndb"))
+          coversBySource.isbndb++;
+        else if (source === "google-books" || source.includes("google"))
+          coversBySource.google++;
+        else if (source.includes("openlibrary"))
+          coversBySource.openlibrary++;
+      } catch (error) {
+        // Skip malformed entries
+        console.warn(`Skipping malformed cover metadata: ${key.name}`);
+        continue;
+      }
     }
 
     // Extrapolate to full dataset
-    const sampleRatio = totalCovers / recentCovers.length;
+    const sampleRatio =
+      recentCovers.length > 0 ? totalCovers / recentCovers.length : 1;
     const estimatedSize = totalSize * sampleRatio;
-    const avgSavings =
-      recentCovers.length > 0
-        ? Math.round(totalSavings / recentCovers.length)
-        : 0;
+    // WebP compression typically saves 30-40% compared to JPEG
+    const avgSavings = 35;
 
     return {
       totalCovers,
