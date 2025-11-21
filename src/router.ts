@@ -22,6 +22,7 @@ import { handleBatchScan } from "./handlers/batch-scan-handler";
 import { handleCSVImport } from "./handlers/csv-import";
 import { handleMetricsRequest } from "./handlers/metrics-handler";
 import { handleCacheMetrics } from "./handlers/cache-metrics.js";
+import { handleHarvestDashboard } from "./handlers/harvest-dashboard.js";
 import * as bookSearch from "./handlers/book-search.js";
 import * as authorSearch from "./handlers/author-search.js";
 import { getProgressDOStub } from "./utils/durable-object-helpers";
@@ -459,7 +460,7 @@ app.post("/search/advanced", async (c) => {
 const rateLimitMiddleware = async (c, next) => {
   const rateLimitResponse = await checkRateLimit(c.req.raw, c.env);
   if (rateLimitResponse) return rateLimitResponse;
-  await next();
+  return await next();
 };
 
 // POST /v1/enrichment/batch - Canonical batch enrichment endpoint
@@ -487,6 +488,11 @@ app.get("/metrics", async (c) => {
 // GET /api/cache/metrics - Cache performance metrics
 app.get("/api/cache/metrics", async (c) => {
   return await handleCacheMetrics(c.req.raw, c.env);
+});
+
+// GET /admin/harvest-dashboard - ISBNdb harvest dashboard
+app.get("/admin/harvest-dashboard", async (c) => {
+  return await handleHarvestDashboard(c.req.raw, c.env);
 });
 
 // GET /api/cache/stats - Real-time cache performance statistics from CacheMetricsDO
@@ -568,7 +574,7 @@ app.get("/ws/progress", async (c) => {
 
   // Forward the request to the Durable Object
   // The DO will handle the WebSocket upgrade and lifecycle
-  return doStub.fetch(c.req.raw);
+  return await doStub.fetch(c.req.raw);
 });
 
 // ============================================================================
