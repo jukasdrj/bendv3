@@ -223,10 +223,13 @@ npx wrangler tail --remote --format pretty
 
 ## Documentation
 
+> **📚 [Complete Documentation Index](DOCS_INDEX.md)** - Comprehensive guide to all documentation
+
 ### Quick Links (Start Here)
-- **[API Reference](docs/API_README.md)** - Canonical contracts, endpoints, and integration patterns
+- **[Documentation Index](DOCS_INDEX.md)** - 📚 **NEW** - Complete documentation navigation and index
+- **[API Reference](docs/API_CONTRACT.md)** - Canonical contracts, endpoints, and integration patterns (source of truth)
 - **[Architecture Overview](ARCHITECTURE_OVERVIEW.md)** - Backend architecture and design principles
-- **[Quick Start Guide](docs/QUICK_START.md)** - Fast setup and development workflow
+- **[Claude Code Guide](.claude/CLAUDE.md)** - Comprehensive AI development guidelines
 
 ### Deployment & Operations
 - **[Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Complete deployment guide with rollback procedures
