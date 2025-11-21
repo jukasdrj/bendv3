@@ -66,13 +66,26 @@ app.use(
 // MVP Route 1: Health Check (Baseline Test)
 // ============================================================================
 app.get("/health", (c) => {
-  return c.json({
-    status: "ok",
-    worker: "api-worker",
-    version: "2.1.0",
-    router: "hono", // Key field for A/B testing
-    timestamp: new Date().toISOString(),
+  // Note: Health endpoint uses ResponseEnvelope format for consistency (Issue #240)
+  const response = new Response(JSON.stringify({
+    data: {
+      status: "ok",
+      worker: "api-worker",
+      version: "2.1.0",
+      router: "hono",
+    },
+    metadata: {
+      timestamp: new Date().toISOString(),
+    },
+  }), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Response-Format": "v2.0",
+    },
   });
+
+  return response;
 });
 
 // ============================================================================

@@ -379,8 +379,8 @@ This document is the **single source of truth** for the BooksTrack API. All fron
 
 ### 1.3 Versioning
 
-**Current Version:** `v2.2`
-**API Version Header:** `X-API-Version: 2.2` (optional)
+**Current Version:** `v2.4.1`
+**API Version Header:** `X-API-Version: 2.4.1` (optional)
 **URL Versioning:** `/v1/*` endpoints (implements v2.x contract), `/v2/*` endpoints (reserved for future breaking changes)
 
 **Version Support Policy:**
