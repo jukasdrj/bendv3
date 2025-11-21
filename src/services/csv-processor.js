@@ -9,18 +9,18 @@
  * reporting progress updates through a provided progress callback interface.
  *
  * Related: Issue #68 - Refactor Monolithic ProgressWebSocketDO
+ * Related: Issue #180 - Eliminate code duplication in CSV processing
  */
 
-import { validateCSV } from "../utils/csv-validator.js";
 import {
-  buildCSVParserPrompt,
-  PROMPT_VERSION,
-} from "../prompts/csv-parser-prompt.js";
-import { generateCSVCacheKey } from "../utils/cache-keys.js";
-import { parseCSVWithGemini } from "../providers/gemini-csv-provider.js";
+  processCSVCore,
+  buildServiceCompletionPayload,
+} from "../utils/csv-processor-core.js";
 
 /**
  * Process CSV import with progress tracking
+ *
+ * This is now a thin wrapper around processCSVCore utility (Issue #180)
  *
  * @param {string} csvText - Raw CSV file content
  * @param {Object} progressReporter - Interface for reporting progress
@@ -33,134 +33,10 @@ import { parseCSVWithGemini } from "../providers/gemini-csv-provider.js";
  * @returns {Promise<void>}
  */
 export async function processCSVImport(csvText, progressReporter, env, jobId) {
-  const startTime = Date.now();
-  try {
-    // Wait for client to establish WebSocket and send ready signal
-    // Issue #178: Increased timeout to 15 seconds to handle slow network connections
-    console.log("[CSV Processor] Waiting for client ready signal");
-    const readyResult = await progressReporter.waitForReady(15000);
-
-    if (readyResult.timedOut || readyResult.disconnected) {
-      const reason = readyResult.timedOut ? "timeout" : "not connected";
-      console.warn(
-        `[CSV Processor] Client ready ${reason}, proceeding anyway (client may miss early updates)`,
-      );
-    } else {
-      const elapsedMs = Date.now() - startTime;
-      console.log(`[CSV Processor] ✅ Client ready after ${elapsedMs}ms`);
-    }
-
-    // Stage 0: Validation (0-5%)
-    await progressReporter.updateProgress("csv_import", {
-      progress: 0.02,
-      status: "Validating CSV file...",
-      processedCount: 0,
-    });
-
-    const validation = validateCSV(csvText);
-    if (!validation.valid) {
-      throw new Error(`Invalid CSV: ${validation.error}`);
-    }
-
-    // Stage 1: Gemini Parsing (5-50%)
-    // Note: Token limit enforced in gemini-csv-provider.js to 8MB (~2M tokens at 4 bytes/token)
-    // This aligns with Gemini 2.0 Flash's 2M context window across all CSV processing.
-    await progressReporter.updateProgress("csv_import", {
-      progress: 0.05,
-      status: "Uploading CSV to Gemini...",
-      processedCount: 0,
-    });
-
-    const cacheKey = await generateCSVCacheKey(csvText, PROMPT_VERSION);
-    let parsedBooks = await env.KV_CACHE.get(cacheKey, "json");
-
-    if (!parsedBooks) {
-      const prompt = buildCSVParserPrompt();
-      parsedBooks = await callGemini(csvText, prompt, env);
-
-      // Schema guarantees valid array structure and title+author on all books
-      // Only check for empty response (edge case: CSV with no parseable books)
-      if (!Array.isArray(parsedBooks) || parsedBooks.length === 0) {
-        throw new Error("No valid books found in CSV");
-      }
-
-      // Cache for 7 days
-      await env.KV_CACHE.put(cacheKey, JSON.stringify(parsedBooks), {
-        expirationTtl: 604800,
-      });
-    }
-
-    // Stage 2: Report parsed count
-    await progressReporter.updateProgress("csv_import", {
-      progress: 0.75,
-      status: `Gemini parsed ${parsedBooks.length} books with valid title+author`,
-      processedCount: parsedBooks.length,
-    });
-
-    // Validate and shape parsed books to ParsedBookDTO structure
-    const validatedBooks = parsedBooks
-      .filter((book) => book.title && book.author)
-      .map((book) => ({
-        title: String(book.title).trim(),
-        author: String(book.author).trim(),
-        isbn: book.isbn ? String(book.isbn).trim() : undefined,
-      }));
-
-    // ISSUE #133: Store full results in KV to avoid multi-MB WebSocket payloads
-    const resultsKey = `csv-results:${jobId}`;
-    const fullResults = {
-      books: validatedBooks,
-      errors: [],
-      successRate: `${validatedBooks.length}/${parsedBooks.length}`,
-      timestamp: Date.now(),
-    };
-
-    await env.KV_CACHE.put(resultsKey, JSON.stringify(fullResults), {
-      expirationTtl: 86400, // 24 hours
-    });
-
-    console.log(
-      `[CSV Processor] 💾 Stored full results in KV: ${resultsKey} (${validatedBooks.length} books)`,
-    );
-
-    // Send summary-only completion via WebSocket
-    await progressReporter.complete("csv_import", {
-      booksCount: validatedBooks.length,
-      resultsUrl: `/v1/csv/results/${jobId}`, // Client fetches full results via HTTP GET
-      successRate: `${validatedBooks.length}/${parsedBooks.length}`,
-    });
-
-    console.log("[CSV Processor] Processing completed successfully");
-  } catch (error) {
-    console.error("[CSV Processor] Processing failed:", error);
-    await progressReporter.sendError("csv_import", {
-      code: "E_CSV_PROCESSING_FAILED",
-      message: error.message,
-      retryable: true,
-      details: {
-        fallbackAvailable: true,
-        suggestion: "Try manual CSV import instead",
-      },
-    });
-  }
-}
-
-/**
- * Call Gemini API to parse CSV
- *
- * @param {string} csvText - Raw CSV content
- * @param {string} prompt - Gemini prompt with few-shot examples
- * @param {Object} env - Worker environment bindings
- * @returns {Promise<Array<Object>>} Parsed book data
- */
-async function callGemini(csvText, prompt, env) {
-  const apiKey = env.GEMINI_API_KEY?.get
-    ? await env.GEMINI_API_KEY.get()
-    : env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY not configured");
-  }
-
-  return await parseCSVWithGemini(csvText, prompt, apiKey);
+  // Use shared CSV processing core with service-specific options
+  await processCSVCore(csvText, jobId, progressReporter, env, {
+    resultsTTL: 86400, // 24 hours TTL (ISSUE #133: longer storage for service)
+    resultsKeyPrefix: "csv-results", // Service-specific prefix
+    buildCompletionPayload: buildServiceCompletionPayload, // Custom completion format
+  });
 }
