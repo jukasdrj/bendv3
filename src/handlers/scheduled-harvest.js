@@ -24,6 +24,9 @@ import { CacheKeyFactory } from "../services/cache-key-factory.js";
 import { ISBNdbAPI } from "../services/isbndb-api.js";
 import { RateLimiter } from "../utils/rate-limiter.js";
 import { getTopEditions } from "../services/edition-discovery.js";
+import { discoverPopularAuthors } from "../services/author-discovery.js";
+import { prioritizeAuthorsForHarvest } from "../services/author-cache-analyzer.js";
+import { expandAuthorBibliography } from "../services/author-bibliography-expansion.js";
 
 /**
  * Load curated ISBN list from isbn-harvest-list.txt (478 ISBNs from testImages/csv-expansion)
@@ -489,73 +492,78 @@ export async function handleScheduledHarvest(env) {
 
   console.log("✅ ISBNdb API healthy");
 
-  // Collect ISBNs from all sources
+  // AUTHOR-DRIVEN HARVEST with Cache Depth Checking
   console.log("");
   console.log("=".repeat(60));
-  console.log("📚 Collecting ISBNs from all sources...");
+  console.log("📚 Author-Driven Harvest with Cache Depth Checking");
   console.log("=".repeat(60));
 
-  // Load curated ISBN list from testImages/csv-expansion (478 unique ISBNs)
-  // Extracted from yearly bestseller CSVs (2015-2025)
-  const curatedISBNs = await loadCuratedISBNs();
-  console.log(
-    `1️⃣ Curated ISBNs: ${curatedISBNs.length} (priority 1 - bestsellers 2015-2025)`,
+  const DAILY_QUOTA = 5000; // ISBNdb Premium plan
+  const allISBNs = new Set();
+
+  // Step 1: Discover popular authors
+  const popularAuthors = await discoverPopularAuthors(env, { maxAuthors: 100 });
+  console.log(`📊 Discovered ${popularAuthors.length} popular authors`);
+
+  // Step 2: Prioritize authors by cache depth (lowest coverage first)
+  const authorsToHarvest = await prioritizeAuthorsForHarvest(
+    popularAuthors.map((a) => a.name),
+    env,
+    {
+      coverageThreshold: 50, // Skip authors with ≥ 50% coverage
+      maxAuthors: 50, // Take top 50 needing expansion
+    },
   );
 
-  // Multi-edition discovery: Take 350 Works, discover 2-3 editions each → 700-1050 ISBNs
-  console.log("");
-  console.log("🔍 Starting multi-edition discovery for top 350 Works...");
-  const seedWorks = curatedISBNs.slice(0, 350); // Take first 350 Works
-  const multiEditionISBNs = await discoverMultiEditionISBNs(seedWorks, env, 3);
+  console.log(`✅ Prioritized ${authorsToHarvest.length} authors for harvest`);
   console.log(
-    `   📚 Multi-edition ISBNs: ${multiEditionISBNs.length} (from ${seedWorks.length} Works)`,
+    `   Skipped ${popularAuthors.length - authorsToHarvest.length} authors (sufficient cache coverage)`,
   );
 
-  const analyticsISBNs = await collectAnalyticsISBNs(env);
-  console.log(
-    `2️⃣ Analytics ISBNs: ${analyticsISBNs.length} (priority 2 - popular searches)`,
-  );
+  // Step 3: Allocate quota
+  const quotaPerAuthor = Math.floor(DAILY_QUOTA / authorsToHarvest.length);
+  const maxWorksPerAuthor = Math.floor(quotaPerAuthor / 3); // Assume 3 editions/work
 
-  const userLibraryISBNs = await collectUserLibraryISBNs(env);
-  console.log(
-    `3️⃣ User Library ISBNs: ${userLibraryISBNs.length} (priority 3 - user collections)`,
-  );
+  console.log(``);
+  console.log(`📦 Quota Allocation:`);
+  console.log(`   Total quota: ${DAILY_QUOTA} ISBNs/day`);
+  console.log(`   Authors to process: ${authorsToHarvest.length}`);
+  console.log(`   ISBNs per author: ${quotaPerAuthor}`);
+  console.log(`   Works per author: ${maxWorksPerAuthor}`);
+  console.log(``);
 
-  // Deduplicate with priority ordering (multi-edition > analytics > user library)
-  // Slice at 1000 to respect ISBNdb API limit
-  const allISBNs = [
-    ...new Set([
-      ...multiEditionISBNs, // Priority 1: Multi-edition bestsellers (700-1050 ISBNs)
-      ...analyticsISBNs, // Priority 2: Popular searches (0-300 ISBNs fill remaining capacity)
-      ...userLibraryISBNs, // Priority 3: User library collections (future)
-    ]),
-  ].slice(0, 1000); // Cap at ISBNdb API limit
-
-  const totalBeforeCap =
-    multiEditionISBNs.length + analyticsISBNs.length + userLibraryISBNs.length;
-  const duplicatesRemoved = totalBeforeCap - allISBNs.length;
-
-  console.log("");
-  console.log("📊 ISBN Collection Summary:");
-  console.log(`   Total before dedup: ${totalBeforeCap}`);
-  console.log(`   Duplicates removed: ${duplicatesRemoved}`);
-  console.log(`   Unique ISBNs: ${allISBNs.length}`);
-  console.log(`   Multi-edition: ${multiEditionISBNs.length}`);
-  console.log(`   Analytics: ${analyticsISBNs.length}`);
-  console.log(`   User Library: ${userLibraryISBNs.length}`);
-
-  if (allISBNs.length >= 1000) {
-    console.warn("⚠️ Capped at 1000 ISBNs (ISBNdb API daily limit reached)");
-  } else {
-    const unused = 1000 - allISBNs.length;
+  // Step 4: Expand each author's bibliography
+  for (const author of authorsToHarvest) {
     console.log(
-      `✅ Using ${allISBNs.length}/1000 ISBNdb requests (${unused} unused capacity)`,
+      `📚 Processing: ${author.name} (${author.estimatedCoverage}% cached)`,
     );
+
+    const result = await expandAuthorBibliography(author.name, env, {
+      maxWorks: maxWorksPerAuthor,
+      editionsPerWork: 3,
+      minPublicationYear: 1990,
+    });
+
+    if (result.success) {
+      result.isbns.forEach((isbn) => allISBNs.add(isbn));
+      console.log(`   ✓ ${result.stats.isbnsHarvested} ISBNs discovered`);
+    } else {
+      console.warn(`   ✗ Failed: ${result.error}`);
+    }
+
+    // Stop if quota reached
+    if (allISBNs.size >= DAILY_QUOTA) {
+      console.warn(`⚠️ Quota reached (${allISBNs.size}/${DAILY_QUOTA})`);
+      break;
+    }
   }
+
+  console.log(``);
+  console.log(`✅ ISBN Collection Complete: ${allISBNs.size}/${DAILY_QUOTA} quota used`);
   console.log("=".repeat(60));
   console.log("");
 
-  if (allISBNs.length === 0) {
+  if (allISBNs.size === 0) {
     console.log("✅ No ISBNs to harvest");
     return {
       success: true,
@@ -565,11 +573,8 @@ export async function handleScheduledHarvest(env) {
         skipped: 0,
         noCover: 0,
         errors: 0,
-        sources: {
-          curated: curatedISBNs.length,
-          analytics: analyticsISBNs.length,
-          userLibrary: userLibraryISBNs.length,
-        },
+        authorsProcessed: authorsToHarvest.length,
+        authorsDiscovered: popularAuthors.length,
       },
       duration: Date.now() - startTime,
     };
@@ -577,7 +582,7 @@ export async function handleScheduledHarvest(env) {
 
   // Harvest with rate limiting
   const stats = {
-    total: allISBNs.length,
+    total: allISBNs.size,
     successful: 0,
     skipped: 0,
     noCover: 0,

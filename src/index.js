@@ -60,8 +60,8 @@ export default {
           await handleScheduledAlerts(env, ctx);
           break;
 
-        case "0 3 * * 0": // Weekly on Sundays at 3 AM UTC
-          console.log("[Cron] Running weekly cover harvest job");
+        case "0 3 * * *": // Daily at 3 AM UTC
+          console.log("[Cron] Running daily cover harvest job");
           await handleScheduledHarvest(env, ctx);
           break;
 
