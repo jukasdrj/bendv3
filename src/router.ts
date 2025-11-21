@@ -29,7 +29,12 @@ import { getProgressDOStub } from "./utils/durable-object-helpers";
 import { analyticsMiddleware } from "./middleware/hono-analytics";
 import { checkRateLimit } from "./middleware/rate-limiter";
 
-const app = new Hono<{ Bindings: Env }>();
+// Properly typed Hono app with Bindings and ExecutionContext support
+const app = new Hono<{ Bindings: Env; Variables: { executionCtx?: ExecutionContext } }>();
+
+// Helper to safely get ExecutionContext from Hono context
+// ExecutionContext is passed via fetch(request, env, ctx) but not automatically available in Hono's context
+const getCtx = (c: any): ExecutionContext | undefined => (c as any).executionCtx as ExecutionContext | undefined;
 
 // Global analytics middleware (adds X-Router and X-Response-Time headers)
 app.use("*", analyticsMiddleware());
@@ -143,7 +148,7 @@ app.get("/v1/search/advanced", async (c) => {
     title,
     author,
     c.env,
-    c.executionCtx,
+    getCtx(c),
     c.req.raw,
   );
 });
@@ -173,7 +178,7 @@ app.get("/search/title", async (c) => {
     query,
     { maxResults },
     c.env,
-    c.executionCtx,
+    getCtx(c),
   );
 
   // Extract cache headers from result
@@ -223,7 +228,7 @@ app.get("/search/isbn", async (c) => {
     isbn,
     { maxResults },
     c.env,
-    c.executionCtx,
+    getCtx(c),
   );
 
   // Extract cache headers from result
@@ -321,7 +326,7 @@ app.get("/search/author", async (c) => {
     authorName,
     { limit, offset, sortBy },
     c.env,
-    c.executionCtx,
+    getCtx(c),
   );
 
   // Extract cache status for headers
@@ -375,7 +380,7 @@ app.get("/search/advanced", async (c) => {
     bookTitle || "",
     authorName || "",
     c.env,
-    c.executionCtx,
+    getCtx(c),
     c.req.raw,
   );
 
@@ -421,7 +426,7 @@ app.post("/search/advanced", async (c) => {
       bookTitle || "",
       authorName || "",
       c.env,
-      c.executionCtx,
+      getCtx(c),
       c.req.raw,
     );
 
@@ -465,24 +470,24 @@ const rateLimitMiddleware = async (c, next) => {
 
 // POST /v1/enrichment/batch - Canonical batch enrichment endpoint
 app.post("/v1/enrichment/batch", rateLimitMiddleware, async (c) => {
-  return await handleBatchEnrichment(c.req.raw, c.env, c.executionCtx);
+  return await handleBatchEnrichment(c.req.raw, c.env, getCtx(c));
 });
 
 // POST /api/scan-bookshelf/batch - Batch AI bookshelf scanner
 app.post("/api/scan-bookshelf/batch", rateLimitMiddleware, async (c) => {
-  return await handleBatchScan(c.req.raw, c.env, c.executionCtx);
+  return await handleBatchScan(c.req.raw, c.env, getCtx(c));
 });
 
 // POST /api/import/csv-gemini - Gemini-powered CSV import
 app.post("/api/import/csv-gemini", rateLimitMiddleware, async (c) => {
-  return await handleCSVImport(c.req.raw, c.env, c.executionCtx);
+  return await handleCSVImport(c.req.raw, c.env, getCtx(c));
 });
 
 // ============================================================================
 // MVP Route 3: Metrics (Analytics Integration Test)
 // ============================================================================
 app.get("/metrics", async (c) => {
-  return await handleMetricsRequest(c.req.raw, c.env, c.executionCtx);
+  return await handleMetricsRequest(c.req.raw, c.env, getCtx(c));
 });
 
 // GET /api/cache/metrics - Cache performance metrics
@@ -697,7 +702,7 @@ app.get("/v1/csv/results/:jobId", async (c) => {
 
 // POST /api/batch-scan - Batch photo scanning (1-5 photos)
 app.post("/api/batch-scan", rateLimitMiddleware, async (c) => {
-  return await handleBatchScan(c.req.raw, c.env, c.executionCtx);
+  return await handleBatchScan(c.req.raw, c.env, getCtx(c));
 });
 
 // ============================================================================
@@ -845,16 +850,20 @@ app.onError((err, c) => {
           indexes: ["hono"], // Router type
         }),
       );
-      c.executionCtx.waitUntil(
-        dataPointPromise.catch((analyticsErr) => {
-          console.error(
-            "[Hono] Failed to log error to Analytics Engine:",
-            analyticsErr,
-          );
-          // Note: Simple retry omitted to avoid exceeding Workers execution limits
-          // Analytics failures are logged but not retried to maintain performance
-        }),
-      );
+      // ExecutionContext may not be available in Hono context, skip if not present
+      const ctx = getCtx(c);
+      if (ctx) {
+        ctx.waitUntil(
+          dataPointPromise.catch((analyticsErr) => {
+            console.error(
+              "[Hono] Failed to log error to Analytics Engine:",
+              analyticsErr,
+            );
+            // Note: Simple retry omitted to avoid exceeding Workers execution limits
+            // Analytics failures are logged but not retried to maintain performance
+          }),
+        );
+      }
     } catch (syncError) {
       // Catch synchronous errors during writeDataPoint invocation
       console.error(
@@ -862,11 +871,14 @@ app.onError((err, c) => {
         syncError,
       );
       // Log sync errors via waitUntil to ensure they're captured
-      c.executionCtx.waitUntil(
-        Promise.resolve().then(() => {
-          console.warn("[Hono] Analytics sync error captured in error handler");
-        }),
-      );
+      const ctx = getCtx(c);
+      if (ctx) {
+        ctx.waitUntil(
+          Promise.resolve().then(() => {
+            console.warn("[Hono] Analytics sync error captured in error handler");
+          }),
+        );
+      }
     }
   } else {
     // Warn if Analytics binding is missing or misconfigured
