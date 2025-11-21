@@ -1,142 +1,111 @@
-# BooksTrack Backend - Claude Code Guide
+# BooksTrack Backend - Claude Code Quick Reference
 
-**Version:** 2.2 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** November 18, 2025
+**Version:** 2.3 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** November 20, 2025
 
-> **📋 For universal AI agent instructions, see [`AGENTS.md`](AGENTS.md)**
-> This file contains **Claude Code-specific** setup (MCP, slash commands, skills).
-
----
-
-## Quick Reference
-
-**🤖 AI Context Files:**
-- **`AGENTS.md`** - Universal AI agent guide (ALL tools use this)
-- **`CLAUDE.md`** - Claude Code-specific (this file)
-- **`.ai/SHARED_CONTEXT.md`** - Project-wide context
+> **📖 For comprehensive Claude Code guidelines, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md)**
+>
+> This file is a lightweight quick reference. For detailed patterns, architecture, and AI collaboration workflows, refer to the full documentation.
 
 ---
 
-## Shared Knowledge Base
-
-**This project contributes to and references shared learnings across all projects.**
-
-**Knowledge Base Location:** `~/.claude/knowledge-base/`
-
-### Relevant Patterns
-
-- [API Orchestration](~/.claude/knowledge-base/architectures/api-orchestration.md) - Multi-provider API orchestration design (SOURCE PROJECT)
-
-**Patterns from other projects:**
-- [Zero Warnings Policy](~/.claude/knowledge-base/decisions/zero-warnings-policy.md) - Adapt for TypeScript/ESLint
-
----
-
-## MCP Setup
-
-### Available MCP Servers
-
-**Zen MCP Server:**
-- **Providers:** Google Gemini ✅, X.AI ✅
-- **Models:** Use `listmodels` tool to see all 14 available models
-- **Mode:** Auto model selection
-
----
-
-## Project-Specific Patterns
-
-### Code Style
-
-**TypeScript strict mode:**
-```typescript
-// Always use explicit types
-function processBook(isbn: string): Promise<Book> {
-  // Implementation
-}
-
-// Use readonly for immutable data
-interface Book {
-  readonly isbn: string;
-  readonly title: string;
-}
-```
-
-### API Orchestration
-
-**See:** `~/.claude/knowledge-base/architectures/api-orchestration.md`
-
-**Key principle:** ZERO direct client API calls. All external APIs go through orchestrator.
-
-### Testing
-
-```typescript
-import { describe, it, expect } from 'vitest';
-
-describe('BookOrchestrator', () => {
-  it('should merge results from multiple providers', async () => {
-    const orchestrator = new BookOrchestrator(mockProviders);
-    const results = await orchestrator.search('effective java');
-
-    expect(results[0]._provider).toMatch(/orchestrated:/);
-  });
-});
-```
-
----
-
-## TodoWrite Usage
-
-**MUST use TodoWrite for:**
-- Complex multi-step tasks (3+ steps)
-- API contract changes requiring multiple files
-- Migration tasks
-
----
-
-## Git Workflow
-
-### Commit Messages
-
-```
-type: brief description
-
-Optional explanation.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-```
-
-**Types:** feat, fix, docs, refactor, test, chore
-
-### PR Checklist
-
-- [ ] All tests pass (`npm test`)
-- [ ] No linting errors (`npm run lint`)
-- [ ] API contract documentation updated
-- [ ] Provider attribution tags verified
-
----
-
-## Common Tasks
+## 🚀 Quick Start
 
 ```bash
 # Development
-npm run dev
+npm install
+npm run dev                    # Start local Wrangler dev server
 
 # Testing
-npm test
-npm run test:watch
-
-# Linting
-npm run lint
-npm run lint:fix
+npm test                       # Run all tests
+npm run test:watch             # Watch mode
+npm run test:coverage          # With coverage
 
 # Deployment
-npm run deploy
+npm run deploy                 # Deploy to production
 ```
 
 ---
 
-**Last Updated:** November 18, 2025
-**Maintained by:** Justin Gardner (oooe/jukasdrj)
-**See Also:** [`AGENTS.md`](AGENTS.md), [`~/.claude/knowledge-base/README.md`](~/.claude/knowledge-base/README.md)
+## 📋 Documentation Map
+
+**Core Documentation:**
+- **[.claude/CLAUDE.md](.claude/CLAUDE.md)** - Full Claude Code guidelines (architecture, patterns, AI workflows)
+- **[AGENTS.md](AGENTS.md)** - Universal AI agent guide (all tools)
+- **[README.md](README.md)** - Project overview and setup
+- **[docs/API_CONTRACT.md](docs/API_CONTRACT.md)** - API contract (source of truth)
+
+**AI Context:**
+- `.ai/` - AI-specific prompts and templates
+- `.claude/` - Claude Code configuration (MCP, commands, agents)
+- `.github/` - GitHub agents (Jules, Copilot)
+
+**Deployment & Operations:**
+- `docs/deployment/` - Deployment, secrets, monitoring, rollback
+- `docs/guides/` - Feature-specific guides
+
+---
+
+## 🤖 AI Tools Quick Reference
+
+**Autonomous Agents:**
+- `/deploy` - Deploy with monitoring (@cf-ops-monitor)
+- `/review` - Code quality review (@cf-code-reviewer)
+- `/logs [filter]` - Stream production logs
+- `/rollback` - Rollback deployment
+- `/cache-check` - KV cache performance
+
+**MCP Tools (Zen):**
+- `mcp__zen__debug` - Deep debugging (Grok-4)
+- `mcp__zen__codereview` - Architecture review
+- `mcp__zen__secaudit` - Security audit
+- `mcp__zen__chat` - Collaborative thinking
+
+---
+
+## ⚡ Common Patterns
+
+**Code Style:**
+- TypeScript strict mode
+- ES6+ features (async/await, destructuring)
+- No semicolons (ASI)
+- 2-space indentation
+
+**API Design:**
+- Canonical response format (see API_CONTRACT.md)
+- ZERO direct client API calls
+- Multi-provider orchestration
+
+**Testing:**
+- Vitest framework
+- Mock external APIs (no real calls)
+- 75%+ coverage target
+
+---
+
+## 📊 Current Sprint Status
+
+**Active Issues:** 20 (as of Nov 20, 2025)
+- **P1:** 1 (SLA validation)
+- **P2:** 16 (Quick wins + Sprint 3)
+- **P3:** 2 (Placeholder images, test refactoring)
+
+**Recent Completions:**
+- ✅ Sprint 2: 6 documentation issues (Nov 20)
+- ✅ Sprint 3 Phase 1: 2 reliability fixes (Nov 20)
+
+**See [.claude/CLAUDE.md](.claude/CLAUDE.md) for full issue tracking.**
+
+---
+
+## 🔗 Quick Links
+
+- **Production API:** https://api.oooefam.net
+- **Health Endpoint:** https://api.oooefam.net/health
+- **Full Guidelines:** [.claude/CLAUDE.md](.claude/CLAUDE.md)
+- **Architecture Overview:** [ARCHITECTURE_OVERVIEW.md](ARCHITECTURE_OVERVIEW.md)
+
+---
+
+**Last Updated:** November 20, 2025
+**Maintained by:** Justin Gardner (@jukasdrj)
+**Full Documentation:** [.claude/CLAUDE.md](.claude/CLAUDE.md)
