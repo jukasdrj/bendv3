@@ -11,8 +11,8 @@ export default defineConfig({
     // Global setup files - run BEFORE all tests
     setupFiles: ['./tests/setup.js'],
 
-    // Include all test files
-    include: ['tests/**/*.test.js'],
+    // Include all test files (both JavaScript and TypeScript)
+    include: ['tests/**/*.test.{js,ts}'],
 
     // Exclude node_modules and other non-test directories
     exclude: ['node_modules', 'dist', '.idea', '.git'],
@@ -28,8 +28,8 @@ export default defineConfig({
       exclude: [
         'node_modules/',
         'tests/',
-        '**/*.test.js',
-        '**/*.spec.js',
+        '**/*.test.{js,ts}',
+        '**/*.spec.{js,ts}',
         'dist/',
         '.wrangler/'
       ],
