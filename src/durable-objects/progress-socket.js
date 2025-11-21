@@ -498,6 +498,8 @@ export class ProgressWebSocketDO extends DurableObject {
       // Echo the exact subprotocol value offered by the client (RFC 6455 requirement)
       headers["Sec-WebSocket-Protocol"] = wsProtocol;
     }
+    // API Contract compliance (Issue #240): Add X-Response-Format header
+    headers["X-Response-Format"] = "v2.0";
 
     return new Response(null, {
       status: 101,
