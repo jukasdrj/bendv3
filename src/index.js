@@ -76,6 +76,32 @@ export default {
     // ========================================================================
     // Manual Router (Legacy - Opt-Out Only)
     // ========================================================================
+    // ⚠️ DEPRECATION NOTICE ⚠️
+    // This manual router is DEPRECATED and will be removed in v3.0.0
+    //
+    // Why deprecated:
+    // - Hono router provides better performance, middleware support, and type safety
+    // - Manual router is harder to maintain and extend
+    // - Duplicate routing logic between manual and Hono routers
+    //
+    // Migration path:
+    // 1. Test your application with ENABLE_HONO_ROUTER=true (default)
+    // 2. Report any issues via GitHub
+    // 3. Manual router will be removed after 90-day deprecation period
+    //
+    // Timeline:
+    // - Deprecated: November 21, 2025
+    // - Removal target: March 1, 2026 (v3.0.0)
+    //
+    // DO NOT add new routes to this manual router. All new routes must be
+    // added to src/router.ts (Hono router).
+    // ========================================================================
+
+    console.warn(
+      "⚠️ DEPRECATED: Manual router is deprecated and will be removed in v3.0. " +
+      "Please migrate to Hono router (ENABLE_HONO_ROUTER=true). " +
+      "See .claude/CLAUDE.md for migration guide."
+    );
     console.log(
       "[Router] Using manual router (feature flag explicitly disabled)",
     );

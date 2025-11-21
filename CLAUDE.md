@@ -1,6 +1,6 @@
 # BooksTrack Backend - Claude Code Quick Reference
 
-**Version:** 2.3 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** November 20, 2025
+**Version:** 2.3 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** November 21, 2025
 
 > **📖 For comprehensive Claude Code guidelines, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md)**
 >
@@ -75,6 +75,10 @@ npm run deploy                 # Deploy to production
 - ZERO direct client API calls
 - Multi-provider orchestration
 
+**Routing:**
+- ✅ Hono router (`src/router.ts`) - DEFAULT, add all new routes here
+- ⚠️ Manual router (`src/index.js`) - DEPRECATED, removal March 2026
+
 **Testing:**
 - Vitest framework
 - Mock external APIs (no real calls)
@@ -84,12 +88,13 @@ npm run deploy                 # Deploy to production
 
 ## 📊 Current Sprint Status
 
-**Active Issues:** 20 (as of Nov 20, 2025)
-- **P1:** 1 (SLA validation)
-- **P2:** 16 (Quick wins + Sprint 3)
-- **P3:** 2 (Placeholder images, test refactoring)
+**Active Issues:** 11 (as of Nov 21, 2025)
+- **P1:** 2 (API contract, CORS security)
+- **P2:** 4 (Hono router deprecation, PRD tracking, CSV duplication, WebSocket limits)
+- **P3:** 5 (Recommendations, monitoring, tests)
 
 **Recent Completions:**
+- ✅ Issue #243 Phase 1: Manual router deprecation warnings (Nov 21)
 - ✅ Sprint 2: 6 documentation issues (Nov 20)
 - ✅ Sprint 3 Phase 1: 2 reliability fixes (Nov 20)
 
@@ -106,6 +111,6 @@ npm run deploy                 # Deploy to production
 
 ---
 
-**Last Updated:** November 20, 2025
+**Last Updated:** November 21, 2025
 **Maintained by:** Justin Gardner (@jukasdrj)
 **Full Documentation:** [.claude/CLAUDE.md](.claude/CLAUDE.md)
