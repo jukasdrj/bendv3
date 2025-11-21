@@ -1,5 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { WebSocketCloseCodes } from "../types/websocket-messages.js";
+import { processCSVImportCore } from "../handlers/csv-import.ts";
+import { processBookshelfScan } from "../services/ai-scanner.js";
 
 /**
  * ProgressWebSocketDO with Cloudflare WebSocket Hibernation API
@@ -44,11 +46,15 @@ const STORAGE_KEYS = {
   LAST_DISCONNECT_CODE: "lastDisconnectCode",
   LAST_DISCONNECT_REASON: "lastDisconnectReason",
   BATCH_STATE: "batchState",
+  CSV_DATA: "csvData",
+  IMAGE_DATA: "imageData",
+  REQUEST_HEADERS: "requestHeaders",
 };
 
 export class ProgressWebSocketDO_Hibernation extends DurableObject {
   constructor(state, env) {
     super(state, env);
+    this.state = state; // Required for accessing state.getWebSockets() in hibernation API
     this.storage = state.storage;
     this.env = env;
     // NO in-memory state - everything in storage for persistence across hibernation cycles
@@ -325,18 +331,26 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    */
   async handleReadyMessage(ws, data) {
     const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+    const pipeline = await this.storage.get(STORAGE_KEYS.CURRENT_PIPELINE);
 
     console.log(`[ProgressWebSocketDO_Hibernation] Client ready for job ${jobId}`);
 
     // Mark as ready
     await this.storage.put(STORAGE_KEYS.IS_READY, true);
 
-    // Send ready acknowledgment
+    // Send ready acknowledgment (following API contract v2.4.1)
+    const now = Date.now();
     ws.send(
       JSON.stringify({
         type: "ready_ack",
         jobId,
-        timestamp: new Date().toISOString(),
+        pipeline,
+        timestamp: now,
+        version: "1.0.0",
+        payload: {
+          type: "ready_ack",
+          timestamp: now,
+        },
       }),
     );
 
@@ -680,25 +694,211 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
   }
 
   /**
-   * Alarm handler - for automatic token refresh and cleanup
+   * RPC Method: Schedule CSV processing via Durable Object alarm
+   *
+   * Stores CSV data and schedules alarm to process it outside Worker CPU time limits.
+   * Alarm-based processing allows long-running Gemini API calls (20-60s) without timeout.
+   *
+   * @param {string} csvText - Raw CSV file content
+   * @param {string} jobId - Job identifier
+   * @returns {Promise<{success: boolean}>}
+   */
+  async scheduleCSVProcessing(csvText, jobId) {
+    console.log(`[${jobId}] Scheduling CSV processing via alarm`);
+
+    // Store CSV data and job metadata in Durable Object storage
+    await this.storage.put(STORAGE_KEYS.CSV_DATA, csvText);
+    await this.storage.put(STORAGE_KEYS.JOB_ID, jobId);
+    await this.storage.put(STORAGE_KEYS.JOB_TYPE, "csv-import");
+
+    // Schedule alarm with 2-second delay to ensure WebSocket connects
+    // iOS needs time to: receive HTTP 202 → extract jobId → connect WebSocket → send ready
+    const alarmTime = Date.now() + 2000;
+    await this.storage.setAlarm(alarmTime);
+
+    console.log(
+      `[${jobId}] CSV processing alarm scheduled for ${new Date(alarmTime).toISOString()}`,
+    );
+
+    return { success: true };
+  }
+
+  /**
+   * RPC Method: Schedule bookshelf scan processing via Durable Object alarm
+   *
+   * Stores image data and schedules alarm to process it outside Worker CPU time limits.
+   * Similar to CSV import, this delegates work to alarm context for long AI operations.
+   *
+   * @param {ArrayBuffer} imageData - Raw image data
+   * @param {string} jobId - Job identifier
+   * @param {Object} requestHeaders - Headers from original request (X-AI-Provider, etc.)
+   * @returns {Promise<{success: boolean}>}
+   */
+  async scheduleBookshelfScan(imageData, jobId, requestHeaders) {
+    console.log(`[${jobId}] Scheduling bookshelf scan via alarm`);
+
+    // Store image data and job metadata in Durable Object storage
+    await this.storage.put(STORAGE_KEYS.IMAGE_DATA, imageData);
+    await this.storage.put(STORAGE_KEYS.REQUEST_HEADERS, requestHeaders || {});
+    await this.storage.put(STORAGE_KEYS.JOB_ID, jobId);
+    await this.storage.put(STORAGE_KEYS.JOB_TYPE, "bookshelf-scan");
+
+    // Schedule alarm with 2-second delay to ensure WebSocket connects
+    const alarmTime = Date.now() + 2000;
+    await this.storage.setAlarm(alarmTime);
+
+    console.log(
+      `[${jobId}] Bookshelf scan alarm scheduled for ${new Date(alarmTime).toISOString()}`,
+    );
+
+    return { success: true };
+  }
+
+  /**
+   * Alarm handler - for automatic token refresh, job processing, and cleanup
    * DO wakes up, runs alarm, then goes back to sleep
+   *
+   * Handles three types of alarms:
+   * 1. CSV Import Processing - jobType='csv-import', scheduled 2s after upload
+   * 2. Bookshelf Scan Processing - jobType='bookshelf-scan', scheduled 2s after upload
+   * 3. Token Refresh - no jobType, token needs refresh
    */
   async alarm() {
     const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+    const jobType = await this.storage.get(STORAGE_KEYS.JOB_TYPE);
+
     console.log(
-      `[ProgressWebSocketDO_Hibernation] Alarm triggered for job ${jobId}`,
+      `[ProgressWebSocketDO_Hibernation] Alarm triggered for job ${jobId}, type: ${jobType || 'token-refresh'}`,
     );
 
-    // Check if token needs refresh
-    const tokenExpiration = await this.storage.get(
-      STORAGE_KEYS.AUTH_TOKEN_EXPIRATION,
-    );
-    if (tokenExpiration && Date.now() >= tokenExpiration - 5 * 60 * 1000) {
-      await this.refreshAuthToken();
+    // Route to appropriate handler based on job type
+    if (jobType === "csv-import") {
+      // CSV processing alarm (scheduled at 2s by scheduleCSVProcessing)
+      console.log(`[${jobId}] Processing CSV import in alarm context`);
+      await this.processCSVImportAlarm();
+    } else if (jobType === "bookshelf-scan") {
+      // Bookshelf scan processing alarm (scheduled at 2s by scheduleBookshelfScan)
+      console.log(`[${jobId}] Processing bookshelf scan in alarm context`);
+      await this.processBookshelfScanAlarm();
+    } else {
+      // Token refresh alarm (no jobType)
+      const tokenExpiration = await this.storage.get(
+        STORAGE_KEYS.AUTH_TOKEN_EXPIRATION,
+      );
+      if (tokenExpiration && Date.now() >= tokenExpiration - 5 * 60 * 1000) {
+        await this.refreshAuthToken();
+      }
+
+      // Schedule next alarm (e.g., 5 minutes)
+      await this.storage.setAlarm(Date.now() + 5 * 60 * 1000);
     }
+  }
 
-    // Schedule next alarm (e.g., 5 minutes)
-    await this.storage.setAlarm(Date.now() + 5 * 60 * 1000);
+  /**
+   * Process CSV import inside Durable Object alarm
+   * No Worker CPU time limits apply in alarm context
+   */
+  async processCSVImportAlarm() {
+    const csvText = await this.storage.get(STORAGE_KEYS.CSV_DATA);
+    const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+
+    console.log(
+      `[${jobId}] Starting CSV processing in alarm (no timeout limits)`,
+    );
+
+    try {
+      // Process CSV with access to this (DO stub methods)
+      await processCSVImportCore(csvText, jobId, this, this.env);
+
+      console.log(`[${jobId}] CSV processing completed successfully`);
+
+      // Clean up storage
+      await this.storage.delete(STORAGE_KEYS.CSV_DATA);
+      await this.storage.delete(STORAGE_KEYS.JOB_ID);
+      await this.storage.delete(STORAGE_KEYS.JOB_TYPE);
+    } catch (error) {
+      console.error(`[${jobId}] CSV processing failed in alarm:`, error);
+
+      // Send error to client
+      await this.sendError("csv_import", {
+        code: "CSV_PROCESSING_ERROR",
+        message: error.message,
+        details: {
+          fallbackAvailable: true,
+          suggestion: "Try manual CSV import instead",
+        },
+        retryable: true,
+      });
+
+      // Clean up storage even on error
+      await this.storage.delete(STORAGE_KEYS.CSV_DATA);
+      await this.storage.delete(STORAGE_KEYS.JOB_ID);
+      await this.storage.delete(STORAGE_KEYS.JOB_TYPE);
+    }
+  }
+
+  /**
+   * Process bookshelf scan inside Durable Object alarm
+   * No Worker CPU time limits apply in alarm context (can handle 20-60s AI processing)
+   */
+  async processBookshelfScanAlarm() {
+    const imageData = await this.storage.get(STORAGE_KEYS.IMAGE_DATA);
+    const requestHeaders = await this.storage.get(STORAGE_KEYS.REQUEST_HEADERS);
+    const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+
+    console.log(
+      `[${jobId}] Starting bookshelf scan in alarm (no CPU time limits)`,
+    );
+
+    try {
+      // Create mock request object with headers
+      const mockRequest = {
+        headers: {
+          get: (key) => requestHeaders[key] || null,
+        },
+      };
+
+      // Process bookshelf scan with access to this (DO stub methods)
+      // Pass null for ctx since we're in alarm context (no ctx.waitUntil needed)
+      await processBookshelfScan(
+        jobId,
+        imageData,
+        mockRequest,
+        this.env,
+        this,
+        null,
+      );
+
+      console.log(`[${jobId}] Bookshelf scan completed successfully`);
+
+      // Clean up storage
+      await this.storage.delete(STORAGE_KEYS.IMAGE_DATA);
+      await this.storage.delete(STORAGE_KEYS.REQUEST_HEADERS);
+      await this.storage.delete(STORAGE_KEYS.JOB_ID);
+      await this.storage.delete(STORAGE_KEYS.JOB_TYPE);
+    } catch (error) {
+      console.error(
+        `[${jobId}] Bookshelf scan processing failed in alarm:`,
+        error,
+      );
+
+      await this.sendError("ai_scan", {
+        code: "AI_SCAN_PROCESSING_ERROR",
+        message: error.message,
+        details: {
+          fallbackAvailable: false,
+          suggestion:
+            "Try uploading a clearer photo or contact support if issue persists",
+        },
+        retryable: true,
+      });
+
+      // Clean up storage even on error
+      await this.storage.delete(STORAGE_KEYS.IMAGE_DATA);
+      await this.storage.delete(STORAGE_KEYS.REQUEST_HEADERS);
+      await this.storage.delete(STORAGE_KEYS.JOB_ID);
+      await this.storage.delete(STORAGE_KEYS.JOB_TYPE);
+    }
   }
 
   /**
