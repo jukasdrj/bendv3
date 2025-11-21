@@ -579,108 +579,56 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 
 ## Open Issues Organization
 
-### Current Active Issues: 20 (as of Nov 20, 2025)
+### Current Active Issues: 11 (as of Nov 21, 2025)
 
 **Sprint 2 Completed:** 6 documentation issues resolved (#219, #218, #217, #216, #489, #497)
 **Sprint 3 Phase 1 Completed:** 2 critical reliability issues resolved (#185, #178)
 
 ### By Priority
 
-#### P1 - High Priority (1 issue)
-- #172: Validate SLA performance targets (requires production metrics)
+#### P1 - High Priority (2 issues)
+- #242: Migrate all routes to ResponseEnvelope format (v2.0 API contract) - Breaking change
+- #239: CORS policy consolidation - Security issue (credentials mismatch)
 
-#### P2 - Medium Priority (16 issues)
-**Sprint 1 Quick Wins:**
-- #199: ISBN deduplication fails for books without ISBNs
-- #194: Duplicate transform logic in search handlers
-- #191: Extract hardcoded ISBNdb quality score weights
-- #189: ISBN normalization too aggressive
-- #186: Confidence threshold inconsistency
-
-**Sprint 2 Documentation (COMPLETED):**
-- ~~#219: Document CORS policies~~ ✅ COMPLETE
-- ~~#218: Add HTTP headers documentation~~ ✅ COMPLETE
-- ~~#217: Add DTO field defaults documentation~~ ✅ COMPLETE
-- ~~#216: Remove unimplemented WebSocket message types~~ ✅ COMPLETE
-- ~~#489: WebSocket ping/pong clarification~~ ✅ COMPLETE
-- ~~#497: Token refresh backend implementation details~~ ✅ COMPLETE
-
-**Sprint 3 Phase 1 (COMPLETED):**
-- ~~#185: R2 storage leak - failed uploads not cleaned up~~ ✅ FIXED (commit 6e3668e)
-- ~~#178: WebSocket race condition in CSV import~~ ✅ FIXED (commit 63f46a8)
-
-**Sprint 3 Remaining Work:**
-- #221: Review WebSocket implementation against CF best practices
-- #198: Author array handling (5 inconsistent formats)
-- #188: Add ISBNdb to ISBN search fallback chain
-- #183: Add retry logic for Gemini Vision API failures
-- #181: Token limit mismatch in CSV validation
+#### P2 - Medium Priority (4 issues)
+- #243: Deprecate manual router in favor of Hono router - Technical debt
+- #240: PRD Alignment Tracking (ideal-state architecture milestones) - Documentation
 - #180: Eliminate code duplication in CSV processing
-- #179: Add retry logic for Gemini API failures
-- #171: Clarify 10 MB photo size enforcement
 - #170: Add max concurrent WebSocket connections limit
 
-#### P3 - Low Priority (2 issues)
-- #202: Missing placeholder URL for books without cover images
-
-#### Unclassified / Future Work
-- #174: Monitoring Dashboard (comprehensive observability)
+#### P3 - Low Priority (5 issues)
+- #241: Content-based recommendations engine (6-phase plan) - Future feature
+- #174: Monitoring Dashboard (comprehensive observability) - Future feature
 - #161: Set up Copilot instructions
-- #158: Feature - new worker for monitoring dashboard
-- #151: Feature - recommendation backend
 - #147: Phase 4 advanced concurrency & edge case tests
+- #47: Phase 2 test refactoring & duplicate removal
 
 ---
 
 ### By Component
 
-#### API / Handlers
-- #222: Rate limiter config mismatch (P1)
-- #219: Document CORS policies (P2)
-- #218: HTTP headers documentation (P2)
-- #217: DTO field defaults documentation (P2)
-- #199: ISBN deduplication bug (P2)
-- #194: Duplicate transform logic (P2)
-- #189: ISBN normalization too aggressive (P2)
-- #168: Batch vs single-photo inconsistency (P1)
-- #167: HTTP vs WebSocket error handling (P1)
+#### API / Handlers (P1)
+- #242: Migrate all routes to ResponseEnvelope format (v2.0 API contract)
+- #239: CORS policy consolidation (security)
 
-#### WebSocket / Durable Objects
-- #221: Review against CF best practices (P2)
-- ~~#216: Remove unimplemented message types~~ ✅ COMPLETE (Sprint 2)
-- ~~#178: Race condition in CSV import~~ ✅ FIXED (Sprint 3 Phase 1)
-- #170: Max concurrent connections limit (P2)
-- ~~#167: Error handling inconsistency~~ ✅ COMPLETE (Nov 19, 2025)
+#### Routing / Infrastructure (P2-P3)
+- #243: Deprecate manual router → Hono router (P2)
+- #174: Monitoring Dashboard (P3, future)
 
-#### AI / Gemini Integration
-- #183: Retry logic for Vision API (P2)
-- #181: Token limit mismatch in CSV (P2)
-- #180: Code duplication in CSV processing (P2)
-- #179: Retry logic for Gemini API (P2)
-- #171: Photo size enforcement clarity (P2)
-- #186: Confidence threshold inconsistency (P2)
+#### WebSocket / Durable Objects (P2)
+- #170: Max concurrent WebSocket connections limit
 
-#### Providers / Search
-- #198: Author array format inconsistency (P2)
-- #191: Hardcoded ISBNdb quality weights (P2)
-- #188: ISBNdb fallback for ISBN search (P2)
-- #202: Placeholder cover image URL (P3)
+#### AI / CSV Processing (P2)
+- #180: Eliminate code duplication in CSV processing
 
-#### Storage / Infrastructure
-- ~~#185: R2 storage leak~~ ✅ FIXED (Sprint 3 Phase 1)
-- #174: Monitoring Dashboard (future)
-- #158: New monitoring worker (future)
+#### Documentation & Planning (P2-P3)
+- #240: PRD Alignment Tracking (P2)
+- #161: Copilot instructions (P3)
 
-#### Performance & SLA
-- #172: Validate SLA targets (P1)
-
-#### Testing
-- #147: Phase 4 advanced tests (future)
-- #47: Phase 2 test refactoring (P1)
-
-#### Future Features
-- #161: Copilot instructions
-- #151: Recommendation backend
+#### Future Features (P3)
+- #241: Content-based recommendations engine
+- #147: Phase 4 advanced concurrency tests
+- #47: Phase 2 test refactoring
 
 ---
 
@@ -716,30 +664,26 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 
 ### Quick Issue Lookup
 
-**Critical bugs?** → #222 (Rate limiter config), #199 (ISBN dedup), #189 (ISBN normalization)
-**Performance/SLA?** → #172 (Validate SLA targets), #185 (R2 leak)
-**WebSocket issues?** → #221 (CF best practices), #178 (Race condition), #167 (Error handling)
-**AI/Gemini?** → #183, #179 (Retry logic), #181 (Token limits), #186 (Confidence thresholds)
-**Documentation?** → ✅ Sprint 2 complete (6 issues resolved)
-**Future features?** → #174 (Monitoring), #151 (Recommendations), #161 (Copilot)
+**P1 Critical?** → #242 (API contract), #239 (CORS security)
+**P2 Medium?** → #243 (Hono router), #240 (PRD tracking), #180 (CSV duplication), #170 (WebSocket limits)
+**P3 Future?** → #241 (Recommendations), #174 (Monitoring), #161 (Copilot), #147 (Tests), #47 (Refactoring)
 
 ---
 
-**Last Updated:** November 20, 2025 (Sprint 2 complete: 6 documentation issues resolved)
+**Last Updated:** November 21, 2025 (Issue triage complete: 11 active issues, 2 P1, 4 P2, 5 P3)
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer, Jules, Zen MCP)
 **Human Owner:** @jukasdrj
 
 ---
 
-## 📊 Active Issues Summary (Nov 20, 2025)
+## 📊 Active Issues Summary (Nov 21, 2025)
 
-### Total Active Issues: 20 (down from 22)
+### Total Active Issues: 11 (down from 20)
 
 **Priority Breakdown:**
-- **P1 (High):** 1 issue - SLA validation (requires production metrics)
-- **P2 (Medium):** 16 issues - Sprint 1 quick wins (5), Sprint 3 remaining (9)
-- **P3 (Low):** 2 issues - Placeholder images, test refactoring
-- **Future/Unclassified:** 7 issues - Monitoring, features, advanced testing
+- **P1 (High):** 2 issues - API contract migration (#242), CORS security (#239)
+- **P2 (Medium):** 4 issues - Hono router (#243), PRD tracking (#240), CSV duplication (#180), WebSocket limits (#170)
+- **P3 (Low):** 5 issues - Recommendations (#241), monitoring (#174), Copilot (#161), tests (#147, #47)
 
 **Sprint 3 Phase 1 Complete (Nov 20, 2025):**
 - ✅ **#185 FIXED:** R2 storage leak - comprehensive cleanup strategy (commit 6e3668e)
@@ -768,5 +712,6 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 - ✅ **#47 DOWNGRADED:** Test refactoring moved to P3
 - ✅ 911 tests passing (all WebSocket error tests updated and passing)
 
-**Remaining P1 Work:**
-- #172: SLA validation (pending - requires production data access)
+**Current P1 Work (Nov 21, 2025):**
+- #242: Migrate all routes to ResponseEnvelope format (v2.0 API contract) - Breaking change
+- #239: CORS policy consolidation - Security issue (credentials mismatch)

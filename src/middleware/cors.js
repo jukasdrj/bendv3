@@ -27,17 +27,18 @@
 /**
  * Allowed origins for CORS requests.
  *
- * Production: Official domain (when deployed)
+ * IMPORTANT: Must match src/router.ts allowed origins for consistency
+ *
+ * Production: bookstrack.oooefam.net (main app), harvest.oooefam.net (dashboard)
  * Development: localhost for local testing
- * Mobile: Capacitor/Ionic schemes for iOS app
+ * Mobile: Capacitor scheme for iOS app
  */
 const ALLOWED_ORIGINS = [
-  "https://bookstrack.app", // Production domain (when deployed)
-  "https://www.bookstrack.app", // Production with www
-  "http://localhost:3000", // Local web development
-  "http://localhost:8080", // Alternative local port
-  "capacitor://localhost", // iOS Capacitor (if using Capacitor bridge)
-  "ionic://localhost", // iOS Ionic (if using Ionic framework)
+  "https://bookstrack.oooefam.net", // Production web app
+  "https://harvest.oooefam.net", // Harvest dashboard
+  "capacitor://localhost", // iOS app (Capacitor)
+  "http://localhost:3000", // Local dev (web)
+  "http://localhost:8787", // Local dev (wrangler)
 ];
 
 /**
@@ -48,10 +49,13 @@ const ALLOWED_ORIGINS = [
  */
 export function getCorsHeaders(request) {
   // Handle null request (when no request object is available)
+  // NOTE: Native iOS/Android apps don't send Origin header, so we allow all
+  // This is safe because rate limiting is our primary DoS defense
   if (!request || !request.headers) {
     return {
-      "Access-Control-Allow-Origin": "*", // Permissive fallback for non-browser clients
-      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Allow-Origin": "*", // Permissive for non-browser clients (native apps)
+      // SECURITY FIX (Issue #239): Cannot use credentials with wildcard origin
+      // "Access-Control-Allow-Credentials": "true", // REMOVED - invalid with wildcard
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers":
         "Content-Type, Authorization, X-AI-Provider",
@@ -67,14 +71,30 @@ export function getCorsHeaders(request) {
     console.warn(`[CORS] Blocked request from unauthorized origin: ${origin}`);
   }
 
-  return {
-    "Access-Control-Allow-Origin": allowedOrigin || "*", // Fallback to permissive for iOS app (no Origin header)
-    "Access-Control-Allow-Credentials": "true",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, X-AI-Provider",
-    "Access-Control-Max-Age": "86400", // 24 hours preflight cache
-  };
+  // SECURITY FIX (Issue #239): Only set credentials flag when using explicit origin
+  // Wildcard (*) + credentials is invalid per CORS spec
+  if (allowedOrigin) {
+    // Explicit origin - can use credentials
+    return {
+      "Access-Control-Allow-Origin": allowedOrigin,
+      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers":
+        "Content-Type, Authorization, X-AI-Provider",
+      "Access-Control-Max-Age": "86400", // 24 hours preflight cache
+    };
+  } else {
+    // No matching origin - fallback to wildcard for native apps (no credentials)
+    return {
+      "Access-Control-Allow-Origin": "*", // Permissive for iOS app (no Origin header)
+      // SECURITY FIX (Issue #239): Cannot use credentials with wildcard origin
+      // "Access-Control-Allow-Credentials": "true", // REMOVED - invalid with wildcard
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers":
+        "Content-Type, Authorization, X-AI-Provider",
+      "Access-Control-Max-Age": "86400", // 24 hours preflight cache
+    };
+  }
 }
 
 /**
