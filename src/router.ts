@@ -484,6 +484,195 @@ app.post("/api/import/csv-gemini", rateLimitMiddleware, async (c) => {
 });
 
 // ============================================================================
+// P1 WebSocket Reconnection Routes (Issue #238)
+// ============================================================================
+// These routes were missing from Hono router, breaking WebSocket reconnection
+// for users with ENABLE_HONO_ROUTER=true (default). Matches manual router
+// behavior exactly (src/index.js lines 133-430).
+
+// POST /api/token/refresh - Refresh WebSocket authentication token
+// Rate limited to prevent abuse
+// Matches manual router: lines 133-180
+app.post("/api/token/refresh", rateLimitMiddleware, async (c) => {
+  try {
+    const { jobId, oldToken } = await c.req.json();
+
+    if (!jobId || !oldToken) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_REQUEST",
+            message: "Invalid request: jobId and oldToken required",
+          },
+        },
+        400,
+      );
+    }
+
+    // Get DO stub for this job
+    const doStub = getProgressDOStub(jobId, c.env);
+
+    // Refresh token via Durable Object
+    const result = await doStub.refreshAuthToken(oldToken);
+
+    if (result.error) {
+      return c.json(
+        {
+          error: {
+            code: "AUTH_ERROR",
+            message: result.error,
+          },
+        },
+        401,
+      );
+    }
+
+    // Return new token with expiration
+    return c.json({
+      jobId,
+      token: result.token,
+      expiresIn: result.expiresIn,
+    });
+  } catch (error) {
+    console.error("Failed to refresh token:", error);
+    return c.json(
+      {
+        error: {
+          code: "INTERNAL_ERROR",
+          message: `Failed to refresh token: ${(error as Error).message}`,
+        },
+      },
+      500,
+    );
+  }
+});
+
+// GET /api/job-state/:jobId - Get current job state for WebSocket reconnection
+// CRITICAL: Requires Bearer token auth, validates against DO state
+// Matches manual router: lines 182-251
+app.get("/api/job-state/:jobId", async (c) => {
+  try {
+    const jobId = c.req.param("jobId");
+
+    if (!jobId) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_REQUEST",
+            message: "Invalid request: jobId required",
+          },
+        },
+        400,
+      );
+    }
+
+    // Validate Bearer token (REQUIRED for auth)
+    const authHeader = c.req.header("Authorization");
+    const providedToken = authHeader?.replace("Bearer ", "");
+    if (!providedToken) {
+      return c.json(
+        {
+          error: {
+            code: "AUTH_ERROR",
+            message: "Missing authorization token",
+          },
+        },
+        401,
+      );
+    }
+
+    // Get DO stub for this job
+    const doStub = getProgressDOStub(jobId, c.env);
+
+    // Fetch job state and auth details (includes validation)
+    const result = await doStub.getJobStateAndAuth();
+
+    if (!result) {
+      return c.json(
+        {
+          error: {
+            code: "NOT_FOUND",
+            message: "Job not found or state not initialized",
+          },
+        },
+        404,
+      );
+    }
+
+    const { jobState, authToken, authTokenExpiration } = result;
+
+    // Validate token matches and is not expired
+    if (
+      !authToken ||
+      providedToken !== authToken ||
+      Date.now() > authTokenExpiration
+    ) {
+      return c.json(
+        {
+          error: {
+            code: "AUTH_ERROR",
+            message: "Invalid or expired token",
+          },
+        },
+        401,
+      );
+    }
+
+    // Return job state
+    return c.json(jobState);
+  } catch (error) {
+    console.error("Failed to get job state:", error);
+    return c.json(
+      {
+        error: {
+          code: "INTERNAL_ERROR",
+          message: `Failed to get job state: ${(error as Error).message}`,
+        },
+      },
+      500,
+    );
+  }
+});
+
+// POST /api/scan-bookshelf/cancel - Cancel bookshelf scanning job
+// Matches manual router: lines 404-429
+app.post("/api/scan-bookshelf/cancel", async (c) => {
+  try {
+    const { jobId } = await c.req.json();
+
+    if (!jobId) {
+      return c.json(
+        {
+          error: {
+            code: "MISSING_PARAM",
+            message: "jobId required",
+          },
+        },
+        400,
+      );
+    }
+
+    // Call Durable Object to cancel batch
+    const doStub = getProgressDOStub(jobId, c.env);
+    const result = await doStub.cancelBatch();
+
+    // Return result from DO directly
+    return c.json(result);
+  } catch (error) {
+    console.error("Cancel batch error:", error);
+    return c.json(
+      {
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to cancel batch",
+        },
+      },
+      500,
+    );
+  }
+});
+
+// ============================================================================
 // MVP Route 3: Metrics (Analytics Integration Test)
 // ============================================================================
 app.get("/metrics", async (c) => {
