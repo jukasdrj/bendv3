@@ -43,8 +43,8 @@
 ### 3. Code Organization
 ```
 src/
-├── index.js              # Main entry point with Hono router (manual router DEPRECATED)
-├── router.ts             # Hono router - ADD ALL NEW ROUTES HERE
+├── index.js              # Main entry point - delegates to Hono router
+├── router.ts             # Hono router - ALL ROUTES HERE
 ├── handlers/             # Request handlers - one per route
 ├── services/             # Business logic - reusable functions
 ├── providers/            # External API integrations
@@ -52,13 +52,11 @@ src/
 └── durable-objects/      # WebSocket Durable Object
 ```
 
-**⚠️ ROUTING DEPRECATION NOTICE:**
-- **Manual router in `src/index.js` is DEPRECATED** (as of Nov 21, 2025)
-- **Removal target:** March 1, 2026 (v3.0.0)
-- **All new routes MUST be added to `src/router.ts` (Hono router)**
-- Manual router is in maintenance-only mode - no new features
-- Hono router is the default (ENABLE_HONO_ROUTER=true)
-- Manual router only used as fallback (ENABLE_HONO_ROUTER=false)
+**✅ ROUTING:**
+- **Hono router ONLY** (as of Nov 21, 2025)
+- **Manual router removed:** See `docs/archive/manual-router-legacy-2025-11-21.js` for historical reference
+- **All routes in `src/router.ts`** - Single source of truth for HTTP routing
+- **Migration guide:** See `docs/HONO_MIGRATION.md` for details on the removal process
 
 ---
 
@@ -162,33 +160,26 @@ await stub.sendProgress({
 
 ### Routing Architecture
 
-**⚠️ IMPORTANT: Hono Router is the ONLY supported router for new development**
+**✅ Hono Router (`src/router.ts`) - Single Source of Truth**
 
-**Hono Router (`src/router.ts`):**
-- Default router (ENABLE_HONO_ROUTER=true)
-- All new routes MUST be added here
-- Type-safe with TypeScript
-- Middleware support (CORS, rate limiting, analytics)
-- Better performance and maintainability
-
-**Manual Router (`src/index.js`):**
-- ⚠️ DEPRECATED (Nov 21, 2025)
-- Removal target: March 1, 2026 (v3.0.0)
-- Maintenance-only mode - NO new routes
-- Only used as emergency fallback (ENABLE_HONO_ROUTER=false)
-- Will be completely removed in v3.0.0
+All HTTP routing is handled by the Hono router. The manual router was removed on Nov 21, 2025.
 
 **Adding New Routes:**
 ```typescript
-// ✅ CORRECT - Add to src/router.ts (Hono)
+// ✅ Add all new routes to src/router.ts (Hono)
 router.get('/v1/new-endpoint', async (c) => {
   const result = await handler(c.req, c.env)
   return c.json(result)
 })
-
-// ❌ WRONG - DO NOT add to src/index.js manual router
-// Manual router is deprecated and in maintenance-only mode
 ```
+
+**Route Organization:**
+- `/health` - Health check
+- `/metrics` - Prometheus metrics
+- `/v1/*` - V1 API endpoints (canonical ResponseEnvelope format)
+- `/api/*` - Batch operations, background jobs
+- `/ws/progress` - WebSocket connections
+- `/search/*` - Legacy search API (deprecated, sunset March 1, 2026)
 
 ### Route Naming
 - **Search endpoints:** `/v1/search/{type}?{params}`
@@ -400,20 +391,20 @@ export async function findByISBN(isbn, env) {
 
 ## Common Mistakes to Avoid
 
-### ❌ Don't Add Routes to Manual Router
-```javascript
-// ❌ BAD - Manual router is deprecated (src/index.js)
-if (url.pathname === "/v1/new-feature" && request.method === "GET") {
-  return handleNewFeature(request, env)
-}
-
-// ✅ GOOD - Use Hono router (src/router.ts)
+### ✅ Always Use Hono Router
+```typescript
+// ✅ CORRECT - Add routes to src/router.ts (Hono)
 router.get('/v1/new-feature', async (c) => {
   return handleNewFeature(c.req, c.env)
 })
+
+// Example with rate limiting
+router.post('/api/new-job', rateLimitMiddleware, async (c) => {
+  return handleNewJob(c.req.raw, c.env, getCtx(c))
+})
 ```
 
-**Why:** Manual router in `src/index.js` is deprecated (Nov 21, 2025) and will be removed in v3.0.0 (March 1, 2026). All new routes must be added to the Hono router in `src/router.ts`.
+**Why:** Hono router provides type safety, middleware support, better performance, and is the single source of truth for all HTTP routing (as of Nov 21, 2025).
 
 ### ❌ Don't Exceed CPU Time Limits
 ```javascript
