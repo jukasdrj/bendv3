@@ -1,12 +1,19 @@
 openapi: 3.0.3
 info:
   title: BooksTrack API
-  version: "2.4.1"
+  version: "2.5.0"
   description: |
-    This OpenAPI specification defines the BooksTrack API, version 2.4.1.
+    This OpenAPI specification defines the BooksTrack API, version 2.5.0.
     It is derived from and complements the human-readable [API_CONTRACT.md](API_CONTRACT.md) document.
 
-    **Key Highlights (v2.4.1):**
+    **Key Highlights (v2.5.0):**
+    - Author-driven harvest system (4.8x performance increase: 1,050 → 5,000 ISBNs/day)
+    - Intelligent cache depth checking (prevents redundant harvesting)
+    - Complete author bibliographies (instead of random scattered covers)
+    - Daily harvest schedule restored (fixed cron bug that caused weekly-only runs)
+    - Zero user-facing API changes (transparent backend optimization)
+
+    **Previous Highlights (v2.4.1):**
     - WebSocket Hibernation API migration (70-80% cost reduction, zero user-facing changes)
     - Automatic memory management for WebSocket connections
     - Improved scalability and performance
