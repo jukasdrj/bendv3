@@ -7,13 +7,6 @@
  * - Returns typed canonical response format
  */
 
-import { validateCSV } from "../utils/csv-validator.js";
-import {
-  buildCSVParserPrompt,
-  PROMPT_VERSION,
-} from "../prompts/csv-parser-prompt.js";
-import { generateCSVCacheKey } from "../utils/cache-keys.js";
-import { parseCSVWithGemini } from "../providers/gemini-csv-provider.js";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -21,6 +14,7 @@ import {
 } from "../utils/response-builder.js";
 import type { CSVImportInitResponse } from "../types/responses.js";
 import { getProgressDOStub } from "../utils/durable-object-helpers.js";
+import { processCSVCore } from "../utils/csv-processor-core.js";
 
 // Aligned with Gemini 2.0 Flash 2M token context (approximating ~8MB at 4 bytes/token)
 // Issue #181: Consistent with MAX_CSV_SIZE in gemini-csv-provider.js
@@ -135,160 +129,18 @@ export async function handleCSVImport(request, env, ctx) {
  *
  * Note: Enrichment now happens on iOS via EnrichmentQueue
  *
+ * This is now a thin wrapper around processCSVCore utility (Issue #180)
+ *
  * @param {string} csvText - Raw CSV file content
  * @param {string} jobId - Unique job identifier
  * @param {Object} doStub - ProgressWebSocketDO stub (or 'this' from alarm context)
  * @param {Object} env - Worker environment bindings
  */
 export async function processCSVImportCore(csvText, jobId, doStub, env) {
-  const startTime = Date.now();
-
-  try {
-    // Wait for client to establish WebSocket and send ready signal
-    // Issue #178: Increased timeout to 15 seconds to handle slow network connections
-    // The waitForReady() method properly polls for connection and ready signal,
-    // eliminating need for hardcoded initial delay
-    console.log(
-      `[CSV Import] Waiting for WebSocket ready signal for job ${jobId}`,
-    );
-    const readyResult = await doStub.waitForReady(15000); // 15 second timeout (increased from 10s)
-
-    if (readyResult.timedOut || readyResult.disconnected) {
-      const reason = readyResult.timedOut
-        ? "timeout"
-        : "WebSocket not connected";
-      console.warn(
-        `[CSV Import] WebSocket ready ${reason} for job ${jobId}, proceeding anyway (client may miss early updates)`,
-      );
-    } else {
-      const elapsedMs = Date.now() - startTime;
-      console.log(
-        `[CSV Import] ✅ WebSocket ready for job ${jobId} after ${elapsedMs}ms`,
-      );
-    }
-
-    // Stage 0: Validation (0-5%)
-    await doStub.updateProgress("csv_import", {
-      progress: 0.02,
-      status: "Validating CSV file...",
-      processedCount: 0,
-    });
-
-    const validation = validateCSV(csvText);
-    if (!validation.valid) {
-      throw new Error(`Invalid CSV: ${validation.error}`);
-    }
-
-    // Stage 1: Gemini Parsing (5-50%)
-    await doStub.updateProgress("csv_import", {
-      progress: 0.05,
-      status: "Uploading CSV to Gemini...",
-      processedCount: 0,
-    });
-
-    const cacheKey = await generateCSVCacheKey(csvText, PROMPT_VERSION);
-    let parsedBooks = await env.KV_CACHE.get(cacheKey, "json");
-
-    if (!parsedBooks) {
-      // NOTE: setInterval keep-alive removed - it doesn't prevent CPU time limits
-      // because async callbacks don't count toward I/O activity in Workers runtime.
-      // Gemini 2.0 Flash typically responds in <20 seconds for CSV parsing.
-      // Paid Plan: 30M CPU milliseconds/month, 5-minute max per invocation
-      const prompt = buildCSVParserPrompt();
-      parsedBooks = await callGemini(csvText, prompt, env);
-
-      // Schema guarantees valid array structure and title+author on all books
-      // Only check for empty response (edge case: CSV with no parseable books)
-      if (!Array.isArray(parsedBooks) || parsedBooks.length === 0) {
-        throw new Error("No valid books found in CSV");
-      }
-
-      // Cache for 7 days
-      await env.KV_CACHE.put(cacheKey, JSON.stringify(parsedBooks), {
-        expirationTtl: 604800,
-      });
-    }
-
-    // Stage 2: Report parsed count (no validation needed - schema enforces requirements)
-    // FIX: Removed redundant currentItem (duplicates processedCount info)
-    await doStub.updateProgress("csv_import", {
-      progress: 0.75,
-      status: `Gemini parsed ${parsedBooks.length} books with valid title+author`,
-      processedCount: parsedBooks.length,
-    });
-
-    // Validate and shape parsed books to ParsedBookDTO structure
-    // Strip extraneous fields from Gemini output to prevent schema drift
-    const validatedBooks = parsedBooks
-      .filter((book) => book.title && book.author) // Ensure required fields present
-      .map((book) => ({
-        title: String(book.title).trim(),
-        author: String(book.author).trim(),
-        isbn: book.isbn ? String(book.isbn).trim() : undefined,
-      }));
-
-    // Store full results in KV for HTTP retrieval (1-hour TTL)
-    const resourceId = `job-results:${jobId}`;
-    await env.KV_CACHE.put(
-      resourceId,
-      JSON.stringify({ books: validatedBooks, errors: [] }),
-      { expirationTtl: 3600 }, // 1 hour
-    );
-
-    // Send summary-only payload (mobile-optimized)
-    await doStub.complete("csv_import", {
-      summary: {
-        totalProcessed: parsedBooks.length,
-        successCount: validatedBooks.length,
-        failureCount: parsedBooks.length - validatedBooks.length,
-        duration: Date.now() - startTime,
-        resourceId,
-      },
-    });
-  } catch (error) {
-    await doStub.sendError("csv_import", {
-      code: "E_CSV_PROCESSING_FAILED",
-      message: error.message,
-      retryable: true,
-      details: {
-        fallbackAvailable: true,
-        suggestion: "Try manual CSV import instead",
-      },
-    });
-  }
-  // NOTE: No finally block! complete() and fail() handle WebSocket cleanup with
-  // delayed closeConnection() to ensure final messages are delivered to client.
-}
-
-/**
- * Call Gemini API to parse CSV
- *
- * @param {string} csvText - Raw CSV content
- * @param {string} prompt - Gemini prompt with few-shot examples
- * @param {Object} env - Worker environment bindings
- * @returns {Promise<Array<Object>>} Parsed book data
- */
-async function callGemini(csvText, prompt, env) {
-  /**
-   * GEMINI_API_KEY binding supports two patterns:
-   *   1. Secrets Store binding (recommended for production): env.GEMINI_API_KEY is a SecretsStore binding and requires .get() to retrieve the value.
-   *   2. Plain string binding (for local development/testing): env.GEMINI_API_KEY is a string.
-   *
-   * This dynamic resolution allows local development with a plaintext key (e.g., via wrangler.toml)
-   * while ensuring production uses the more secure Secrets Store.
-   *
-   * - Use Secrets Store in production for security: `[[secrets]]` in wrangler.toml, or dashboard binding.
-   * - Use plain string only for local/dev/testing: `GEMINI_API_KEY = "sk-..."` in wrangler.toml `[vars]`.
-   *
-   * If neither is configured, an error will be thrown.
-   */
-  const apiKey = env.GEMINI_API_KEY?.get
-    ? await env.GEMINI_API_KEY.get()
-    : env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY not configured");
-  }
-
-  return await parseCSVWithGemini(csvText, prompt, apiKey);
+  // Use shared CSV processing core with handler-specific options
+  await processCSVCore(csvText, jobId, doStub, env, {
+    resultsTTL: 3600, // 1 hour TTL
+    resultsKeyPrefix: "job-results", // Handler-specific prefix
+    // Default completion payload builder (summary format) is used
+  });
 }
