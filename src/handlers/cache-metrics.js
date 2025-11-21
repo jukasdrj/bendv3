@@ -10,6 +10,9 @@
  * @param {Object} env
  * @returns {Response} Metrics summary with hit rates and per-prefix breakdown
  */
+
+import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../utils/response-builder.js'
+
 export async function handleCacheMetrics(request, env) {
   try {
     const url = new URL(request.url);
@@ -18,19 +21,13 @@ export async function handleCacheMetrics(request, env) {
     // Validate window parameter
     const validWindows = ["minute", "hour", "day", "total"];
     if (!validWindows.includes(window)) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: "INVALID_PARAM",
-            message: `window must be one of: ${validWindows.join(", ")}`,
-          },
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+      return createErrorResponse(
+        `window must be one of: ${validWindows.join(", ")}`,
+        400,
+        ErrorCodes.INVALID_REQUEST,
+        { validWindows },
+        request
+      )
     }
 
     // Get CacheMetricsDO singleton
@@ -46,19 +43,13 @@ export async function handleCacheMetrics(request, env) {
         response.status,
         response.statusText,
       );
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: "INTERNAL_ERROR",
-            message: "Failed to retrieve cache statistics",
-          },
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+      return createErrorResponse(
+        "Failed to retrieve cache statistics",
+        500,
+        ErrorCodes.INTERNAL_ERROR,
+        { doStatus: response.status, doStatusText: response.statusText },
+        request
+      )
     }
 
     const stats = await response.json();
@@ -100,56 +91,37 @@ export async function handleCacheMetrics(request, env) {
     }
 
     // Return canonical response format
-    return new Response(
-      JSON.stringify(
-        {
-          success: true,
-          data: {
-            window,
-            timestamp: new Date().toISOString(),
-            lastUpdated: new Date(stats.lastUpdated).toISOString(),
-            overall: {
-              hits,
-              misses,
-              reads: totalReads,
-              writes: windowStats.total.writes || 0,
-              churns: windowStats.total.churns || 0,
-              hitRate: Math.round(hitRate * 100) / 100,
-              ttlEffectiveHits: windowStats.total.ttl_effective_hits || 0,
-            },
-            byPrefix: prefixBreakdown,
-          },
-          metadata: {
-            source: "cache_metrics_do",
-            cached: false,
-            timestamp: new Date().toISOString(),
-          },
-        },
-        null,
-        2,
-      ),
+    return createSuccessResponse(
       {
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache", // Real-time data, don't cache
+        window,
+        timestamp: new Date().toISOString(),
+        lastUpdated: new Date(stats.lastUpdated).toISOString(),
+        overall: {
+          hits,
+          misses,
+          reads: totalReads,
+          writes: windowStats.total.writes || 0,
+          churns: windowStats.total.churns || 0,
+          hitRate: Math.round(hitRate * 100) / 100,
+          ttlEffectiveHits: windowStats.total.ttl_effective_hits || 0,
         },
+        byPrefix: prefixBreakdown,
       },
-    );
+      {
+        source: "cache_metrics_do",
+        cached: false,
+      },
+      200,
+      request
+    )
   } catch (error) {
     console.error("Failed to fetch cache metrics:", error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "Failed to fetch cache metrics",
-          details: error.message,
-        },
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return createErrorResponse(
+      "Failed to fetch cache metrics",
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      { errorMessage: error.message },
+      request
+    )
   }
 }
