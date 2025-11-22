@@ -125,7 +125,14 @@ export async function handleCSVImport(request, env, ctx) {
 
     return createSuccessResponse(initResponse, {}, 202);
   } catch (error) {
-    return createErrorResponse(error.message, 500, ErrorCodes.INTERNAL_ERROR);
+    console.error("[CSV Import] Error:", error);
+    console.error("[CSV Import] Stack trace:", error.stack);
+    return createErrorResponse(
+      error.message || "An unexpected error occurred",
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      { details: error.stack }
+    );
   }
 }
 

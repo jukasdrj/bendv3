@@ -153,14 +153,16 @@ export async function handleBatchEnrichment(request, env, ctx) {
     ctx.waitUntil(processBatchEnrichment(books, doStub, env, jobId));
 
     // Return typed EnrichmentJobInitResponse
-    // iOS expects: { success: Bool, processedCount: Int, totalCount: Int, token: String }
+    // iOS expects: { jobId: String, success: Bool, processedCount: Int, totalCount: Int, token: String }
     // Since enrichment happens async, we return:
+    // - jobId: echoed back for client tracking
     // - success: true (job accepted and started)
     // - processedCount: 0 (no books processed yet)
     // - totalCount: books.length (total books queued)
     // - token: authToken (for WebSocket authentication)
     // Actual enrichment results come via WebSocket
     const initResponse: EnrichmentJobInitResponse = {
+      jobId, // BUGFIX: Echo back jobId for client confirmation
       success: true,
       processedCount: 0,
       totalCount: books.length,

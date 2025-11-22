@@ -33,8 +33,8 @@ import { checkRateLimit } from "./middleware/rate-limiter";
 const app = new Hono<{ Bindings: Env; Variables: { executionCtx?: ExecutionContext } }>();
 
 // Helper to safely get ExecutionContext from Hono context
-// ExecutionContext is passed via fetch(request, env, ctx) but not automatically available in Hono's context
-const getCtx = (c: any): ExecutionContext | undefined => (c as any).executionCtx as ExecutionContext | undefined;
+// ExecutionContext is stored in c.executionCtx by Hono's native support
+const getCtx = (c: any): ExecutionContext | undefined => c.executionCtx as ExecutionContext | undefined;
 
 // Global analytics middleware (adds X-Router and X-Response-Time headers)
 app.use("*", analyticsMiddleware());
@@ -881,6 +881,80 @@ app.get("/v1/csv/results/:jobId", async (c) => {
       timestamp: new Date().toISOString(),
       cached: true,
       provider: "kv_cache",
+    },
+  });
+});
+
+// ============================================================================
+// Unified Results Endpoint (API Contract v2.0 - Issue #131)
+// ============================================================================
+
+// GET /v1/jobs/{jobId}/results - Unified results endpoint for all pipelines
+// Replaces pipeline-specific endpoints (/v1/csv/results, /v1/scan/results)
+// Supports: csv_import, batch_enrichment, ai_scan
+app.get("/v1/jobs/:jobId/results", async (c) => {
+  const jobId = c.req.param("jobId")?.substring(0, 100);
+
+  if (!jobId || jobId.trim().length === 0) {
+    return c.json(
+      {
+        data: null,
+        metadata: {
+          timestamp: new Date().toISOString(),
+        },
+        error: {
+          code: "MISSING_PARAM",
+          message: "Missing jobId parameter",
+        },
+      },
+      400,
+    );
+  }
+
+  // Try all possible result keys (pipeline-agnostic lookup)
+  const resultKeys = [
+    `csv-results:${jobId}`,      // csv_import pipeline
+    `scan-results:${jobId}`,     // ai_scan pipeline
+    `job-results:${jobId}`,      // batch_enrichment pipeline (generic)
+  ];
+
+  // Try each key in parallel for fastest lookup
+  const lookupPromises = resultKeys.map((key) =>
+    c.env.KV_CACHE.get(key, "json").then((result) => ({ key, result }))
+  );
+
+  const lookups = await Promise.all(lookupPromises);
+  const found = lookups.find((lookup) => lookup.result !== null);
+
+  if (!found) {
+    return c.json(
+      {
+        data: null,
+        metadata: {
+          timestamp: new Date().toISOString(),
+        },
+        error: {
+          message:
+            "Job results not found or expired. Results are stored for 1 hour after job completion.",
+          code: "NOT_FOUND",
+          details: {
+            jobId,
+            ttl: "1 hour",
+            checkedKeys: resultKeys,
+          },
+        },
+      },
+      404,
+    );
+  }
+
+  return c.json({
+    data: found.result,
+    metadata: {
+      timestamp: new Date().toISOString(),
+      cached: true,
+      provider: "kv_cache",
+      resourceId: found.key,
     },
   });
 });
