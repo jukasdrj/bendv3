@@ -69,7 +69,7 @@
     "//": "Durable Object Architecture Refactoring",
     "ENABLE_REFACTORED_DOS": "false",
     "//": "WebSocket Hibernation API Migration",
-    "ENABLE_HIBERNATION_WEBSOCKET": "false"
+    "ENABLE_HIBERNATION_WEBSOCKET": "true"
   },
   "kv_namespaces": [
     {
