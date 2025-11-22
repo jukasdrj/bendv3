@@ -57,7 +57,8 @@ SECRET_PATTERNS=(
 )
 
 for pattern in "${SECRET_PATTERNS[@]}"; do
-  if git diff --cached | grep -iE "$pattern" > /dev/null; then
+  # Only check added lines (starting with +), not deleted lines (starting with -)
+  if git diff --cached | grep -E "^\+" | grep -iE "$pattern" > /dev/null; then
     echo -e "${RED}✗ Blocked: Potential hardcoded secret detected${NC}"
     echo "  Pattern: $pattern"
     FAILED=1
