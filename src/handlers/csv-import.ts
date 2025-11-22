@@ -148,7 +148,7 @@ export async function processCSVImportCore(csvText, jobId, doStub, env) {
   // Use shared CSV processing core with handler-specific options
   await processCSVCore(csvText, jobId, doStub, env, {
     resultsTTL: 3600, // 1 hour TTL
-    resultsKeyPrefix: "job-results", // Handler-specific prefix
+    resultsKeyPrefix: "csv-results", // Handler-specific prefix (must match router.ts:853)
     // Default completion payload builder (summary format) is used
   });
 }

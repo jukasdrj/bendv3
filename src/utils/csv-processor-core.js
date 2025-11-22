@@ -53,7 +53,7 @@ export async function processCSVCore(
 ) {
   const {
     resultsTTL = 3600, // Default: 1 hour
-    resultsKeyPrefix = "job-results",
+    resultsKeyPrefix = "job-results", // IMPORTANT: Must match retrieval endpoint key (csv-results for /v1/csv/results, scan-results for /v1/scan/results)
     buildCompletionPayload = buildDefaultCompletionPayload,
   } = options;
 
