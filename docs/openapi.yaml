@@ -490,6 +490,102 @@ paths:
         default:
           $ref: '#/components/responses/InternalServerError'
 
+  /v1/jobs/{jobId}/results:
+    get:
+      summary: Retrieve Job Results (Unified)
+      operationId: getJobResults
+      tags:
+        - Results Retrieval
+      description: |
+        Unified endpoint to retrieve full results for any completed job (CSV import, batch enrichment, or AI scan).
+
+        **Supported Pipelines:**
+        - `csv_import` - CSV file import results
+        - `batch_enrichment` - Batch enrichment job results
+        - `ai_scan` - AI bookshelf scan results
+
+        **Storage:**
+        - Results stored for 1 hour after job completion
+        - Automatically expires after TTL
+
+        **API Contract:** This is the canonical results endpoint as of v2.0 (Nov 15, 2025).
+        Legacy pipeline-specific endpoints (`/v1/csv/results`, `/v1/scan/results`) are deprecated.
+      parameters:
+        - $ref: '#/components/parameters/jobIdPathParam'
+      responses:
+        '200':
+          description: Job results retrieved successfully.
+          headers:
+            X-Router:
+              description: Indicates which router handled the request.
+              schema:
+                type: string
+                enum: [hono]
+            X-Response-Time:
+              description: Processing time in milliseconds (Hono router only).
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              description: Dynamic CORS origin header based on request origin.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobResultsResponseEnvelope'
+              examples:
+                csvImportExample:
+                  value:
+                    data:
+                      books:
+                        - title: '1984'
+                          author: George Orwell
+                          isbn: '9780451524935'
+                      errors: []
+                      successRate: '48/48'
+                    metadata:
+                      timestamp: '2025-11-22T20:00:00.000Z'
+                      cached: true
+                      provider: kv_cache
+                      resourceId: csv-results:uuid-12345
+                aiScanExample:
+                  value:
+                    data:
+                      books:
+                        - title: The Great Gatsby
+                          author: F. Scott Fitzgerald
+                          isbn: '9780743273565'
+                      confidence: 0.95
+                    metadata:
+                      timestamp: '2025-11-22T20:00:00.000Z'
+                      cached: true
+                      provider: kv_cache
+                      resourceId: scan-results:uuid-67890
+        '404':
+          description: Job results not found or expired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                notFound:
+                  value:
+                    data: null
+                    metadata:
+                      timestamp: '2025-11-22T20:00:00.000Z'
+                    error:
+                      message: Job results not found or expired. Results are stored for 1 hour after job completion.
+                      code: NOT_FOUND
+                      details:
+                        jobId: uuid-12345
+                        ttl: 1 hour
+                        checkedKeys:
+                          - csv-results:uuid-12345
+                          - scan-results:uuid-12345
+                          - job-results:uuid-12345
+        default:
+          $ref: '#/components/responses/InternalServerError'
+
   /v1/csv/results/{jobId}:
     get:
       summary: Retrieve CSV Import Results
@@ -1704,6 +1800,43 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/CsvResultsData'
+
+    JobResultsResponseEnvelope:
+      description: |
+        Unified response envelope for job results across all pipeline types.
+        Supports csv_import, batch_enrichment, and ai_scan pipelines.
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              oneOf:
+                - $ref: '#/components/schemas/CsvResultsData'
+                - $ref: '#/components/schemas/AiScanResultsData'
+                - $ref: '#/components/schemas/BatchEnrichmentResultsData'
+            metadata:
+              type: object
+              properties:
+                resourceId:
+                  type: string
+                  description: KV cache key where results are stored
+                  example: csv-results:uuid-12345
+
+    BatchEnrichmentResultsData:
+      type: object
+      description: Results data for batch enrichment jobs
+      properties:
+        enrichedBooks:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnrichedBookPayload'
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportError'
+        successRate:
+          type: string
+          example: '48/50'
 
     JobInitResponse:
       type: object

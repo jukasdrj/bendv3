@@ -282,9 +282,10 @@ export interface ParsedBookDTO {
 
 /**
  * Enrichment Job Initialization Response
- * Used by: POST /api/enrichment/start
+ * Used by: POST /v1/enrichment/batch
  */
 export interface EnrichmentJobInitResponse {
+  jobId: string; // Echoed back from request for client confirmation
   success: boolean;
   processedCount: number;
   totalCount: number;
