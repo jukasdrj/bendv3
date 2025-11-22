@@ -118,7 +118,7 @@ describe("E2E: CSV Import Workflow", () => {
             successCount: 2,
             failureCount: 0,
             duration: expect.any(Number), // ✅ This verifies the startTime fix
-            resourceId: expect.stringContaining("job-results:"),
+            resourceId: expect.stringContaining("csv-results:"),
           }),
         }),
       );
@@ -136,11 +136,11 @@ describe("E2E: CSV Import Workflow", () => {
 
       // Verify KV storage was called with results
       const kvPutCall = mockEnv.KV_CACHE.put.mock.calls.find((call) =>
-        call[0].startsWith("job-results:"),
+        call[0].startsWith("csv-results:"),
       );
 
       expect(kvPutCall).toBeDefined();
-      expect(kvPutCall[0]).toBe(`job-results:${testJobId}`);
+      expect(kvPutCall[0]).toBe(`csv-results:${testJobId}`);
 
       const storedResults = JSON.parse(kvPutCall[1]);
 
