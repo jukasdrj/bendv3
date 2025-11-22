@@ -740,10 +740,10 @@ paths:
             schema:
               type: object
               properties:
-                csvFile:
+                file:
                   type: string
                   format: binary
-                  description: The CSV file to import.
+                  description: The CSV file to import (field name must be "file").
       responses:
         '202':
           description: CSV import job accepted. Returns a `jobId` and `token` for WebSocket connection.
