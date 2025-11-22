@@ -65,6 +65,7 @@ export class ProgressWebSocketDO extends DurableObject {
     super(state, env);
     this.state = state; // Ensure state is available outside of storage helpers
     this.storage = state.storage; // Durable Object storage for cancellation state
+    this.env = env; // BUGFIX: Store env bindings for alarm access (KV_CACHE, etc.)
     this.webSocket = null;
     this.jobId = null;
     this.isReady = false; // NEW: Track if client sent ready signal
