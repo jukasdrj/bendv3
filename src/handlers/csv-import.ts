@@ -39,11 +39,19 @@ const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8MB
 export async function handleCSVImport(request, env, ctx) {
   try {
     const formData = await request.formData();
+
+    // DEBUG: Log all FormData keys to diagnose field name issues
+    console.log("[CSV Import] FormData keys:", Array.from(formData.keys()));
+    console.log("[CSV Import] Content-Type:", request.headers.get("content-type"));
+
     const csvFile = formData.get("file");
 
     if (!csvFile) {
+      // Enhanced error with FormData inspection
+      const availableKeys = Array.from(formData.keys());
+      console.error("[CSV Import] Missing 'file' field. Available keys:", availableKeys);
       return createErrorResponse(
-        "No file provided",
+        `No file provided. Expected 'file' field, found: [${availableKeys.join(", ")}]`,
         400,
         ErrorCodes.MISSING_PARAMETER,
       );

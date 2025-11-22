@@ -5,6 +5,7 @@
  * Phase 2: Canonical API Contract Implementation
  * - Uses DetectedBookDTO for flattened book structure
  * - Uses BookshelfScanInitResponse for initialization
+ * - Accepts multipart/form-data with binary images (not base64 JSON)
  */
 
 import { scanImageWithGemini } from "../providers/gemini-provider.js";
@@ -80,28 +81,36 @@ export async function handleBatchScan(request, env, ctx) {
       console.log("[Batch Scan] Client disconnected during job initialization");
     });
 
-    const { jobId, images } = await request.json();
+    // Parse multipart/form-data (replacing JSON)
+    const formData = await request.formData();
 
-    // Validation
-    if (!jobId || !images || !Array.isArray(images)) {
+    // DEBUG: Log all FormData keys to diagnose field name issues
+    console.log("[Batch Scan] FormData keys:", Array.from(formData.keys()));
+    console.log(
+      "[Batch Scan] Content-Type:",
+      request.headers.get("content-type"),
+    );
+
+    // Get all photo files from photos[] field
+    const photoFiles = formData.getAll("photos[]");
+
+    // Validation: Check if photos were provided
+    if (!photoFiles || photoFiles.length === 0) {
+      const availableKeys = Array.from(formData.keys());
+      console.error(
+        "[Batch Scan] No photos[] field found. Available keys:",
+        availableKeys,
+      );
       return createErrorResponse(
-        "Invalid request: jobId and images array required",
+        `No photos provided. Expected 'photos[]' field with binary images, found: [${availableKeys.join(", ")}]`,
         400,
         ErrorCodes.INVALID_REQUEST,
       );
     }
 
-    if (images.length === 0) {
+    if (photoFiles.length > MAX_PHOTOS_PER_BATCH) {
       return createErrorResponse(
-        "At least one image required",
-        400,
-        ErrorCodes.INVALID_REQUEST,
-      );
-    }
-
-    if (images.length > MAX_PHOTOS_PER_BATCH) {
-      return createErrorResponse(
-        `Batch size exceeds maximum ${MAX_PHOTOS_PER_BATCH} photos`,
+        `Batch size exceeds maximum ${MAX_PHOTOS_PER_BATCH} photos (received ${photoFiles.length})`,
         400,
         ErrorCodes.BATCH_TOO_LARGE,
       );
@@ -117,48 +126,44 @@ export async function handleBatchScan(request, env, ctx) {
       );
     }
 
-    // SECURITY FIX (Issue #184): Validate ACTUAL decoded size, not estimated
-    // Before: Attacker could bypass with malformed base64 (estimate 9.9MB, decode to 13MB)
-    // After: Decode first, validate actual buffer size, prevent DoS via memory exhaustion
-    const MAX_BATCH_SIZE = 50_000_000; // 50MB total batch size limit
+    // Generate unique jobId for this batch
+    const jobId = crypto.randomUUID();
 
+    // Process and validate image files
+    const processedImages: { index: number; buffer: ArrayBuffer }[] = [];
     let totalBatchSize = 0;
-    const processedImages: { index: number; buffer: Buffer }[] = [];
 
-    for (const img of images) {
-      if (typeof img.index !== "number" || !img.data) {
+    for (let i = 0; i < photoFiles.length; i++) {
+      const file = photoFiles[i];
+
+      // Validate file is actually a File/Blob object
+      if (!(file instanceof File) && !(file instanceof Blob)) {
         return createErrorResponse(
-          "Each image must have index and data fields",
+          `Photo ${i} is not a valid file (expected binary image data)`,
           400,
           ErrorCodes.INVALID_REQUEST,
         );
       }
 
-      // Decode base64 to get actual buffer size (not just estimate)
-      let decodedBuffer: Buffer;
-      try {
-        decodedBuffer = Buffer.from(img.data, "base64");
-      } catch (error: any) {
-        return createErrorResponse(
-          `Image ${img.index} has invalid base64 data: ${error.message}`,
-          400,
-          ErrorCodes.INVALID_REQUEST,
-        );
-      }
+      // Get actual buffer size
+      const imageBuffer = await file.arrayBuffer();
+      const actualSize = imageBuffer.byteLength;
 
-      const actualSize = decodedBuffer.byteLength;
-
-      // Validate actual decoded size (not estimate)
+      // Validate individual file size
       if (actualSize > MAX_IMAGE_SIZE) {
         return createErrorResponse(
-          `Image ${img.index} exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB per photo (actual: ${(actualSize / 1_000_000).toFixed(1)}MB). Please compress or resize the image.`,
+          `Photo ${i} exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB per photo (actual: ${(actualSize / 1_000_000).toFixed(1)}MB). Please compress or resize the image.`,
           413,
           ErrorCodes.FILE_TOO_LARGE,
         );
       }
 
       totalBatchSize += actualSize;
-      processedImages.push({ index: img.index, buffer: decodedBuffer });
+      processedImages.push({ index: i, buffer: imageBuffer });
+
+      console.log(
+        `[Batch Scan] Photo ${i}: ${(actualSize / 1_000_000).toFixed(2)}MB, type: ${file.type}`,
+      );
     }
 
     // Validate total batch size (prevents 5x 13MB = 65MB memory spike)
@@ -169,6 +174,10 @@ export async function handleBatchScan(request, env, ctx) {
         ErrorCodes.FILE_TOO_LARGE,
       );
     }
+
+    console.log(
+      `[Batch Scan] Processing ${photoFiles.length} photos, total size: ${(totalBatchSize / 1_000_000).toFixed(2)}MB`,
+    );
 
     // Initialize batch job in Durable Object
     const doId = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
@@ -193,16 +202,16 @@ export async function handleBatchScan(request, env, ctx) {
     }
 
     // Initialize job state for batch scan
-    await doStub.initializeJobState("ai_scan", images.length);
+    await doStub.initializeJobState("ai_scan", photoFiles.length);
 
     // Process batch asynchronously (don't await)
-    ctx.waitUntil(processBatchPhotos(jobId, images, env, doStub));
+    ctx.waitUntil(processBatchPhotos(jobId, processedImages, env, doStub));
 
     // Return accepted response immediately with auth token (BookshelfScanInitResponse)
     const initResponse: BookshelfScanInitResponse = {
       jobId,
       token: authToken, // WebSocket authentication token
-      totalPhotos: images.length,
+      totalPhotos: photoFiles.length,
       status: "processing",
     };
 
@@ -227,10 +236,9 @@ async function processBatchPhotos(jobId, images, env, doStub) {
     // Phase 1: Upload all images to R2 in parallel
     const uploadPromises = images.map(async (img, idx) => {
       try {
-        const imageBuffer = Buffer.from(img.data, "base64");
         const r2Key = `bookshelf-scans/${jobId}/photo-${idx}.jpg`;
 
-        await env.BOOKSHELF_IMAGES.put(r2Key, imageBuffer, {
+        await env.BOOKSHELF_IMAGES.put(r2Key, img.buffer, {
           httpMetadata: { contentType: "image/jpeg" },
         });
 
