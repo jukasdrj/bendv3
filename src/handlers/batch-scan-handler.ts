@@ -365,7 +365,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
         });
 
         // Store partial results in KV (canceled job)
-        const resourceId = `job-results:${jobId}`;
+        const resourceId = `scan-results:${jobId}`;
         await env.KV_CACHE.put(
           resourceId,
           JSON.stringify(enrichedPartialBooks.map(mapToDetectedBook)),
@@ -525,7 +525,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
     ).length;
 
     // Store full results in KV for HTTP retrieval (1-hour TTL)
-    const resourceId = `job-results:${jobId}`;
+    const resourceId = `scan-results:${jobId}`;
     await env.KV_CACHE.put(
       resourceId,
       JSON.stringify(enrichedBooks.map(mapToDetectedBook)),
