@@ -14,7 +14,7 @@ const DEFAULT_CONCURRENCY = 10;
  *
  * @param {Array<Object>} books - Books to enrich (must have title and/or isbn)
  * @param {Function} enrichFn - Async function to enrich single book
- * @param {Function} progressCallback - Called after each book: (completed, total, book, isError)
+ * @param {Function} progressCallback - Called after each book: (completed, total, title, isError)
  * @param {number} concurrency - Maximum concurrent enrichments (default 10)
  * @returns {Promise<Array<Object>>} Enriched books (includes enrichmentError for failed books)
  */
@@ -36,7 +36,7 @@ export async function enrichBooksParallel(
       try {
         const enriched = await enrichFn(book);
         completed++;
-        await progressCallback(completed, books.length, book, false);
+        await progressCallback(completed, books.length, book.title || book.isbn || 'Unknown', false);
         return enriched;
       } catch (error) {
         completed++;
@@ -45,7 +45,7 @@ export async function enrichBooksParallel(
           enrichmentError: error.message,
         };
         errors.push({ title: book.title, error: error.message });
-        await progressCallback(completed, books.length, book, true);
+        await progressCallback(completed, books.length, book.title || book.isbn || 'Unknown', true);
         return errorBook;
       }
     });
