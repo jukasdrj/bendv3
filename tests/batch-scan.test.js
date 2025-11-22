@@ -2,7 +2,7 @@
  * E2E Batch Scan Endpoint Tests
  *
  * Tests the batch bookshelf scanning endpoint that accepts multiple photos
- * and processes them sequentially with WebSocket progress updates.
+ * via multipart/form-data and processes them sequentially with WebSocket progress updates.
  *
  * REQUIREMENTS:
  * - Worker must be running locally: npm run dev (in another terminal)
@@ -16,6 +16,43 @@ import { describe, it, expect, beforeAll } from "vitest";
 
 // Only run E2E tests when explicitly requested via environment variable
 const isE2E = process.env.RUN_E2E_TESTS === "true";
+
+/**
+ * Helper function to create a multipart/form-data request with binary images
+ * @param {string} url - The endpoint URL
+ * @param {Array<Blob>} photos - Array of photo Blobs to upload
+ * @returns {Promise<Response>} Fetch response
+ */
+async function createMultipartRequest(url, photos) {
+  const formData = new FormData();
+
+  photos.forEach((photo, index) => {
+    formData.append('photos[]', photo, `photo${index}.jpg`);
+  });
+
+  return fetch(url, {
+    method: 'POST',
+    body: formData, // FormData automatically sets Content-Type with boundary
+  });
+}
+
+/**
+ * Helper to create a mock JPEG Blob for testing
+ * @param {number} sizeInBytes - Size of the mock image
+ * @returns {Blob} Mock JPEG blob
+ */
+function createMockJPEG(sizeInBytes = 1000) {
+  // Create binary data that resembles a JPEG (starts with FF D8 FF magic bytes)
+  const data = new Uint8Array(sizeInBytes);
+  data[0] = 0xFF; // JPEG magic bytes
+  data[1] = 0xD8;
+  data[2] = 0xFF;
+  // Fill rest with random data
+  for (let i = 3; i < sizeInBytes; i++) {
+    data[i] = Math.floor(Math.random() * 256);
+  }
+  return new Blob([data], { type: 'image/jpeg' });
+}
 
 describe.skipIf(!isE2E)("Batch Scan Endpoint E2E Tests", () => {
   const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:8787";
@@ -35,26 +72,22 @@ describe.skipIf(!isE2E)("Batch Scan Endpoint E2E Tests", () => {
     }
   });
 
-  it("accepts batch scan request with multiple images", async () => {
-    const jobId = crypto.randomUUID();
-    const request = {
-      jobId,
-      images: [
-        { index: 0, data: "base64image1..." },
-        { index: 1, data: "base64image2..." },
-      ],
-    };
+  it("accepts batch scan request with multiple images (multipart/form-data)", async () => {
+    const photos = [
+      createMockJPEG(1000),
+      createMockJPEG(1500),
+    ];
 
-    const response = await fetch(`${BASE_URL}/api/scan-bookshelf/batch`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
-    });
+    const response = await createMultipartRequest(
+      `${BASE_URL}/api/batch-scan`,
+      photos
+    );
 
     expect(response.status).toBe(202); // Accepted
     const body = await response.json();
     expect(body.data).toBeDefined();
-    expect(body.data.jobId).toBe(jobId);
+    expect(body.data.jobId).toBeDefined(); // Server generates jobId now
+    expect(body.data.token).toBeDefined();
     expect(body.data.totalPhotos).toBe(2);
     expect(body.data.status).toBe("processing");
     expect(body.metadata).toBeDefined();
@@ -62,112 +95,139 @@ describe.skipIf(!isE2E)("Batch Scan Endpoint E2E Tests", () => {
     expect(body.error).toBeUndefined();
   });
 
-  it("rejects batches exceeding 5 photos", async () => {
-    const jobId = crypto.randomUUID();
-    const images = Array.from({ length: 6 }, (_, i) => ({
-      index: i,
-      data: "base64image...",
-    }));
+  it("accepts batch scan via /api/scan-bookshelf/batch alias", async () => {
+    const photos = [createMockJPEG(1000)];
 
-    const response = await fetch(`${BASE_URL}/api/scan-bookshelf/batch`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobId, images }),
-    });
+    const response = await createMultipartRequest(
+      `${BASE_URL}/api/scan-bookshelf/batch`,
+      photos
+    );
+
+    expect(response.status).toBe(202);
+    const body = await response.json();
+    expect(body.data.jobId).toBeDefined();
+    expect(body.data.totalPhotos).toBe(1);
+  });
+
+  it("rejects batches exceeding 5 photos", async () => {
+    const photos = Array.from({ length: 6 }, () => createMockJPEG(1000));
+
+    const response = await createMultipartRequest(
+      `${BASE_URL}/api/batch-scan`,
+      photos
+    );
 
     expect(response.status).toBe(400);
     const body = await response.json();
     expect(body.data).toBeNull();
     expect(body.error).toBeDefined();
     expect(body.error.message).toContain("maximum 5 photos");
-    expect(body.error.code).toBe("E_INVALID_IMAGES");
-    expect(body.metadata.timestamp).toBeDefined();
+    expect(body.error.code).toBe("BATCH_TOO_LARGE");
   });
 
-  it("rejects request without jobId", async () => {
-    const response = await fetch(`${BASE_URL}/api/scan-bookshelf/batch`, {
+  it("rejects request without photos[] field", async () => {
+    const formData = new FormData();
+    // Add a field with wrong name
+    formData.append('images', createMockJPEG(1000), 'photo.jpg');
+
+    const response = await fetch(`${BASE_URL}/api/batch-scan`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        images: [{ index: 0, data: "base64image..." }],
-      }),
+      body: formData,
     });
 
     expect(response.status).toBe(400);
     const body = await response.json();
     expect(body.data).toBeNull();
     expect(body.error).toBeDefined();
-    expect(body.error.message).toContain("jobId");
-    expect(body.error.code).toBe("E_INVALID_REQUEST");
-    expect(body.metadata.timestamp).toBeDefined();
+    expect(body.error.message).toContain("photos[]");
+    expect(body.error.code).toBe("INVALID_REQUEST");
   });
 
-  it("rejects request without images array", async () => {
-    const jobId = crypto.randomUUID();
-    const response = await fetch(`${BASE_URL}/api/scan-bookshelf/batch`, {
+  it("rejects empty photos[] array", async () => {
+    const formData = new FormData();
+    // FormData with photos[] field but no files
+
+    const response = await fetch(`${BASE_URL}/api/batch-scan`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobId }),
+      body: formData,
     });
 
     expect(response.status).toBe(400);
     const body = await response.json();
     expect(body.data).toBeNull();
     expect(body.error).toBeDefined();
-    expect(body.error.message).toContain("images array required");
-    expect(body.error.code).toBe("E_INVALID_REQUEST");
-    expect(body.metadata.timestamp).toBeDefined();
+    expect(body.error.message).toContain("No photos provided");
   });
 
-  it("rejects empty images array", async () => {
-    const jobId = crypto.randomUUID();
-    const response = await fetch(`${BASE_URL}/api/scan-bookshelf/batch`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobId, images: [] }),
-    });
+  it("validates file size limits (10MB per photo)", async () => {
+    // Create a photo larger than 10MB
+    const largePhoto = createMockJPEG(11_000_000); // 11MB
 
-    expect(response.status).toBe(400);
+    const photos = [largePhoto];
+    const response = await createMultipartRequest(
+      `${BASE_URL}/api/batch-scan`,
+      photos
+    );
+
+    expect(response.status).toBe(413); // Payload Too Large
     const body = await response.json();
-    expect(body.data).toBeNull();
     expect(body.error).toBeDefined();
-    expect(body.error.message).toContain("At least one image required");
-    expect(body.error.code).toBe("E_INVALID_IMAGES");
-    expect(body.metadata.timestamp).toBeDefined();
+    expect(body.error.message).toContain("exceeds maximum size");
+    expect(body.error.code).toBe("FILE_TOO_LARGE");
   });
 
-  it("validates image structure (index and data fields)", async () => {
-    const jobId = crypto.randomUUID();
-    const response = await fetch(`${BASE_URL}/api/scan-bookshelf/batch`, {
+  it("validates total batch size (50MB total)", async () => {
+    // Create 5 photos of 11MB each (55MB total, exceeds 50MB limit)
+    const photos = Array.from({ length: 5 }, () => createMockJPEG(11_000_000));
+
+    const response = await createMultipartRequest(
+      `${BASE_URL}/api/batch-scan`,
+      photos
+    );
+
+    expect(response.status).toBe(413);
+    const body = await response.json();
+    expect(body.error).toBeDefined();
+    expect(body.error.message).toContain("Total batch size");
+    expect(body.error.code).toBe("FILE_TOO_LARGE");
+  });
+
+  it("rejects non-binary file data", async () => {
+    const formData = new FormData();
+    // Add text instead of binary image
+    formData.append('photos[]', new Blob(['not an image'], { type: 'text/plain' }), 'photo.jpg');
+
+    const response = await fetch(`${BASE_URL}/api/batch-scan`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jobId,
-        images: [{ index: 0 }], // Missing data field
-      }),
+      body: formData,
     });
 
-    expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(body.data).toBeNull();
-    expect(body.error).toBeDefined();
-    expect(body.error.message).toContain("index and data fields");
-    expect(body.error.code).toBe("E_INVALID_IMAGES");
-    expect(body.metadata.timestamp).toBeDefined();
+    // Should accept any Blob/File, but will fail during processing
+    // The validation happens on file size, not type
+    expect(response.status).toBe(202); // Accepts but will fail in processing
   });
 
   it("includes CORS headers", async () => {
-    const jobId = crypto.randomUUID();
-    const response = await fetch(`${BASE_URL}/api/scan-bookshelf/batch`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jobId,
-        images: [{ index: 0, data: "base64image..." }],
-      }),
-    });
+    const photos = [createMockJPEG(1000)];
+    const response = await createMultipartRequest(
+      `${BASE_URL}/api/batch-scan`,
+      photos
+    );
 
     expect(response.headers.get("access-control-allow-origin")).toBe("*");
+  });
+
+  it("generates unique jobId for each request", async () => {
+    const photos = [createMockJPEG(1000)];
+
+    const response1 = await createMultipartRequest(`${BASE_URL}/api/batch-scan`, photos);
+    const body1 = await response1.json();
+
+    const response2 = await createMultipartRequest(`${BASE_URL}/api/batch-scan`, photos);
+    const body2 = await response2.json();
+
+    expect(body1.data.jobId).not.toBe(body2.data.jobId);
+    expect(body1.data.token).not.toBe(body2.data.token);
   });
 });
 
