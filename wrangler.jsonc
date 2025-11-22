@@ -1,0 +1,223 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "//": "====================================================================================",
+  "//": "BooksTrack Backend - Cloudflare Workers Configuration",
+  "//": "====================================================================================",
+  "//": "",
+  "//": "Remote Bindings (Wrangler v4.37+)",
+  "//": "You can now access production resources during local development by setting",
+  "//": "`remote: true` on individual bindings (KV, R2, D1, etc.).",
+  "//": "",
+  "//": "Benefits:",
+  "//": "  - Test local code changes against real production data",
+  "//": "  - Share resources across development team",
+  "//": "  - Reproduce bugs tied to real data",
+  "//": "  - No need to deploy for every test iteration",
+  "//": "",
+  "//": "Usage:",
+  "//": "  1. Set `remote: true` on any binding below",
+  "//": "  2. Run `npx wrangler dev` as normal",
+  "//": "  3. Your local code will connect to production resources",
+  "//": "",
+  "//": "Documentation: .claude/WRANGLER_COMMAND_STANDARDS.md",
+  "//": "====================================================================================",
+  "name": "api-worker",
+  "main": "src/index.js",
+  "compatibility_date": "2025-11-14",
+  "workers_dev": true,
+  "compatibility_flags": [
+    "nodejs_compat",
+    "enable_request_signal",
+    "cache_no_cache_enabled"
+  ],
+  "routes": [
+    {
+      "pattern": "api.oooefam.net/*",
+      "zone_name": "oooefam.net"
+    }
+  ],
+  "vars": {
+    "//": "========================================================================",
+    "//": "Hono Router Migration (Phase 1 - Coexistence Infrastructure)",
+    "//": "========================================================================",
+    "ENABLE_HONO_ROUTER": "true",
+    "//": "Cache configuration",
+    "CACHE_HOT_TTL": "7200",
+    "CACHE_COLD_TTL": "1209600",
+    "MAX_RESULTS_DEFAULT": "40",
+    "RATE_LIMIT_MS": "50",
+    "CONCURRENCY_LIMIT": "10",
+    "AGGRESSIVE_CACHING": "true",
+    "//": "Logging configuration",
+    "LOG_LEVEL": "DEBUG",
+    "ENABLE_PERFORMANCE_LOGGING": "true",
+    "ENABLE_CACHE_ANALYTICS": "true",
+    "ENABLE_PROVIDER_METRICS": "true",
+    "ENABLE_RATE_LIMIT_TRACKING": "true",
+    "STRUCTURED_LOGGING": "true",
+    "//": "External API configuration",
+    "OPENLIBRARY_BASE_URL": "https://openlibrary.org",
+    "USER_AGENT": "BooksTracker/1.0 (nerd@ooheynerds.com) ExternalAPIsWorker/1.0.0",
+    "//": "AI configuration",
+    "AI_PROVIDER": "gemini",
+    "MAX_IMAGE_SIZE_MB": "10",
+    "REQUEST_TIMEOUT_MS": "50000",
+    "CONFIDENCE_THRESHOLD": "0.7",
+    "MAX_SCAN_FILE_SIZE": "10485760",
+    "//": "Response Envelope Format",
+    "ENABLE_UNIFIED_ENVELOPE": "true",
+    "//": "Durable Object Architecture Refactoring",
+    "ENABLE_REFACTORED_DOS": "false",
+    "//": "WebSocket Hibernation API Migration",
+    "ENABLE_HIBERNATION_WEBSOCKET": "false"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "b9cade63b6db48fd80c109a013f38fdb"
+    },
+    {
+      "binding": "KV_CACHE",
+      "id": "b9cade63b6db48fd80c109a013f38fdb"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "API_CACHE_COLD",
+      "bucket_name": "personal-library-data"
+    },
+    {
+      "binding": "LIBRARY_DATA",
+      "bucket_name": "personal-library-data"
+    },
+    {
+      "binding": "BOOKSHELF_IMAGES",
+      "bucket_name": "bookshelf-images"
+    },
+    {
+      "binding": "BOOK_COVERS",
+      "bucket_name": "bookstrack-covers"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PROGRESS_WEBSOCKET_DO",
+        "class_name": "ProgressWebSocketDO"
+      },
+      {
+        "name": "RATE_LIMITER_DO",
+        "class_name": "RateLimiterDO"
+      },
+      {
+        "name": "PROGRESS_WEBSOCKET_DO_HIBERNATION",
+        "class_name": "ProgressWebSocketDO_Hibernation"
+      },
+      {
+        "name": "WEBSOCKET_CONNECTION_DO",
+        "class_name": "WebSocketConnectionDO"
+      },
+      {
+        "name": "JOB_STATE_MANAGER_DO",
+        "class_name": "JobStateManagerDO"
+      },
+      {
+        "name": "CACHE_METRICS_DO",
+        "class_name": "CacheMetricsDO"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["ProgressWebSocketDO"]
+    },
+    {
+      "tag": "v2",
+      "new_classes": ["RateLimiterDO"]
+    },
+    {
+      "tag": "v3",
+      "new_classes": ["WebSocketConnectionDO", "JobStateManagerDO"]
+    },
+    {
+      "tag": "v4",
+      "new_classes": ["CacheMetricsDO"]
+    },
+    {
+      "tag": "v5",
+      "new_classes": ["ProgressWebSocketDO_Hibernation"]
+    }
+  ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "PERFORMANCE_ANALYTICS",
+      "dataset": "books_api_performance"
+    },
+    {
+      "binding": "CACHE_ANALYTICS",
+      "dataset": "books_api_cache_metrics"
+    },
+    {
+      "binding": "ANALYTICS_ENGINE",
+      "dataset": "books_api_provider_performance"
+    },
+    {
+      "binding": "AI_ANALYTICS",
+      "dataset": "bookshelf_ai_performance"
+    },
+    {
+      "binding": "SAMPLING_ANALYTICS",
+      "dataset": "books_api_sampling_metrics"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1.0,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1.0,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1.0,
+      "persist": true
+    }
+  },
+  "limits": {
+    "cpu_ms": 300000
+  },
+  "placement": {
+    "mode": "smart"
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "AUTHOR_WARMING_QUEUE",
+        "queue": "author-warming-queue"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "author-warming-queue",
+        "max_batch_size": 10,
+        "max_batch_timeout": 30,
+        "max_retries": 3,
+        "dead_letter_queue": "author-warming-dlq",
+        "max_concurrency": 5
+      }
+    ]
+  },
+  "triggers": {
+    "crons": [
+      "0 2 * * *",
+      "*/15 * * * *",
+      "0 3 * * *"
+    ]
+  }
+}

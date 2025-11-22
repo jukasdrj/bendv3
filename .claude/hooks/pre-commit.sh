@@ -28,9 +28,17 @@ SENSITIVE_FILES=(
 )
 
 for pattern in "${SENSITIVE_FILES[@]}"; do
-  if git diff --cached --name-only | grep -qF "$pattern"; then
-    echo -e "${RED}✗ Blocked: Attempting to commit sensitive file matching '$pattern'${NC}"
-    FAILED=1
+  # Exclude .env.example from .env check
+  if [ "$pattern" = ".env" ]; then
+    if git diff --cached --name-only | grep -F "$pattern" | grep -v ".env.example" | grep -q .; then
+      echo -e "${RED}✗ Blocked: Attempting to commit sensitive file matching '$pattern'${NC}"
+      FAILED=1
+    fi
+  else
+    if git diff --cached --name-only | grep -qF "$pattern"; then
+      echo -e "${RED}✗ Blocked: Attempting to commit sensitive file matching '$pattern'${NC}"
+      FAILED=1
+    fi
   fi
 done
 
