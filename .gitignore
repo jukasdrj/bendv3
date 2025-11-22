@@ -5,6 +5,11 @@ dist/
 build/
 *.log
 .wrangler/
+
+# Environment files (NEVER commit secrets!)
+.env
+.env.*
+!.env.example
 .env.local
 
 # IDE

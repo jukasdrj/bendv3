@@ -10,7 +10,9 @@
 ```
 .
 ├── README.md                  # This file
-├── wrangler.toml             # Cloudflare Workers config
+├── wrangler.jsonc            # Cloudflare Workers config (JSON with schema)
+├── wrangler.toml             # Legacy TOML config (deprecated, kept for reference)
+├── .env.example              # Environment variables template
 ├── package.json              # Dependencies
 ├── src/                      # Production code
 │   ├── index.js              # Main router
@@ -112,15 +114,43 @@ npx wrangler deploy
 
 ## Environment Variables
 
-### Secrets (via `wrangler secret put`)
+### Local Development (`.env` file)
+
+1. **Copy the template:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Add your API keys to `.env`:**
+   ```bash
+   GOOGLE_BOOKS_API_KEY=your_actual_key_here
+   GEMINI_API_KEY=your_actual_key_here
+   ISBNDB_API_KEY=your_actual_key_here
+   ```
+
+3. **Run locally:**
+   ```bash
+   npx wrangler dev  # Automatically loads .env
+   ```
+
+**Never commit `.env` to version control!** (It's in `.gitignore`)
+
+### Production Secrets (via `wrangler secret put`)
 - `GOOGLE_BOOKS_API_KEY` - Google Books API authentication
 - `GEMINI_API_KEY` - Gemini AI authentication
 - `ISBNDB_API_KEY` - ISBNdb cover images
 
-### Vars (in `wrangler.toml`)
+```bash
+wrangler secret put GOOGLE_BOOKS_API_KEY
+# (paste your actual key when prompted)
+```
+
+### Configuration Variables (in `wrangler.jsonc`)
 - `OPENLIBRARY_BASE_URL` - OpenLibrary API base URL
 - `CONFIDENCE_THRESHOLD` - AI detection confidence threshold (0.7)
 - `MAX_SCAN_FILE_SIZE` - Maximum upload size (10485760 = 10MB)
+
+See `.env.example` for all available environment variables.
 
 ## CI/CD
 

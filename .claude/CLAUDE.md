@@ -107,14 +107,30 @@ export async function handleSearch(request, env) {
 ```
 
 ### Cloudflare Workers Patterns
+
+**Configuration:** `wrangler.jsonc` (JSON with schema, replaces legacy `wrangler.toml`)
+
+BooksTrack uses `wrangler.jsonc` for configuration with JSON schema support for IDE autocomplete and validation. The legacy `wrangler.toml` is kept for historical reference only.
+
+**Local development secrets:** `.env` file (git-ignored, loaded automatically by `npx wrangler dev`)
+
+```bash
+# .env (local development only, NEVER commit)
+GOOGLE_BOOKS_API_KEY=your_key_here
+GEMINI_API_KEY=your_key_here
+ISBNDB_API_KEY=your_key_here
+```
+
+**Production secrets:** Use `wrangler secret put` (never commit to version control)
+
 **Environment variables:**
 ```javascript
 // Access secrets and bindings through env parameter
 export default {
   async fetch(request, env, ctx) {
-    const apiKey = env.GOOGLE_BOOKS_API_KEY
-    const cache = env.BOOK_CACHE // KV namespace
-    const durableObject = env.PROGRESS_TRACKER // Durable Object
+    const apiKey = env.GOOGLE_BOOKS_API_KEY  // From .env (local) or Workers secret (production)
+    const cache = env.CACHE // KV namespace (configured in wrangler.jsonc)
+    const durableObject = env.PROGRESS_WEBSOCKET_DO // Durable Object binding
   }
 }
 ```
@@ -315,10 +331,22 @@ function setCorsHeaders(response, origin) {
 ```
 
 ### Secrets Management
-- **Never commit secrets** to version control
-- Use `wrangler secret put` for production secrets
-- Use `.dev.vars` for local development (gitignored)
-- Rotate API keys quarterly
+- **Never commit secrets** to version control (`.env` is in `.gitignore`)
+- **Local development:** Copy `.env.example` to `.env` and add your API keys
+- **Production secrets:** Use `wrangler secret put` for production deployment
+- **CI/CD:** Set secrets in GitHub repository settings (Actions secrets)
+- **Rotate API keys quarterly** as a security best practice
+
+```bash
+# Local development setup
+cp .env.example .env
+# Edit .env with your actual API keys
+npx wrangler dev  # Automatically loads .env
+
+# Production secret management
+wrangler secret put GOOGLE_BOOKS_API_KEY
+# (paste your actual production key when prompted)
+```
 
 ---
 
@@ -540,7 +568,7 @@ Sonnet 4.5 (you):
 - Before creating PRs
 - After refactoring handlers or services
 - Adding new API endpoints
-- Modifying `wrangler.toml`
+- Modifying `wrangler.jsonc` (configuration changes)
 - Reviewing external API integrations
 
 **Autonomy:** High - auto-runs on code changes without approval
@@ -601,7 +629,7 @@ Sonnet 4.5 (you):
 **Automatic Invocation:**
 - Code changes in `src/handlers/` or `src/services/` → `cf-code-reviewer`
 - `wrangler deploy` execution → `cf-ops-monitor`
-- `wrangler.toml` modifications → Both agents
+- `wrangler.jsonc` modifications → Both agents
 - `wrangler tail` streaming → `cf-ops-monitor`
 
 **Hook Location:** `.claude/hooks/post-tool-use.sh`
