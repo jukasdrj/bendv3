@@ -34,25 +34,8 @@ export async function handleCacheMetrics(request, env) {
     const id = env.CACHE_METRICS_DO.idFromName("cache-metrics-singleton");
     const stub = env.CACHE_METRICS_DO.get(id);
 
-    // Fetch stats from DO
-    const response = await stub.fetch("http://do/stats", { method: "GET" });
-
-    if (!response.ok) {
-      console.error(
-        "Failed to fetch cache stats from DO:",
-        response.status,
-        response.statusText,
-      );
-      return createErrorResponse(
-        "Failed to retrieve cache statistics",
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        { doStatus: response.status, doStatusText: response.statusText },
-        request
-      )
-    }
-
-    const stats = await response.json();
+    // ✅ RPC MIGRATION: Direct method call (no HTTP overhead)
+    const stats = await stub.getStats();
 
     // Extract requested window
     const windowMap = {

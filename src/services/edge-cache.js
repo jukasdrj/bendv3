@@ -12,11 +12,8 @@ function trackEdgeCacheEvent(env, ctx, event) {
     try {
       const id = env.CACHE_METRICS_DO.idFromName("cache-metrics-singleton");
       const stub = env.CACHE_METRICS_DO.get(id);
-      await stub.fetch("http://do/event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(event),
-      });
+      // ✅ RPC MIGRATION: Direct method call (no HTTP overhead)
+      await stub.recordEvent(event);
     } catch (error) {
       console.error("Failed to track edge cache event:", error);
     }
