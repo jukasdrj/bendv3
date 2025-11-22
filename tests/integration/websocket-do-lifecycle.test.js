@@ -536,7 +536,7 @@ describe("WebSocket DO Lifecycle - Storage & Eviction", () => {
         await progressDO.updateJobState({
           processedCount: (i + 1) * 10,
           progress: (i + 1) * 10,
-          currentItem: { isbn: "1234567890", index: i },
+          currentItem: `ISBN: 1234567890, Index: ${i}`,
         });
       }
 
@@ -544,7 +544,7 @@ describe("WebSocket DO Lifecycle - Storage & Eviction", () => {
       const state = await progressDO.getJobState();
       expect(state.processedCount).toBe(50);
       expect(state.progress).toBe(50);
-      expect(state.currentItem).toEqual({ isbn: "1234567890", index: 4 });
+      expect(state.currentItem).toBe("ISBN: 1234567890, Index: 4");
     });
 
     it("should handle concurrent reads during writes", async () => {
