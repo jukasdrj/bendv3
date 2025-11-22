@@ -69,6 +69,17 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    */
   async webSocketMessage(ws, message) {
     try {
+      // SECURITY: Validate incoming message size (Cloudflare best practices)
+      const messageSize = new Blob([message]).size;
+      if (messageSize > MAX_INCOMING_SIZE) {
+        const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
+        console.warn(
+          `[Hibernation DO ${jobId}] Incoming message too large: ${messageSize} bytes (max ${MAX_INCOMING_SIZE} bytes)`,
+        );
+        ws.close(WebSocketCloseCodes.POLICY_VIOLATION, "Message too large");
+        return;
+      }
+
       // Load state from storage (hydration)
       const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
       const authToken = await this.state.storage.get(STORAGE_KEYS.AUTH_TOKEN);
@@ -382,13 +393,30 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     // This enables automatic wake/sleep cycle
     this.state.acceptWebSocket(server);
 
-    // Store initial state
+    // Store initial state + session metadata (Cloudflare best practices)
     // Note: Auth token + expiration already set via setAuthToken() RPC call before connection
-    await this.state.storage.put(STORAGE_KEYS.JOB_ID, jobId);
-    await this.state.storage.put(STORAGE_KEYS.IS_READY, false);
+    const sessionMetadata = {
+      id: crypto.randomUUID(),
+      jobId: jobId,
+      connectedAt: new Date().toISOString(),
+      ip: request.headers.get("CF-Connecting-IP") || "unknown",
+      userAgent: request.headers.get("User-Agent") || "unknown",
+      country: request.headers.get("CF-IPCountry") || "unknown",
+    };
+
+    await this.state.storage.put({
+      [STORAGE_KEYS.JOB_ID]: jobId,
+      [STORAGE_KEYS.IS_READY]: false,
+      sessionMetadata: sessionMetadata,
+    });
 
     console.log(
       `[ProgressWebSocketDO_Hibernation] WebSocket connection established for job ${jobId} (hibernation enabled)`,
+      {
+        sessionId: sessionMetadata.id,
+        ip: sessionMetadata.ip,
+        country: sessionMetadata.country,
+      },
     );
 
     return new Response(null, {

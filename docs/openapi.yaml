@@ -1,12 +1,19 @@
 openapi: 3.0.3
 info:
   title: BooksTrack API
-  version: "2.6.0"
+  version: "2.6.1"
   description: |
-    This OpenAPI specification defines the BooksTrack API, version 2.6.0.
+    This OpenAPI specification defines the BooksTrack API, version 2.6.1.
     It is derived from and complements the human-readable [API_CONTRACT.md](API_CONTRACT.md) document.
 
-    **Key Highlights (v2.6.0):**
+    **Key Highlights (v2.6.1):**
+    - WebSocket security hardening (10KB incoming message size limit, DoS protection)
+    - Backpressure handling (1MB threshold, prevents memory bloat from slow clients)
+    - Session metadata tracking (IP, country, user agent for diagnostics)
+    - Atomic token operations (storage transactions prevent race conditions)
+    - Zero user-facing API changes (transparent security and performance improvements)
+
+    **Previous Highlights (v2.6.0):**
     - Native RPC for Durable Objects (85% latency reduction: 10-15ms → <2ms for internal operations)
     - Hibernation DO storage fix (enables 70-80% cost savings, currently disabled pending gradual rollout)
     - Enhanced WebSocket error handling with categorization
