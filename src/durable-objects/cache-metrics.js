@@ -227,41 +227,74 @@ export class CacheMetricsDO {
   }
 
   /**
-   * Handle incoming requests
+   * RPC Method: Get cache statistics
+   * Native DO stub call pattern - returns plain object, not HTTP Response
+   *
+   * @returns {Promise<Object>} Stats object with metrics
+   */
+  async getStats() {
+    return this.stats;
+  }
+
+  /**
+   * RPC Method: Record cache event
+   * Native DO stub call pattern - returns plain object, not HTTP Response
+   *
+   * @param {Object} eventData - Event data {type, prefix, key, timestamp, hotTtlExpiry}
+   * @returns {Promise<{success: boolean}>}
+   */
+  async recordEvent(eventData) {
+    try {
+      // Update all time windows
+      this.updateStats(eventData, this.stats.currentMinute);
+      this.updateStats(eventData, this.stats.currentHour);
+      this.updateStats(eventData, this.stats.currentDay);
+      this.updateStats(eventData, this.stats.total);
+
+      this.stats.lastUpdated = eventData.timestamp;
+
+      // Persist more frequently for events
+      if (Date.now() - this.lastPersisted > STATE_PERSIST_INTERVAL_MS / 2) {
+        await this.persistStats();
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to process cache event:", error);
+      throw error; // Let caller handle the error
+    }
+  }
+
+  /**
+   * Handle incoming requests (DEPRECATED - use RPC methods instead)
+   * Kept for backward compatibility during migration
    */
   async fetch(request) {
     const url = new URL(request.url);
 
     if (url.pathname === "/event" && request.method === "POST") {
-      // Handle cache event
+      // Handle cache event - delegate to RPC method
       try {
         const event = await request.json();
-
-        // Update all time windows
-        this.updateStats(event, this.stats.currentMinute);
-        this.updateStats(event, this.stats.currentHour);
-        this.updateStats(event, this.stats.currentDay);
-        this.updateStats(event, this.stats.total);
-
-        this.stats.lastUpdated = event.timestamp;
-
-        // Persist more frequently for events
-        if (Date.now() - this.lastPersisted > STATE_PERSIST_INTERVAL_MS / 2) {
-          await this.persistStats();
-        }
-
-        return new Response("Event received", { status: 200 });
+        const result = await this.recordEvent(event);
+        return new Response(JSON.stringify(result), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       } catch (error) {
         console.error("Failed to process cache event:", error);
         return new Response("Bad Request", { status: 400 });
       }
     } else if (url.pathname === "/stats" && request.method === "GET") {
-      // Return aggregated stats
-      return new Response(JSON.stringify(this.stats), {
+      // Return aggregated stats - delegate to RPC method
+      const stats = await this.getStats();
+      return new Response(JSON.stringify(stats), {
         headers: { "Content-Type": "application/json" },
       });
     }
 
-    return new Response("Not Found", { status: 404 });
+    return new Response("Use RPC methods: getStats() or recordEvent()", {
+      status: 400,
+    });
   }
 }

@@ -54,9 +54,9 @@ const STORAGE_KEYS = {
 export class ProgressWebSocketDO_Hibernation extends DurableObject {
   constructor(state, env) {
     super(state, env);
-    this.state = state; // Required for accessing state.getWebSockets() in hibernation API
-    this.storage = state.storage;
+    this.state = state; // Required for accessing state.getWebSockets() and state.storage in hibernation API
     this.env = env;
+    // ✅ HIBERNATION FIX: No direct storage assignment - use this.state.storage instead
     // NO in-memory state - everything in storage for persistence across hibernation cycles
   }
 
@@ -70,9 +70,9 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
   async webSocketMessage(ws, message) {
     try {
       // Load state from storage (hydration)
-      const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
-      const authToken = await this.storage.get(STORAGE_KEYS.AUTH_TOKEN);
-      const isReady = await this.storage.get(STORAGE_KEYS.IS_READY);
+      const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
+      const authToken = await this.state.storage.get(STORAGE_KEYS.AUTH_TOKEN);
+      const isReady = await this.state.storage.get(STORAGE_KEYS.IS_READY);
 
       // Parse message
       const data = typeof message === "string" ? JSON.parse(message) : null;
@@ -120,25 +120,25 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    * @param {boolean} wasClean - Whether close was clean
    */
   async webSocketClose(ws, code, reason, wasClean) {
-    const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+    const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
 
     console.log(
       `[ProgressWebSocketDO_Hibernation] WebSocket closed for job ${jobId}: code=${code}, reason=${reason}, clean=${wasClean}`,
     );
 
     // Store disconnect info for reconnection logic
-    await this.storage.put(STORAGE_KEYS.LAST_DISCONNECT, Date.now());
-    await this.storage.put(STORAGE_KEYS.LAST_DISCONNECT_CODE, code);
-    await this.storage.put(STORAGE_KEYS.LAST_DISCONNECT_REASON, reason);
+    await this.state.storage.put(STORAGE_KEYS.LAST_DISCONNECT, Date.now());
+    await this.state.storage.put(STORAGE_KEYS.LAST_DISCONNECT_CODE, code);
+    await this.state.storage.put(STORAGE_KEYS.LAST_DISCONNECT_REASON, reason);
 
     // Decrement connection count atomically
-    await this.storage.transaction(async (txn) => {
+    await this.state.storage.transaction(async (txn) => {
       const count = (await txn.get(STORAGE_KEYS.CONNECTION_COUNT)) || 0;
       await txn.put(STORAGE_KEYS.CONNECTION_COUNT, Math.max(0, count - 1));
     });
 
     // Reset ready state
-    await this.storage.put(STORAGE_KEYS.IS_READY, false);
+    await this.state.storage.put(STORAGE_KEYS.IS_READY, false);
   }
 
   /**
@@ -148,21 +148,51 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    * @param {Error} error - The error that occurred
    */
   async webSocketError(ws, error) {
-    const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+    const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
+
+    // Categorize error type for better diagnostics
+    const errorType = this.categorizeWebSocketError(error);
 
     console.error(
-      `[ProgressWebSocketDO_Hibernation] WebSocket error for job ${jobId}:`,
-      error,
+      `[Hibernation DO ${jobId}] WebSocket error (${errorType}):`,
+      error.message,
+      { stack: error.stack }
     );
 
-    // Store error state
-    await this.storage.put("lastError", {
+    // Store error with metadata for debugging
+    await this.state.storage.put("lastError", {
+      type: errorType,
       message: error.message,
+      stack: error.stack,
       timestamp: Date.now(),
     });
 
-    // Close connection with protocol error code
-    ws.close(WebSocketCloseCodes.PROTOCOL_ERROR, "Connection error");
+    // Decrement connection count (connection is about to close)
+    await this.state.storage.transaction(async (txn) => {
+      const count = (await txn.get(STORAGE_KEYS.CONNECTION_COUNT)) || 0;
+      await txn.put(STORAGE_KEYS.CONNECTION_COUNT, Math.max(0, count - 1));
+    });
+
+    // Choose appropriate close code based on error type
+    const closeCode = errorType === 'CLIENT_ERROR'
+      ? WebSocketCloseCodes.POLICY_VIOLATION
+      : WebSocketCloseCodes.INTERNAL_ERROR;
+
+    ws.close(closeCode, `Connection error: ${errorType}`);
+  }
+
+  /**
+   * Categorize WebSocket errors for better diagnostics
+   * @param {Error} error - The error to categorize
+   * @returns {string} Error category
+   */
+  categorizeWebSocketError(error) {
+    const msg = error.message?.toLowerCase() || '';
+    if (msg.includes('buffer')) return 'BUFFER_OVERFLOW';
+    if (msg.includes('timeout')) return 'TIMEOUT';
+    if (msg.includes('auth')) return 'AUTH_FAILURE';
+    if (msg.includes('limit')) return 'CLIENT_ERROR';
+    return 'UNKNOWN';
   }
 
   /**
@@ -232,10 +262,10 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     // FULL AUTHENTICATION VALIDATION: Parallel storage reads
     const storageStartTime = Date.now();
     const [storedToken, expiration, oldTokenExpiration] = await Promise.all([
-      this.storage.get(STORAGE_KEYS.AUTH_TOKEN),
-      this.storage.get(STORAGE_KEYS.AUTH_TOKEN_EXPIRATION),
+      this.state.storage.get(STORAGE_KEYS.AUTH_TOKEN),
+      this.state.storage.get(STORAGE_KEYS.AUTH_TOKEN_EXPIRATION),
       providedToken
-        ? this.storage.get(`oldAuthToken:${providedToken}`)
+        ? this.state.storage.get(`oldAuthToken:${providedToken}`)
         : Promise.resolve(null),
     ]);
     const storageDuration = Date.now() - storageStartTime;
@@ -296,7 +326,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     // Check connection limit (Issue #170)
     let connectionCount = 0;
     try {
-      await this.storage.transaction(async (txn) => {
+      await this.state.storage.transaction(async (txn) => {
         const count = (await txn.get(STORAGE_KEYS.CONNECTION_COUNT)) || 0;
         connectionCount = count;
 
@@ -354,8 +384,8 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
 
     // Store initial state
     // Note: Auth token + expiration already set via setAuthToken() RPC call before connection
-    await this.storage.put(STORAGE_KEYS.JOB_ID, jobId);
-    await this.storage.put(STORAGE_KEYS.IS_READY, false);
+    await this.state.storage.put(STORAGE_KEYS.JOB_ID, jobId);
+    await this.state.storage.put(STORAGE_KEYS.IS_READY, false);
 
     console.log(
       `[ProgressWebSocketDO_Hibernation] WebSocket connection established for job ${jobId} (hibernation enabled)`,
@@ -371,13 +401,13 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    * Handle "ready" message from client
    */
   async handleReadyMessage(ws, data) {
-    const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
-    const pipeline = await this.storage.get(STORAGE_KEYS.CURRENT_PIPELINE);
+    const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
+    const pipeline = await this.state.storage.get(STORAGE_KEYS.CURRENT_PIPELINE);
 
     console.log(`[ProgressWebSocketDO_Hibernation] Client ready for job ${jobId}`);
 
     // Mark as ready
-    await this.storage.put(STORAGE_KEYS.IS_READY, true);
+    await this.state.storage.put(STORAGE_KEYS.IS_READY, true);
 
     // Send ready acknowledgment (following API contract v2.4.1)
     const now = Date.now();
@@ -396,12 +426,12 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     );
 
     // Wake up any alarm waiting for ready signal
-    const alarm = await this.storage.getAlarm();
+    const alarm = await this.state.storage.getAlarm();
     if (alarm) {
       console.log(
         "[ProgressWebSocketDO_Hibernation] Triggering alarm (client ready)",
       );
-      await this.storage.deleteAlarm(); // Cancel alarm, will trigger immediately
+      await this.state.storage.deleteAlarm(); // Cancel alarm, will trigger immediately
     }
   }
 
@@ -409,14 +439,14 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    * Handle "cancel" message from client
    */
   async handleCancelMessage(ws, data) {
-    const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+    const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
 
     console.log(
       `[ProgressWebSocketDO_Hibernation] Job cancelled by client: ${jobId}`,
     );
 
     // Store cancellation state
-    await this.storage.put(STORAGE_KEYS.JOB_STATE, "cancelled");
+    await this.state.storage.put(STORAGE_KEYS.JOB_STATE, "cancelled");
 
     // Close connection
     ws.close(
@@ -441,7 +471,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       }
 
       const expiration = Date.now() + 2 * 60 * 60 * 1000; // 2-hour TTL
-      await this.storage.put({
+      await this.state.storage.put({
         [STORAGE_KEYS.AUTH_TOKEN]: token,
         [STORAGE_KEYS.AUTH_TOKEN_EXPIRATION]: expiration,
       });
@@ -483,7 +513,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         version: 1,
       };
 
-      await this.storage.put({
+      await this.state.storage.put({
         [STORAGE_KEYS.JOB_STATE]: jobState,
         [STORAGE_KEYS.CURRENT_PIPELINE]: pipeline,
       });
@@ -510,7 +540,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
   async updateProgress(pipeline, payload) {
     try {
       // 1. HYDRATE: Load state from storage
-      const data = await this.storage.get([STORAGE_KEYS.JOB_ID, STORAGE_KEYS.JOB_STATE]);
+      const data = await this.state.storage.get([STORAGE_KEYS.JOB_ID, STORAGE_KEYS.JOB_STATE]);
       const jobId = data.get(STORAGE_KEYS.JOB_ID);
       const jobState = data.get(STORAGE_KEYS.JOB_STATE);
 
@@ -560,7 +590,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       }
 
       // 4. PERSIST: Save updated state (immutable copy prevents race conditions)
-      await this.storage.put(STORAGE_KEYS.JOB_STATE, updatedJobState);
+      await this.state.storage.put(STORAGE_KEYS.JOB_STATE, updatedJobState);
 
       // 5. RESPOND
       return { success: true };
@@ -582,7 +612,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    */
   async complete(pipeline, payload) {
     try {
-      const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+      const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
 
       if (!jobId) {
         throw new Error('Job not initialized. Cannot complete job.');
@@ -641,7 +671,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    */
   async sendError(pipeline, payload) {
     try {
-      const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+      const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
 
       // Construct error message using v2.0.0 canonical format (breaking change)
       const now = Date.now();
@@ -703,12 +733,12 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    */
   async waitForReady(timeoutMs = 15000) {
     try {
-      const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+      const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
       const startTime = Date.now();
 
       // Poll for ready state
       while (Date.now() - startTime < timeoutMs) {
-        const isReady = await this.storage.get(STORAGE_KEYS.IS_READY);
+        const isReady = await this.state.storage.get(STORAGE_KEYS.IS_READY);
         const webSockets = this.state.getWebSockets();
 
         if (isReady && webSockets.length > 0) {
@@ -748,14 +778,14 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     console.log(`[${jobId}] Scheduling CSV processing via alarm`);
 
     // Store CSV data and job metadata in Durable Object storage
-    await this.storage.put(STORAGE_KEYS.CSV_DATA, csvText);
-    await this.storage.put(STORAGE_KEYS.JOB_ID, jobId);
-    await this.storage.put(STORAGE_KEYS.JOB_TYPE, "csv-import");
+    await this.state.storage.put(STORAGE_KEYS.CSV_DATA, csvText);
+    await this.state.storage.put(STORAGE_KEYS.JOB_ID, jobId);
+    await this.state.storage.put(STORAGE_KEYS.JOB_TYPE, "csv-import");
 
     // Schedule alarm with 2-second delay to ensure WebSocket connects
     // iOS needs time to: receive HTTP 202 → extract jobId → connect WebSocket → send ready
     const alarmTime = Date.now() + 2000;
-    await this.storage.setAlarm(alarmTime);
+    await this.state.storage.setAlarm(alarmTime);
 
     console.log(
       `[${jobId}] CSV processing alarm scheduled for ${new Date(alarmTime).toISOString()}`,
@@ -779,14 +809,14 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     console.log(`[${jobId}] Scheduling bookshelf scan via alarm`);
 
     // Store image data and job metadata in Durable Object storage
-    await this.storage.put(STORAGE_KEYS.IMAGE_DATA, imageData);
-    await this.storage.put(STORAGE_KEYS.REQUEST_HEADERS, requestHeaders || {});
-    await this.storage.put(STORAGE_KEYS.JOB_ID, jobId);
-    await this.storage.put(STORAGE_KEYS.JOB_TYPE, "bookshelf-scan");
+    await this.state.storage.put(STORAGE_KEYS.IMAGE_DATA, imageData);
+    await this.state.storage.put(STORAGE_KEYS.REQUEST_HEADERS, requestHeaders || {});
+    await this.state.storage.put(STORAGE_KEYS.JOB_ID, jobId);
+    await this.state.storage.put(STORAGE_KEYS.JOB_TYPE, "bookshelf-scan");
 
     // Schedule alarm with 2-second delay to ensure WebSocket connects
     const alarmTime = Date.now() + 2000;
-    await this.storage.setAlarm(alarmTime);
+    await this.state.storage.setAlarm(alarmTime);
 
     console.log(
       `[${jobId}] Bookshelf scan alarm scheduled for ${new Date(alarmTime).toISOString()}`,
@@ -805,8 +835,8 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    * 3. Token Refresh - no jobType, token needs refresh
    */
   async alarm() {
-    const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
-    const jobType = await this.storage.get(STORAGE_KEYS.JOB_TYPE);
+    const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
+    const jobType = await this.state.storage.get(STORAGE_KEYS.JOB_TYPE);
 
     console.log(
       `[ProgressWebSocketDO_Hibernation] Alarm triggered for job ${jobId}, type: ${jobType || 'token-refresh'}`,
@@ -823,7 +853,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       await this.processBookshelfScanAlarm();
     } else {
       // Token refresh alarm (no jobType)
-      const tokenExpiration = await this.storage.get(
+      const tokenExpiration = await this.state.storage.get(
         STORAGE_KEYS.AUTH_TOKEN_EXPIRATION,
       );
       if (tokenExpiration && Date.now() >= tokenExpiration - 5 * 60 * 1000) {
@@ -831,7 +861,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       }
 
       // Schedule next alarm (e.g., 5 minutes)
-      await this.storage.setAlarm(Date.now() + 5 * 60 * 1000);
+      await this.state.storage.setAlarm(Date.now() + 5 * 60 * 1000);
     }
   }
 
@@ -840,8 +870,8 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    * No Worker CPU time limits apply in alarm context
    */
   async processCSVImportAlarm() {
-    const csvText = await this.storage.get(STORAGE_KEYS.CSV_DATA);
-    const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+    const csvText = await this.state.storage.get(STORAGE_KEYS.CSV_DATA);
+    const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
 
     console.log(
       `[${jobId}] Starting CSV processing in alarm (no timeout limits)`,
@@ -854,9 +884,9 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       console.log(`[${jobId}] CSV processing completed successfully`);
 
       // Clean up storage
-      await this.storage.delete(STORAGE_KEYS.CSV_DATA);
-      await this.storage.delete(STORAGE_KEYS.JOB_ID);
-      await this.storage.delete(STORAGE_KEYS.JOB_TYPE);
+      await this.state.storage.delete(STORAGE_KEYS.CSV_DATA);
+      await this.state.storage.delete(STORAGE_KEYS.JOB_ID);
+      await this.state.storage.delete(STORAGE_KEYS.JOB_TYPE);
     } catch (error) {
       console.error(`[${jobId}] CSV processing failed in alarm:`, error);
 
@@ -872,9 +902,9 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       });
 
       // Clean up storage even on error
-      await this.storage.delete(STORAGE_KEYS.CSV_DATA);
-      await this.storage.delete(STORAGE_KEYS.JOB_ID);
-      await this.storage.delete(STORAGE_KEYS.JOB_TYPE);
+      await this.state.storage.delete(STORAGE_KEYS.CSV_DATA);
+      await this.state.storage.delete(STORAGE_KEYS.JOB_ID);
+      await this.state.storage.delete(STORAGE_KEYS.JOB_TYPE);
     }
   }
 
@@ -883,9 +913,9 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    * No Worker CPU time limits apply in alarm context (can handle 20-60s AI processing)
    */
   async processBookshelfScanAlarm() {
-    const imageData = await this.storage.get(STORAGE_KEYS.IMAGE_DATA);
-    const requestHeaders = await this.storage.get(STORAGE_KEYS.REQUEST_HEADERS);
-    const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+    const imageData = await this.state.storage.get(STORAGE_KEYS.IMAGE_DATA);
+    const requestHeaders = await this.state.storage.get(STORAGE_KEYS.REQUEST_HEADERS);
+    const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
 
     console.log(
       `[${jobId}] Starting bookshelf scan in alarm (no CPU time limits)`,
@@ -913,10 +943,10 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       console.log(`[${jobId}] Bookshelf scan completed successfully`);
 
       // Clean up storage
-      await this.storage.delete(STORAGE_KEYS.IMAGE_DATA);
-      await this.storage.delete(STORAGE_KEYS.REQUEST_HEADERS);
-      await this.storage.delete(STORAGE_KEYS.JOB_ID);
-      await this.storage.delete(STORAGE_KEYS.JOB_TYPE);
+      await this.state.storage.delete(STORAGE_KEYS.IMAGE_DATA);
+      await this.state.storage.delete(STORAGE_KEYS.REQUEST_HEADERS);
+      await this.state.storage.delete(STORAGE_KEYS.JOB_ID);
+      await this.state.storage.delete(STORAGE_KEYS.JOB_TYPE);
     } catch (error) {
       console.error(
         `[${jobId}] Bookshelf scan processing failed in alarm:`,
@@ -935,10 +965,10 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       });
 
       // Clean up storage even on error
-      await this.storage.delete(STORAGE_KEYS.IMAGE_DATA);
-      await this.storage.delete(STORAGE_KEYS.REQUEST_HEADERS);
-      await this.storage.delete(STORAGE_KEYS.JOB_ID);
-      await this.storage.delete(STORAGE_KEYS.JOB_TYPE);
+      await this.state.storage.delete(STORAGE_KEYS.IMAGE_DATA);
+      await this.state.storage.delete(STORAGE_KEYS.REQUEST_HEADERS);
+      await this.state.storage.delete(STORAGE_KEYS.JOB_ID);
+      await this.state.storage.delete(STORAGE_KEYS.JOB_TYPE);
     }
   }
 
@@ -947,8 +977,8 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    * Called by alarm handler or manually via RPC
    */
   async refreshAuthToken() {
-    const currentToken = await this.storage.get(STORAGE_KEYS.AUTH_TOKEN);
-    const jobId = await this.storage.get(STORAGE_KEYS.JOB_ID);
+    const currentToken = await this.state.storage.get(STORAGE_KEYS.AUTH_TOKEN);
+    const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
 
     if (!currentToken) {
       console.warn(
@@ -984,8 +1014,8 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       );
 
       // Store new token
-      await this.storage.put(STORAGE_KEYS.AUTH_TOKEN, newToken);
-      await this.storage.put(STORAGE_KEYS.AUTH_TOKEN_EXPIRATION, expiresAt);
+      await this.state.storage.put(STORAGE_KEYS.AUTH_TOKEN, newToken);
+      await this.state.storage.put(STORAGE_KEYS.AUTH_TOKEN_EXPIRATION, expiresAt);
 
       console.log(
         `[ProgressWebSocketDO_Hibernation] Auth token refreshed for job ${jobId}`,

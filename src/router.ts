@@ -707,26 +707,9 @@ app.get("/api/cache/stats", async (c) => {
   try {
     const id = c.env.CACHE_METRICS_DO.idFromName("cache-metrics-singleton");
     const stub = c.env.CACHE_METRICS_DO.get(id);
-    const response = await stub.fetch("http://do/stats", { method: "GET" });
 
-    if (!response.ok) {
-      console.error(
-        "Failed to fetch cache stats from DO:",
-        response.status,
-        response.statusText,
-      );
-      return c.json(
-        {
-          error: {
-            code: "INTERNAL_ERROR",
-            message: "Failed to retrieve cache statistics",
-          },
-        },
-        500,
-      );
-    }
-
-    const stats = await response.json();
+    // ✅ RPC MIGRATION: Direct method call (no HTTP overhead)
+    const stats = await stub.getStats();
     return c.json(stats);
   } catch (error) {
     console.error("Error fetching cache stats:", error);
@@ -1040,47 +1023,34 @@ app.post("/test/cache-event", async (c) => {
 
     const timestamp = Date.now();
 
+    // ✅ RPC MIGRATION: Direct method calls (no HTTP overhead)
+
     // Event 1: Edge cache hit
-    await stub.fetch("http://do/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "hit",
-        prefix: "edge",
-        key: "test:edge:hit",
-        timestamp,
-      }),
+    await stub.recordEvent({
+      type: "hit",
+      prefix: "edge",
+      key: "test:edge:hit",
+      timestamp,
     });
 
     // Event 2: KV cache miss
-    await stub.fetch("http://do/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "miss",
-        prefix: "book",
-        key: "book:isbn:test123",
-        timestamp,
-      }),
+    await stub.recordEvent({
+      type: "miss",
+      prefix: "book",
+      key: "book:isbn:test123",
+      timestamp,
     });
 
     // Event 3: KV cache write
-    await stub.fetch("http://do/event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "write",
-        prefix: "author",
-        key: "author:search:testauthor",
-        timestamp,
-      }),
+    await stub.recordEvent({
+      type: "write",
+      prefix: "author",
+      key: "author:search:testauthor",
+      timestamp,
     });
 
     // Get current stats
-    const statsResponse = await stub.fetch("http://do/stats", {
-      method: "GET",
-    });
-    const stats = await statsResponse.json();
+    const stats = await stub.getStats();
 
     return c.json({
       success: true,
