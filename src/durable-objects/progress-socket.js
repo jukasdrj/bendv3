@@ -7,6 +7,10 @@ import { processBookshelfScan } from "../services/ai-scanner.js";
 // Module-level constants for token security
 const BLACKLIST_TTL_SECONDS = 2.5 * 60 * 60; // 2.5 hours (covers 2hr expiration + buffer)
 
+// WebSocket performance thresholds (Cloudflare best practices)
+const BUFFER_THRESHOLD = 1024 * 1024; // 1MB backpressure threshold
+const MAX_INCOMING_MESSAGE_SIZE = 10 * 1024; // 10KB max incoming message size
+
 /**
  * ProgressWebSocketDO - Durable Object for Real-Time Job Progress via WebSocket
  *
@@ -77,6 +81,9 @@ export class ProgressWebSocketDO extends DurableObject {
     this.updatesSinceLastPersist = 0;
     this.lastPersistTime = 0;
     this.currentPipeline = null;
+
+    // Session metadata (Cloudflare best practices)
+    this.sessionMetadata = null;
   }
 
   /**
@@ -313,6 +320,16 @@ export class ProgressWebSocketDO extends DurableObject {
       this.readyResolver = resolve;
     });
 
+    // Track session metadata for diagnostics (Cloudflare best practices)
+    this.sessionMetadata = {
+      id: crypto.randomUUID(),
+      jobId: jobId,
+      connectedAt: new Date().toISOString(),
+      ip: request.headers.get("CF-Connecting-IP") || "unknown",
+      userAgent: request.headers.get("User-Agent") || "unknown",
+      country: request.headers.get("CF-IPCountry") || "unknown",
+    };
+
     const totalUpgradeDuration = Date.now() - upgradeStartTime;
     console.log(
       `[${this.jobId}] WebSocket connection accepted, waiting for ready signal`,
@@ -339,6 +356,20 @@ export class ProgressWebSocketDO extends DurableObject {
     // Setup event handlers
     this.webSocket.addEventListener("message", (event) => {
       console.log(`[${this.jobId}] Received message:`, event.data);
+
+      // SECURITY: Validate incoming message size (Cloudflare best practices)
+      const messageSize = new Blob([event.data]).size;
+      if (messageSize > MAX_INCOMING_MESSAGE_SIZE) {
+        console.warn(
+          `[${this.jobId}] Incoming message too large: ${messageSize} bytes (max ${MAX_INCOMING_MESSAGE_SIZE} bytes)`,
+        );
+        this.webSocket.close(
+          WebSocketCloseCodes.POLICY_VIOLATION,
+          "Message too large",
+        );
+        this.cleanup();
+        return;
+      }
 
       // Parse incoming message
       try {
@@ -630,57 +661,65 @@ export class ProgressWebSocketDO extends DurableObject {
       return { success: true };
     }
 
-    // Add current token to blacklist with 2.5-hour TTL (covers full 2-hour expiration + buffer)
-    // TTL ensures automatic cleanup without manual intervention
-    await this.storage.put(
-      `blacklistedToken:${token}`,
-      {
-        invalidatedAt: Date.now(),
-        reason: "Job completed or failed",
-        jobId: this.jobId,
-      },
-      { expirationTtl: BLACKLIST_TTL_SECONDS },
-    );
+    // ATOMIC: Use storage transaction for token invalidation (Cloudflare best practices)
+    // Prevents race conditions during concurrent invalidation attempts
+    await this.storage.transaction(async (txn) => {
+      // Add current token to blacklist with 2.5-hour TTL (covers full 2-hour expiration + buffer)
+      // TTL ensures automatic cleanup without manual intervention
+      await txn.put(
+        `blacklistedToken:${token}`,
+        {
+          invalidatedAt: Date.now(),
+          reason: "Job completed or failed",
+          jobId: this.jobId,
+        },
+        { expirationTtl: BLACKLIST_TTL_SECONDS },
+      );
 
-    // SECURITY FIX: Blacklist old tokens created during auto-refresh
-    // Prevents leaked old tokens from reconnecting after job completion
-    const oldTokenKeys = await this.storage.list({ prefix: "oldAuthToken:" });
-    if (oldTokenKeys.size > 0) {
-      const now = Date.now();
-      const blacklistPuts = {};
-      const oldTokenKeysToDelete = [];
+      // SECURITY FIX: Blacklist old tokens created during auto-refresh
+      // Prevents leaked old tokens from reconnecting after job completion
+      const oldTokenKeys = await txn.list({ prefix: "oldAuthToken:" });
+      if (oldTokenKeys.size > 0) {
+        const now = Date.now();
+        const blacklistPuts = {};
+        const oldTokenKeysToDelete = [];
 
-      for (const key of oldTokenKeys.keys()) {
-        if (key.startsWith("oldAuthToken:")) {
-          const oldTokenValue = key.slice("oldAuthToken:".length);
-          blacklistPuts[`blacklistedToken:${oldTokenValue}`] = {
-            invalidatedAt: now,
-            reason: "Job completed or failed",
-            jobId: this.jobId,
-          };
-          oldTokenKeysToDelete.push(key);
-        } else {
-          console.warn(
-            `[${this.jobId || "unknown"}] Unexpected old token key format: ${key}`,
-          );
+        for (const key of oldTokenKeys.keys()) {
+          if (key.startsWith("oldAuthToken:")) {
+            const oldTokenValue = key.slice("oldAuthToken:".length);
+            blacklistPuts[`blacklistedToken:${oldTokenValue}`] = {
+              invalidatedAt: now,
+              reason: "Job completed or failed",
+              jobId: this.jobId,
+            };
+            oldTokenKeysToDelete.push(key);
+          } else {
+            console.warn(
+              `[${this.jobId || "unknown"}] Unexpected old token key format: ${key}`,
+            );
+          }
         }
+
+        // Batch blacklist old tokens (single storage.put call)
+        if (Object.keys(blacklistPuts).length > 0) {
+          await txn.put(blacklistPuts, {
+            expirationTtl: BLACKLIST_TTL_SECONDS,
+          });
+        }
+
+        // Delete old token keys from storage to prevent bloat
+        if (oldTokenKeysToDelete.length > 0) {
+          await txn.delete(oldTokenKeysToDelete);
+        }
+
+        console.log(
+          `[${this.jobId || "unknown"}] Blacklisted and deleted ${oldTokenKeysToDelete.length} old token(s)`,
+        );
       }
 
-      // Batch blacklist old tokens (single storage.put call)
-      await this.storage.put(blacklistPuts, {
-        expirationTtl: BLACKLIST_TTL_SECONDS,
-      });
-
-      // Delete old token keys from storage to prevent bloat
-      await this.storage.delete(oldTokenKeysToDelete);
-
-      console.log(
-        `[${this.jobId || "unknown"}] Blacklisted and deleted ${oldTokenKeysToDelete.length} old token(s)`,
-      );
-    }
-
-    // Delete active token and expiration (batch operation)
-    await this.storage.delete(["authToken", "authTokenExpiration"]);
+      // Delete active token and expiration (batch operation)
+      await txn.delete(["authToken", "authTokenExpiration"]);
+    });
 
     console.log(
       `[${this.jobId || "unknown"}] ✅ Auth token invalidated and blacklisted (TTL: 2.5 hours)`,
@@ -1273,6 +1312,14 @@ export class ProgressWebSocketDO extends DurableObject {
     if (!this.webSocket) {
       console.warn(`[${this.jobId}] No WebSocket connection available`);
       return { success: false };
+    }
+
+    // PERFORMANCE: Check backpressure before sending (Cloudflare best practices)
+    if (this.webSocket.bufferedAmount > BUFFER_THRESHOLD) {
+      console.warn(
+        `[${this.jobId}] High backpressure detected (${this.webSocket.bufferedAmount} bytes buffered), skipping progress update`,
+      );
+      return { success: false, reason: "backpressure" };
     }
 
     const message = {
@@ -1959,10 +2006,20 @@ export class ProgressWebSocketDO extends DurableObject {
    * - Changed "data" to "payload" to match canonical envelope format
    * - Added missing "pipeline" and "version" fields required by contract
    * - Fixes iOS parsing failures in batch scan workflows
+   *
+   * PERFORMANCE: Check backpressure before sending (Cloudflare best practices)
    */
   broadcastToClients(data) {
     if (!this.webSocket) {
       console.warn("[ProgressDO] No WebSocket connection to broadcast to");
+      return;
+    }
+
+    // PERFORMANCE: Check backpressure before broadcasting
+    if (this.webSocket.bufferedAmount > BUFFER_THRESHOLD) {
+      console.warn(
+        `[ProgressDO] High backpressure detected (${this.webSocket.bufferedAmount} bytes buffered), skipping broadcast`,
+      );
       return;
     }
 
