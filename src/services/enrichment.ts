@@ -115,12 +115,14 @@ export interface SingleEnrichmentResult {
  * @param query - Search parameters
  * @param env - Worker environment bindings
  * @param options - Search options
+ * @param ctx - ExecutionContext for cache operations (optional for backward compatibility)
  * @returns EnrichmentResult with works, editions, and authors
  */
 export async function enrichMultipleBooks(
   query: BookSearchQuery,
   env: WorkerEnv,
   options: SearchOptions = { maxResults: 20 },
+  ctx?: ExecutionContext,
 ): Promise<EnrichmentResult> {
   const { title, author, isbn } = query;
   const { maxResults = 20 } = options;
@@ -135,6 +137,7 @@ export async function enrichMultipleBooks(
       const googleResult = await externalApis.searchGoogleBooksByISBN(
         isbn,
         env,
+        ctx, // Pass ExecutionContext for caching
       );
 
       if (googleResult && googleResult.works && googleResult.works.length > 0) {
@@ -166,6 +169,7 @@ export async function enrichMultipleBooks(
         isbn,
         { maxResults: 1, isbn },
         env,
+        ctx, // Pass ExecutionContext for caching
       );
 
       if (olResult && olResult.works && olResult.works.length > 0) {
@@ -237,6 +241,7 @@ export async function enrichMultipleBooks(
       searchQuery,
       { maxResults },
       env,
+      ctx, // Pass ExecutionContext for caching
     );
 
     if (googleResult && googleResult.works && googleResult.works.length > 0) {
@@ -258,6 +263,7 @@ export async function enrichMultipleBooks(
       searchQuery,
       { maxResults },
       env,
+      ctx, // Pass ExecutionContext for caching
     );
 
     if (olResult && olResult.works && olResult.works.length > 0) {

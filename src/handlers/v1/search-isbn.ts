@@ -105,6 +105,7 @@ export async function handleSearchISBN(
   isbn: string,
   env: any,
   request: Request | null = null,
+  ctx?: ExecutionContext,
 ): Promise<Response> {
   const startTime = Date.now();
 
@@ -139,7 +140,7 @@ export async function handleSearchISBN(
     // Use enrichMultipleBooks for consistency with other v1 search endpoints (Google Books + OpenLibrary)
     let result = await enrichMultipleBooks({ isbn: normalizedISBN }, env, {
       maxResults: 1,
-    });
+    }, ctx); // Pass ExecutionContext for caching
 
     let provider = result?.works?.[0]?.primaryProvider || "none";
 

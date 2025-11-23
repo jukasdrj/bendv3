@@ -109,7 +109,7 @@ app.get("/v1/search/isbn", async (c) => {
     );
   }
 
-  return await handleSearchISBN(isbn, c.env, c.req.raw);
+  return await handleSearchISBN(isbn, c.env, c.req.raw, c.executionCtx);
 });
 
 // ============================================================================
