@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS user_library (
   user_id TEXT NOT NULL,
   isbn TEXT NOT NULL,
 
-  status TEXT CHECK(status IN ('to_read', 'reading', 'completed', 'dnf')),
+  status TEXT CHECK(status IS NULL OR status IN ('to_read', 'reading', 'completed', 'dnf')),
   rating INTEGER CHECK(rating BETWEEN 1 AND 5),
 
   added_at INTEGER NOT NULL DEFAULT (unixepoch()),
