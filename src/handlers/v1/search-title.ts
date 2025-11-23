@@ -11,7 +11,7 @@ import {
   createErrorResponse,
   ErrorCodes,
 } from "../../utils/response-builder.js";
-import { enrichMultipleBooks } from "../../services/enrichment.ts";
+import { findBooksByTitle } from "../../services/book-service"; // Sprint 2: BookRepository integration
 import { normalizeTitle } from "../../utils/normalization.js";
 import {
   extractUniqueAuthors,
@@ -41,11 +41,12 @@ export async function handleSearchTitle(
     // Normalize title for consistent cache keys
     const normalizedTitle = normalizeTitle(query);
     console.log(
-      `v1 title search for "${query}" (normalized: "${normalizedTitle}") (using enrichMultipleBooks, maxResults: 20)`,
+      `v1 title search for "${query}" (normalized: "${normalizedTitle}") (using book-service, maxResults: 20)`,
     );
 
-    // Use enrichMultipleBooks for search endpoints (returns up to 20 results)
-    const result = await enrichMultipleBooks({ title: normalizedTitle }, env, {
+    // Sprint 2: Use book-service (currently goes directly to external APIs for title searches)
+    // Future enhancement: Cache individual books found in title search results
+    const result = await findBooksByTitle(normalizedTitle, undefined, env, {
       maxResults: 20,
     });
 
