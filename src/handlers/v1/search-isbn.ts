@@ -11,7 +11,7 @@ import {
   createErrorResponse,
   ErrorCodes,
 } from "../../utils/response-builder.js";
-import { enrichMultipleBooks } from "../../services/enrichment.ts";
+import { findBookByISBN } from "../../services/book-service"; // Sprint 2: BookRepository integration
 import { normalizeISBN } from "../../utils/normalization.js";
 import {
   extractUniqueAuthors,
@@ -134,15 +134,14 @@ export async function handleSearchISBN(
     // Normalize ISBN for consistent cache keys
     const normalizedISBN = normalizeISBN(isbn);
     console.log(
-      `v1 ISBN search for "${isbn}" (normalized: "${normalizedISBN}") (using enrichMultipleBooks)`,
+      `v1 ISBN search for "${isbn}" (normalized: "${normalizedISBN}") (using BookRepository + enrichment)`,
     );
 
-    // Use enrichMultipleBooks for consistency with other v1 search endpoints (Google Books + OpenLibrary)
-    let result = await enrichMultipleBooks({ isbn: normalizedISBN }, env, {
-      maxResults: 1,
-    }, ctx); // Pass ExecutionContext for caching
+    // Sprint 2: Use book-service which checks BookRepository (KV/D1) first, then external APIs
+    let result = await findBookByISBN(normalizedISBN, env, ctx);
 
     let provider = result?.works?.[0]?.primaryProvider || "none";
+    const cached = result.cached || false;
 
     // Issue #188: Fallback to ISBNdb if no results from primary sources
     if (!result || !result.works || result.works.length === 0) {
@@ -233,7 +232,7 @@ export async function handleSearchISBN(
     await writeCacheMetrics(env, {
       endpoint: "/v1/search/isbn",
       isbn: normalizedISBN,
-      cacheHit: false, // enrichMultipleBooks doesn't use cache (direct API calls)
+      cacheHit: cached, // Sprint 2: Track BookRepository cache hits (KV or D1)
       responseTime: processingTime,
       imageQuality: hasCovers ? "MEDIUM" : "NONE",
       dataCompleteness: work ? 75 : 0, // Simplified: assume 75% completeness for found books
@@ -250,7 +249,7 @@ export async function handleSearchISBN(
       {
         processingTime,
         provider: provider, // Issue #188: Updated to reflect actual provider (includes isbndb fallback)
-        cached: false,
+        cached, // Sprint 2: Reflect actual cache status from BookRepository
       },
       200,
       request,
