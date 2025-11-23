@@ -56,26 +56,138 @@ export class BookRepository {
   }
 
   /**
-   * Dual-Write: Always KV + Conditionally D1
+   * Dual-Write: Always KV + Conditionally D1 (with validation)
+   *
+   * Day 6: Added data consistency validation between KV and D1 writes
    *
    * @param book - BookRecord with all metadata
    * @throws Never throws - D1 write failures are logged but don't fail the request
    */
   async save(book: BookRecord): Promise<void> {
-    // Always write to KV (fast cache)
-    await this.saveToKV(book)
-    console.log(`[BookRepository] ✅ Saved to KV: ${book.isbn}`)
+    const startTime = Date.now()
 
-    // Conditionally write to D1 (dual-write phase)
+    // Step 1: Always write to KV (fast cache)
+    await this.saveToKV(book)
+    const kvWriteTime = Date.now() - startTime
+    console.log(`[BookRepository] ✅ Saved to KV: ${book.isbn} (${kvWriteTime}ms)`)
+
+    // Step 2: Conditionally write to D1 (dual-write phase)
     if (this.env.ENABLE_D1_WRITES === 'true') {
+      const d1StartTime = Date.now()
+
       try {
         await this.saveToD1(book)
-        console.log(`[BookRepository] ✅ Dual-write to D1: ${book.isbn}`)
+        const d1WriteTime = Date.now() - d1StartTime
+
+        console.log(`[BookRepository] ✅ Dual-write to D1: ${book.isbn} (${d1WriteTime}ms)`)
+
+        // Day 6: Emit metrics for monitoring
+        this.emitDualWriteMetrics({
+          isbn: book.isbn,
+          kvWriteTime,
+          d1WriteTime,
+          success: true,
+        })
+
+        // Day 6: Optional validation - verify D1 write (only in dev/testing)
+        if (this.env.VALIDATE_DUAL_WRITES === 'true') {
+          await this.validateDualWrite(book.isbn, book)
+        }
       } catch (error) {
-        console.error(`[BookRepository] ❌ D1 write failed for ${book.isbn}:`, error)
+        const d1WriteTime = Date.now() - d1StartTime
+        console.error(`[BookRepository] ❌ D1 write failed for ${book.isbn} (${d1WriteTime}ms):`, error)
+
+        // Emit failure metrics
+        this.emitDualWriteMetrics({
+          isbn: book.isbn,
+          kvWriteTime,
+          d1WriteTime,
+          success: false,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        })
+
         // Don't fail request - eventual consistency OK
       }
     }
+  }
+
+  /**
+   * Day 6: Validate that D1 write matches KV write (optional, for testing)
+   *
+   * Reads back from D1 and compares critical fields with original book record.
+   * Only enabled when VALIDATE_DUAL_WRITES=true (dev/testing environments).
+   *
+   * @private
+   */
+  private async validateDualWrite(isbn: string, originalBook: BookRecord): Promise<void> {
+    try {
+      const d1Book = await this.findInD1(isbn)
+
+      if (!d1Book) {
+        console.warn(`[BookRepository] ⚠️  Validation failed: ${isbn} not found in D1 after write`)
+        return
+      }
+
+      // Compare critical fields
+      const mismatches: string[] = []
+
+      if (d1Book.title !== originalBook.title) {
+        mismatches.push(`title: "${originalBook.title}" vs "${d1Book.title}"`)
+      }
+
+      if (d1Book.publisher !== originalBook.publisher) {
+        mismatches.push(`publisher: "${originalBook.publisher}" vs "${d1Book.publisher}"`)
+      }
+
+      if (d1Book.language !== originalBook.language) {
+        mismatches.push(`language: "${originalBook.language}" vs "${d1Book.language}"`)
+      }
+
+      if (mismatches.length > 0) {
+        console.warn(`[BookRepository] ⚠️  Validation mismatches for ${isbn}:`, mismatches.join(', '))
+      } else {
+        console.log(`[BookRepository] ✅ Validation passed for ${isbn}`)
+      }
+    } catch (error) {
+      console.error(`[BookRepository] ❌ Validation error for ${isbn}:`, error)
+    }
+  }
+
+  /**
+   * Day 6: Emit dual-write metrics for monitoring dashboard
+   *
+   * Metrics tracked:
+   * - KV write latency
+   * - D1 write latency
+   * - Success/failure rate
+   * - Error messages
+   *
+   * @private
+   */
+  private emitDualWriteMetrics(metrics: {
+    isbn: string
+    kvWriteTime: number
+    d1WriteTime: number
+    success: boolean
+    errorMessage?: string
+  }): void {
+    // Emit to console for Cloudflare Logs
+    console.log('[BookRepository:Metrics]', JSON.stringify({
+      metric: 'dual_write',
+      isbn: metrics.isbn,
+      kv_write_ms: metrics.kvWriteTime,
+      d1_write_ms: metrics.d1WriteTime,
+      success: metrics.success,
+      error: metrics.errorMessage || null,
+      timestamp: new Date().toISOString(),
+    }))
+
+    // Future: Emit to analytics service (e.g., Cloudflare Analytics Engine)
+    // this.env.ANALYTICS?.writeDataPoint({
+    //   blobs: ['dual_write', metrics.isbn],
+    //   doubles: [metrics.kvWriteTime, metrics.d1WriteTime],
+    //   indexes: [metrics.success ? 'success' : 'failure'],
+    // })
   }
 
   /**

@@ -73,11 +73,15 @@
     "ENABLE_HIBERNATION_WEBSOCKET": "false",
     "//": "========================================================================",
     "//": "Sprint 2: KV to D1 Migration (Phase-based Rollout)",
-    "//": "Day 5: Dual-write mode ENABLED (writes to both KV + D1)",
+    "//": "Day 8: D1-PRIMARY MODE (100% of reads from D1, KV fallback only)",
+    "//": "Writes: BOTH KV + D1 (dual-write - KV becomes cache layer)",
+    "//": "Reads: 100% D1-first → KV fallback",
     "//": "========================================================================",
     "ENABLE_D1_WRITES": "true",
-    "D1_READ_PERCENTAGE": "0",
-    "D1_MIGRATION_BATCH_SIZE": "1000"
+    "D1_READ_PERCENTAGE": "100",
+    "D1_MIGRATION_BATCH_SIZE": "1000",
+    "//": "Day 6: Optional dual-write validation (set to 'true' for dev/testing)",
+    "VALIDATE_DUAL_WRITES": "false"
   },
   "kv_namespaces": [
     {
