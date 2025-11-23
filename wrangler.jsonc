@@ -73,8 +73,9 @@
     "ENABLE_HIBERNATION_WEBSOCKET": "false",
     "//": "========================================================================",
     "//": "Sprint 2: KV to D1 Migration (Phase-based Rollout)",
+    "//": "Day 5: Dual-write mode ENABLED (writes to both KV + D1)",
     "//": "========================================================================",
-    "ENABLE_D1_WRITES": "false",
+    "ENABLE_D1_WRITES": "true",
     "D1_READ_PERCENTAGE": "0",
     "D1_MIGRATION_BATCH_SIZE": "1000"
   },
