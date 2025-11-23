@@ -6,14 +6,25 @@ This directory contains SQL migrations for the BooksTrack D1 database schema.
 
 ## Migration Order
 
-Apply migrations in numerical order:
+### Fresh Deployments (Nov 23, 2025 onwards)
+Apply migrations in numerical order (skip 0006):
 
 1. **0001_create_books_table.sql** - Core books table with metadata
 2. **0002_create_authors_table.sql** - Authors with cultural diversity support
 3. **0003_create_book_authors_junction.sql** - Many-to-many relationship
-4. **0004_create_user_library_table.sql** - User reading lists
+4. **0004_create_user_library_table.sql** - User reading lists (includes NULL status)
 5. **0005_add_constraints.sql** - Unique indexes and performance improvements
-6. **0006_allow_null_status.sql** - (Optional) Fix for existing deployments
+6. ~~**0006_allow_null_status.sql**~~ - **SKIP** (0004 already includes fix)
+
+### Existing Deployments (Need to Fix Old 0004)
+Apply migrations in this order:
+
+1. **0001_create_books_table.sql** - Already applied
+2. **0002_create_authors_table.sql** - Already applied
+3. **0003_create_book_authors_junction.sql** - Already applied
+4. **0004_create_user_library_table.sql** - Already applied (old constraint)
+5. **0005_add_constraints.sql** - **Apply first** (0006 depends on this)
+6. **0006_allow_null_status.sql** - **Apply to fix NULL status constraint**
 
 ## Applying Migrations
 
@@ -72,10 +83,26 @@ npx wrangler d1 execute bookstrack-db --file=migrations/0001_create_books_table.
 - Language index: Support multilingual filtering
 - Performance indexes for complex queries
 
-### 0006: Allow NULL Status (Optional)
-- Only needed if you deployed 0004 with the old constraint
+### 0006: Allow NULL Status (Conditional - Read Carefully)
+
+**When to apply:**
+- ✅ **REQUIRED** if you deployed 0004 with the old constraint (before Nov 23, 2025)
+- ❌ **SKIP** if deploying fresh (0004 already includes NULL-friendly constraint)
+
+**Dependencies:**
+- **MUST apply migration 0005 FIRST** (0006 depends on unique index from 0005)
+- Correct order: 0004 → 0005 → 0006
+
+**What it does:**
 - Recreates `user_library` table with NULL-friendly CHECK constraint
-- If deploying fresh, skip this (0004 already has the fix)
+- Preserves all existing data (wrapped in transaction)
+- Resets AUTOINCREMENT sequence to prevent ID conflicts
+- Recreates all indexes from 0004 + 0005
+
+**Safety features:**
+- Wrapped in `BEGIN TRANSACTION` / `COMMIT` (all-or-nothing)
+- Foreign key checks temporarily disabled during data copy
+- AUTOINCREMENT sequence properly reset after table recreation
 
 ## Design Decisions
 

@@ -28,6 +28,11 @@
 -- 4. Rename new table
 -- 5. Recreate indexes
 
+-- ========================================================================
+-- CRITICAL: Wrap entire migration in transaction to prevent data loss
+-- ========================================================================
+BEGIN TRANSACTION;
+
 -- Step 1: Create new table with NULL-friendly constraint
 CREATE TABLE IF NOT EXISTS user_library_new (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,10 +53,12 @@ CREATE TABLE IF NOT EXISTS user_library_new (
   FOREIGN KEY (isbn) REFERENCES books(isbn) ON DELETE CASCADE
 );
 
--- Step 2: Copy existing data
+-- Step 2: Copy existing data (temporarily disable FK checks for safety)
+PRAGMA foreign_keys = OFF;
 INSERT INTO user_library_new (id, user_id, isbn, status, rating, added_at, started_at, completed_at, notes, private)
 SELECT id, user_id, isbn, status, rating, added_at, started_at, completed_at, notes, private
 FROM user_library;
+PRAGMA foreign_keys = ON;
 
 -- Step 3: Drop old table
 DROP TABLE user_library;
@@ -59,7 +66,12 @@ DROP TABLE user_library;
 -- Step 4: Rename new table
 ALTER TABLE user_library_new RENAME TO user_library;
 
--- Step 5: Recreate indexes
+-- Step 5: Reset AUTOINCREMENT sequence to prevent ID conflicts
+DELETE FROM sqlite_sequence WHERE name='user_library';
+INSERT INTO sqlite_sequence (name, seq)
+SELECT 'user_library', COALESCE(MAX(id), 0) FROM user_library;
+
+-- Step 6: Recreate indexes
 CREATE INDEX IF NOT EXISTS idx_user_library_user_id
   ON user_library(user_id);
 
@@ -77,9 +89,12 @@ CREATE INDEX IF NOT EXISTS idx_user_library_complex_query
   ON user_library(user_id, rating, added_at)
   WHERE rating >= 4;
 
--- Recreate unique constraint from migration 0005
+-- Step 7: Recreate unique constraint from migration 0005 (DEPENDENCY: Requires 0005)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_library_user_isbn_unique
   ON user_library(user_id, isbn);
+
+-- Commit transaction (all-or-nothing migration)
+COMMIT;
 
 -- ========================================================================
 -- Verification
