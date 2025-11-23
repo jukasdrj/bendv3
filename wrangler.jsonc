@@ -68,8 +68,15 @@
     "ENABLE_UNIFIED_ENVELOPE": "true",
     "//": "Durable Object Architecture Refactoring",
     "ENABLE_REFACTORED_DOS": "false",
-    "//": "WebSocket Hibernation API Migration",
-    "ENABLE_HIBERNATION_WEBSOCKET": "true"
+    "//": "WebSocket Hibernation API Migration (TEMPORARY ROLLBACK - Nov 21, 2025)",
+    "//": "Disabled due to 'code has been updated' storage errors in hibernated instances",
+    "ENABLE_HIBERNATION_WEBSOCKET": "false",
+    "//": "========================================================================",
+    "//": "Sprint 2: KV to D1 Migration (Phase-based Rollout)",
+    "//": "========================================================================",
+    "ENABLE_D1_WRITES": "false",
+    "D1_READ_PERCENTAGE": "0",
+    "D1_MIGRATION_BATCH_SIZE": "1000"
   },
   "kv_namespaces": [
     {
@@ -97,6 +104,13 @@
     {
       "binding": "BOOK_COVERS",
       "bucket_name": "bookstrack-covers"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bookstrack-library",
+      "database_id": "cc19e622-9d0d-45f6-991c-1ab1933f257c"
     }
   ],
   "ai": {
