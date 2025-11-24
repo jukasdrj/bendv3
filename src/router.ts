@@ -30,6 +30,7 @@ import * as authorSearch from "./handlers/author-search.js";
 import { getProgressDOStub } from "./utils/durable-object-helpers";
 import { analyticsMiddleware } from "./middleware/hono-analytics";
 import { checkRateLimit } from "./middleware/rate-limiter";
+import { createSuccessResponse, createErrorResponse, ErrorCodes } from "./utils/response-builder";
 
 // Properly typed Hono app with Bindings and ExecutionContext support
 const app = new Hono<{ Bindings: Env; Variables: { executionCtx?: ExecutionContext } }>();
@@ -490,6 +491,15 @@ const rateLimitMiddleware = async (c, next) => {
   return await next();
 };
 
+// Rate limiting middleware with custom limit
+const createRateLimitMiddleware = (maxRequests) => {
+  return async (c, next) => {
+    const rateLimitResponse = await checkRateLimit(c.req.raw, c.env, maxRequests);
+    if (rateLimitResponse) return rateLimitResponse;
+    return await next();
+  };
+};
+
 // POST /v1/enrichment/batch - Canonical batch enrichment endpoint
 app.post("/v1/enrichment/batch", rateLimitMiddleware, async (c) => {
   return await handleBatchEnrichment(c.req.raw, c.env, getCtx(c));
@@ -571,90 +581,93 @@ app.post("/api/token/refresh", rateLimitMiddleware, async (c) => {
 
 // GET /api/job-state/:jobId - Get current job state for WebSocket reconnection
 // CRITICAL: Requires Bearer token auth, validates against DO state
+// Rate limited to 30 req/min per IP to prevent polling abuse (Issue #9)
 // Matches manual router: lines 182-251
-app.get("/api/job-state/:jobId", async (c) => {
-  try {
-    const jobId = c.req.param("jobId");
+app.get(
+  "/api/job-state/:jobId",
+  createRateLimitMiddleware(30),
+  async (c) => {
+    try {
+      const jobId = c.req.param("jobId");
 
-    if (!jobId) {
-      return c.json(
+      if (!jobId) {
+        return createErrorResponse(
+          "Invalid request: jobId required",
+          400,
+          ErrorCodes.INVALID_REQUEST,
+          { jobId },
+          c.req.raw
+        );
+      }
+
+      // Validate Bearer token (REQUIRED for auth)
+      const authHeader = c.req.header("Authorization");
+      const providedToken = authHeader?.replace("Bearer ", "");
+      if (!providedToken) {
+        return createErrorResponse(
+          "Missing authorization token",
+          401,
+          ErrorCodes.UNAUTHORIZED,
+          { endpoint: "/api/job-state/:jobId" },
+          c.req.raw
+        );
+      }
+
+      // Get DO stub for this job
+      const doStub = getProgressDOStub(jobId, c.env);
+
+      // Fetch job state and auth details (includes validation)
+      const result = await doStub.getJobStateAndAuth();
+
+      if (!result) {
+        return createErrorResponse(
+          "Job not found or state not initialized",
+          404,
+          ErrorCodes.NOT_FOUND,
+          { jobId },
+          c.req.raw
+        );
+      }
+
+      const { jobState, authToken, authTokenExpiration } = result;
+
+      // Validate token matches and is not expired
+      if (
+        !authToken ||
+        providedToken !== authToken ||
+        Date.now() > authTokenExpiration
+      ) {
+        return createErrorResponse(
+          "Invalid or expired token",
+          401,
+          ErrorCodes.UNAUTHORIZED,
+          { jobId, tokenExpired: Date.now() > authTokenExpiration },
+          c.req.raw
+        );
+      }
+
+      // Return job state with ResponseEnvelope format
+      return createSuccessResponse(
+        jobState,
         {
-          error: {
-            code: "INVALID_REQUEST",
-            message: "Invalid request: jobId required",
-          },
+          source: "durable-object",
+          timestamp: new Date().toISOString()
         },
-        400,
+        200,
+        c.req.raw
+      );
+    } catch (error) {
+      console.error("Failed to get job state:", error);
+      return createErrorResponse(
+        `Failed to get job state: ${(error as Error).message}`,
+        500,
+        ErrorCodes.INTERNAL_ERROR,
+        { jobId: c.req.param("jobId") },
+        c.req.raw
       );
     }
-
-    // Validate Bearer token (REQUIRED for auth)
-    const authHeader = c.req.header("Authorization");
-    const providedToken = authHeader?.replace("Bearer ", "");
-    if (!providedToken) {
-      return c.json(
-        {
-          error: {
-            code: "AUTH_ERROR",
-            message: "Missing authorization token",
-          },
-        },
-        401,
-      );
-    }
-
-    // Get DO stub for this job
-    const doStub = getProgressDOStub(jobId, c.env);
-
-    // Fetch job state and auth details (includes validation)
-    const result = await doStub.getJobStateAndAuth();
-
-    if (!result) {
-      return c.json(
-        {
-          error: {
-            code: "NOT_FOUND",
-            message: "Job not found or state not initialized",
-          },
-        },
-        404,
-      );
-    }
-
-    const { jobState, authToken, authTokenExpiration } = result;
-
-    // Validate token matches and is not expired
-    if (
-      !authToken ||
-      providedToken !== authToken ||
-      Date.now() > authTokenExpiration
-    ) {
-      return c.json(
-        {
-          error: {
-            code: "AUTH_ERROR",
-            message: "Invalid or expired token",
-          },
-        },
-        401,
-      );
-    }
-
-    // Return job state
-    return c.json(jobState);
-  } catch (error) {
-    console.error("Failed to get job state:", error);
-    return c.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: `Failed to get job state: ${(error as Error).message}`,
-        },
-      },
-      500,
-    );
   }
-});
+);
 
 // POST /api/scan-bookshelf/cancel - Cancel bookshelf scanning job
 // Matches manual router: lines 404-429
@@ -1244,6 +1257,57 @@ app.notFound((c) => {
     404,
   );
 });
+
+// ============================================================================
+// Testing and Verification Routes
+// ============================================================================
+
+// GET /test/rpc-latency - Measure RPC performance (Issue #10)
+app.get('/test/rpc-latency', async (c) => {
+  try {
+    const iterationsParam = c.req.query('iterations') || '100'
+    const iterations = parseInt(iterationsParam)
+
+    // Validation
+    if (!Number.isInteger(iterations) || iterations < 1 || iterations > 10000) {
+      return c.json(
+        createErrorResponse(
+          ErrorCodes.INVALID_REQUEST,
+          'iterations must be an integer between 1 and 10000',
+          400,
+        ),
+        400,
+      )
+    }
+
+    // Get LatencyTestDO stub
+    const latencyTestId = c.env.LATENCY_TEST_DO.idFromName('default')
+    const latencyTestStub = c.env.LATENCY_TEST_DO.get(latencyTestId)
+
+    // Measure RPC latency
+    const result = await latencyTestStub.measureLatency(iterations)
+
+    // Return in ResponseEnvelope format
+    return c.json(
+      createSuccessResponse(result, {
+        testType: 'native-rpc',
+        purpose: 'Verify DO-to-DO RPC performance (Issue #10)',
+        timestamp: new Date().toISOString(),
+      }),
+      200,
+    )
+  } catch (error) {
+    console.error('[RPC Latency Test] Error:', error)
+    return c.json(
+      createErrorResponse(
+        ErrorCodes.INTERNAL_ERROR,
+        'Failed to measure RPC latency: ' + error.message,
+        500,
+      ),
+      500,
+    )
+  }
+})
 
 // ============================================================================
 // Global Error Handler

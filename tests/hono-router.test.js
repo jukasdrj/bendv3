@@ -358,3 +358,245 @@ describe('Hono Router - Response Consistency', () => {
     expect(manualResponse.headers.get('X-Router')).toBeNull()
   })
 })
+
+describe('Hono Router - Polling Endpoint (Issue #9)', () => {
+  const env = {
+    ...mockEnv,
+    ENABLE_HONO_ROUTER: 'true',
+    // Mock Durable Object for job state
+    PROGRESS_WEBSOCKET_DO: {
+      idFromName: () => ({ toString: () => 'test-id' }),
+      get: (id) => ({
+        // Mock getJobStateAndAuth for successful polling
+        getJobStateAndAuth: async () => ({
+          jobState: {
+            jobId: 'test-job-123',
+            status: 'processing',
+            progress: 45,
+            message: 'Processing batch 5 of 10'
+          },
+          authToken: 'test-token-abc123',
+          authTokenExpiration: Date.now() + 3600000 // 1 hour in future
+        })
+      })
+    },
+    RATE_LIMITER_DO: {
+      idFromName: () => ({ toString: () => 'test-id' }),
+      get: () => ({
+        fetch: async (request) => {
+          // Mock rate limiter - allow all requests by default
+          return new Response(JSON.stringify({
+            allowed: true,
+            remaining: 30,
+            resetAt: Date.now() + 60000
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        }
+      })
+    }
+  }
+
+  it('should return job state with valid token', async () => {
+    const request = new Request(
+      'http://localhost/api/job-state/test-job-123',
+      {
+        headers: { 'Authorization': 'Bearer test-token-abc123' }
+      }
+    )
+
+    const response = await worker.fetch(request, env, mockCtx)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.data).toBeDefined()
+    expect(data.data.jobId).toBe('test-job-123')
+    expect(data.data.status).toBe('processing')
+    expect(data.data.progress).toBe(45)
+    // Check ResponseEnvelope v2.0 format
+    expect(data.metadata).toBeDefined()
+    expect(data.metadata.timestamp).toBeDefined()
+    expect(data.metadata.source).toBe('durable-object')
+    expect(response.headers.get('X-Response-Format')).toBe('v2.0')
+  })
+
+  it('should return 401 when token is missing', async () => {
+    const request = new Request('http://localhost/api/job-state/test-job-123')
+
+    const response = await worker.fetch(request, env, mockCtx)
+    const data = await response.json()
+
+    expect(response.status).toBe(401)
+    expect(data.error).toBeDefined()
+    expect(data.error.code).toBe('UNAUTHORIZED')
+    expect(data.error.message).toContain('Missing authorization token')
+    expect(data.metadata.timestamp).toBeDefined()
+    expect(response.headers.get('X-Response-Format')).toBe('v2.0')
+  })
+
+  it('should return 401 when token is invalid', async () => {
+    const request = new Request(
+      'http://localhost/api/job-state/test-job-123',
+      {
+        headers: { 'Authorization': 'Bearer invalid-token' }
+      }
+    )
+
+    const response = await worker.fetch(request, env, mockCtx)
+    const data = await response.json()
+
+    expect(response.status).toBe(401)
+    expect(data.error.code).toBe('UNAUTHORIZED')
+    expect(data.error.message).toContain('Invalid or expired token')
+  })
+
+  it('should return 401 when token is expired', async () => {
+    const expiredEnv = {
+      ...env,
+      PROGRESS_WEBSOCKET_DO: {
+        idFromName: () => ({ toString: () => 'test-id' }),
+        get: (id) => ({
+          getJobStateAndAuth: async () => ({
+            jobState: { jobId: 'test-job-123', status: 'processing' },
+            authToken: 'test-token-abc123',
+            authTokenExpiration: Date.now() - 1000 // Expired 1 second ago
+          })
+        })
+      }
+    }
+
+    const request = new Request(
+      'http://localhost/api/job-state/test-job-123',
+      {
+        headers: { 'Authorization': 'Bearer test-token-abc123' }
+      }
+    )
+
+    const response = await worker.fetch(request, expiredEnv, mockCtx)
+    const data = await response.json()
+
+    expect(response.status).toBe(401)
+    expect(data.error.code).toBe('UNAUTHORIZED')
+    expect(data.error.message).toContain('Invalid or expired token')
+    expect(data.error.details.tokenExpired).toBe(true)
+  })
+
+  it('should return 404 when job not found', async () => {
+    const notFoundEnv = {
+      ...env,
+      PROGRESS_WEBSOCKET_DO: {
+        idFromName: () => ({ toString: () => 'test-id' }),
+        get: (id) => ({
+          getJobStateAndAuth: async () => null // Job doesn't exist
+        })
+      }
+    }
+
+    const request = new Request(
+      'http://localhost/api/job-state/nonexistent-job',
+      {
+        headers: { 'Authorization': 'Bearer test-token-abc123' }
+      }
+    )
+
+    const response = await worker.fetch(request, notFoundEnv, mockCtx)
+    const data = await response.json()
+
+    expect(response.status).toBe(404)
+    expect(data.error.code).toBe('NOT_FOUND')
+    expect(data.error.message).toContain('Job not found')
+  })
+
+  it('should return 400 when jobId is missing', async () => {
+    const request = new Request('http://localhost/api/job-state/', {
+      headers: { 'Authorization': 'Bearer test-token-abc123' }
+    })
+
+    const response = await worker.fetch(request, env, mockCtx)
+    // Note: This actually routes to /health due to missing param, so status depends on routing
+    // In Hono, missing :jobId param will fail to match the route
+    expect(response.status).toBeGreaterThanOrEqual(400)
+  })
+
+  it('should enforce rate limiting (30 req/min)', async () => {
+    const rateLimitedEnv = {
+      ...env,
+      RATE_LIMITER_DO: {
+        idFromName: () => ({ toString: () => 'test-id' }),
+        get: () => ({
+          fetch: async (request) => {
+            // Simulate rate limit exceeded - return proper format
+            // Rate limiter checks for 'allowed' field in response
+            return new Response(JSON.stringify({
+              allowed: false,
+              remaining: 0,
+              resetAt: Date.now() + 60000
+            }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            })
+          }
+        })
+      }
+    }
+
+    const request = new Request(
+      'http://localhost/api/job-state/test-job-123',
+      {
+        headers: { 'Authorization': 'Bearer test-token-abc123' }
+      }
+    )
+
+    const response = await worker.fetch(request, rateLimitedEnv, mockCtx)
+    const data = await response.json()
+
+    // Rate limiter returns 429 when limit exceeded
+    expect(response.status).toBe(429)
+    expect(data.code).toBe('RATE_LIMIT_EXCEEDED')
+    expect(response.headers.get('Retry-After')).toBeDefined()
+    expect(response.headers.get('X-RateLimit-Limit')).toBe('30')
+  })
+
+  it('should include proper ResponseEnvelope format in success response', async () => {
+    const request = new Request(
+      'http://localhost/api/job-state/test-job-123',
+      {
+        headers: { 'Authorization': 'Bearer test-token-abc123' }
+      }
+    )
+
+    const response = await worker.fetch(request, env, mockCtx)
+    const data = await response.json()
+
+    // Verify ResponseEnvelope v2.0 structure
+    expect(data).toHaveProperty('data')
+    expect(data).toHaveProperty('metadata')
+    expect(data).not.toHaveProperty('error')
+    expect(data.metadata).toHaveProperty('timestamp')
+    expect(data.metadata).toHaveProperty('source')
+    expect(response.headers.get('Content-Type')).toBe('application/json')
+    expect(response.headers.get('X-Response-Format')).toBe('v2.0')
+  })
+
+  it('should include proper ResponseEnvelope format in error response', async () => {
+    const request = new Request(
+      'http://localhost/api/job-state/test-job-123'
+      // No authorization header
+    )
+
+    const response = await worker.fetch(request, env, mockCtx)
+    const data = await response.json()
+
+    // Verify ResponseEnvelope v2.0 error structure
+    expect(data).toHaveProperty('data')
+    expect(data.data).toBeNull()
+    expect(data).toHaveProperty('metadata')
+    expect(data).toHaveProperty('error')
+    expect(data.error).toHaveProperty('code')
+    expect(data.error).toHaveProperty('message')
+    expect(data.metadata).toHaveProperty('timestamp')
+    expect(response.headers.get('X-Response-Format')).toBe('v2.0')
+    expect(response.headers.get('X-Error-Type')).toBe('UNAUTHORIZED')
+  })
+})

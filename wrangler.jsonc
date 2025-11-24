@@ -146,6 +146,10 @@
       {
         "name": "CACHE_METRICS_DO",
         "class_name": "CacheMetricsDO"
+      },
+      {
+        "name": "LATENCY_TEST_DO",
+        "class_name": "LatencyTestDO"
       }
     ]
   },
@@ -169,6 +173,10 @@
     {
       "tag": "v5",
       "new_classes": ["ProgressWebSocketDO_Hibernation"]
+    },
+    {
+      "tag": "v6",
+      "new_classes": ["LatencyTestDO"]
     }
   ],
   "analytics_engine_datasets": [

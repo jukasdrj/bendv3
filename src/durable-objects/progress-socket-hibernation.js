@@ -811,6 +811,8 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
   async scheduleCSVProcessing(csvText, jobId) {
     console.log(`[${jobId}] Scheduling CSV processing via alarm`);
 
+    let r2Key = null;
+
     try {
       // 1. Validate payload size
       const { valid, error, size } = validatePayloadSize('csv', csvText);
@@ -819,12 +821,13 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       }
 
       // 2. Upload to R2 (moves large payload out of DO storage)
-      const { r2Key, etag } = await uploadPayloadToR2(
+      const uploadResult = await uploadPayloadToR2(
         this.env,
         jobId,
         'csv',
         csvText
       );
+      r2Key = uploadResult.r2Key;
       console.log(`[${jobId}] CSV uploaded to R2: ${r2Key} (${size} bytes)`);
 
       // 3. Store minimal metadata in DO storage (no large payload!)
@@ -833,7 +836,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         [STORAGE_KEYS.JOB_TYPE]: 'csv-import',
         'R2_CSV_KEY': r2Key,
         'CSV_SIZE': size,
-        'CSV_ETAG': etag,
+        'CSV_ETAG': uploadResult.etag,
         'CSV_UPLOAD_TIME': Date.now(),
       });
 
@@ -849,6 +852,17 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       return { success: true };
     } catch (error) {
       console.error(`[${jobId}] Failed to schedule CSV processing:`, error);
+
+      // Cleanup R2 on any error after upload (prevent orphaned objects)
+      if (r2Key) {
+        try {
+          await deletePayloadFromR2(this.env, r2Key);
+          console.log(`[${jobId}] R2 cleanup completed after scheduling error`);
+        } catch (cleanupError) {
+          console.error(`[${jobId}] R2 cleanup failed:`, cleanupError);
+        }
+      }
+
       throw error;
     }
   }
@@ -867,6 +881,8 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
   async scheduleBookshelfScan(imageData, jobId, requestHeaders) {
     console.log(`[${jobId}] Scheduling bookshelf scan via alarm`);
 
+    let r2Key = null;
+
     try {
       // 1. Validate payload size
       const { valid, error, size } = validatePayloadSize('image', imageData);
@@ -875,12 +891,13 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       }
 
       // 2. Upload to R2 (moves large payload out of DO storage)
-      const { r2Key, etag } = await uploadPayloadToR2(
+      const uploadResult = await uploadPayloadToR2(
         this.env,
         jobId,
         'image',
         imageData
       );
+      r2Key = uploadResult.r2Key;
       console.log(`[${jobId}] Image uploaded to R2: ${r2Key} (${size} bytes)`);
 
       // 3. Store minimal metadata in DO storage (no large payload!)
@@ -889,7 +906,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         [STORAGE_KEYS.JOB_TYPE]: 'bookshelf-scan',
         'R2_IMAGE_KEY': r2Key,
         'IMAGE_SIZE': size,
-        'IMAGE_ETAG': etag,
+        'IMAGE_ETAG': uploadResult.etag,
         'IMAGE_UPLOAD_TIME': Date.now(),
         [STORAGE_KEYS.REQUEST_HEADERS]: requestHeaders || {},
       });
@@ -905,6 +922,17 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       return { success: true };
     } catch (error) {
       console.error(`[${jobId}] Failed to schedule bookshelf scan:`, error);
+
+      // Cleanup R2 on any error after upload (prevent orphaned objects)
+      if (r2Key) {
+        try {
+          await deletePayloadFromR2(this.env, r2Key);
+          console.log(`[${jobId}] R2 cleanup completed after scheduling error`);
+        } catch (cleanupError) {
+          console.error(`[${jobId}] R2 cleanup failed:`, cleanupError);
+        }
+      }
+
       throw error;
     }
   }
