@@ -17,12 +17,14 @@ import type { Env } from "./types/env";
 import { handleSearchISBN } from "./handlers/v1/search-isbn";
 import { handleSearchTitle } from "./handlers/v1/search-title";
 import { handleSearchAdvanced } from "./handlers/v1/search-advanced";
+import { handleSearchEditions } from "./handlers/v1/search-editions";
 import { handleBatchEnrichment } from "./handlers/batch-enrichment";
 import { handleBatchScan } from "./handlers/batch-scan-handler";
 import { handleCSVImport } from "./handlers/csv-import";
 import { handleMetricsRequest } from "./handlers/metrics-handler";
 import { handleCacheMetrics } from "./handlers/cache-metrics.js";
 import { handleHarvestDashboard } from "./handlers/harvest-dashboard.js";
+import { handleImageProxy } from "./handlers/image-proxy";
 import * as bookSearch from "./handlers/book-search.js";
 import * as authorSearch from "./handlers/author-search.js";
 import { getProgressDOStub } from "./utils/durable-object-helpers";
@@ -1080,23 +1082,37 @@ app.post("/api/scan-bookshelf/cancel", async (c) => {
 // Additional V1 API Routes
 // ============================================================================
 
-// GET /v1/editions/search - Search for book editions by ISBN
+// GET /v1/editions/search - Search for all editions of a work by title and author
 app.get("/v1/editions/search", async (c) => {
-  const isbn = c.req.query("isbn");
+  const workTitle = c.req.query("workTitle") || c.req.query("title") || "";
+  const author = c.req.query("author") || "";
+  const limit = parseInt(c.req.query("limit") || "20");
 
-  if (!isbn) {
+  if (!workTitle || workTitle.trim().length === 0) {
     return c.json(
       {
         error: {
           code: "MISSING_PARAMETER",
-          message: "isbn query parameter is required",
+          message: "workTitle query parameter is required",
         },
       },
       400,
     );
   }
 
-  return await handleSearchEditions(isbn, c.env, c.req.raw);
+  if (!author || author.trim().length === 0) {
+    return c.json(
+      {
+        error: {
+          code: "MISSING_PARAMETER",
+          message: "author query parameter is required",
+        },
+      },
+      400,
+    );
+  }
+
+  return await handleSearchEditions(workTitle, author, limit, c.env, getCtx(c), c.req.raw);
 });
 
 // GET /images/proxy - Proxy external images through API (CORS, caching)
