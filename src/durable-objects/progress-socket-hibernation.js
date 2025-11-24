@@ -2,6 +2,12 @@ import { DurableObject } from "cloudflare:workers";
 import { WebSocketCloseCodes } from "../types/websocket-messages.js";
 import { processCSVImportCore } from "../handlers/csv-import.ts";
 import { processBookshelfScan } from "../services/ai-scanner.js";
+import {
+  validatePayloadSize,
+  uploadPayloadToR2,
+  fetchPayloadFromR2,
+  deletePayloadFromR2,
+} from "../utils/r2-hibernation.js";
 
 /**
  * ProgressWebSocketDO with Cloudflare WebSocket Hibernation API
@@ -805,21 +811,46 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
   async scheduleCSVProcessing(csvText, jobId) {
     console.log(`[${jobId}] Scheduling CSV processing via alarm`);
 
-    // Store CSV data and job metadata in Durable Object storage
-    await this.state.storage.put(STORAGE_KEYS.CSV_DATA, csvText);
-    await this.state.storage.put(STORAGE_KEYS.JOB_ID, jobId);
-    await this.state.storage.put(STORAGE_KEYS.JOB_TYPE, "csv-import");
+    try {
+      // 1. Validate payload size
+      const { valid, error, size } = validatePayloadSize('csv', csvText);
+      if (!valid) {
+        throw new Error(`CSV validation failed: ${error}`);
+      }
 
-    // Schedule alarm with 2-second delay to ensure WebSocket connects
-    // iOS needs time to: receive HTTP 202 → extract jobId → connect WebSocket → send ready
-    const alarmTime = Date.now() + 2000;
-    await this.state.storage.setAlarm(alarmTime);
+      // 2. Upload to R2 (moves large payload out of DO storage)
+      const { r2Key, etag } = await uploadPayloadToR2(
+        this.env,
+        jobId,
+        'csv',
+        csvText
+      );
+      console.log(`[${jobId}] CSV uploaded to R2: ${r2Key} (${size} bytes)`);
 
-    console.log(
-      `[${jobId}] CSV processing alarm scheduled for ${new Date(alarmTime).toISOString()}`,
-    );
+      // 3. Store minimal metadata in DO storage (no large payload!)
+      await this.state.storage.put({
+        [STORAGE_KEYS.JOB_ID]: jobId,
+        [STORAGE_KEYS.JOB_TYPE]: 'csv-import',
+        'R2_CSV_KEY': r2Key,
+        'CSV_SIZE': size,
+        'CSV_ETAG': etag,
+        'CSV_UPLOAD_TIME': Date.now(),
+      });
 
-    return { success: true };
+      // 4. Schedule alarm with 2-second delay to ensure WebSocket connects
+      // iOS needs time to: receive HTTP 202 → extract jobId → connect WebSocket → send ready
+      const alarmTime = Date.now() + 2000;
+      await this.state.storage.setAlarm(alarmTime);
+
+      console.log(
+        `[${jobId}] CSV processing alarm scheduled for ${new Date(alarmTime).toISOString()}`,
+      );
+
+      return { success: true };
+    } catch (error) {
+      console.error(`[${jobId}] Failed to schedule CSV processing:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -836,21 +867,46 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
   async scheduleBookshelfScan(imageData, jobId, requestHeaders) {
     console.log(`[${jobId}] Scheduling bookshelf scan via alarm`);
 
-    // Store image data and job metadata in Durable Object storage
-    await this.state.storage.put(STORAGE_KEYS.IMAGE_DATA, imageData);
-    await this.state.storage.put(STORAGE_KEYS.REQUEST_HEADERS, requestHeaders || {});
-    await this.state.storage.put(STORAGE_KEYS.JOB_ID, jobId);
-    await this.state.storage.put(STORAGE_KEYS.JOB_TYPE, "bookshelf-scan");
+    try {
+      // 1. Validate payload size
+      const { valid, error, size } = validatePayloadSize('image', imageData);
+      if (!valid) {
+        throw new Error(`Image validation failed: ${error}`);
+      }
 
-    // Schedule alarm with 2-second delay to ensure WebSocket connects
-    const alarmTime = Date.now() + 2000;
-    await this.state.storage.setAlarm(alarmTime);
+      // 2. Upload to R2 (moves large payload out of DO storage)
+      const { r2Key, etag } = await uploadPayloadToR2(
+        this.env,
+        jobId,
+        'image',
+        imageData
+      );
+      console.log(`[${jobId}] Image uploaded to R2: ${r2Key} (${size} bytes)`);
 
-    console.log(
-      `[${jobId}] Bookshelf scan alarm scheduled for ${new Date(alarmTime).toISOString()}`,
-    );
+      // 3. Store minimal metadata in DO storage (no large payload!)
+      await this.state.storage.put({
+        [STORAGE_KEYS.JOB_ID]: jobId,
+        [STORAGE_KEYS.JOB_TYPE]: 'bookshelf-scan',
+        'R2_IMAGE_KEY': r2Key,
+        'IMAGE_SIZE': size,
+        'IMAGE_ETAG': etag,
+        'IMAGE_UPLOAD_TIME': Date.now(),
+        [STORAGE_KEYS.REQUEST_HEADERS]: requestHeaders || {},
+      });
 
-    return { success: true };
+      // 4. Schedule alarm with 2-second delay to ensure WebSocket connects
+      const alarmTime = Date.now() + 2000;
+      await this.state.storage.setAlarm(alarmTime);
+
+      console.log(
+        `[${jobId}] Bookshelf scan alarm scheduled for ${new Date(alarmTime).toISOString()}`,
+      );
+
+      return { success: true };
+    } catch (error) {
+      console.error(`[${jobId}] Failed to schedule bookshelf scan:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -898,25 +954,57 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    * No Worker CPU time limits apply in alarm context
    */
   async processCSVImportAlarm() {
-    const csvText = await this.state.storage.get(STORAGE_KEYS.CSV_DATA);
     const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
+    const r2Key = await this.state.storage.get('R2_CSV_KEY');
+    const csvSize = await this.state.storage.get('CSV_SIZE');
 
     console.log(
-      `[${jobId}] Starting CSV processing in alarm (no timeout limits)`,
+      `[${jobId}] Starting CSV processing in alarm (fetching from R2: ${r2Key})`,
     );
 
     try {
-      // Process CSV with access to this (DO stub methods)
+      // 1. Fetch from R2 (no large payload in DO storage!)
+      const csvText = await fetchPayloadFromR2(this.env, r2Key);
+
+      // 2. Validate size matches metadata
+      const actualSize = typeof csvText === 'string' ? new TextEncoder().encode(csvText).length : csvText.length;
+      if (actualSize !== csvSize) {
+        throw new Error(`CSV size mismatch: expected ${csvSize}, got ${actualSize}`);
+      }
+
+      console.log(`[${jobId}] CSV fetched from R2 successfully (${actualSize} bytes)`);
+
+      // 3. Process CSV with access to this (DO stub methods)
       await processCSVImportCore(csvText, jobId, this, this.env);
 
       console.log(`[${jobId}] CSV processing completed successfully`);
 
-      // Clean up storage
-      await this.state.storage.delete(STORAGE_KEYS.CSV_DATA);
-      await this.state.storage.delete(STORAGE_KEYS.JOB_ID);
-      await this.state.storage.delete(STORAGE_KEYS.JOB_TYPE);
+      // 4. Delete from R2 (cleanup after success)
+      await deletePayloadFromR2(this.env, r2Key);
+      console.log(`[${jobId}] R2 object deleted: ${r2Key}`);
+
+      // 5. Clean up DO storage
+      await this.state.storage.delete([
+        STORAGE_KEYS.CSV_DATA, // Legacy key (if exists)
+        STORAGE_KEYS.JOB_ID,
+        STORAGE_KEYS.JOB_TYPE,
+        'R2_CSV_KEY',
+        'CSV_SIZE',
+        'CSV_ETAG',
+        'CSV_UPLOAD_TIME',
+      ]);
     } catch (error) {
       console.error(`[${jobId}] CSV processing failed in alarm:`, error);
+
+      // Attempt R2 cleanup (best effort)
+      try {
+        if (r2Key) {
+          await deletePayloadFromR2(this.env, r2Key);
+          console.log(`[${jobId}] R2 cleanup completed after error`);
+        }
+      } catch (cleanupError) {
+        console.error(`[${jobId}] R2 cleanup failed:`, cleanupError);
+      }
 
       // Send error to client
       await this.sendError("csv_import", {
@@ -929,10 +1017,16 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         retryable: true,
       });
 
-      // Clean up storage even on error
-      await this.state.storage.delete(STORAGE_KEYS.CSV_DATA);
-      await this.state.storage.delete(STORAGE_KEYS.JOB_ID);
-      await this.state.storage.delete(STORAGE_KEYS.JOB_TYPE);
+      // Clean up DO storage even on error
+      await this.state.storage.delete([
+        STORAGE_KEYS.CSV_DATA, // Legacy key (if exists)
+        STORAGE_KEYS.JOB_ID,
+        STORAGE_KEYS.JOB_TYPE,
+        'R2_CSV_KEY',
+        'CSV_SIZE',
+        'CSV_ETAG',
+        'CSV_UPLOAD_TIME',
+      ]);
     }
   }
 
@@ -941,23 +1035,35 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    * No Worker CPU time limits apply in alarm context (can handle 20-60s AI processing)
    */
   async processBookshelfScanAlarm() {
-    const imageData = await this.state.storage.get(STORAGE_KEYS.IMAGE_DATA);
-    const requestHeaders = await this.state.storage.get(STORAGE_KEYS.REQUEST_HEADERS);
     const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
+    const r2Key = await this.state.storage.get('R2_IMAGE_KEY');
+    const imageSize = await this.state.storage.get('IMAGE_SIZE');
+    const requestHeaders = await this.state.storage.get(STORAGE_KEYS.REQUEST_HEADERS);
 
     console.log(
-      `[${jobId}] Starting bookshelf scan in alarm (no CPU time limits)`,
+      `[${jobId}] Starting bookshelf scan in alarm (fetching from R2: ${r2Key})`,
     );
 
     try {
-      // Create mock request object with headers
+      // 1. Fetch from R2 (no large payload in DO storage!)
+      const imageData = await fetchPayloadFromR2(this.env, r2Key);
+
+      // 2. Validate size matches metadata
+      const actualSize = imageData instanceof ArrayBuffer ? imageData.byteLength : imageData.length;
+      if (actualSize !== imageSize) {
+        throw new Error(`Image size mismatch: expected ${imageSize}, got ${actualSize}`);
+      }
+
+      console.log(`[${jobId}] Image fetched from R2 successfully (${actualSize} bytes)`);
+
+      // 3. Create mock request object with headers
       const mockRequest = {
         headers: {
           get: (key) => requestHeaders[key] || null,
         },
       };
 
-      // Process bookshelf scan with access to this (DO stub methods)
+      // 4. Process bookshelf scan with access to this (DO stub methods)
       // Pass null for ctx since we're in alarm context (no ctx.waitUntil needed)
       await processBookshelfScan(
         jobId,
@@ -970,16 +1076,36 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
 
       console.log(`[${jobId}] Bookshelf scan completed successfully`);
 
-      // Clean up storage
-      await this.state.storage.delete(STORAGE_KEYS.IMAGE_DATA);
-      await this.state.storage.delete(STORAGE_KEYS.REQUEST_HEADERS);
-      await this.state.storage.delete(STORAGE_KEYS.JOB_ID);
-      await this.state.storage.delete(STORAGE_KEYS.JOB_TYPE);
+      // 5. Delete from R2 (cleanup after success)
+      await deletePayloadFromR2(this.env, r2Key);
+      console.log(`[${jobId}] R2 object deleted: ${r2Key}`);
+
+      // 6. Clean up DO storage
+      await this.state.storage.delete([
+        STORAGE_KEYS.IMAGE_DATA, // Legacy key (if exists)
+        STORAGE_KEYS.REQUEST_HEADERS,
+        STORAGE_KEYS.JOB_ID,
+        STORAGE_KEYS.JOB_TYPE,
+        'R2_IMAGE_KEY',
+        'IMAGE_SIZE',
+        'IMAGE_ETAG',
+        'IMAGE_UPLOAD_TIME',
+      ]);
     } catch (error) {
       console.error(
         `[${jobId}] Bookshelf scan processing failed in alarm:`,
         error,
       );
+
+      // Attempt R2 cleanup (best effort)
+      try {
+        if (r2Key) {
+          await deletePayloadFromR2(this.env, r2Key);
+          console.log(`[${jobId}] R2 cleanup completed after error`);
+        }
+      } catch (cleanupError) {
+        console.error(`[${jobId}] R2 cleanup failed:`, cleanupError);
+      }
 
       await this.sendError("ai_scan", {
         code: "AI_SCAN_PROCESSING_ERROR",
@@ -992,11 +1118,17 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         retryable: true,
       });
 
-      // Clean up storage even on error
-      await this.state.storage.delete(STORAGE_KEYS.IMAGE_DATA);
-      await this.state.storage.delete(STORAGE_KEYS.REQUEST_HEADERS);
-      await this.state.storage.delete(STORAGE_KEYS.JOB_ID);
-      await this.state.storage.delete(STORAGE_KEYS.JOB_TYPE);
+      // Clean up DO storage even on error
+      await this.state.storage.delete([
+        STORAGE_KEYS.IMAGE_DATA, // Legacy key (if exists)
+        STORAGE_KEYS.REQUEST_HEADERS,
+        STORAGE_KEYS.JOB_ID,
+        STORAGE_KEYS.JOB_TYPE,
+        'R2_IMAGE_KEY',
+        'IMAGE_SIZE',
+        'IMAGE_ETAG',
+        'IMAGE_UPLOAD_TIME',
+      ]);
     }
   }
 
