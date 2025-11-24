@@ -441,25 +441,31 @@ sequenceDiagram
 During the analysis of the API flows, the following critical issues were identified which require immediate attention.
 
 ### 1. `handleSearchEditions` Argument Mismatch
-**Severity: Critical (Endpoint Broken)**
+**Severity: ~~Critical~~ RESOLVED - False Positive**
 - **Endpoint:** `GET /v1/editions/search`
 - **Location:** `src/router.ts` vs `src/handlers/v1/search-editions.ts`
-- **Issue:**
-    - `router.ts` calls: `handleSearchEditions(isbn, c.env, c.req.raw)`
-    - `handler` defines: `handleSearchEditions(workTitle, author, limit, env, ctx, request)`
-- **Consequence:** The endpoint passes the ISBN string as the Title, the Environment object as the Author, and the Request object as the Limit. This will cause runtime errors or completely undefined behavior.
+- **Status:** ✅ **VERIFIED CORRECT** (Nov 24, 2025)
+- **Resolution:** The router correctly extracts `workTitle`, `author`, and `limit` from query parameters before calling the handler. No mismatch exists.
+  ```typescript
+  // router.ts:1087-1115
+  const workTitle = c.req.query("workTitle") || c.req.query("title") || "";
+  const author = c.req.query("author") || "";
+  const limit = parseInt(c.req.query("limit") || "20");
+  return await handleSearchEditions(workTitle, author, limit, c.env, getCtx(c), c.req.raw);
+  ```
 
 ### 2. `handleBatchScan` Logic Error
 **Severity: Critical (Feature Broken)**
 - **Endpoint:** `POST /api/batch-scan`
-- **Location:** `src/handlers/batch-scan-handler.ts`
+- **Location:** `src/handlers/batch-scan-handler.ts:300-307`
+- **Status:** ⚠️ **CONFIRMED BUG** (Nov 24, 2025) - Requires fix
 - **Issue:**
-    - The handler calls `await handleSearchAdvanced(...)` which returns a standard `Response` object.
-    - The code then checks `if (apiResponse.success)`.
-    - The `Response` object does not have a `success` property (it has `ok` and `status`). `success` is `undefined`.
+    - The handler calls `await handleSearchAdvanced(...)` which returns a `Response` object.
+    - The code then checks `if (apiResponse.success)` treating it as a parsed JSON object.
+    - The `Response` object does not have a `success` property (it has `ok` and `status`).
     - The code falls through to the `else` block and attempts to access `apiResponse.error.message`.
-    - Since `apiResponse` is a `Response` object, it does not have an `error` property.
-- **Consequence:** Batch scanning will crash during the enrichment phase with `TypeError: Cannot read properties of undefined (reading 'message')`.
+- **Consequence:** Batch scanning crashes during enrichment with `TypeError: Cannot read properties of undefined (reading 'message')`.
+- **Fix Required:** Parse the Response object first: `const apiResponse = await (await handleSearchAdvanced(...)).json()`
 
 ### 3. Duplicate ISBN Validation Logic
 **Severity: Minor (Code Smell)**
