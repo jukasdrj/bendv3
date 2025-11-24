@@ -179,24 +179,29 @@ export function generateR2Key(jobId, type) {
 
 /**
  * Cleanup all R2 objects for a job (used for error recovery)
+ * Handles pagination for jobs with >1000 R2 objects
  * @param {Object} env - Worker environment
  * @param {string} jobId - Job identifier
  */
 export async function cleanupJobR2Objects(env, jobId) {
   const bucket = env.BOOKSHELF_IMAGES
+  const allObjects = []
 
   try {
-    // List all objects with jobId prefix
-    const csvPrefix = `hibernation/csv/${jobId}/`
-    const imagePrefix = `hibernation/image/${jobId}/`
-
-    const csvObjects = await bucket.list({ prefix: csvPrefix })
-    const imageObjects = await bucket.list({ prefix: imagePrefix })
-
-    const allObjects = [
-      ...(csvObjects.objects || []),
-      ...(imageObjects.objects || []),
+    // Paginate through all results (bucket.list returns max 1000 per request)
+    const prefixes = [
+      `hibernation/csv/${jobId}/`,
+      `hibernation/image/${jobId}/`,
     ]
+
+    for (const prefix of prefixes) {
+      let cursor
+      do {
+        const result = await bucket.list({ prefix, cursor })
+        allObjects.push(...(result.objects || []))
+        cursor = result.truncated ? result.cursor : null
+      } while (cursor)
+    }
 
     if (allObjects.length === 0) {
       console.log(`[R2] No objects found for cleanup: ${jobId}`)

@@ -985,6 +985,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
     const r2Key = await this.state.storage.get('R2_CSV_KEY');
     const csvSize = await this.state.storage.get('CSV_SIZE');
+    const csvEtag = await this.state.storage.get('CSV_ETAG');
 
     console.log(
       `[${jobId}] Starting CSV processing in alarm (fetching from R2: ${r2Key})`,
@@ -1000,7 +1001,15 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         throw new Error(`CSV size mismatch: expected ${csvSize}, got ${actualSize}`);
       }
 
-      console.log(`[${jobId}] CSV fetched from R2 successfully (${actualSize} bytes)`);
+      // 3. Validate ETag matches metadata (data integrity check)
+      if (csvEtag && csvEtag !== 'upload-complete') {
+        const object = await this.env.BOOKSHELF_IMAGES.head(r2Key);
+        if (object && object.etag !== csvEtag) {
+          throw new Error(`CSV ETag mismatch: expected ${csvEtag}, got ${object.etag} - possible corruption`);
+        }
+      }
+
+      console.log(`[${jobId}] CSV fetched from R2 successfully (${actualSize} bytes, ETag verified)`);
 
       // 3. Process CSV with access to this (DO stub methods)
       await processCSVImportCore(csvText, jobId, this, this.env);
@@ -1066,6 +1075,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
     const r2Key = await this.state.storage.get('R2_IMAGE_KEY');
     const imageSize = await this.state.storage.get('IMAGE_SIZE');
+    const imageEtag = await this.state.storage.get('IMAGE_ETAG');
     const requestHeaders = await this.state.storage.get(STORAGE_KEYS.REQUEST_HEADERS);
 
     console.log(
@@ -1082,7 +1092,15 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         throw new Error(`Image size mismatch: expected ${imageSize}, got ${actualSize}`);
       }
 
-      console.log(`[${jobId}] Image fetched from R2 successfully (${actualSize} bytes)`);
+      // 3. Validate ETag matches metadata (data integrity check)
+      if (imageEtag && imageEtag !== 'upload-complete') {
+        const object = await this.env.BOOKSHELF_IMAGES.head(r2Key);
+        if (object && object.etag !== imageEtag) {
+          throw new Error(`Image ETag mismatch: expected ${imageEtag}, got ${object.etag} - possible corruption`);
+        }
+      }
+
+      console.log(`[${jobId}] Image fetched from R2 successfully (${actualSize} bytes, ETag verified)`);
 
       // 3. Create mock request object with headers
       const mockRequest = {
