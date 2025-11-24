@@ -58,7 +58,7 @@ export function getCorsHeaders(request) {
       // "Access-Control-Allow-Credentials": "true", // REMOVED - invalid with wildcard
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers":
-        "Content-Type, Authorization, X-AI-Provider",
+        "Content-Type, Authorization, X-AI-Provider, Sec-WebSocket-Protocol, Sec-WebSocket-Version, Upgrade, Connection",
       "Access-Control-Max-Age": "86400", // 24 hours preflight cache
     };
   }
@@ -80,7 +80,7 @@ export function getCorsHeaders(request) {
       "Access-Control-Allow-Credentials": "true",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers":
-        "Content-Type, Authorization, X-AI-Provider",
+        "Content-Type, Authorization, X-AI-Provider, Sec-WebSocket-Protocol, Sec-WebSocket-Version, Upgrade, Connection",
       "Access-Control-Max-Age": "86400", // 24 hours preflight cache
     };
   } else {
@@ -91,7 +91,7 @@ export function getCorsHeaders(request) {
       // "Access-Control-Allow-Credentials": "true", // REMOVED - invalid with wildcard
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers":
-        "Content-Type, Authorization, X-AI-Provider",
+        "Content-Type, Authorization, X-AI-Provider, Sec-WebSocket-Protocol, Sec-WebSocket-Version, Upgrade, Connection",
       "Access-Control-Max-Age": "86400", // 24 hours preflight cache
     };
   }

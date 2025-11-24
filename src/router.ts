@@ -56,7 +56,14 @@ app.use(
       return origin ? allowedOrigins.includes(origin) : true;
     },
     allowMethods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Sec-WebSocket-Protocol",
+      "Sec-WebSocket-Version",
+      "Upgrade",
+      "Connection",
+    ],
     exposeHeaders: ["X-Router", "X-Response-Time"],
     maxAge: 86400, // 24 hours
   }),
@@ -828,6 +835,62 @@ app.get("/v1/scan/results/:jobId", async (c) => {
   });
 });
 
+// GET /v1/csv/status/{jobId} - Get current CSV import job status (for fallback polling)
+app.get("/v1/csv/status/:jobId", async (c) => {
+  try {
+    const jobId = c.req.param("jobId")?.substring(0, 100);
+
+    if (!jobId || jobId.trim().length === 0) {
+      return c.json(
+        {
+          error: {
+            code: "MISSING_PARAM",
+            message: "Missing jobId parameter",
+          },
+        },
+        400,
+      );
+    }
+
+    // Get Durable Object stub for this job
+    const doStub = getProgressDOStub(jobId, c.env);
+
+    // Fetch current job state
+    const state = await doStub.getJobState();
+
+    if (!state) {
+      return c.json(
+        {
+          error: {
+            code: "NOT_FOUND",
+            message: "Job not found or not initialized",
+          },
+        },
+        404,
+      );
+    }
+
+    // Return job state in ResponseEnvelope format
+    return c.json({
+      data: state,
+      metadata: {
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("[CSV Status] Error fetching job state:", error);
+    return c.json(
+      {
+        error: {
+          code: "INTERNAL_ERROR",
+          message: `Failed to fetch job status: ${(error as Error).message}`,
+        },
+      },
+      500,
+    );
+  }
+});
+
 // GET /v1/csv/results/{jobId} - Retrieve CSV import results after WebSocket completion
 app.get("/v1/csv/results/:jobId", async (c) => {
   // Validation: Limit jobId length to prevent abuse (UUIDs are 36 chars)
@@ -1179,27 +1242,32 @@ app.onError((err, c) => {
     typeof c.env.PERFORMANCE_ANALYTICS.writeDataPoint === "function"
   ) {
     try {
-      // Wrap in Promise.resolve() to guarantee a Promise for .catch()
-      const dataPointPromise = Promise.resolve(
-        c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
-          blobs: ["router_error", err.message, c.req.path, c.req.method],
-          doubles: [1], // Error count
-          indexes: ["hono"], // Router type
-        }),
-      );
-      // ExecutionContext may not be available in Hono context, skip if not present
-      const ctx = getCtx(c);
-      if (ctx) {
-        ctx.waitUntil(
-          dataPointPromise.catch((analyticsErr) => {
-            console.error(
-              "[Hono] Failed to log error to Analytics Engine:",
-              analyticsErr,
-            );
-            // Note: Simple retry omitted to avoid exceeding Workers execution limits
-            // Analytics failures are logged but not retried to maintain performance
-          }),
-        );
+      // Call writeDataPoint and check if it returns a value
+      const dataPointResult = c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
+        blobs: ["router_error", err.message, c.req.path, c.req.method],
+        doubles: [1], // Error count
+        indexes: ["hono"], // Router type
+      });
+
+      // BUGFIX: Only proceed if writeDataPoint returned a valid value
+      if (dataPointResult) {
+        // Wrap in Promise.resolve() to guarantee a Promise for .catch()
+        const dataPointPromise = Promise.resolve(dataPointResult);
+
+        // ExecutionContext may not be available in Hono context, skip if not present
+        const ctx = getCtx(c);
+        if (ctx) {
+          ctx.waitUntil(
+            dataPointPromise.catch((analyticsErr) => {
+              console.error(
+                "[Hono] Failed to log error to Analytics Engine:",
+                analyticsErr,
+              );
+              // Note: Simple retry omitted to avoid exceeding Workers execution limits
+              // Analytics failures are logged but not retried to maintain performance
+            }),
+          );
+        }
       }
     } catch (syncError) {
       // Catch synchronous errors during writeDataPoint invocation

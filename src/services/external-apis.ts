@@ -852,6 +852,61 @@ export async function searchISBNdb(
   title: string,
   authorName: string | null,
   env: ExternalAPIEnv,
+  ctx?: ExecutionContext,
+): Promise<NormalizedResponse | null> {
+  // Get KV namespace
+  const kvNamespace = env.KV_CACHE || env.CACHE;
+
+  // If no KV cache or ExecutionContext, skip caching
+  if (!kvNamespace || !ctx) {
+    console.warn(`⚠️ ISBNdb search without cache (missing ${!kvNamespace ? 'KV namespace' : 'ExecutionContext'})`);
+    return searchISBNdb_Uncached(title, authorName, env);
+  }
+
+  // Create cache service with 'isbndb' prefix
+  const cache = createCacheService(kvNamespace, 'isbndb', env, ctx);
+
+  // Generate cache key from title + author
+  const cacheKey = `search:${title.toLowerCase().trim()}:${authorName?.toLowerCase().trim() || 'any'}`;
+  const cached = await cache.get(cacheKey);
+
+  if (cached) {
+    console.log(`📦 Cache HIT: ISBNdb search "${title}" by "${authorName || 'any'}"`);
+    try {
+      return JSON.parse(cached);
+    } catch (error) {
+      console.error(`❌ Cache parse error for ISBNdb search "${title}":`, error);
+      // Fall through to API call
+    }
+  }
+
+  // Cache MISS - fetch from API
+  console.log(`🌐 Cache MISS: Searching ISBNdb for "${title}" by "${authorName || 'any'}"`);
+  const result = await searchISBNdb_Uncached(title, authorName, env);
+
+  // Write successful results to cache
+  if (result && result.works && result.works.length > 0) {
+    const hotTtl = parseInt(env.CACHE_HOT_TTL || '7200');
+    const coldTtl = parseInt(env.CACHE_COLD_TTL || '1209600');
+
+    try {
+      await cache.put(cacheKey, JSON.stringify(result), hotTtl, coldTtl);
+      console.log(`✅ Cached ISBNdb search "${title}" (${result.works.length} works)`);
+    } catch (error) {
+      console.error(`❌ Cache write error for ISBNdb search "${title}":`, error);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Uncached ISBNdb title/author search (internal helper)
+ */
+async function searchISBNdb_Uncached(
+  title: string,
+  authorName: string | null,
+  env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
     "ISBNdb",
@@ -915,6 +970,61 @@ export async function getISBNdbEditionsForWork(
   title: string,
   authorName: string,
   env: ExternalAPIEnv,
+  ctx?: ExecutionContext,
+): Promise<EditionDTO[] | null> {
+  // Get KV namespace
+  const kvNamespace = env.KV_CACHE || env.CACHE;
+
+  // If no KV cache or ExecutionContext, skip caching
+  if (!kvNamespace || !ctx) {
+    console.warn(`⚠️ ISBNdb editions search without cache (missing ${!kvNamespace ? 'KV namespace' : 'ExecutionContext'})`);
+    return getISBNdbEditionsForWork_Uncached(title, authorName, env);
+  }
+
+  // Create cache service with 'isbndb' prefix
+  const cache = createCacheService(kvNamespace, 'isbndb', env, ctx);
+
+  // Generate cache key
+  const cacheKey = `editions:${title.toLowerCase().trim()}:${authorName.toLowerCase().trim()}`;
+  const cached = await cache.get(cacheKey);
+
+  if (cached) {
+    console.log(`📦 Cache HIT: ISBNdb editions "${title}" by "${authorName}"`);
+    try {
+      return JSON.parse(cached);
+    } catch (error) {
+      console.error(`❌ Cache parse error for ISBNdb editions "${title}":`, error);
+      // Fall through to API call
+    }
+  }
+
+  // Cache MISS - fetch from API
+  console.log(`🌐 Cache MISS: Fetching ISBNdb editions for "${title}" by "${authorName}"`);
+  const result = await getISBNdbEditionsForWork_Uncached(title, authorName, env);
+
+  // Write successful results to cache
+  if (result && result.length > 0) {
+    const hotTtl = parseInt(env.CACHE_HOT_TTL || '7200');
+    const coldTtl = parseInt(env.CACHE_COLD_TTL || '1209600');
+
+    try {
+      await cache.put(cacheKey, JSON.stringify(result), hotTtl, coldTtl);
+      console.log(`✅ Cached ISBNdb editions "${title}" (${result.length} editions)`);
+    } catch (error) {
+      console.error(`❌ Cache write error for ISBNdb editions "${title}":`, error);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Uncached ISBNdb editions lookup (internal helper)
+ */
+async function getISBNdbEditionsForWork_Uncached(
+  title: string,
+  authorName: string,
+  env: ExternalAPIEnv,
 ): Promise<EditionDTO[] | null> {
   try {
     console.log(`ISBNdb getEditionsForWork ("${title}", "${authorName}")`);
@@ -950,6 +1060,60 @@ export async function getISBNdbEditionsForWork(
 }
 
 export async function getISBNdbBookByISBN(
+  isbn: string,
+  env: ExternalAPIEnv,
+  ctx?: ExecutionContext,
+): Promise<ISBNdbBookData | null> {
+  // Get KV namespace
+  const kvNamespace = env.KV_CACHE || env.CACHE;
+
+  // If no KV cache or ExecutionContext, skip caching
+  if (!kvNamespace || !ctx) {
+    console.warn(`⚠️ ISBNdb ISBN search without cache (missing ${!kvNamespace ? 'KV namespace' : 'ExecutionContext'})`);
+    return getISBNdbBookByISBN_Uncached(isbn, env);
+  }
+
+  // Create cache service with 'isbndb' prefix
+  const cache = createCacheService(kvNamespace, 'isbndb', env, ctx);
+
+  // Check cache FIRST
+  const cacheKey = `isbn:${isbn.replace(/-/g, '')}`; // Normalize ISBN
+  const cached = await cache.get(cacheKey);
+
+  if (cached) {
+    console.log(`📦 Cache HIT: ISBNdb ISBN ${isbn}`);
+    try {
+      return JSON.parse(cached);
+    } catch (error) {
+      console.error(`❌ Cache parse error for ISBNdb ISBN ${isbn}:`, error);
+      // Fall through to API call
+    }
+  }
+
+  // Cache MISS - fetch from API
+  console.log(`🌐 Cache MISS: Fetching ISBNdb ISBN ${isbn}`);
+  const result = await getISBNdbBookByISBN_Uncached(isbn, env);
+
+  // Write successful results to cache (longer TTL for ISBNdb - premium API)
+  if (result) {
+    const hotTtl = parseInt(env.CACHE_HOT_TTL || '7200');
+    const coldTtl = parseInt(env.CACHE_COLD_TTL || '1209600');
+
+    try {
+      await cache.put(cacheKey, JSON.stringify(result), hotTtl, coldTtl);
+      console.log(`✅ Cached ISBNdb ISBN ${isbn}`);
+    } catch (error) {
+      console.error(`❌ Cache write error for ISBNdb ISBN ${isbn}:`, error);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Uncached ISBNdb ISBN lookup (internal helper)
+ */
+async function getISBNdbBookByISBN_Uncached(
   isbn: string,
   env: ExternalAPIEnv,
 ): Promise<ISBNdbBookData | null> {

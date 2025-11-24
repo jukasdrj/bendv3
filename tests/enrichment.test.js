@@ -77,6 +77,7 @@ describe("enrichSingleBook()", () => {
     expect(searchByISBNSpy).toHaveBeenCalledWith(
       "9780451524935",
       mockEnv,
+      undefined, // ctx parameter (optional ExecutionContext)
     );
   });
 
@@ -117,6 +118,7 @@ describe("enrichSingleBook()", () => {
       "Pride and Prejudice Jane Austen",
       { maxResults: 1 },
       mockEnv,
+      undefined, // ctx parameter (optional ExecutionContext)
     );
   });
 
@@ -379,6 +381,7 @@ describe("enrichMultipleBooks()", () => {
       "Test",
       { maxResults: 5 },
       mockEnv,
+      undefined, // ctx parameter (optional ExecutionContext)
     );
   });
 
@@ -394,6 +397,7 @@ describe("enrichMultipleBooks()", () => {
       "Test",
       { maxResults: 20 },
       mockEnv,
+      undefined, // ctx parameter (optional ExecutionContext)
     );
   });
 
@@ -424,6 +428,7 @@ describe("enrichMultipleBooks()", () => {
       "Pride and Prejudice Jane Austen",
       { maxResults: 20 },
       mockEnv,
+      undefined, // ctx parameter (optional ExecutionContext)
     );
   });
 
@@ -459,6 +464,7 @@ describe("enrichMultipleBooks()", () => {
     expect(externalApis.searchGoogleBooksByISBN).toHaveBeenCalledWith(
       "9780451524935",
       mockEnv,
+      undefined, // ctx parameter (optional ExecutionContext)
     );
   });
 
