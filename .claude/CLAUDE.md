@@ -652,6 +652,8 @@ All commands are defined in `.claude/commands/` and automatically invoke the app
 
 ## Open Issues Organization
 
+**For detailed resolution plans, see [docs/ISSUE_RESOLUTIONS.md](../docs/ISSUE_RESOLUTIONS.md)**
+
 ### Current Active Issues: 11 (as of Nov 21, 2025)
 
 **Sprint 2 Completed:** 6 documentation issues resolved (#219, #218, #217, #216, #489, #497)
