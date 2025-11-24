@@ -86,8 +86,13 @@ export async function uploadPayloadToR2(env, jobId, type, data) {
 export async function fetchPayloadFromR2(env, r2Key) {
   const bucket = env.BOOKSHELF_IMAGES
 
+  // Add timeout to prevent indefinite hangs (consistent with upload)
+  const abortController = new AbortController()
+  const timeout = setTimeout(() => abortController.abort(), R2_UPLOAD_TIMEOUT)
+
   try {
     const object = await bucket.get(r2Key)
+    clearTimeout(timeout)
 
     if (!object) {
       throw new Error(`R2 object not found: ${r2Key}`)
@@ -100,6 +105,7 @@ export async function fetchPayloadFromR2(env, r2Key) {
       return await object.arrayBuffer()
     }
   } catch (error) {
+    clearTimeout(timeout)
     console.error(`[R2] Fetch failed for ${r2Key}:`, error)
     throw error
   }
