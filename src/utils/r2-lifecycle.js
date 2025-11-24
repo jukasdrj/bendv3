@@ -93,6 +93,7 @@ export async function cleanupOnSuccess(env, r2Key) {
 /**
  * Get orphaned objects older than threshold
  * Used for periodic cleanup jobs (future: Cron trigger)
+ * Handles pagination for >1000 orphaned objects
  *
  * @param {Object} env - Worker environment
  * @param {number} thresholdMs - Age threshold (default: 24 hours)
@@ -107,24 +108,30 @@ export async function getOrphanedObjects(
   const orphaned = []
 
   try {
-    // List all hibernation objects
-    const result = await bucket.list({ prefix: 'hibernation/' })
+    // Paginate through all hibernation objects (max 1000 per request)
+    let cursor
+    do {
+      const result = await bucket.list({ prefix: 'hibernation/', cursor })
 
-    for (const obj of result.objects || []) {
-      // Parse timestamp from key (format: hibernation/type/jobId/timestamp.ext)
-      const match = obj.key.match(/\/(\d+)\.\w+$/)
-      if (match) {
-        const uploadTime = parseInt(match[1], 10)
-        if (uploadTime < cutoffTime) {
-          orphaned.push({
-            key: obj.key,
-            size: obj.size,
-            uploaded: new Date(uploadTime).toISOString(),
-            age: Date.now() - uploadTime,
-          })
+      for (const obj of result.objects || []) {
+        // Parse timestamp from key (format: hibernation/type/jobId/timestamp.ext)
+        // More specific regex: matches 13-digit timestamp followed by .csv or .jpg
+        const match = obj.key.match(/hibernation\/[^/]+\/[^/]+\/(\d{13})\.(csv|jpg)$/)
+        if (match) {
+          const uploadTime = parseInt(match[1], 10)
+          if (uploadTime < cutoffTime) {
+            orphaned.push({
+              key: obj.key,
+              size: obj.size,
+              uploaded: new Date(uploadTime).toISOString(),
+              age: Date.now() - uploadTime,
+            })
+          }
         }
       }
-    }
+
+      cursor = result.truncated ? result.cursor : null
+    } while (cursor)
 
     console.log(`[R2 Lifecycle] Found ${orphaned.length} orphaned objects`)
     return orphaned
