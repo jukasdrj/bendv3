@@ -26,6 +26,20 @@ export class WebSocketConnectionDO extends DurableObject {
     this.isReady = false;
     this.readyPromise = null;
     this.readyResolver = null;
+
+    // WebSocket health metrics (Issue #36)
+    this.metrics = {
+      connectionEstablished: 0,
+      disconnectReasons: {
+        timeout: 0,
+        error: 0,
+        clientClose: 0,
+        serverClose: 0,
+      },
+      messageSendFailures: 0,
+      connectionStartTime: null,
+      totalConnectionDuration: 0,
+    };
   }
 
   /**
@@ -148,6 +162,10 @@ export class WebSocketConnectionDO extends DurableObject {
     this.webSocket.accept();
     const acceptDuration = Date.now() - acceptStartTime;
 
+    // Track connection establishment (Issue #36)
+    this.metrics.connectionEstablished++;
+    this.metrics.connectionStartTime = Date.now();
+
     // Initialize ready promise
     this.readyPromise = new Promise((resolve) => {
       this.readyResolver = resolve;
@@ -175,11 +193,31 @@ export class WebSocketConnectionDO extends DurableObject {
         event.code,
         event.reason,
       );
+
+      // Track disconnect reason (Issue #36)
+      if (event.code === 1000) {
+        this.metrics.disconnectReasons.clientClose++;
+      } else if (event.code === 1006) {
+        this.metrics.disconnectReasons.timeout++;
+      } else {
+        this.metrics.disconnectReasons.serverClose++;
+      }
+
+      // Track connection duration
+      if (this.metrics.connectionStartTime) {
+        const duration = Date.now() - this.metrics.connectionStartTime;
+        this.metrics.totalConnectionDuration += duration;
+      }
+
       this.cleanup();
     });
 
     this.webSocket.addEventListener("error", (event) => {
       console.error(`[${this.jobId}] WebSocket error:`, event);
+
+      // Track error disconnect (Issue #36)
+      this.metrics.disconnectReasons.error++;
+
       this.cleanup();
     });
 
@@ -315,6 +353,8 @@ export class WebSocketConnectionDO extends DurableObject {
       console.warn(
         `[${this.jobId}] Cannot send message - no WebSocket connection`,
       );
+      // Track send failure (Issue #36)
+      this.metrics.messageSendFailures++;
       return { success: false };
     }
 
@@ -323,6 +363,8 @@ export class WebSocketConnectionDO extends DurableObject {
       return { success: true };
     } catch (error) {
       console.error(`[${this.jobId}] Failed to send message:`, error);
+      // Track send failure (Issue #36)
+      this.metrics.messageSendFailures++;
       return { success: false };
     }
   }
@@ -357,6 +399,27 @@ export class WebSocketConnectionDO extends DurableObject {
     await this.storage.delete("authTokenExpiration");
     console.log(`[${this.jobId || "unknown"}] Auth token storage cleaned up`);
     return { success: true };
+  }
+
+  /**
+   * RPC Method: Get WebSocket health metrics (Issue #36)
+   * Returns current metrics for observability and monitoring
+   *
+   * @returns {Promise<Object>} Metrics object with connection stats
+   */
+  async getMetrics() {
+    const avgConnectionDuration =
+      this.metrics.connectionEstablished > 0
+        ? this.metrics.totalConnectionDuration / this.metrics.connectionEstablished
+        : 0;
+
+    return {
+      connectionEstablished: this.metrics.connectionEstablished,
+      disconnectReasons: this.metrics.disconnectReasons,
+      messageSendFailures: this.metrics.messageSendFailures,
+      avgConnectionDurationMs: Math.round(avgConnectionDuration),
+      currentlyConnected: this.webSocket ? 1 : 0,
+    };
   }
 
   /**
