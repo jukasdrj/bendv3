@@ -197,7 +197,7 @@ export async function enrichMultipleBooks(
 
     // Fallback to ISBNdb ISBN search (with isolated error handling)
     try {
-      const isbndbResult = await externalApis.getISBNdbBookByISBN(isbn, env);
+      const isbndbResult = await externalApis.getISBNdbBookByISBN(isbn, env, ctx);
 
       if (isbndbResult && isbndbResult.work) {
         // Add provenance fields to work
@@ -282,7 +282,7 @@ export async function enrichMultipleBooks(
       console.log(
         `enrichMultipleBooks: OpenLibrary returned no results, trying ISBNdb`,
       );
-      const isbndbResult = await externalApis.searchISBNdb(title, author, env);
+      const isbndbResult = await externalApis.searchISBNdb(title, author, env, ctx);
 
       if (isbndbResult && isbndbResult.works && isbndbResult.works.length > 0) {
         console.log(
@@ -319,6 +319,7 @@ export async function enrichMultipleBooks(
 export async function enrichSingleBook(
   query: BookSearchQuery,
   env: WorkerEnv,
+  ctx?: ExecutionContext,
 ): Promise<SingleEnrichmentResult | null> {
   const { title, author, isbn, openLibraryId, googleBooksId } = query;
 
