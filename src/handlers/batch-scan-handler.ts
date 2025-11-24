@@ -297,11 +297,30 @@ async function processBatchPhotos(jobId, images, env, doStub) {
           partialBooks,
           async (book) => {
             // Enrichment function: fetch metadata for this book
-            const apiResponse = await handleSearchAdvanced(
+            const response = await handleSearchAdvanced(
               book.title || "",
               book.author || "",
               env,
+              ctx,
             );
+
+            // Parse Response object to get canonical ApiResponse<BookSearchResponse>
+            let apiResponse;
+            try {
+              apiResponse = await response.json();
+            } catch (parseError) {
+              console.error("[Batch Scan] JSON parse failed for book:", book.title, parseError);
+              return {
+                ...book,
+                enrichment: {
+                  status: "error",
+                  error: "Invalid response format from search API",
+                  work: null,
+                  editions: [],
+                  authors: [],
+                },
+              };
+            }
 
             // Parse canonical ApiResponse<BookSearchResponse>
             if (apiResponse.success) {
@@ -464,11 +483,30 @@ async function processBatchPhotos(jobId, images, env, doStub) {
       uniqueBooks,
       async (book) => {
         // Enrichment function: fetch metadata for this book
-        const apiResponse = await handleSearchAdvanced(
+        const response = await handleSearchAdvanced(
           book.title || "",
           book.author || "",
           env,
+          ctx,
         );
+
+        // Parse Response object to get canonical ApiResponse<BookSearchResponse>
+        let apiResponse;
+        try {
+          apiResponse = await response.json();
+        } catch (parseError) {
+          console.error("[Batch Scan] JSON parse failed for book:", book.title, parseError);
+          return {
+            ...book,
+            enrichment: {
+              status: "error",
+              error: "Invalid response format from search API",
+              work: null,
+              editions: [],
+              authors: [],
+            },
+          };
+        }
 
         // Parse canonical ApiResponse<BookSearchResponse>
         if (apiResponse.success) {
