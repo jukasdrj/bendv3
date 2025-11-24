@@ -34,6 +34,7 @@ export class CacheMetricsDO {
 
   /**
    * Initialize empty stats structure
+   * Extended to include WebSocket, D1, API contract, and external API metrics (Issue #36)
    */
   initializeStats() {
     const emptyStats = () => ({
@@ -50,32 +51,125 @@ export class CacheMetricsDO {
       total: emptyStats(),
     });
 
+    // WebSocket metrics (Issue #36)
+    const emptyWebSocketStats = () => ({
+      connectionsEstablished: 0,
+      disconnectReasons: {
+        clientClose: 0,
+        timeout: 0,
+        error: 0,
+        serverClose: 0,
+      },
+      messageSendFailures: 0,
+      totalConnectionDuration: 0,
+    });
+
+    // D1 query latency metrics (Issue #36)
+    const emptyD1Stats = () => ({
+      queryCount: 0,
+      readQueries: 0,
+      writeQueries: 0,
+      totalLatencyMs: 0,
+      errorCount: 0,
+      latencyBuckets: {
+        fast: 0,      // < 10ms
+        normal: 0,    // 10-50ms
+        slow: 0,      // 50-200ms
+        verySlow: 0,  // > 200ms
+      },
+    });
+
+    // API contract validation metrics (Issue #36)
+    const emptyApiContractStats = () => ({
+      totalValidations: 0,
+      validationFailures: 0,
+      failuresByEndpoint: {},
+      failuresByField: {},
+    });
+
+    // External API quota metrics (Issue #36)
+    const emptyExternalApiStats = () => ({
+      googleBooks: {
+        requestCount: 0,
+        errorCount: 0,
+        quotaRemaining: 1000, // Daily limit
+      },
+      isbndb: {
+        requestCount: 0,
+        errorCount: 0,
+        quotaRemaining: 5000, // Daily limit
+      },
+      gemini: {
+        requestCount: 0,
+        errorCount: 0,
+        tokensUsed: 0,
+      },
+    });
+
     return {
       lastUpdated: Date.now(),
+      // Cache metrics (existing)
       currentMinute: emptyTimeWindow(),
       currentHour: emptyTimeWindow(),
       currentDay: emptyTimeWindow(),
       total: emptyTimeWindow(),
       lastPutTimestamps: {}, // Plain object for storage compatibility
+      // WebSocket metrics (Issue #36)
+      websocket: {
+        currentMinute: emptyWebSocketStats(),
+        currentHour: emptyWebSocketStats(),
+        currentDay: emptyWebSocketStats(),
+        total: emptyWebSocketStats(),
+      },
+      // D1 metrics (Issue #36)
+      d1: {
+        currentMinute: emptyD1Stats(),
+        currentHour: emptyD1Stats(),
+        currentDay: emptyD1Stats(),
+        total: emptyD1Stats(),
+      },
+      // API contract metrics (Issue #36)
+      apiContract: {
+        currentMinute: emptyApiContractStats(),
+        currentHour: emptyApiContractStats(),
+        currentDay: emptyApiContractStats(),
+        total: emptyApiContractStats(),
+      },
+      // External API metrics (Issue #36)
+      externalApi: {
+        currentMinute: emptyExternalApiStats(),
+        currentHour: emptyExternalApiStats(),
+        currentDay: emptyExternalApiStats(),
+        total: emptyExternalApiStats(),
+      },
     };
   }
 
   /**
    * Load stats from durable storage
+   * Updated to ensure new metric types exist (Issue #36)
    */
   async loadStats() {
     const storedStats = await this.state.storage.get("cacheStats");
     if (storedStats) {
       this.stats = storedStats;
-      // Ensure all windows exist
+      const initialized = this.initializeStats();
+
+      // Ensure all cache windows exist
       if (!this.stats.currentMinute)
-        this.stats.currentMinute = this.initializeStats().currentMinute;
+        this.stats.currentMinute = initialized.currentMinute;
       if (!this.stats.currentHour)
-        this.stats.currentHour = this.initializeStats().currentHour;
+        this.stats.currentHour = initialized.currentHour;
       if (!this.stats.currentDay)
-        this.stats.currentDay = this.initializeStats().currentDay;
-      if (!this.stats.total) this.stats.total = this.initializeStats().total;
+        this.stats.currentDay = initialized.currentDay;
+      if (!this.stats.total) this.stats.total = initialized.total;
       if (!this.stats.lastPutTimestamps) this.stats.lastPutTimestamps = {};
+
+      // Ensure new metric types exist (Issue #36)
+      if (!this.stats.websocket) this.stats.websocket = initialized.websocket;
+      if (!this.stats.d1) this.stats.d1 = initialized.d1;
+      if (!this.stats.apiContract) this.stats.apiContract = initialized.apiContract;
+      if (!this.stats.externalApi) this.stats.externalApi = initialized.externalApi;
     }
   }
 
@@ -115,22 +209,55 @@ export class CacheMetricsDO {
       const nowDay = new Date(now).getDate();
       const lastDay = lastUpdatedDate.getDate();
 
-      // Roll over minute stats
+      // Roll over minute stats (cache + new metrics)
       if (nowMinute !== lastMinute) {
+        const initialized = this.initializeStats();
+        // Cache metrics
         this.aggregateWindow(this.stats.currentMinute, this.stats.currentHour);
-        this.stats.currentMinute = this.initializeStats().currentMinute;
+        this.stats.currentMinute = initialized.currentMinute;
+        // WebSocket metrics (Issue #36)
+        this.aggregateWebSocketWindow(this.stats.websocket.currentMinute, this.stats.websocket.currentHour);
+        this.stats.websocket.currentMinute = initialized.websocket.currentMinute;
+        // D1 metrics (Issue #36)
+        this.aggregateD1Window(this.stats.d1.currentMinute, this.stats.d1.currentHour);
+        this.stats.d1.currentMinute = initialized.d1.currentMinute;
+        // API contract metrics (Issue #36)
+        this.aggregateApiContractWindow(this.stats.apiContract.currentMinute, this.stats.apiContract.currentHour);
+        this.stats.apiContract.currentMinute = initialized.apiContract.currentMinute;
+        // External API metrics (Issue #36)
+        this.aggregateExternalApiWindow(this.stats.externalApi.currentMinute, this.stats.externalApi.currentHour);
+        this.stats.externalApi.currentMinute = initialized.externalApi.currentMinute;
       }
 
       // Roll over hour stats
       if (nowHour !== lastHour) {
+        const initialized = this.initializeStats();
+        // Cache metrics
         this.aggregateWindow(this.stats.currentHour, this.stats.currentDay);
-        this.stats.currentHour = this.initializeStats().currentHour;
+        this.stats.currentHour = initialized.currentHour;
+        // WebSocket metrics (Issue #36)
+        this.aggregateWebSocketWindow(this.stats.websocket.currentHour, this.stats.websocket.currentDay);
+        this.stats.websocket.currentHour = initialized.websocket.currentHour;
+        // D1 metrics (Issue #36)
+        this.aggregateD1Window(this.stats.d1.currentHour, this.stats.d1.currentDay);
+        this.stats.d1.currentHour = initialized.d1.currentHour;
+        // API contract metrics (Issue #36)
+        this.aggregateApiContractWindow(this.stats.apiContract.currentHour, this.stats.apiContract.currentDay);
+        this.stats.apiContract.currentHour = initialized.apiContract.currentHour;
+        // External API metrics (Issue #36)
+        this.aggregateExternalApiWindow(this.stats.externalApi.currentHour, this.stats.externalApi.currentDay);
+        this.stats.externalApi.currentHour = initialized.externalApi.currentHour;
       }
 
       // Roll over day stats
       if (nowDay !== lastDay) {
+        const initialized = this.initializeStats();
         // Reset day stats (could push to KV for historical in Phase 2)
-        this.stats.currentDay = this.initializeStats().currentDay;
+        this.stats.currentDay = initialized.currentDay;
+        this.stats.websocket.currentDay = initialized.websocket.currentDay;
+        this.stats.d1.currentDay = initialized.d1.currentDay;
+        this.stats.apiContract.currentDay = initialized.apiContract.currentDay;
+        this.stats.externalApi.currentDay = initialized.externalApi.currentDay;
       }
 
       // FIX: Optimize churn detection - sample max 1000 keys to prevent O(n) performance issues
@@ -197,6 +324,79 @@ export class CacheMetricsDO {
     target.writes += source.writes;
     target.churns += source.churns;
     target.ttl_effective_hits += source.ttl_effective_hits;
+  }
+
+  /**
+   * Aggregate WebSocket metrics from source to destination window (Issue #36)
+   */
+  aggregateWebSocketWindow(source, destination) {
+    destination.connectionsEstablished += source.connectionsEstablished;
+    destination.disconnectReasons.clientClose += source.disconnectReasons.clientClose;
+    destination.disconnectReasons.timeout += source.disconnectReasons.timeout;
+    destination.disconnectReasons.error += source.disconnectReasons.error;
+    destination.disconnectReasons.serverClose += source.disconnectReasons.serverClose;
+    destination.messageSendFailures += source.messageSendFailures;
+    destination.totalConnectionDuration += source.totalConnectionDuration;
+  }
+
+  /**
+   * Aggregate D1 metrics from source to destination window (Issue #36)
+   */
+  aggregateD1Window(source, destination) {
+    destination.queryCount += source.queryCount;
+    destination.readQueries += source.readQueries;
+    destination.writeQueries += source.writeQueries;
+    destination.totalLatencyMs += source.totalLatencyMs;
+    destination.errorCount += source.errorCount;
+    destination.latencyBuckets.fast += source.latencyBuckets.fast;
+    destination.latencyBuckets.normal += source.latencyBuckets.normal;
+    destination.latencyBuckets.slow += source.latencyBuckets.slow;
+    destination.latencyBuckets.verySlow += source.latencyBuckets.verySlow;
+  }
+
+  /**
+   * Aggregate API contract metrics from source to destination window (Issue #36)
+   */
+  aggregateApiContractWindow(source, destination) {
+    destination.totalValidations += source.totalValidations;
+    destination.validationFailures += source.validationFailures;
+
+    // Merge failuresByEndpoint
+    for (const endpoint in source.failuresByEndpoint) {
+      if (!destination.failuresByEndpoint[endpoint]) {
+        destination.failuresByEndpoint[endpoint] = 0;
+      }
+      destination.failuresByEndpoint[endpoint] += source.failuresByEndpoint[endpoint];
+    }
+
+    // Merge failuresByField
+    for (const field in source.failuresByField) {
+      if (!destination.failuresByField[field]) {
+        destination.failuresByField[field] = 0;
+      }
+      destination.failuresByField[field] += source.failuresByField[field];
+    }
+  }
+
+  /**
+   * Aggregate external API metrics from source to destination window (Issue #36)
+   */
+  aggregateExternalApiWindow(source, destination) {
+    // Google Books
+    destination.googleBooks.requestCount += source.googleBooks.requestCount;
+    destination.googleBooks.errorCount += source.googleBooks.errorCount;
+    // Quota remaining is current value, not cumulative
+    destination.googleBooks.quotaRemaining = source.googleBooks.quotaRemaining;
+
+    // ISBNdb
+    destination.isbndb.requestCount += source.isbndb.requestCount;
+    destination.isbndb.errorCount += source.isbndb.errorCount;
+    destination.isbndb.quotaRemaining = source.isbndb.quotaRemaining;
+
+    // Gemini
+    destination.gemini.requestCount += source.gemini.requestCount;
+    destination.gemini.errorCount += source.gemini.errorCount;
+    destination.gemini.tokensUsed += source.gemini.tokensUsed;
   }
 
   /**
@@ -303,6 +503,151 @@ export class CacheMetricsDO {
     } catch (error) {
       console.error("[CacheMetricsDO] Failed to process cache event:", error);
       throw error; // Let caller handle the error
+    }
+  }
+
+  /**
+   * RPC Method: Record WebSocket metrics (Issue #36)
+   * @param {Object} data - {connectionsEstablished, disconnectReason, messageSendFailure, connectionDuration}
+   * @returns {Promise<{success: boolean}>}
+   */
+  async recordWebSocketMetrics(data) {
+    try {
+      const now = Date.now();
+      const windows = [
+        this.stats.websocket.currentMinute,
+        this.stats.websocket.currentHour,
+        this.stats.websocket.currentDay,
+        this.stats.websocket.total,
+      ];
+
+      for (const window of windows) {
+        if (data.connectionsEstablished) window.connectionsEstablished++;
+        if (data.disconnectReason) window.disconnectReasons[data.disconnectReason]++;
+        if (data.messageSendFailure) window.messageSendFailures++;
+        if (data.connectionDuration) window.totalConnectionDuration += data.connectionDuration;
+      }
+
+      this.stats.lastUpdated = now;
+      return { success: true };
+    } catch (error) {
+      console.error("[CacheMetricsDO] Failed to record WebSocket metrics:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * RPC Method: Record D1 query metrics (Issue #36)
+   * @param {Object} data - {queryType ('read'|'write'), latencyMs, error}
+   * @returns {Promise<{success: boolean}>}
+   */
+  async recordD1Metrics(data) {
+    try {
+      const now = Date.now();
+      const windows = [
+        this.stats.d1.currentMinute,
+        this.stats.d1.currentHour,
+        this.stats.d1.currentDay,
+        this.stats.d1.total,
+      ];
+
+      for (const window of windows) {
+        window.queryCount++;
+        if (data.queryType === 'read') window.readQueries++;
+        if (data.queryType === 'write') window.writeQueries++;
+        if (data.latencyMs) {
+          window.totalLatencyMs += data.latencyMs;
+          // Categorize latency
+          if (data.latencyMs < 10) window.latencyBuckets.fast++;
+          else if (data.latencyMs < 50) window.latencyBuckets.normal++;
+          else if (data.latencyMs < 200) window.latencyBuckets.slow++;
+          else window.latencyBuckets.verySlow++;
+        }
+        if (data.error) window.errorCount++;
+      }
+
+      this.stats.lastUpdated = now;
+      return { success: true };
+    } catch (error) {
+      console.error("[CacheMetricsDO] Failed to record D1 metrics:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * RPC Method: Record API contract validation metrics (Issue #36)
+   * @param {Object} data - {endpoint, success, failedField}
+   * @returns {Promise<{success: boolean}>}
+   */
+  async recordApiContractMetrics(data) {
+    try {
+      const now = Date.now();
+      const windows = [
+        this.stats.apiContract.currentMinute,
+        this.stats.apiContract.currentHour,
+        this.stats.apiContract.currentDay,
+        this.stats.apiContract.total,
+      ];
+
+      for (const window of windows) {
+        window.totalValidations++;
+        if (!data.success) {
+          window.validationFailures++;
+          if (data.endpoint) {
+            if (!window.failuresByEndpoint[data.endpoint]) {
+              window.failuresByEndpoint[data.endpoint] = 0;
+            }
+            window.failuresByEndpoint[data.endpoint]++;
+          }
+          if (data.failedField) {
+            if (!window.failuresByField[data.failedField]) {
+              window.failuresByField[data.failedField] = 0;
+            }
+            window.failuresByField[data.failedField]++;
+          }
+        }
+      }
+
+      this.stats.lastUpdated = now;
+      return { success: true };
+    } catch (error) {
+      console.error("[CacheMetricsDO] Failed to record API contract metrics:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * RPC Method: Record external API metrics (Issue #36)
+   * @param {Object} data - {provider ('googleBooks'|'isbndb'|'gemini'), error, tokensUsed, quotaRemaining}
+   * @returns {Promise<{success: boolean}>}
+   */
+  async recordExternalApiMetrics(data) {
+    try {
+      const now = Date.now();
+      const windows = [
+        this.stats.externalApi.currentMinute,
+        this.stats.externalApi.currentHour,
+        this.stats.externalApi.currentDay,
+        this.stats.externalApi.total,
+      ];
+
+      for (const window of windows) {
+        const providerStats = window[data.provider];
+        if (providerStats) {
+          providerStats.requestCount++;
+          if (data.error) providerStats.errorCount++;
+          if (data.tokensUsed) providerStats.tokensUsed += data.tokensUsed;
+          if (typeof data.quotaRemaining === 'number') {
+            providerStats.quotaRemaining = data.quotaRemaining;
+          }
+        }
+      }
+
+      this.stats.lastUpdated = now;
+      return { success: true };
+    } catch (error) {
+      console.error("[CacheMetricsDO] Failed to record external API metrics:", error);
+      throw error;
     }
   }
 
