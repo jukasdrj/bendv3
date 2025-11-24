@@ -14,13 +14,52 @@ import { aggregateMetrics } from "../services/metrics-aggregator.js";
  */
 export async function handleMetricsRequest(request, env, ctx) {
   try {
+    // SECURITY: Validate authentication token
+    const auth = request.headers.get("Authorization");
+    if (!auth || !auth.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: "UNAUTHORIZED",
+            message: "Missing or invalid Authorization header. Use: Authorization: Bearer <metrics_token>",
+            statusCode: 401,
+          },
+        }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const token = auth.substring(7); // Remove "Bearer " prefix
+    const expectedToken = env.METRICS_API_KEY || "metrics_default_key";
+
+    if (token !== expectedToken) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: "INVALID_TOKEN",
+            message: "Invalid metrics API key",
+            statusCode: 403,
+          },
+        }),
+        {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const url = new URL(request.url);
     const period = url.searchParams.get("period") || "1h";
     const format = url.searchParams.get("format") || "json";
 
-    // Check cache first (5min TTL)
-    const cacheKey = `metrics:${period}`;
-    const cached = await env.CACHE.get(cacheKey);
+    // Check cache first (5min TTL) - FIX: Use correct KV binding
+    const cacheKey = `metrics:v1:${period}`;
+    const cached = await env.KV_CACHE.get(cacheKey);
     if (cached) {
       return new Response(cached, {
         headers: { "Content-Type": "application/json" },
@@ -42,9 +81,9 @@ export async function handleMetricsRequest(request, env, ctx) {
         ? formatPrometheus(metrics)
         : JSON.stringify(metrics, null, 2);
 
-    // Cache for 5 minutes
+    // Cache for 5 minutes - FIX: Use correct KV binding
     ctx.waitUntil(
-      env.CACHE.put(cacheKey, body, {
+      env.KV_CACHE.put(cacheKey, body, {
         expirationTtl: 300,
       }),
     );

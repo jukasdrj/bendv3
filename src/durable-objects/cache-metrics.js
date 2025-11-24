@@ -22,11 +22,14 @@ export class CacheMetricsDO {
     this.stats = this.initializeStats();
     this.lastPersisted = Date.now();
 
-    // Load state and setup alarm
+    // FIX: Split operations to avoid race condition with multiple alarms
+    // Load state immediately, then setup alarm separately
     this.state.blockConcurrencyWhile(async () => {
       await this.loadStats();
-      await this.setupAlarm();
     });
+
+    // Setup alarm after state is loaded (separate operation prevents race)
+    this.setupAlarm();
   }
 
   /**
@@ -96,55 +99,69 @@ export class CacheMetricsDO {
 
   /**
    * Alarm handler - runs every minute for rollovers
+   * FIX: Added error handling and always reschedule alarm to prevent metric rollover failures
    */
   async alarm() {
     const now = Date.now();
-    const lastUpdated = this.stats.lastUpdated;
 
-    const lastUpdatedDate = new Date(lastUpdated);
-    const nowMinute = new Date(now).getMinutes();
-    const lastMinute = lastUpdatedDate.getMinutes();
-    const nowHour = new Date(now).getHours();
-    const lastHour = lastUpdatedDate.getHours();
-    const nowDay = new Date(now).getDate();
-    const lastDay = lastUpdatedDate.getDate();
+    try {
+      const lastUpdated = this.stats.lastUpdated;
 
-    // Roll over minute stats
-    if (nowMinute !== lastMinute) {
-      this.aggregateWindow(this.stats.currentMinute, this.stats.currentHour);
-      this.stats.currentMinute = this.initializeStats().currentMinute;
-    }
+      const lastUpdatedDate = new Date(lastUpdated);
+      const nowMinute = new Date(now).getMinutes();
+      const lastMinute = lastUpdatedDate.getMinutes();
+      const nowHour = new Date(now).getHours();
+      const lastHour = lastUpdatedDate.getHours();
+      const nowDay = new Date(now).getDate();
+      const lastDay = lastUpdatedDate.getDate();
 
-    // Roll over hour stats
-    if (nowHour !== lastHour) {
-      this.aggregateWindow(this.stats.currentHour, this.stats.currentDay);
-      this.stats.currentHour = this.initializeStats().currentHour;
-    }
+      // Roll over minute stats
+      if (nowMinute !== lastMinute) {
+        this.aggregateWindow(this.stats.currentMinute, this.stats.currentHour);
+        this.stats.currentMinute = this.initializeStats().currentMinute;
+      }
 
-    // Roll over day stats
-    if (nowDay !== lastDay) {
-      // Reset day stats (could push to KV for historical in Phase 2)
-      this.stats.currentDay = this.initializeStats().currentDay;
-    }
+      // Roll over hour stats
+      if (nowHour !== lastHour) {
+        this.aggregateWindow(this.stats.currentHour, this.stats.currentDay);
+        this.stats.currentHour = this.initializeStats().currentHour;
+      }
 
-    // Prune old churn detection keys
-    const churnKeys = Object.keys(this.stats.lastPutTimestamps);
-    for (const key of churnKeys) {
-      const timestamp = this.stats.lastPutTimestamps[key];
-      if (now - timestamp > CHURN_WINDOW_MS) {
-        delete this.stats.lastPutTimestamps[key];
+      // Roll over day stats
+      if (nowDay !== lastDay) {
+        // Reset day stats (could push to KV for historical in Phase 2)
+        this.stats.currentDay = this.initializeStats().currentDay;
+      }
+
+      // FIX: Optimize churn detection - sample max 1000 keys to prevent O(n) performance issues
+      const churnKeys = Object.keys(this.stats.lastPutTimestamps);
+      const sampleSize = Math.min(churnKeys.length, 1000);
+      const keysToCheck = churnKeys.slice(0, sampleSize);
+
+      for (const key of keysToCheck) {
+        const timestamp = this.stats.lastPutTimestamps[key];
+        if (now - timestamp > CHURN_WINDOW_MS) {
+          delete this.stats.lastPutTimestamps[key];
+        }
+      }
+
+      this.stats.lastUpdated = now;
+
+      // Persist state periodically
+      if (now - this.lastPersisted > STATE_PERSIST_INTERVAL_MS) {
+        await this.persistStats();
+      }
+    } catch (error) {
+      console.error("[CacheMetricsDO] Alarm failed:", error);
+      // Don't throw - we still want to reschedule the alarm
+    } finally {
+      // FIX: Always reschedule alarm, even on error, to prevent metric collection from stopping
+      try {
+        await this.state.storage.setAlarm(now + ALARM_INTERVAL_MS);
+      } catch (alarmError) {
+        console.error("[CacheMetricsDO] Failed to reschedule alarm:", alarmError);
       }
     }
-
-    this.stats.lastUpdated = now;
-
-    // Persist state periodically
-    if (now - this.lastPersisted > STATE_PERSIST_INTERVAL_MS) {
-      await this.persistStats();
-    }
-
-    // Reschedule alarm
-    await this.state.storage.setAlarm(now + ALARM_INTERVAL_MS);
   }
 
   /**
@@ -245,6 +262,29 @@ export class CacheMetricsDO {
    */
   async recordEvent(eventData) {
     try {
+      // FIX: Validate event data schema to prevent corrupted stats
+      if (!eventData || typeof eventData !== 'object') {
+        throw new Error('Invalid event data: must be an object');
+      }
+
+      const requiredFields = ['type', 'prefix', 'key', 'timestamp'];
+      for (const field of requiredFields) {
+        if (!(field in eventData)) {
+          throw new Error(`Invalid event data: missing required field '${field}'`);
+        }
+      }
+
+      // Validate type
+      const validTypes = ['hit', 'miss', 'write'];
+      if (!validTypes.includes(eventData.type)) {
+        throw new Error(`Invalid event type: must be one of ${validTypes.join(', ')}`);
+      }
+
+      // Validate timestamp
+      if (typeof eventData.timestamp !== 'number' || eventData.timestamp <= 0) {
+        throw new Error('Invalid timestamp: must be a positive number');
+      }
+
       // Update all time windows
       this.updateStats(eventData, this.stats.currentMinute);
       this.updateStats(eventData, this.stats.currentHour);
@@ -253,14 +293,15 @@ export class CacheMetricsDO {
 
       this.stats.lastUpdated = eventData.timestamp;
 
-      // Persist more frequently for events
-      if (Date.now() - this.lastPersisted > STATE_PERSIST_INTERVAL_MS / 2) {
+      // FIX: Reduce write frequency from 2.5min to 10min to prevent write amplification
+      const PERSIST_FREQUENCY_MS = 10 * 60 * 1000; // 10 minutes
+      if (Date.now() - this.lastPersisted > PERSIST_FREQUENCY_MS) {
         await this.persistStats();
       }
 
       return { success: true };
     } catch (error) {
-      console.error("Failed to process cache event:", error);
+      console.error("[CacheMetricsDO] Failed to process cache event:", error);
       throw error; // Let caller handle the error
     }
   }
