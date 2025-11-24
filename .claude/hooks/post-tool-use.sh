@@ -65,10 +65,10 @@ elif [[ "$TOOL_NAME" == "Bash" ]] && echo "$TOOL_PATH" | grep -q "wrangler rollb
   AGENT_CONTEXT="Rollback executed. Verifying system stability..."
   IS_CRITICAL=true
 
-# wrangler.toml changes → both agents (CRITICAL)
-elif [[ "$TOOL_NAME" =~ ^(Write|Edit)$ ]] && echo "$TOOL_PATH" | grep -q "wrangler.toml"; then
+# wrangler.jsonc changes → both agents (CRITICAL)
+elif [[ "$TOOL_NAME" =~ ^(Write|Edit)$ ]] && echo "$TOOL_PATH" | grep -qE "wrangler\.(jsonc|toml)"; then
   INVOKE_AGENT="cf-ops-monitor,cf-code-reviewer"
-  AGENT_CONTEXT="wrangler.toml modified. Validating configuration and deployment impact..."
+  AGENT_CONTEXT="wrangler configuration modified. Validating configuration and deployment impact..."
   IS_CRITICAL=true
 
 # Code changes to handlers/services → cf-code-reviewer (if substantial)
