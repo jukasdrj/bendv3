@@ -455,17 +455,19 @@ During the analysis of the API flows, the following critical issues were identif
   ```
 
 ### 2. `handleBatchScan` Logic Error
-**Severity: Critical (Feature Broken)**
+**Severity: ~~Critical~~ RESOLVED**
 - **Endpoint:** `POST /api/batch-scan`
-- **Location:** `src/handlers/batch-scan-handler.ts:300-307`
-- **Status:** ⚠️ **CONFIRMED BUG** (Nov 24, 2025) - Requires fix
-- **Issue:**
-    - The handler calls `await handleSearchAdvanced(...)` which returns a `Response` object.
-    - The code then checks `if (apiResponse.success)` treating it as a parsed JSON object.
+- **Location:** `src/handlers/batch-scan-handler.ts:300-307, 486-509`
+- **Status:** ✅ **FIXED** (Nov 24, 2025, commit 3b5027c)
+- **Original Issue:**
+    - The handler called `await handleSearchAdvanced(...)` which returns a `Response` object.
+    - The code checked `if (apiResponse.success)` treating it as a parsed JSON object.
     - The `Response` object does not have a `success` property (it has `ok` and `status`).
-    - The code falls through to the `else` block and attempts to access `apiResponse.error.message`.
-- **Consequence:** Batch scanning crashes during enrichment with `TypeError: Cannot read properties of undefined (reading 'message')`.
-- **Fix Required:** Parse the Response object first: `const apiResponse = await (await handleSearchAdvanced(...)).json()`
+- **Fix Applied:**
+    1. Parse Response before accessing properties: `const apiResponse = await response.json()`
+    2. Added missing `ctx` parameter for proper cache operations
+    3. Added try-catch error handling around JSON parsing to prevent unhandled crashes
+- **Grok-4 Verified:** Fix correctly handles Response → JSON parsing with proper error resilience
 
 ### 3. Duplicate ISBN Validation Logic
 **Severity: Minor (Code Smell)**
