@@ -25,6 +25,7 @@ import { handleScheduledArchival } from "./handlers/scheduled-archival.js";
 import { handleScheduledAlerts } from "./handlers/scheduled-alerts.js";
 import { handleScheduledHarvest } from "./handlers/scheduled-harvest.js";
 import { handleRecommendationsCron } from "./cron/recommendations-cron.ts";
+import { handleScheduledCacheWarming } from "./handlers/scheduled-cache-warming.js";
 
 // Export Durable Object classes for Cloudflare Workers runtime
 export {
@@ -50,7 +51,7 @@ export default {
   },
 
   /**
-   * Scheduled handler - executes cron jobs defined in wrangler.toml
+   * Scheduled handler - executes cron jobs defined in wrangler.jsonc
    */
   async scheduled(event, env, ctx) {
     const cronName = event.cron;
@@ -76,6 +77,11 @@ export default {
         case "0 0 * * 0": // Sunday at midnight UTC
           console.log("[Cron] Running weekly recommendations generation job");
           await handleRecommendationsCron(env);
+          break;
+
+        case "0 * * * *": // Every hour at :00
+          console.log("[Cron] Running hourly cache warming job");
+          await handleScheduledCacheWarming(env, ctx);
           break;
 
         default:

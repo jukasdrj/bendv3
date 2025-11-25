@@ -37,6 +37,9 @@ export class UnifiedCacheService {
     });
 
     if (edgeResult) {
+      // Track access for popularity analysis (non-blocking)
+      this.ctx.waitUntil(this.trackAccess(cacheKey))
+
       // Fresh hit - return immediately
       if (!edgeResult.stale) {
         this.logMetrics("edge_hit_fresh", cacheKey, Date.now() - startTime);
@@ -58,6 +61,9 @@ export class UnifiedCacheService {
     // Tier 2: KV Cache (fast, 15% hit rate)
     const kvResult = await this.kvCache.get(cacheKey, endpoint);
     if (kvResult) {
+      // Track access for popularity analysis (non-blocking)
+      this.ctx.waitUntil(this.trackAccess(cacheKey))
+
       // Populate edge cache for next request (async, non-blocking)
       this.ctx.waitUntil(
         this.edgeCache.set(cacheKey, kvResult.data, 6 * 60 * 60), // 6h edge TTL
@@ -95,37 +101,79 @@ export class UnifiedCacheService {
    * @param {string} endpoint - Endpoint type
    * @param {Object} options - Original query options
    *
-   * KNOWN LIMITATION (Sprint 1-2):
-   * This is a stub implementation deferred to Sprint 3-4.
-   * SWR currently serves stale data instantly (primary benefit), but does NOT
-   * automatically refresh in background. Stale entries expire after 24h and
-   * are re-fetched on next access.
+   * Strategy:
+   * - Parses cache key format (book:isbn:1234567890 or book:title:query)
+   * - Fetches fresh data from appropriate service
+   * - Updates KV and Edge caches with fresh data
+   * - Runs non-blocking via ctx.waitUntil()
    *
-   * Impact: Low - book metadata staleness is minimal (ISBNs never change,
-   * new editions are rare). Current behavior provides 99% of SWR benefits
-   * (instant stale serving) without complexity of background refresh.
-   *
-   * Future: Implement actual refresh by calling handleAdvancedSearch() or
-   * appropriate endpoint based on cache key pattern.
+   * Non-critical: Failures are logged but don't affect request response
    */
   async refreshStaleCache(cacheKey, endpoint, options) {
     try {
-      console.log(`🔄 Background refresh started for: ${cacheKey}`);
+      console.log(`🔄 Background refresh started for: ${cacheKey}`)
 
-      // TODO (Sprint 3-4): Implement actual refresh logic
-      // Example:
-      // if (endpoint === 'title') {
-      //   const result = await handleAdvancedSearch(options, {}, this.env);
-      //   await this.kvCache.set(cacheKey, result, endpoint);
-      //   await this.edgeCache.set(cacheKey, result, 6 * 60 * 60);
-      // }
+      // Parse cache key to determine refresh strategy
+      // Format: book:isbn:1234567890 or book:title:query or author:name:xyz
+      const [type, subtype, ...valueParts] = cacheKey.split(':')
+      const value = valueParts.join(':')
 
-      console.log(
-        `⚠️ Background refresh stub - not yet implemented (deferred to Sprint 3-4)`,
-      );
+      let freshData = null
+
+      if (type === 'book' && subtype === 'isbn') {
+        // Use findBookByISBN for ISBN lookups
+        const { findBookByISBN } = await import('./book-service.ts')
+        const result = await findBookByISBN(value, this.env)
+        freshData = result
+      } else if (type === 'book' && subtype === 'title') {
+        // Use findBooksByTitle for title searches
+        const { findBooksByTitle } = await import('./book-service.ts')
+        const result = await findBooksByTitle(value, undefined, this.env, options)
+        freshData = result
+      } else if (type === 'author') {
+        // Use findBooksByAuthor for author searches
+        const { findBooksByAuthor } = await import('./book-service.ts')
+        const result = await findBooksByAuthor(value, this.env)
+        freshData = result
+      }
+
+      if (freshData && freshData.works && freshData.works.length > 0) {
+        // Update KV cache
+        await this.kvCache.set(cacheKey, freshData, endpoint)
+        // Update Edge cache
+        await this.edgeCache.set(cacheKey, freshData, 6 * 60 * 60)
+        console.log(`✅ Background refresh completed for: ${cacheKey}`)
+      } else {
+        console.log(`⚠️ Background refresh found no data for: ${cacheKey}`)
+      }
     } catch (error) {
-      console.error(`❌ Background refresh failed for ${cacheKey}:`, error);
+      console.error(`❌ Background refresh failed for ${cacheKey}:`, error.message)
       // Don't throw - background refresh failures are non-critical
+    }
+  }
+
+  /**
+   * Track cache access for popularity analysis
+   * Used to identify most-accessed books for proactive cache warming
+   *
+   * @param {string} cacheKey - Cache key being accessed
+   * @private
+   */
+  async trackAccess(cacheKey) {
+    try {
+      const accessKey = `access:${cacheKey}`
+      const current = await this.env.CACHE.get(accessKey, 'json') || { count: 0, lastAccess: 0 }
+      await this.env.CACHE.put(
+        accessKey,
+        JSON.stringify({
+          count: current.count + 1,
+          lastAccess: Date.now()
+        }),
+        { expirationTtl: 86400 } // 24h TTL
+      )
+    } catch (error) {
+      // Non-critical, don't fail request
+      console.warn(`Failed to track cache access for ${cacheKey}:`, error.message)
     }
   }
 
