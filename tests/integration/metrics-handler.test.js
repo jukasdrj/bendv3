@@ -6,6 +6,20 @@ describe('Metrics Handler Integration Tests', () => {
   let mockCtx
 
   beforeEach(() => {
+    // Mock Durable Object stub with getStats method
+    const mockDOStub = {
+      getStats: vi.fn(async () => ({
+        currentMinute: { hits: 100, misses: 10 },
+        currentHour: { hits: 1000, misses: 100 },
+        currentDay: { hits: 10000, misses: 1000 },
+        total: { hits: 50000, misses: 5000, reads: 55000, writes: 1000 },
+        websocket: { connectionsEstablished: 50, totalConnectionDuration: 500000 },
+        d1: { queryCount: 100, totalLatencyMs: 2000 },
+        apiContract: { totalValidations: 1000, validationFailures: 10 },
+        externalApi: { googleBooks: { requestCount: 100 }, isbndb: { requestCount: 50 }, gemini: { requestCount: 20 } }
+      }))
+    }
+
     mockEnv = {
       METRICS_API_KEY: 'test_metrics_key_123',
       KV_CACHE: {
@@ -14,6 +28,10 @@ describe('Metrics Handler Integration Tests', () => {
       },
       CACHE_ANALYTICS: {
         writeDataPoint: vi.fn(async () => {})
+      },
+      CACHE_METRICS_DO: {
+        idFromName: vi.fn(() => 'mock-id'),
+        get: vi.fn(() => mockDOStub)
       }
     }
 
@@ -30,7 +48,8 @@ describe('Metrics Handler Integration Tests', () => {
       const data = await response.json()
 
       expect(response.status).toBe(401)
-      expect(data.success).toBe(false)
+      // ResponseEnvelope format: no success field, error object present for errors
+      expect(data.error).toBeDefined()
       expect(data.error.code).toBe('UNAUTHORIZED')
       expect(data.error.message).toContain('Authorization')
     })
@@ -46,7 +65,7 @@ describe('Metrics Handler Integration Tests', () => {
       const data = await response.json()
 
       expect(response.status).toBe(401)
-      expect(data.success).toBe(false)
+      expect(data.error).toBeDefined()
       expect(data.error.code).toBe('UNAUTHORIZED')
     })
 
@@ -61,8 +80,8 @@ describe('Metrics Handler Integration Tests', () => {
       const data = await response.json()
 
       expect(response.status).toBe(403)
-      expect(data.success).toBe(false)
-      expect(data.error.code).toBe('INVALID_TOKEN')
+      expect(data.error).toBeDefined()
+      expect(data.error.code).toBe('FORBIDDEN')
     })
 
     it('should accept valid token', async () => {

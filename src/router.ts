@@ -63,8 +63,13 @@ app.use(
         "http://localhost:3000", // Local dev (web)
         "http://localhost:8787", // Local dev (wrangler)
       ];
-      // Allow requests without Origin header (native iOS/Android apps)
-      return origin ? allowedOrigins.includes(origin) : true;
+      // Return the origin string if allowed, null if not
+      // Hono CORS expects: origin string (allow), null/false (block)
+      // Bug fix #72: Was returning boolean which became literal "true" header
+      if (!origin) {
+        return "*"; // No Origin header = native app, allow all
+      }
+      return allowedOrigins.includes(origin) ? origin : null;
     },
     allowMethods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
     allowHeaders: [
@@ -116,14 +121,12 @@ app.get("/v1/search/isbn", async (c) => {
   const isbnRegex = /^(?=(?:\D*\d){10}(?:(?:\D*\d){3})?$)[\d-]+$/;
 
   if (!isbn || !isbnRegex.test(isbn)) {
-    return c.json(
-      {
-        error: {
-          code: "INVALID_ISBN",
-          message: "A valid ISBN-10 or ISBN-13 is required",
-        },
-      },
+    return createErrorResponse(
+      "A valid ISBN-10 or ISBN-13 is required",
       400,
+      ErrorCodes.INVALID_ISBN,
+      { parameter: "isbn", provided: isbn || null },
+      c.req.raw
     );
   }
 
@@ -142,14 +145,12 @@ app.get("/v1/search/title", async (c) => {
   const query = rawQuery?.substring(0, 200);
 
   if (!query || query.trim().length === 0) {
-    return c.json(
-      {
-        error: {
-          code: "MISSING_PARAM",
-          message: 'Query parameter "q" is required (max 200 characters)',
-        },
-      },
+    return createErrorResponse(
+      'Query parameter "q" is required (max 200 characters)',
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "q" },
+      c.req.raw
     );
   }
 
@@ -163,15 +164,12 @@ app.get("/v1/search/advanced", async (c) => {
   const author = c.req.query("author")?.substring(0, 200) || "";
 
   if (!title && !author) {
-    return c.json(
-      {
-        error: {
-          code: "MISSING_PARAM",
-          message:
-            "At least one search parameter required (title or author, max 200 characters each)",
-        },
-      },
+    return createErrorResponse(
+      "At least one search parameter required (title or author, max 200 characters each)",
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameters: ["title", "author"] },
+      c.req.raw
     );
   }
 
@@ -207,14 +205,12 @@ app.get("/search/title", async (c) => {
   const query = c.req.query("q");
 
   if (!query) {
-    return c.json(
-      {
-        error: {
-          code: "MISSING_PARAM",
-          message: 'Missing query parameter "q"',
-        },
-      },
+    return createErrorResponse(
+      'Missing query parameter "q"',
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "q" },
+      c.req.raw
     );
   }
 
@@ -257,14 +253,12 @@ app.get("/search/isbn", async (c) => {
   const isbn = c.req.query("isbn");
 
   if (!isbn) {
-    return c.json(
-      {
-        error: {
-          code: "MISSING_PARAM",
-          message: "Missing ISBN parameter",
-        },
-      },
+    return createErrorResponse(
+      "Missing ISBN parameter",
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "isbn" },
+      c.req.raw
     );
   }
 
@@ -307,14 +301,12 @@ app.get("/search/author", async (c) => {
   const authorName = c.req.query("q");
 
   if (!authorName) {
-    return c.json(
-      {
-        error: {
-          code: "MISSING_PARAM",
-          message: 'Missing query parameter "q"',
-        },
-      },
+    return createErrorResponse(
+      'Missing query parameter "q"',
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "q" },
+      c.req.raw
     );
   }
 
@@ -326,26 +318,22 @@ app.get("/search/author", async (c) => {
 
   // Validate parameters
   if (limit < 1 || limit > 100) {
-    return c.json(
-      {
-        error: {
-          code: "INVALID_PARAM",
-          message: "Limit must be between 1 and 100",
-        },
-      },
+    return createErrorResponse(
+      "Limit must be between 1 and 100",
       400,
+      ErrorCodes.INVALID_REQUEST,
+      { parameter: "limit", provided: limit, valid: "1-100" },
+      c.req.raw
     );
   }
 
   if (offset < 0) {
-    return c.json(
-      {
-        error: {
-          code: "INVALID_PARAM",
-          message: "Offset must be >= 0",
-        },
-      },
+    return createErrorResponse(
+      "Offset must be >= 0",
       400,
+      ErrorCodes.INVALID_REQUEST,
+      { parameter: "offset", provided: offset },
+      c.req.raw
     );
   }
 
@@ -356,14 +344,12 @@ app.get("/search/author", async (c) => {
     "popularity",
   ];
   if (!validSortOptions.includes(sortBy)) {
-    return c.json(
-      {
-        error: {
-          code: "INVALID_PARAM",
-          message: `sortBy must be one of: ${validSortOptions.join(", ")}`,
-        },
-      },
+    return createErrorResponse(
+      `sortBy must be one of: ${validSortOptions.join(", ")}`,
       400,
+      ErrorCodes.INVALID_REQUEST,
+      { parameter: "sortBy", provided: sortBy, valid: validSortOptions },
+      c.req.raw
     );
   }
 
@@ -409,14 +395,12 @@ app.get("/search/advanced", async (c) => {
 
   // Validate that at least one search parameter is provided
   if (!bookTitle && !authorName) {
-    return c.json(
-      {
-        error: {
-          code: "MISSING_PARAM",
-          message: "At least one search parameter required (title or author)",
-        },
-      },
+    return createErrorResponse(
+      "At least one search parameter required (title or author)",
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameters: ["title", "author"] },
+      c.req.raw
     );
   }
 
@@ -455,14 +439,12 @@ app.post("/search/advanced", async (c) => {
 
     // Validate that at least one search parameter is provided
     if (!bookTitle && !authorName) {
-      return c.json(
-        {
-          error: {
-            code: "MISSING_PARAM",
-            message: "At least one search parameter required (title or author)",
-          },
-        },
+      return createErrorResponse(
+        "At least one search parameter required (title or author)",
         400,
+        ErrorCodes.MISSING_PARAMETER,
+        { parameters: ["title", "author"] },
+        c.req.raw
       );
     }
 
@@ -490,14 +472,12 @@ app.post("/search/advanced", async (c) => {
     return response;
   } catch (error) {
     console.error("Advanced search failed:", error);
-    return c.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: `Advanced search failed: ${(error as Error).message}`,
-        },
-      },
+    return createErrorResponse(
+      `Advanced search failed: ${(error as Error).message}`,
       500,
+      ErrorCodes.INTERNAL_ERROR,
+      undefined,
+      c.req.raw
     );
   }
 });
@@ -570,14 +550,12 @@ app.post("/api/token/refresh", rateLimitMiddleware, async (c) => {
     const { jobId, oldToken } = await c.req.json();
 
     if (!jobId || !oldToken) {
-      return c.json(
-        {
-          error: {
-            code: "INVALID_REQUEST",
-            message: "Invalid request: jobId and oldToken required",
-          },
-        },
+      return createErrorResponse(
+        "Invalid request: jobId and oldToken required",
         400,
+        ErrorCodes.INVALID_REQUEST,
+        { required: ["jobId", "oldToken"] },
+        c.req.raw
       );
     }
 
@@ -588,33 +566,34 @@ app.post("/api/token/refresh", rateLimitMiddleware, async (c) => {
     const result = await doStub.refreshAuthToken(oldToken);
 
     if (result.error) {
-      return c.json(
-        {
-          error: {
-            code: "AUTH_ERROR",
-            message: result.error,
-          },
-        },
+      return createErrorResponse(
+        result.error,
         401,
+        ErrorCodes.UNAUTHORIZED,
+        { jobId },
+        c.req.raw
       );
     }
 
-    // Return new token with expiration
-    return c.json({
-      jobId,
-      token: result.token,
-      expiresIn: result.expiresIn,
-    });
+    // Return new token with expiration - use ResponseEnvelope format
+    return createSuccessResponse(
+      {
+        jobId,
+        token: result.token,
+        expiresIn: result.expiresIn,
+      },
+      { source: "durable-object" },
+      200,
+      c.req.raw
+    );
   } catch (error) {
     console.error("Failed to refresh token:", error);
-    return c.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: `Failed to refresh token: ${(error as Error).message}`,
-        },
-      },
+    return createErrorResponse(
+      `Failed to refresh token: ${(error as Error).message}`,
       500,
+      ErrorCodes.INTERNAL_ERROR,
+      undefined,
+      c.req.raw
     );
   }
 });
@@ -716,14 +695,12 @@ app.post("/api/scan-bookshelf/cancel", async (c) => {
     const { jobId } = await c.req.json();
 
     if (!jobId) {
-      return c.json(
-        {
-          error: {
-            code: "MISSING_PARAM",
-            message: "jobId required",
-          },
-        },
+      return createErrorResponse(
+        "jobId required",
         400,
+        ErrorCodes.MISSING_PARAMETER,
+        { parameter: "jobId" },
+        c.req.raw
       );
     }
 
@@ -731,18 +708,21 @@ app.post("/api/scan-bookshelf/cancel", async (c) => {
     const doStub = getProgressDOStub(jobId, c.env);
     const result = await doStub.cancelBatch();
 
-    // Return result from DO directly
-    return c.json(result);
+    // Return result from DO in ResponseEnvelope format
+    return createSuccessResponse(
+      result,
+      { source: "durable-object" },
+      200,
+      c.req.raw
+    );
   } catch (error) {
     console.error("Cancel batch error:", error);
-    return c.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "Failed to cancel batch",
-        },
-      },
+    return createErrorResponse(
+      "Failed to cancel batch",
       500,
+      ErrorCodes.INTERNAL_ERROR,
+      { details: (error as Error).message },
+      c.req.raw
     );
   }
 });
@@ -772,17 +752,20 @@ app.get("/api/cache/stats", async (c) => {
 
     // ✅ RPC MIGRATION: Direct method call (no HTTP overhead)
     const stats = await stub.getStats();
-    return c.json(stats);
+    return createSuccessResponse(
+      stats,
+      { source: "cache-metrics-do" },
+      200,
+      c.req.raw
+    );
   } catch (error) {
     console.error("Error fetching cache stats:", error);
-    return c.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "Internal server error while fetching cache statistics",
-        },
-      },
+    return createErrorResponse(
+      "Internal server error while fetching cache statistics",
       500,
+      ErrorCodes.INTERNAL_ERROR,
+      { details: (error as Error).message },
+      c.req.raw
     );
   }
 });
@@ -795,14 +778,12 @@ app.get("/ws/progress", async (c) => {
   const jobId = c.req.query("jobId")?.substring(0, 100);
 
   if (!jobId || jobId.trim().length === 0) {
-    return c.json(
-      {
-        error: {
-          code: "MISSING_PARAM",
-          message: "Missing jobId parameter",
-        },
-      },
+    return createErrorResponse(
+      "Missing jobId parameter",
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "jobId" },
+      c.req.raw
     );
   }
 
@@ -839,18 +820,12 @@ app.get("/v1/scan/results/:jobId", async (c) => {
   const jobId = c.req.param("jobId")?.substring(0, 100);
 
   if (!jobId || jobId.trim().length === 0) {
-    return c.json(
-      {
-        data: null,
-        metadata: {
-          timestamp: new Date().toISOString(),
-        },
-        error: {
-          code: "MISSING_PARAM",
-          message: "Missing jobId parameter",
-        },
-      },
+    return createErrorResponse(
+      "Missing jobId parameter",
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "jobId" },
+      c.req.raw
     );
   }
 
@@ -859,35 +834,21 @@ app.get("/v1/scan/results/:jobId", async (c) => {
   const results = await c.env.KV_CACHE.get(resultsKey, "json");
 
   if (!results) {
-    return c.json(
-      {
-        data: null,
-        metadata: {
-          timestamp: new Date().toISOString(),
-        },
-        error: {
-          message:
-            "Scan results not found or expired. Results are stored for 24 hours after job completion.",
-          code: "NOT_FOUND",
-          details: {
-            jobId,
-            resultsKey,
-            ttl: "24 hours",
-          },
-        },
-      },
+    return createErrorResponse(
+      "Scan results not found or expired. Results are stored for 24 hours after job completion.",
       404,
+      ErrorCodes.NOT_FOUND,
+      { jobId, resultsKey, ttl: "24 hours" },
+      c.req.raw
     );
   }
 
-  return c.json({
-    data: results,
-    metadata: {
-      timestamp: new Date().toISOString(),
-      cached: true,
-      provider: "kv_cache",
-    },
-  });
+  return createSuccessResponse(
+    results,
+    { cached: true, provider: "kv_cache" },
+    200,
+    c.req.raw
+  );
 });
 
 // GET /v1/csv/status/{jobId} - Get current CSV import job status (for fallback polling)
@@ -896,14 +857,12 @@ app.get("/v1/csv/status/:jobId", async (c) => {
     const jobId = c.req.param("jobId")?.substring(0, 100);
 
     if (!jobId || jobId.trim().length === 0) {
-      return c.json(
-        {
-          error: {
-            code: "MISSING_PARAM",
-            message: "Missing jobId parameter",
-          },
-        },
+      return createErrorResponse(
+        "Missing jobId parameter",
         400,
+        ErrorCodes.MISSING_PARAMETER,
+        { parameter: "jobId" },
+        c.req.raw
       );
     }
 
@@ -914,34 +873,30 @@ app.get("/v1/csv/status/:jobId", async (c) => {
     const state = await doStub.getJobState();
 
     if (!state) {
-      return c.json(
-        {
-          error: {
-            code: "NOT_FOUND",
-            message: "Job not found or not initialized",
-          },
-        },
+      return createErrorResponse(
+        "Job not found or not initialized",
         404,
+        ErrorCodes.NOT_FOUND,
+        { jobId },
+        c.req.raw
       );
     }
 
     // Return job state in ResponseEnvelope format
-    return c.json({
-      data: state,
-      metadata: {
-        timestamp: new Date().toISOString(),
-      },
-    });
+    return createSuccessResponse(
+      state,
+      { source: "durable-object" },
+      200,
+      c.req.raw
+    );
   } catch (error) {
     console.error("[CSV Status] Error fetching job state:", error);
-    return c.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: `Failed to fetch job status: ${(error as Error).message}`,
-        },
-      },
+    return createErrorResponse(
+      `Failed to fetch job status: ${(error as Error).message}`,
       500,
+      ErrorCodes.INTERNAL_ERROR,
+      { jobId: c.req.param("jobId") },
+      c.req.raw
     );
   }
 });
@@ -952,18 +907,12 @@ app.get("/v1/csv/results/:jobId", async (c) => {
   const jobId = c.req.param("jobId")?.substring(0, 100);
 
   if (!jobId || jobId.trim().length === 0) {
-    return c.json(
-      {
-        data: null,
-        metadata: {
-          timestamp: new Date().toISOString(),
-        },
-        error: {
-          code: "MISSING_PARAM",
-          message: "Missing jobId parameter",
-        },
-      },
+    return createErrorResponse(
+      "Missing jobId parameter",
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "jobId" },
+      c.req.raw
     );
   }
 
@@ -972,35 +921,21 @@ app.get("/v1/csv/results/:jobId", async (c) => {
   const results = await c.env.KV_CACHE.get(resultsKey, "json");
 
   if (!results) {
-    return c.json(
-      {
-        data: null,
-        metadata: {
-          timestamp: new Date().toISOString(),
-        },
-        error: {
-          message:
-            "CSV import results not found or expired. Results are stored for 24 hours after job completion.",
-          code: "NOT_FOUND",
-          details: {
-            jobId,
-            resultsKey,
-            ttl: "24 hours",
-          },
-        },
-      },
+    return createErrorResponse(
+      "CSV import results not found or expired. Results are stored for 24 hours after job completion.",
       404,
+      ErrorCodes.NOT_FOUND,
+      { jobId, resultsKey, ttl: "24 hours" },
+      c.req.raw
     );
   }
 
-  return c.json({
-    data: results,
-    metadata: {
-      timestamp: new Date().toISOString(),
-      cached: true,
-      provider: "kv_cache",
-    },
-  });
+  return createSuccessResponse(
+    results,
+    { cached: true, provider: "kv_cache" },
+    200,
+    c.req.raw
+  );
 });
 
 // ============================================================================
@@ -1089,18 +1024,12 @@ app.get("/v1/jobs/:jobId/results", async (c) => {
   const jobId = c.req.param("jobId")?.substring(0, 100);
 
   if (!jobId || jobId.trim().length === 0) {
-    return c.json(
-      {
-        data: null,
-        metadata: {
-          timestamp: new Date().toISOString(),
-        },
-        error: {
-          code: "MISSING_PARAM",
-          message: "Missing jobId parameter",
-        },
-      },
+    return createErrorResponse(
+      "Missing jobId parameter",
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "jobId" },
+      c.req.raw
     );
   }
 
@@ -1120,36 +1049,21 @@ app.get("/v1/jobs/:jobId/results", async (c) => {
   const found = lookups.find((lookup) => lookup.result !== null);
 
   if (!found) {
-    return c.json(
-      {
-        data: null,
-        metadata: {
-          timestamp: new Date().toISOString(),
-        },
-        error: {
-          message:
-            "Job results not found or expired. Results are stored for 1 hour after job completion.",
-          code: "NOT_FOUND",
-          details: {
-            jobId,
-            ttl: "1 hour",
-            checkedKeys: resultKeys,
-          },
-        },
-      },
+    return createErrorResponse(
+      "Job results not found or expired. Results are stored for 1 hour after job completion.",
       404,
+      ErrorCodes.NOT_FOUND,
+      { jobId, ttl: "1 hour", checkedKeys: resultKeys },
+      c.req.raw
     );
   }
 
-  return c.json({
-    data: found.result,
-    metadata: {
-      timestamp: new Date().toISOString(),
-      cached: true,
-      provider: "kv_cache",
-      resourceId: found.key,
-    },
-  });
+  return createSuccessResponse(
+    found.result,
+    { cached: true, provider: "kv_cache", resourceId: found.key },
+    200,
+    c.req.raw
+  );
 });
 
 // POST /api/batch-scan - Batch photo scanning (1-5 photos)
@@ -1168,14 +1082,12 @@ app.post("/api/scan-bookshelf/cancel", async (c) => {
     const { jobId } = await c.req.json();
 
     if (!jobId) {
-      return c.json(
-        {
-          error: {
-            code: "MISSING_PARAMETER",
-            message: "jobId is required",
-          },
-        },
+      return createErrorResponse(
+        "jobId is required",
         400,
+        ErrorCodes.MISSING_PARAMETER,
+        { parameter: "jobId" },
+        c.req.raw
       );
     }
 
@@ -1183,25 +1095,20 @@ app.post("/api/scan-bookshelf/cancel", async (c) => {
     const doStub = getProgressDOStub(jobId, c.env);
     await doStub.cancelBatch();
 
-    return c.json({
-      data: {
-        jobId,
-        canceled: true,
-      },
-      metadata: {
-        timestamp: new Date().toISOString(),
-      },
-    });
+    return createSuccessResponse(
+      { jobId, canceled: true },
+      {},
+      200,
+      c.req.raw
+    );
   } catch (error) {
     console.error("[Scan Cancel] Error:", error);
-    return c.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: error.message,
-        },
-      },
+    return createErrorResponse(
+      (error as Error).message,
       500,
+      ErrorCodes.INTERNAL_ERROR,
+      undefined,
+      c.req.raw
     );
   }
 });
@@ -1217,26 +1124,22 @@ app.get("/v1/editions/search", async (c) => {
   const limit = parseInt(c.req.query("limit") || "20");
 
   if (!workTitle || workTitle.trim().length === 0) {
-    return c.json(
-      {
-        error: {
-          code: "MISSING_PARAMETER",
-          message: "workTitle query parameter is required",
-        },
-      },
+    return createErrorResponse(
+      "workTitle query parameter is required",
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "workTitle" },
+      c.req.raw
     );
   }
 
   if (!author || author.trim().length === 0) {
-    return c.json(
-      {
-        error: {
-          code: "MISSING_PARAMETER",
-          message: "author query parameter is required",
-        },
-      },
+    return createErrorResponse(
+      "author query parameter is required",
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "author" },
+      c.req.raw
     );
   }
 
@@ -1248,14 +1151,12 @@ app.get("/images/proxy", async (c) => {
   const imageUrl = c.req.query("url");
 
   if (!imageUrl) {
-    return c.json(
-      {
-        error: {
-          code: "MISSING_PARAMETER",
-          message: "url query parameter is required",
-        },
-      },
+    return createErrorResponse(
+      "url query parameter is required",
       400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "url" },
+      c.req.raw
     );
   }
 
@@ -1268,14 +1169,12 @@ app.get("/images/proxy", async (c) => {
 app.get("/test/error", (c) => {
   // Only available in DEBUG mode for testing onError handler
   if (c.env.LOG_LEVEL !== "DEBUG") {
-    return c.json(
-      {
-        error: {
-          code: "NOT_FOUND",
-          message: "Endpoint not found: GET /test/error",
-        },
-      },
+    return createErrorResponse(
+      "Endpoint not found: GET /test/error",
       404,
+      ErrorCodes.NOT_FOUND,
+      undefined,
+      c.req.raw
     );
   }
 
@@ -1286,14 +1185,12 @@ app.get("/test/error", (c) => {
 app.post("/test/cache-event", async (c) => {
   // Only available in DEBUG mode
   if (c.env.LOG_LEVEL !== "DEBUG") {
-    return c.json(
-      {
-        error: {
-          code: "NOT_FOUND",
-          message: "Endpoint not found: POST /test/cache-event",
-        },
-      },
+    return createErrorResponse(
+      "Endpoint not found: POST /test/cache-event",
       404,
+      ErrorCodes.NOT_FOUND,
+      undefined,
+      c.req.raw
     );
   }
 
@@ -1333,27 +1230,28 @@ app.post("/test/cache-event", async (c) => {
     // Get current stats
     const stats = await stub.getStats();
 
-    return c.json({
-      success: true,
-      message: "Sent 3 synthetic cache events",
-      events: [
-        { type: "hit", prefix: "edge" },
-        { type: "miss", prefix: "book" },
-        { type: "write", prefix: "author" },
-      ],
-      currentStats: stats,
-    });
+    return createSuccessResponse(
+      {
+        message: "Sent 3 synthetic cache events",
+        events: [
+          { type: "hit", prefix: "edge" },
+          { type: "miss", prefix: "book" },
+          { type: "write", prefix: "author" },
+        ],
+        currentStats: stats,
+      },
+      {},
+      200,
+      c.req.raw
+    );
   } catch (error) {
     console.error("Failed to send test cache events:", error);
-    return c.json(
-      {
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "Failed to send test cache events",
-          details: error.message,
-        },
-      },
+    return createErrorResponse(
+      "Failed to send test cache events",
       500,
+      ErrorCodes.INTERNAL_ERROR,
+      { details: (error as Error).message },
+      c.req.raw
     );
   }
 });
@@ -1459,14 +1357,12 @@ app.get("/api/v2/imports/:jobId/stream", async (c) => {
 // Global 404 Handler
 // ============================================================================
 app.notFound((c) => {
-  return c.json(
-    {
-      error: {
-        code: "NOT_FOUND",
-        message: `Endpoint not found: ${c.req.method} ${c.req.path}`,
-      },
-    },
+  return createErrorResponse(
+    `Endpoint not found: ${c.req.method} ${c.req.path}`,
     404,
+    ErrorCodes.NOT_FOUND,
+    { method: c.req.method, path: c.req.path },
+    c.req.raw
   );
 });
 
@@ -1584,15 +1480,12 @@ app.onError((err, c) => {
     );
   }
 
-  return c.json(
-    {
-      error: {
-        code: "INTERNAL_ERROR",
-        message: "An unexpected error occurred",
-        details: c.env.LOG_LEVEL === "DEBUG" ? err.message : undefined,
-      },
-    },
+  return createErrorResponse(
+    "An unexpected error occurred",
     500,
+    ErrorCodes.INTERNAL_ERROR,
+    c.env.LOG_LEVEL === "DEBUG" ? { details: err.message } : undefined,
+    c.req.raw
   );
 });
 
