@@ -18,6 +18,7 @@ Apply migrations in numerical order (skip 0006):
 7. **0007_add_performance_indexes.sql** - Additional query optimization indexes
 8. **0008_add_recommendations.sql** - Recommendations table and indexes
 9. **0009_add_timestamp_triggers.sql** - Auto-update timestamps on row modifications
+10. **0010_add_json_validation.sql** - JSON validation CHECK constraints for metadata columns
 
 ### Existing Deployments (Need to Fix Old 0004)
 Apply migrations in this order:
@@ -157,6 +158,91 @@ npx wrangler d1 execute bookstrack-db --file=migrations/0009_rollback_triggers.s
 
 **Note:** Rollback drops triggers but leaves columns in place (safe, no data loss)
 
+### 0010: JSON Validation CHECK Constraints
+
+**Purpose:** Ensure `canonical_metadata` and `provider_metadata` columns contain valid JSON (Issue #43)
+
+**Why it matters:**
+- Database-level validation prevents invalid data from being inserted
+- SQLite's `json_valid()` function validates JSON structure
+- Catches corrupted metadata before it reaches the application
+- Reduces need for defensive JSON parsing throughout codebase
+
+**What it does:**
+- Adds CHECK constraint to `canonical_metadata`: `CHECK(json_valid(canonical_metadata))`
+- Adds CHECK constraint to `provider_metadata`: `CHECK(provider_metadata IS NULL OR json_valid(provider_metadata))`
+- Recreates books table with new constraints (SQLite limitation - can't add CHECK to existing table)
+- Preserves all existing data with automatic validation during copy
+- Recreates indexes and triggers from previous migrations
+
+**Migration Process:**
+1. Create new `books_new` table with CHECK constraints
+2. Copy all data from old books table (validation happens automatically)
+3. Drop old table
+4. Rename `books_new` to `books`
+5. Recreate indexes (0001, 0007)
+6. Recreate `trg_books_updated_at` trigger (0009)
+
+**Safety Features:**
+- Wrapped in transaction for atomicity (all-or-nothing)
+- JSON validation applied during INSERT, not retroactively
+- If any row contains invalid JSON, migration fails early
+- Rollback migration provided for quick recovery
+
+**Example Valid vs Invalid Data:**
+```sql
+-- Valid: Proper JSON objects
+INSERT INTO books (..., canonical_metadata, provider_metadata) VALUES
+  (..., '{"title":"...", "authors":[...]}', '{"google_books":{...}}')
+  (..., '{}', NULL);  -- Empty object and NULL are both valid
+
+-- Invalid: Would fail CHECK constraint
+INSERT INTO books (..., canonical_metadata, ...) VALUES
+  (..., 'not json', ...);  -- Error: CHECK constraint failed
+  (..., '{"incomplete": ', ...);  -- Error: Malformed JSON
+  (..., NULL, ...);  -- Error: canonical_metadata required
+```
+
+**Application Integration:**
+Complementary validation in `src/utils/json-validator.ts`:
+- `isValidJSON(value)` - Validate value is JSON
+- `validateBookMetadata(canonical, provider)` - Validate book metadata fields
+- `safeParse<T>(json)` - Safe parsing with error handling
+- `safeStringify(value)` - Safe serialization with error handling
+
+**Verification:**
+```bash
+# Try inserting invalid JSON (should fail)
+npx wrangler d1 execute bookstrack-db --command \
+  "INSERT INTO books (isbn, title, canonical_metadata) VALUES ('test', 'Test', 'invalid json')"
+
+# Check constraints exist
+npx wrangler d1 execute bookstrack-db --command \
+  "PRAGMA table_info(books)"
+
+# List all CHECK constraints
+npx wrangler d1 execute bookstrack-db --command \
+  "SELECT sql FROM sqlite_master WHERE type='table' AND name='books'"
+```
+
+**Rollback:**
+```bash
+npx wrangler d1 execute bookstrack-db --file=migrations/0010_rollback_json_validation.sql
+```
+
+**Note:** Rollback removes CHECK constraints but preserves all data. Subsequent inserts will not be validated at database level.
+
+**Performance Implications:**
+- Minimal impact (validation is very fast in SQLite)
+- `json_valid()` is O(n) where n is JSON string length (typical: <1KB)
+- INSERT/UPDATE slightly slower due to validation
+- Query performance unchanged
+
+**Future Work (Issue #44):**
+- JSON schema validation (more strict than `json_valid()`)
+- Versioned schemas for canonical_metadata format changes
+- Migration helpers for schema upgrades
+
 ## Design Decisions
 
 ### Status: NULL vs 'shelved'
@@ -238,5 +324,5 @@ D1 doesn't support automatic rollbacks. To rollback:
 
 ---
 
-**Last Updated:** November 23, 2025
+**Last Updated:** November 25, 2025
 **Maintained By:** AI Team (Claude Code, cf-code-reviewer, Grok-4)
