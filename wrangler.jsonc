@@ -280,10 +280,11 @@
       "0 2 * * *",
       "*/15 * * * *",
       "0 3 * * *",
-      "0 0 * * 0"
+      "0 0 * * 0",
+      "0 */6 * * *"
     ]
   },
-  "//": "Cron schedule: 0 2 * * * = daily 2am, */15 = every 15min, 0 3 * * * = daily 3am, 0 0 * * 0 = Sunday midnight (weekly recommendations)",
+  "//": "Cron schedule: 0 2 * * * = daily 2am, */15 = every 15min, 0 3 * * * = daily 3am, 0 0 * * 0 = Sunday midnight (weekly recommendations), 0 */6 * * * = every 6 hours (Day 4: supplementary metadata harvest)",
   "//": "========================================================================",
   "//": "Cloudflare Workflows (Issue #71 - Launch Blocker)",
   "//": "Book import pipeline with automatic retries and state persistence",
