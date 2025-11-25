@@ -1,10 +1,44 @@
-# BooksTrack API Contract v2.6.1
+# BooksTrack API Contract v2.7.0
 
 **Status:** Production ✅
-**Effective Date:** November 22, 2025
-**Last Updated:** November 22, 2025 (v2.6.1 - WebSocket Security & Performance Hardening)
+**Effective Date:** November 25, 2025
+**Last Updated:** November 25, 2025 (v2.7.0 - V2 API & Intelligence Layer)
 **Contract Owner:** Backend Team
 **Audience:** iOS, Flutter, Web Frontend Teams
+
+---
+
+## 🚀 What's New in v2.7.0 (V2 API & Intelligence Layer)
+
+### **🧠 NEW: Semantic Search & AI Recommendations (Sprint 3)**
+- **Feature:** Natural language search using vector embeddings
+- **Endpoints:**
+  - `GET /api/v2/search?mode=semantic` - Semantic search with Vectorize
+  - `GET /v1/search/similar?isbn=` - Find similar books
+  - `GET /api/v2/recommendations/weekly` - AI-curated weekly picks
+  - `GET /api/v2/capabilities` - Feature discovery
+- **Infrastructure:**
+  - Cloudflare Vectorize with BGE-M3 embeddings (1024 dimensions)
+  - Workers AI for embedding generation
+  - Gemini API for recommendation curation
+- **Rate Limits:**
+  - Semantic search: 5 req/min (AI compute intensive)
+  - Text search: 100 req/min (standard)
+- **Performance:** Semantic search < 800ms P95
+
+### **📡 NEW: V2 HTTP/SSE API Namespace**
+- **Purpose:** Modern alternative to WebSocket for real-time progress
+- **Endpoints:**
+  - `POST /api/v2/books/enrich` - Sync HTTP enrichment
+  - `POST /api/v2/imports` - CSV import initiation
+  - `GET /api/v2/imports/{jobId}/stream` - SSE progress streaming
+- **Benefits:**
+  - Survives network transitions (WiFi → cellular)
+  - Works through firewalls/proxies
+  - Battery-efficient (radio sleep between events)
+- **Migration:** Optional - WebSocket API remains fully supported
+
+**See:** Section 6.5 for complete V2 API documentation.
 
 ---
 
@@ -1644,6 +1678,374 @@ Same structure as `/v1/scan/results/{jobId}`.
 
 **Field Notes:**
 - **`expiresAt`**: ISO 8601 timestamp indicating when results will be deleted from KV cache. Clients should cache results locally before expiry or handle 404 errors gracefully.
+
+---
+
+## 6.5 V2 API Endpoints (Sprint 3 - Intelligence Layer)
+
+> **Status:** ✅ IMPLEMENTED (November 25, 2025)
+> **Purpose:** Modern HTTP/SSE-based API with semantic search and AI recommendations
+
+### 6.5.1 Overview
+
+The V2 API namespace (`/api/v2/*`) provides:
+- **Unified Search:** Combined text and semantic search
+- **Weekly Recommendations:** AI-generated book picks
+- **SSE Streaming:** Alternative to WebSocket for import progress
+- **Feature Discovery:** Capability detection endpoint
+
+**V2 Endpoints Summary:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v2/search` | Unified text + semantic search |
+| `GET` | `/api/v2/recommendations/weekly` | Global weekly book picks |
+| `GET` | `/api/v2/capabilities` | Feature discovery |
+| `POST` | `/api/v2/books/enrich` | Barcode enrichment (sync HTTP) |
+| `POST` | `/api/v2/imports` | CSV import initiation |
+| `GET` | `/api/v2/imports/{jobId}` | Import status (polling) |
+| `GET` | `/api/v2/imports/{jobId}/stream` | Import progress (SSE) |
+
+---
+
+### 6.5.2 Unified Search API
+
+#### GET /api/v2/search
+
+Unified search supporting both text-based and semantic (AI-powered) search modes.
+
+**Query Parameters:**
+- `q` (required): Search query (min 2 characters)
+- `mode` (optional): `text` (default) or `semantic`
+- `limit` (optional): Max results (default: 20, max: 100)
+- `offset` (optional): Pagination offset
+
+**Request Example (Text Mode):**
+```http
+GET /api/v2/search?q=harry+potter&mode=text&limit=10 HTTP/1.1
+Host: api.oooefam.net
+```
+
+**Request Example (Semantic Mode):**
+```http
+GET /api/v2/search?q=books+about+wizards+and+magic+schools&mode=semantic&limit=10 HTTP/1.1
+Host: api.oooefam.net
+```
+
+**Success Response (200):**
+```json
+{
+  "results": [
+    {
+      "id": "book_abc123",
+      "isbn": "9780747532743",
+      "title": "Harry Potter and the Philosopher's Stone",
+      "authors": ["J.K. Rowling"],
+      "cover_url": "https://...",
+      "relevance_score": 0.95,
+      "match_type": "semantic"
+    }
+  ],
+  "total": 42,
+  "mode": "semantic",
+  "query": "books about wizards and magic schools",
+  "latency_ms": 120
+}
+```
+
+**Error Response (400):**
+```json
+{
+  "error": {
+    "code": "INVALID_QUERY",
+    "message": "Query must be at least 2 characters"
+  }
+}
+```
+
+**Error Response (503 - Vectorize Unavailable):**
+```json
+{
+  "error": {
+    "code": "VECTORIZE_UNAVAILABLE",
+    "message": "Semantic search is temporarily unavailable"
+  }
+}
+```
+
+**Rate Limits:**
+- **Text mode:** 100 requests/minute per IP
+- **Semantic mode:** 5 requests/minute per IP (AI compute intensive)
+
+**Performance Targets:**
+- Text mode: < 100ms P95
+- Semantic mode: < 800ms P95
+
+---
+
+### 6.5.3 Similar Books API
+
+#### GET /v1/search/similar
+
+Find books similar to a given book using vector embeddings.
+
+**Query Parameters:**
+- `isbn` (required): ISBN of the source book
+- `limit` (optional): Max results (default: 10, max: 50)
+
+**Request Example:**
+```http
+GET /v1/search/similar?isbn=9780747532743&limit=5 HTTP/1.1
+Host: api.oooefam.net
+```
+
+**Success Response (200):**
+```json
+{
+  "results": [
+    {
+      "isbn": "9780439064866",
+      "title": "Harry Potter and the Chamber of Secrets",
+      "authors": ["J.K. Rowling"],
+      "similarity_score": 0.94,
+      "cover_url": "https://..."
+    }
+  ],
+  "source_isbn": "9780747532743",
+  "total": 5,
+  "latency_ms": 85
+}
+```
+
+**Error Response (404):**
+```json
+{
+  "error": {
+    "code": "BOOK_NOT_FOUND",
+    "message": "Source book not found in vector index"
+  }
+}
+```
+
+---
+
+### 6.5.4 Weekly Recommendations API
+
+#### GET /api/v2/recommendations/weekly
+
+Returns pre-generated weekly book recommendations (global, non-personalized).
+
+**Request Example:**
+```http
+GET /api/v2/recommendations/weekly HTTP/1.1
+Host: api.oooefam.net
+```
+
+**Success Response (200):**
+```json
+{
+  "week_of": "2025-11-25",
+  "books": [
+    {
+      "isbn": "9780747532743",
+      "title": "Harry Potter and the Philosopher's Stone",
+      "authors": ["J.K. Rowling"],
+      "cover_url": "https://...",
+      "reason": "A beloved fantasy classic perfect for readers seeking magical escapism"
+    }
+  ],
+  "generated_at": "2025-11-24T00:00:00Z",
+  "next_refresh": "2025-12-01T00:00:00Z"
+}
+```
+
+**Error Response (404):**
+```json
+{
+  "error": {
+    "code": "NO_RECOMMENDATIONS",
+    "message": "Weekly recommendations not yet generated"
+  }
+}
+```
+
+**Implementation Notes:**
+- Recommendations are generated every Sunday at midnight UTC via cron job
+- Cached in KV with 1-week TTL
+- Uses Gemini API for AI-powered curation
+- Non-personalized (global picks for all users)
+
+---
+
+### 6.5.5 Capabilities API
+
+#### GET /api/v2/capabilities
+
+Feature discovery endpoint for client capability detection.
+
+**Request Example:**
+```http
+GET /api/v2/capabilities HTTP/1.1
+Host: api.oooefam.net
+```
+
+**Success Response (200):**
+```json
+{
+  "features": {
+    "semantic_search": true,
+    "similar_books": true,
+    "weekly_recommendations": true,
+    "sse_streaming": true,
+    "batch_enrichment": true,
+    "csv_import": true
+  },
+  "limits": {
+    "semantic_search_rpm": 5,
+    "text_search_rpm": 100,
+    "csv_max_rows": 500,
+    "batch_max_photos": 5
+  },
+  "infrastructure": {
+    "vectorize_available": true,
+    "workers_ai_available": true,
+    "d1_available": true
+  },
+  "version": "2.6.2"
+}
+```
+
+---
+
+### 6.5.6 V2 Book Enrichment API
+
+#### POST /api/v2/books/enrich
+
+Synchronous HTTP book enrichment (alternative to WebSocket-based enrichment).
+
+**Request Headers:**
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "barcode": "9780747532743",
+  "prefer_provider": "auto",
+  "idempotency_key": "scan_20251125_abc123"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "isbn": "9780747532743",
+  "title": "Harry Potter and the Philosopher's Stone",
+  "authors": ["J.K. Rowling"],
+  "publisher": "Bloomsbury",
+  "published_date": "1997-06-26",
+  "page_count": 223,
+  "cover_url": "https://...",
+  "description": "Harry Potter has never been...",
+  "categories": ["Fiction", "Fantasy"],
+  "language": "en",
+  "provider": "orchestrated:google+openlibrary",
+  "enriched_at": "2025-11-25T10:30:00Z",
+  "vectorized": true
+}
+```
+
+**Error Response (404):**
+```json
+{
+  "error": {
+    "code": "BOOK_NOT_FOUND",
+    "message": "No book data found for ISBN 9780747532743",
+    "providers_checked": ["google", "openlibrary"]
+  }
+}
+```
+
+**Error Response (429):**
+```json
+{
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Rate limit exceeded",
+    "retry_after": 60
+  }
+}
+```
+
+---
+
+### 6.5.7 V2 CSV Import API
+
+#### POST /api/v2/imports
+
+Initiate CSV import (delegates to existing import infrastructure).
+
+**Request Headers:**
+```
+Content-Type: multipart/form-data
+```
+
+**Request Body:**
+```
+file: <CSV binary data>
+options: {"auto_enrich": true, "skip_duplicates": true}
+```
+
+**Success Response (202 Accepted):**
+```json
+{
+  "job_id": "import_abc123def456",
+  "status": "queued",
+  "created_at": "2025-11-25T10:30:00Z",
+  "sse_url": "/api/v2/imports/import_abc123def456/stream",
+  "status_url": "/api/v2/imports/import_abc123def456",
+  "estimated_rows": 150
+}
+```
+
+#### GET /api/v2/imports/{jobId}
+
+Get import job status (polling fallback).
+
+**Success Response (200):**
+```json
+{
+  "job_id": "import_abc123def456",
+  "status": "processing",
+  "progress": 0.67,
+  "total_rows": 150,
+  "processed_rows": 100,
+  "successful_rows": 95,
+  "failed_rows": 5
+}
+```
+
+#### GET /api/v2/imports/{jobId}/stream
+
+SSE stream for real-time import progress.
+
+**Request Headers:**
+```
+Accept: text/event-stream
+Cache-Control: no-cache
+```
+
+**SSE Event Stream:**
+```
+event: started
+data: {"status": "processing", "total_rows": 150}
+
+event: progress
+data: {"progress": 0.5, "processed_rows": 75}
+
+event: complete
+data: {"status": "complete", "result_summary": {...}}
+```
 
 ---
 
