@@ -10,6 +10,9 @@
 
 export class ISBNdbAPI {
   constructor(apiKey) {
+    if (!apiKey) {
+      throw new Error("ISBNDB_API_KEY not configured");
+    }
     this.apiKey = apiKey;
     this.baseUrl = "https://api2.isbndb.com";
   }

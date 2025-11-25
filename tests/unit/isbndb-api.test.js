@@ -7,53 +7,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ISBNdbAPI } from "../../src/services/isbndb-api.js";
 
 describe("ISBNdbAPI", () => {
-  describe("Constructor and API Key Resolution", () => {
-    it("should accept plain string API key", async () => {
+  describe("Constructor and API Key", () => {
+    it("should accept plain string API key", () => {
       const apiKey = "test-api-key-123";
       const api = new ISBNdbAPI(apiKey);
-
-      const resolvedKey = await api.getApiKey();
-      expect(resolvedKey).toBe(apiKey);
+      expect(api.apiKey).toBe(apiKey);
     });
 
-    it("should resolve SecretBinding API key", async () => {
-      const secretValue = "secret-api-key-456";
-      const mockSecretBinding = {
-        get: vi.fn().mockResolvedValue(secretValue),
-      };
-
-      const api = new ISBNdbAPI(mockSecretBinding);
-      const resolvedKey = await api.getApiKey();
-
-      expect(mockSecretBinding.get).toHaveBeenCalled();
-      expect(resolvedKey).toBe(secretValue);
-    });
-
-    it("should throw error if API key is not configured", async () => {
-      const api = new ISBNdbAPI(null);
-
-      await expect(api.getApiKey()).rejects.toThrow(
-        "ISBNDB_API_KEY not configured",
-      );
-    });
-
-    it("should throw error if API key is undefined", async () => {
-      const api = new ISBNdbAPI(undefined);
-
-      await expect(api.getApiKey()).rejects.toThrow(
-        "ISBNDB_API_KEY not configured",
-      );
-    });
-
-    it("should throw error if SecretBinding returns null", async () => {
-      const mockSecretBinding = {
-        get: vi.fn().mockResolvedValue(null),
-      };
-
-      const api = new ISBNdbAPI(mockSecretBinding);
-      await expect(api.getApiKey()).rejects.toThrow(
-        "ISBNDB_API_KEY not configured",
-      );
+    it("should throw error if API key is not configured", () => {
+      expect(() => new ISBNdbAPI(null)).toThrow("ISBNDB_API_KEY not configured");
+      expect(() => new ISBNdbAPI(undefined)).toThrow("ISBNDB_API_KEY not configured");
     });
   });
 
@@ -117,13 +80,9 @@ describe("ISBNdbAPI", () => {
       global.fetch = vi.fn();
     });
 
-    it("should use resolved API key in health check", async () => {
-      const secretValue = "secret-health-key";
-      const mockSecretBinding = {
-        get: vi.fn().mockResolvedValue(secretValue),
-      };
-
-      const api = new ISBNdbAPI(mockSecretBinding);
+    it("should use API key in health check", async () => {
+      const apiKey = "secret-health-key";
+      const api = new ISBNdbAPI(apiKey);
 
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
@@ -132,12 +91,11 @@ describe("ISBNdbAPI", () => {
 
       const result = await api.healthCheck();
 
-      expect(mockSecretBinding.get).toHaveBeenCalled();
       expect(global.fetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           headers: expect.objectContaining({
-            Authorization: secretValue,
+            Authorization: apiKey,
           }),
         }),
       );

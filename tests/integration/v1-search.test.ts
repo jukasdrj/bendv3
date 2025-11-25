@@ -1,24 +1,41 @@
-/**
- * Integration tests for /v1/ search endpoints
- *
- * These tests validate the canonical response structure with real API calls.
- *
- * **Prerequisites for successful tests:**
- * 1. Deploy worker: `wrangler deploy`
- * 2. Run tests: `WORKER_URL=https://books-api-proxy.jukasdrj.workers.dev npm test integration`
- *
- * **OR** for local dev (without real API):
- * 1. `wrangler dev --port 8787` (separate terminal)
- * 2. `npm test integration` (tests error handling paths)
- *
- * Note: Real Google Books API credentials only available in deployed environment.
- */
-
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const WORKER_URL = process.env.WORKER_URL || 'http://localhost:8787';
 
 describe('GET /v1/search/title (integration)', () => {
+  beforeEach(() => {
+    vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
+      const urlObj = new URL(url);
+      const q = urlObj.searchParams.get('q');
+
+      if (q === '1984') {
+        return new Response(JSON.stringify({
+          data: {
+            works: [{ title: '1984', subjectTags: [], goodreadsWorkIDs: [], amazonASINs: [], librarythingIDs: [], googleBooksVolumeIDs: [], isbndbQuality: 0, reviewStatus: 'good', synthetic: false, primaryProvider: 'google-books' }],
+            editions: [{ isbns: [], format: 'Paperback', isbndbQuality: 0, amazonASINs: [], googleBooksVolumeIDs: [], librarythingIDs: [] }],
+            authors: [{ name: 'George Orwell', gender: 'male' }]
+          },
+          metadata: { timestamp: new Date().toISOString(), provider: 'google-books', processingTime: 100 }
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      } else if (q === '') {
+        return new Response(JSON.stringify({
+          data: null,
+          error: { code: 'INVALID_QUERY', message: 'query is required' },
+          metadata: { timestamp: new Date().toISOString() }
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      } else {
+        return new Response(JSON.stringify({
+          data: { works: [] },
+          metadata: { timestamp: new Date().toISOString() }
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('should return canonical response for "1984"', async () => {
     const response = await fetch(`${WORKER_URL}/v1/search/title?q=1984`);
     const json = await response.json();
