@@ -35,6 +35,7 @@ const MAX_CONNECTIONS = 5; // Issue #170: Prevent resource exhaustion (5 per job
 const BLACKLIST_TTL_SECONDS = 2.5 * 60 * 60; // 2.5 hours (token validity window)
 const BUFFER_THRESHOLD = 1024 * 1024; // 1MB backpressure threshold
 const MAX_INCOMING_SIZE = 10 * 1024; // 10KB max incoming message size
+const ALARM_DELAY_MS = 5000; // Issue #60: 5 seconds for slow networks/mobile (was 2s)
 
 // Storage keys for hibernation-safe state
 // CRITICAL: All state must be in storage, not in-memory
@@ -840,9 +841,10 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         'CSV_UPLOAD_TIME': Date.now(),
       });
 
-      // 4. Schedule alarm with 2-second delay to ensure WebSocket connects
+      // 4. Schedule alarm with 5-second delay to ensure WebSocket connects
       // iOS needs time to: receive HTTP 202 → extract jobId → connect WebSocket → send ready
-      const alarmTime = Date.now() + 2000;
+      // Issue #60: Increased from 2s to 5s for slow networks/mobile connections
+      const alarmTime = Date.now() + ALARM_DELAY_MS;
       await this.state.storage.setAlarm(alarmTime);
 
       console.log(
@@ -911,8 +913,9 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         [STORAGE_KEYS.REQUEST_HEADERS]: requestHeaders || {},
       });
 
-      // 4. Schedule alarm with 2-second delay to ensure WebSocket connects
-      const alarmTime = Date.now() + 2000;
+      // 4. Schedule alarm with 5-second delay to ensure WebSocket connects
+      // Issue #60: Increased from 2s to 5s for slow networks/mobile connections
+      const alarmTime = Date.now() + ALARM_DELAY_MS;
       await this.state.storage.setAlarm(alarmTime);
 
       console.log(

@@ -169,7 +169,8 @@ describe("Alarm Handler Coverage - Integration", () => {
         await this.storage.put("jobId", jobId);
         await this.storage.put("jobType", "csv-import");
 
-        const alarmTime = Date.now() + 2000;
+        // Issue #60: Updated to 5 seconds for slow networks/mobile
+        const alarmTime = Date.now() + 5000;
         await this.storage.setAlarm(alarmTime);
 
         return { success: true };
@@ -180,7 +181,8 @@ describe("Alarm Handler Coverage - Integration", () => {
         await this.storage.put("jobId", jobId);
         await this.storage.put("jobType", "bookshelf-scan");
 
-        const alarmTime = Date.now() + 2000;
+        // Issue #60: Updated to 5 seconds for slow networks/mobile
+        const alarmTime = Date.now() + 5000;
         await this.storage.setAlarm(alarmTime);
 
         return { success: true };
