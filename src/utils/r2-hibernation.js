@@ -131,7 +131,7 @@ export async function deletePayloadFromR2(env, r2Key) {
   try {
     await bucket.delete(r2Key, { signal: abortController.signal })
     clearTimeout(timeout)
-    console.log(`[R2] Object deleted: ${r2Key}`)
+    // Issue #63: Remove excessive logging in hot path
   } catch (error) {
     clearTimeout(timeout)
     console.error(`[R2] Delete failed for ${r2Key}:`, error)
@@ -221,11 +221,11 @@ export async function cleanupJobR2Objects(env, jobId) {
     clearTimeout(timeout)
 
     if (allObjects.length === 0) {
-      console.log(`[R2] No objects found for cleanup: ${jobId}`)
+      // Issue #63: Remove excessive logging in hot path
       return
     }
 
-    console.log(`[R2] Cleaning up ${allObjects.length} objects for job ${jobId}`)
+    // Issue #63: Remove excessive logging in hot path
 
     // Issue #62: Delete objects in batches to avoid R2 rate limits
     // For jobs with 1000+ objects, parallel deletes could hit 429 errors
@@ -245,7 +245,7 @@ export async function cleanupJobR2Objects(env, jobId) {
       }
     }
 
-    console.log(`[R2] Cleanup completed for job ${jobId}`)
+    // Issue #63: Remove excessive logging in hot path
   } catch (error) {
     console.error(`[R2] Cleanup failed for job ${jobId}:`, error)
     // Don't throw - cleanup is best effort
