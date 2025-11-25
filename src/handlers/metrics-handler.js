@@ -1,3 +1,5 @@
+import { createErrorResponse, ErrorCodes } from "../utils/response-builder.js";
+
 /**
  * GET /metrics - Comprehensive metrics API endpoint
  *
@@ -17,19 +19,12 @@ export async function handleMetricsRequest(request, env, ctx) {
     // SECURITY: Validate authentication token
     const auth = request.headers.get("Authorization");
     if (!auth || !auth.startsWith("Bearer ")) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: "UNAUTHORIZED",
-            message: "Missing or invalid Authorization header. Use: Authorization: Bearer <metrics_token>",
-            statusCode: 401,
-          },
-        }),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        }
+      return createErrorResponse(
+        "Missing or invalid Authorization header. Use: Authorization: Bearer <metrics_token>",
+        401,
+        ErrorCodes.UNAUTHORIZED,
+        { endpoint: "/metrics" },
+        request
       );
     }
 
@@ -37,19 +32,12 @@ export async function handleMetricsRequest(request, env, ctx) {
     const expectedToken = env.METRICS_API_KEY || "metrics_default_key";
 
     if (token !== expectedToken) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: "INVALID_TOKEN",
-            message: "Invalid metrics API key",
-            statusCode: 403,
-          },
-        }),
-        {
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        }
+      return createErrorResponse(
+        "Invalid metrics API key",
+        403,
+        ErrorCodes.FORBIDDEN,
+        { endpoint: "/metrics" },
+        request
       );
     }
 
@@ -60,19 +48,12 @@ export async function handleMetricsRequest(request, env, ctx) {
     // Validate period
     const validPeriods = ['minute', 'hour', 'day', 'total'];
     if (!validPeriods.includes(period)) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: "INVALID_PERIOD",
-            message: `Period must be one of: ${validPeriods.join(', ')}`,
-            statusCode: 400,
-          },
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
+      return createErrorResponse(
+        `Period must be one of: ${validPeriods.join(', ')}`,
+        400,
+        ErrorCodes.INVALID_REQUEST,
+        { parameter: "period", provided: period, valid: validPeriods },
+        request
       );
     }
 
@@ -122,15 +103,12 @@ export async function handleMetricsRequest(request, env, ctx) {
     });
   } catch (error) {
     console.error('[Metrics Handler] Error:', error);
-    return new Response(
-      JSON.stringify({
-        error: "Failed to fetch metrics",
-        message: error.message,
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
+    return createErrorResponse(
+      "Failed to fetch metrics",
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      { details: error.message },
+      request
     );
   }
 }
