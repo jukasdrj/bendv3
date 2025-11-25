@@ -29,9 +29,9 @@
 -- 5. Recreate indexes
 
 -- ========================================================================
--- CRITICAL: Wrap entire migration in transaction to prevent data loss
+-- Note: D1 automatically wraps migrations in transactions
+-- Do NOT use BEGIN TRANSACTION explicitly (causes error in D1)
 -- ========================================================================
-BEGIN TRANSACTION;
 
 -- Step 1: Create new table with NULL-friendly constraint
 CREATE TABLE IF NOT EXISTS user_library_new (
@@ -93,8 +93,7 @@ CREATE INDEX IF NOT EXISTS idx_user_library_complex_query
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_library_user_isbn_unique
   ON user_library(user_id, isbn);
 
--- Commit transaction (all-or-nothing migration)
-COMMIT;
+-- D1 automatically commits the transaction
 
 -- ========================================================================
 -- Verification

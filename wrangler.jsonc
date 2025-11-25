@@ -41,6 +41,13 @@
     "//": "Hono Router Migration (Phase 1 - Coexistence Infrastructure)",
     "//": "========================================================================",
     "ENABLE_HONO_ROUTER": "true",
+    "//": "========================================================================",
+    "//": "Cloudflare Workflows Feature Flags (Issue #71 - Launch Blocker)",
+    "//": "WORKFLOW_ROLLOUT_PERCENT: 0-100 for gradual rollout",
+    "//": "ENABLE_WORKFLOW_IMPORT: 'true'/'false' to force enable/disable",
+    "//": "========================================================================",
+    "WORKFLOW_ROLLOUT_PERCENT": "100",
+    "ENABLE_WORKFLOW_IMPORT": "true",
     "//": "Cache configuration",
     "CACHE_HOT_TTL": "7200",
     "CACHE_COLD_TTL": "1209600",
@@ -91,6 +98,11 @@
     {
       "binding": "KV_CACHE",
       "id": "b9cade63b6db48fd80c109a013f38fdb"
+    },
+    {
+      "//": "Sprint 3: Weekly recommendations cache",
+      "binding": "RECOMMENDATIONS_CACHE",
+      "id": "be0ca7077bab4942b57c02d547f1c968"
     }
   ],
   "r2_buckets": [
@@ -121,6 +133,16 @@
   "ai": {
     "binding": "AI"
   },
+  "//": "========================================================================",
+  "//": "Vectorize Index (Sprint 3 - Semantic Search, Issues #25, #26)",
+  "//": "Create with: npx wrangler vectorize create book-embeddings --dimensions 1024 --metric cosine",
+  "//": "========================================================================",
+  "vectorize": [
+    {
+      "binding": "BOOK_VECTORS",
+      "index_name": "book-embeddings"
+    }
+  ],
   "durable_objects": {
     "bindings": [
       {
@@ -227,6 +249,11 @@
       {
         "binding": "AUTHOR_WARMING_QUEUE",
         "queue": "author-warming-queue"
+      },
+      {
+        "//": "Sprint 3: Async book enrichment with vectorization",
+        "binding": "ENRICHMENT_QUEUE",
+        "queue": "enrichment-queue"
       }
     ],
     "consumers": [
@@ -237,6 +264,14 @@
         "max_retries": 3,
         "dead_letter_queue": "author-warming-dlq",
         "max_concurrency": 5
+      },
+      {
+        "//": "Sprint 3: Process enrichment jobs with embedding generation",
+        "queue": "enrichment-queue",
+        "max_batch_size": 5,
+        "max_batch_timeout": 60,
+        "max_retries": 3,
+        "max_concurrency": 3
       }
     ]
   },
@@ -244,7 +279,20 @@
     "crons": [
       "0 2 * * *",
       "*/15 * * * *",
-      "0 3 * * *"
+      "0 3 * * *",
+      "0 0 * * 0"
     ]
-  }
+  },
+  "//": "Cron schedule: 0 2 * * * = daily 2am, */15 = every 15min, 0 3 * * * = daily 3am, 0 0 * * 0 = Sunday midnight (weekly recommendations)",
+  "//": "========================================================================",
+  "//": "Cloudflare Workflows (Issue #71 - Launch Blocker)",
+  "//": "Book import pipeline with automatic retries and state persistence",
+  "//": "========================================================================",
+  "workflows": [
+    {
+      "name": "book-import-workflow",
+      "binding": "BOOK_IMPORT_WORKFLOW",
+      "class_name": "BookImportWorkflow"
+    }
+  ]
 }
