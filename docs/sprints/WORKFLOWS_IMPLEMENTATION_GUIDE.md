@@ -1,7 +1,8 @@
-# Sprint 3: Orchestration - Cloudflare Workflows Migration
+# Cloudflare Workflows Migration - LAUNCH BLOCKER
 
-**Status:** Planned
-**Duration:** 10 working days (2 weeks)
+**Status:** ⚠️ LAUNCH BLOCKER - Must complete before launch
+**GitHub Issues:** #71 (master), #19, #20
+**Duration:** ~20 hours (2-3 days focused work)
 **Sprint Goal:** Replace custom JobStateManagerDO state management with native Cloudflare Workflows API
 
 ---
