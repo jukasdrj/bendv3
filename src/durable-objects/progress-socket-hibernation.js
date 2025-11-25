@@ -99,9 +99,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         return;
       }
 
-      console.log(
-        `[ProgressWebSocketDO_Hibernation] Message received: ${data.type} for job ${jobId}`,
-      );
+      // Issue #63: Remove excessive logging in hot path (every incoming message)
 
       // Handle message types
       switch (data.type) {
@@ -140,9 +138,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
   async webSocketClose(ws, code, reason, wasClean) {
     const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
 
-    console.log(
-      `[ProgressWebSocketDO_Hibernation] WebSocket closed for job ${jobId}: code=${code}, reason=${reason}, clean=${wasClean}`,
-    );
+    // Issue #63: Remove excessive logging in hot path (every connection close)
 
     // Store disconnect info for reconnection logic
     await this.state.storage.put(STORAGE_KEYS.LAST_DISCONNECT, Date.now());
@@ -255,9 +251,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       if (authProtocol) {
         providedToken = authProtocol.substring("bookstrack-auth.".length);
         tokenSource = "subprotocol";
-        console.log(
-          `[Hibernation DO ${jobId}] ✅ Token provided via secure subprotocol header`,
-        );
+        // Issue #63: Remove excessive logging in hot path
       }
     }
 
@@ -288,9 +282,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     ]);
     const storageDuration = Date.now() - storageStartTime;
 
-    console.log(
-      `[Hibernation DO ${jobId}] 📊 Storage reads took ${storageDuration}ms (token source: ${tokenSource})`,
-    );
+    // Issue #63: Remove excessive logging in hot path
 
     // Check KV blacklist (cross-instance invalidation)
     const blacklistEntry = providedToken
@@ -317,9 +309,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     } else if (providedToken && oldTokenExpiration) {
       // Check for recently auto-refreshed token (5-minute grace period)
       authSuccess = true;
-      console.log(
-        `[Hibernation DO ${jobId}] ✅ Reconnection successful using recently expired token (grace period)`,
-      );
+      // Issue #63: Remove excessive logging in hot path
     }
 
     if (!authSuccess) {
@@ -337,9 +327,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       return new Response("Token expired", { status: 401 });
     }
 
-    console.log(
-      `[Hibernation DO ${jobId}] ✅ WebSocket authentication successful`,
-    );
+    // Issue #63: Remove excessive logging in hot path
 
     // Check connection limit (Issue #170)
     let connectionCount = 0;
@@ -417,14 +405,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       sessionMetadata: sessionMetadata,
     });
 
-    console.log(
-      `[ProgressWebSocketDO_Hibernation] WebSocket connection established for job ${jobId} (hibernation enabled)`,
-      {
-        sessionId: sessionMetadata.id,
-        ip: sessionMetadata.ip,
-        country: sessionMetadata.country,
-      },
-    );
+    // Issue #63: Remove excessive logging in hot path
 
     return new Response(null, {
       status: 101,
@@ -439,7 +420,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
     const pipeline = await this.state.storage.get(STORAGE_KEYS.CURRENT_PIPELINE);
 
-    console.log(`[ProgressWebSocketDO_Hibernation] Client ready for job ${jobId}`);
+    // Issue #63: Remove excessive logging in hot path
 
     // Mark as ready
     await this.state.storage.put(STORAGE_KEYS.IS_READY, true);
@@ -463,9 +444,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     // Wake up any alarm waiting for ready signal
     const alarm = await this.state.storage.getAlarm();
     if (alarm) {
-      console.log(
-        "[ProgressWebSocketDO_Hibernation] Triggering alarm (client ready)",
-      );
+      // Issue #63: Remove excessive logging in hot path
       await this.state.storage.deleteAlarm(); // Cancel alarm, will trigger immediately
     }
   }
@@ -476,9 +455,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
   async handleCancelMessage(ws, data) {
     const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
 
-    console.log(
-      `[ProgressWebSocketDO_Hibernation] Job cancelled by client: ${jobId}`,
-    );
+    // Issue #63: Remove excessive logging in hot path
 
     // Store cancellation state
     await this.state.storage.put(STORAGE_KEYS.JOB_STATE, "cancelled");
@@ -511,7 +488,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         [STORAGE_KEYS.AUTH_TOKEN_EXPIRATION]: expiration,
       });
 
-      console.log("[ProgressWebSocketDO_Hibernation] Auth token set with 2-hour TTL");
+      // Issue #63: Remove excessive logging in hot path
 
       return { success: true };
     } catch (error) {
@@ -553,7 +530,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         [STORAGE_KEYS.CURRENT_PIPELINE]: pipeline,
       });
 
-      console.log(`[ProgressWebSocketDO_Hibernation] Job state initialized for pipeline: ${pipeline}`);
+      // Issue #63: Remove excessive logging in hot path
 
       return { success: true };
     } catch (error) {
@@ -685,7 +662,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         console.warn(`[Hibernation DO] complete: No active WebSocket connections for jobId ${jobId}`);
       }
 
-      console.log(`[ProgressWebSocketDO_Hibernation] Job completed successfully: ${jobId}`);
+      // Issue #63: Remove excessive logging in hot path
 
       return { success: true };
     } catch (error) {
@@ -748,7 +725,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         console.warn(`[Hibernation DO] sendError: No active WebSocket connections for jobId ${jobId}`);
       }
 
-      console.log(`[ProgressWebSocketDO_Hibernation] Job failed: ${jobId}`);
+      // Issue #63: Remove excessive logging in hot path
 
       return { success: true };
     } catch (error) {
@@ -810,7 +787,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    * @returns {Promise<{success: boolean}>}
    */
   async scheduleCSVProcessing(csvText, jobId) {
-    console.log(`[${jobId}] Scheduling CSV processing via alarm`);
+    // Issue #63: Remove excessive logging in hot path
 
     let r2Key = null;
 
@@ -829,7 +806,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         csvText
       );
       r2Key = uploadResult.r2Key;
-      console.log(`[${jobId}] CSV uploaded to R2: ${r2Key} (${size} bytes)`);
+      // Issue #63: Remove excessive logging in hot path // console.log(`[${jobId}] CSV uploaded to R2: ${r2Key} (${size} bytes)`);
 
       // 3. Store minimal metadata in DO storage (no large payload!)
       await this.state.storage.put({
@@ -847,9 +824,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       const alarmTime = Date.now() + ALARM_DELAY_MS;
       await this.state.storage.setAlarm(alarmTime);
 
-      console.log(
-        `[${jobId}] CSV processing alarm scheduled for ${new Date(alarmTime).toISOString()}`,
-      );
+      // Issue #63: Remove excessive logging in hot path
 
       return { success: true };
     } catch (error) {
@@ -859,7 +834,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       if (r2Key) {
         try {
           await deletePayloadFromR2(this.env, r2Key);
-          console.log(`[${jobId}] R2 cleanup completed after scheduling error`);
+          // Issue #63: Remove excessive logging in hot path
         } catch (cleanupError) {
           console.error(`[${jobId}] R2 cleanup failed:`, cleanupError);
         }
@@ -881,7 +856,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
    * @returns {Promise<{success: boolean}>}
    */
   async scheduleBookshelfScan(imageData, jobId, requestHeaders) {
-    console.log(`[${jobId}] Scheduling bookshelf scan via alarm`);
+    // Issue #63: Remove excessive logging in hot path
 
     let r2Key = null;
 
@@ -900,7 +875,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         imageData
       );
       r2Key = uploadResult.r2Key;
-      console.log(`[${jobId}] Image uploaded to R2: ${r2Key} (${size} bytes)`);
+      // Issue #63: Remove excessive logging in hot path // console.log(`[${jobId}] Image uploaded to R2: ${r2Key} (${size} bytes)`);
 
       // 3. Store minimal metadata in DO storage (no large payload!)
       await this.state.storage.put({
@@ -918,9 +893,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       const alarmTime = Date.now() + ALARM_DELAY_MS;
       await this.state.storage.setAlarm(alarmTime);
 
-      console.log(
-        `[${jobId}] Bookshelf scan alarm scheduled for ${new Date(alarmTime).toISOString()}`,
-      );
+      // Issue #63: Remove excessive logging in hot path
 
       return { success: true };
     } catch (error) {
@@ -930,7 +903,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       if (r2Key) {
         try {
           await deletePayloadFromR2(this.env, r2Key);
-          console.log(`[${jobId}] R2 cleanup completed after scheduling error`);
+          // Issue #63: Remove excessive logging in hot path
         } catch (cleanupError) {
           console.error(`[${jobId}] R2 cleanup failed:`, cleanupError);
         }
@@ -953,18 +926,16 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     const jobId = await this.state.storage.get(STORAGE_KEYS.JOB_ID);
     const jobType = await this.state.storage.get(STORAGE_KEYS.JOB_TYPE);
 
-    console.log(
-      `[ProgressWebSocketDO_Hibernation] Alarm triggered for job ${jobId}, type: ${jobType || 'token-refresh'}`,
-    );
+    // Issue #63: Remove excessive logging in hot path
 
     // Route to appropriate handler based on job type
     if (jobType === "csv-import") {
       // CSV processing alarm (scheduled at 2s by scheduleCSVProcessing)
-      console.log(`[${jobId}] Processing CSV import in alarm context`);
+      // Issue #63: Remove excessive logging in hot path
       await this.processCSVImportAlarm();
     } else if (jobType === "bookshelf-scan") {
       // Bookshelf scan processing alarm (scheduled at 2s by scheduleBookshelfScan)
-      console.log(`[${jobId}] Processing bookshelf scan in alarm context`);
+      // Issue #63: Remove excessive logging in hot path
       await this.processBookshelfScanAlarm();
     } else {
       // Token refresh alarm (no jobType)
@@ -990,9 +961,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     const csvSize = await this.state.storage.get('CSV_SIZE');
     const csvEtag = await this.state.storage.get('CSV_ETAG');
 
-    console.log(
-      `[${jobId}] Starting CSV processing in alarm (fetching from R2: ${r2Key})`,
-    );
+    // Issue #63: Remove excessive logging in hot path
 
     try {
       // 1. Fetch from R2 (no large payload in DO storage!)
@@ -1012,16 +981,16 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         }
       }
 
-      console.log(`[${jobId}] CSV fetched from R2 successfully (${actualSize} bytes, ETag verified)`);
+      // Issue #63: Remove excessive logging in hot path
 
       // 3. Process CSV with access to this (DO stub methods)
       await processCSVImportCore(csvText, jobId, this, this.env);
 
-      console.log(`[${jobId}] CSV processing completed successfully`);
+      // Issue #63: Remove excessive logging in hot path
 
       // 4. Delete from R2 (cleanup after success)
       await deletePayloadFromR2(this.env, r2Key);
-      console.log(`[${jobId}] R2 object deleted: ${r2Key}`);
+      // Issue #63: Remove excessive logging in hot path
 
       // 5. Clean up DO storage
       await this.state.storage.delete([
@@ -1040,7 +1009,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       try {
         if (r2Key) {
           await deletePayloadFromR2(this.env, r2Key);
-          console.log(`[${jobId}] R2 cleanup completed after error`);
+          // Issue #63: Remove excessive logging in hot path
         }
       } catch (cleanupError) {
         console.error(`[${jobId}] R2 cleanup failed:`, cleanupError);
@@ -1081,9 +1050,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
     const imageEtag = await this.state.storage.get('IMAGE_ETAG');
     const requestHeaders = await this.state.storage.get(STORAGE_KEYS.REQUEST_HEADERS);
 
-    console.log(
-      `[${jobId}] Starting bookshelf scan in alarm (fetching from R2: ${r2Key})`,
-    );
+    // Issue #63: Remove excessive logging in hot path
 
     try {
       // 1. Fetch from R2 (no large payload in DO storage!)
@@ -1103,7 +1070,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         }
       }
 
-      console.log(`[${jobId}] Image fetched from R2 successfully (${actualSize} bytes, ETag verified)`);
+      // Issue #63: Remove excessive logging in hot path // console.log(`[${jobId}] Image fetched from R2 successfully (${actualSize} bytes, ETag verified)`);
 
       // 3. Create mock request object with headers
       const mockRequest = {
@@ -1123,11 +1090,11 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
         null,
       );
 
-      console.log(`[${jobId}] Bookshelf scan completed successfully`);
+      // Issue #63: Remove excessive logging in hot path
 
       // 5. Delete from R2 (cleanup after success)
       await deletePayloadFromR2(this.env, r2Key);
-      console.log(`[${jobId}] R2 object deleted: ${r2Key}`);
+      // Issue #63: Remove excessive logging in hot path
 
       // 6. Clean up DO storage
       await this.state.storage.delete([
@@ -1150,7 +1117,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       try {
         if (r2Key) {
           await deletePayloadFromR2(this.env, r2Key);
-          console.log(`[${jobId}] R2 cleanup completed after error`);
+          // Issue #63: Remove excessive logging in hot path
         }
       } catch (cleanupError) {
         console.error(`[${jobId}] R2 cleanup failed:`, cleanupError);
@@ -1226,9 +1193,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       await this.state.storage.put(STORAGE_KEYS.AUTH_TOKEN, newToken);
       await this.state.storage.put(STORAGE_KEYS.AUTH_TOKEN_EXPIRATION, expiresAt);
 
-      console.log(
-        `[ProgressWebSocketDO_Hibernation] Auth token refreshed for job ${jobId}`,
-      );
+      // Issue #63: Remove excessive logging in hot path
 
       // Send new token to client
       const connections = this.state.getWebSockets();
