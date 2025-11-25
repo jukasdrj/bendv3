@@ -186,8 +186,9 @@ describe("Gemini CSV Provider", () => {
       expect(sentPrompt).not.toMatch(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/);
     });
 
-    test("rejects CSV larger than 500KB", async () => {
-      const largeCSV = "Title,Author\n" + "A".repeat(600 * 1024);
+    test("rejects CSV larger than 8MB", async () => {
+      // Issue #181: Updated limit from 500KB to 8MB for Gemini 2M token context
+      const largeCSV = "Title,Author\n" + "A".repeat(9 * 1024 * 1024);
 
       await expect(
         parseCSVWithGemini(largeCSV, "prompt", "key"),

@@ -55,7 +55,8 @@ describe('R2 Hibernation Utilities', () => {
             jobId: 'test-job-123',
             type: 'csv',
           }),
-        })
+        }),
+        { signal: expect.any(Object) } // Issue #59: signal now passed
       )
     })
 
@@ -79,7 +80,8 @@ describe('R2 Hibernation Utilities', () => {
             jobId: 'test-job-456',
             type: 'image',
           }),
-        })
+        }),
+        { signal: expect.any(Object) } // Issue #59: signal now passed
       )
     })
 
@@ -152,7 +154,7 @@ describe('R2 Hibernation Utilities', () => {
       const result = await fetchPayloadFromR2(mockEnv, 'hibernation/csv/job-123/1234567890123.csv')
 
       expect(result).toBe(csvData)
-      expect(mockBucket.get).toHaveBeenCalledWith('hibernation/csv/job-123/1234567890123.csv')
+      expect(mockBucket.get).toHaveBeenCalledWith('hibernation/csv/job-123/1234567890123.csv', { signal: expect.any(Object) })
     })
 
     it('should fetch image payload as ArrayBuffer', async () => {
@@ -165,7 +167,7 @@ describe('R2 Hibernation Utilities', () => {
       const result = await fetchPayloadFromR2(mockEnv, 'hibernation/image/job-456/1234567890123.jpg')
 
       expect(result).toBe(imageData)
-      expect(mockBucket.get).toHaveBeenCalledWith('hibernation/image/job-456/1234567890123.jpg')
+      expect(mockBucket.get).toHaveBeenCalledWith('hibernation/image/job-456/1234567890123.jpg', { signal: expect.any(Object) })
     })
 
     it('should throw error if object not found', async () => {
@@ -186,7 +188,7 @@ describe('R2 Hibernation Utilities', () => {
     it('should delete R2 object successfully', async () => {
       await deletePayloadFromR2(mockEnv, 'hibernation/csv/job-123/1234567890123.csv')
 
-      expect(mockBucket.delete).toHaveBeenCalledWith('hibernation/csv/job-123/1234567890123.csv')
+      expect(mockBucket.delete).toHaveBeenCalledWith('hibernation/csv/job-123/1234567890123.csv', { signal: expect.any(Object) })
     })
 
     it('should not throw on delete failure', async () => {
@@ -290,11 +292,11 @@ describe('R2 Hibernation Utilities', () => {
       expect(mockBucket.list).toHaveBeenCalledWith({
         prefix: 'hibernation/csv/job-123/',
         cursor: undefined,
-      })
+      }, { signal: expect.any(Object) })
       expect(mockBucket.list).toHaveBeenCalledWith({
         prefix: 'hibernation/image/job-123/',
         cursor: undefined,
-      })
+      }, { signal: expect.any(Object) })
       // 2 CSV + 2 image = 4 delete calls
       expect(mockBucket.delete).toHaveBeenCalledTimes(4)
     })

@@ -52,7 +52,16 @@ export async function scanImageWithGemini(imageData, env) {
   // Convert ArrayBuffer to base64 (FIXED: Issue #182 - O(n²) to O(n))
   // Before: 5MB image = 60s encoding (string concatenation in loop)
   // After: 5MB image = ~100ms encoding (600x performance improvement!)
-  const base64Image = Buffer.from(imageData).toString("base64");
+  // Workers-compatible: Use btoa with chunking to avoid stack overflow (Issue #50, #58)
+  const uint8Array = new Uint8Array(imageData);
+  const chunks = [];
+  const chunkSize = 8192; // Process 8KB at a time to avoid stack overflow
+  for (let i = 0; i < uint8Array.length; i += chunkSize) {
+    const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+    chunks.push(String.fromCharCode.apply(null, chunk));
+  }
+  const binaryString = chunks.join(''); // O(n) - single allocation instead of O(n²) concatenation
+  const base64Image = btoa(binaryString);
 
   // Call Gemini API with retry logic (Issue #183: exponential backoff on transient failures)
   const response = await retryWithBackoff(async () => {
