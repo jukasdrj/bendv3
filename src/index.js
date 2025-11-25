@@ -17,11 +17,14 @@ import { WebSocketConnectionDO } from "./durable-objects/websocket-connection.js
 import { JobStateManagerDO } from "./durable-objects/job-state-manager.js";
 import { CacheMetricsDO } from "./durable-objects/cache-metrics.js";
 import { LatencyTestDO } from "./durable-objects/latency-test-do.js";
+// Cloudflare Workflows (Issue #71 - LAUNCH BLOCKER)
+import { BookImportWorkflow } from "./workflows/import-book.ts";
 import honoRouter from "./router.ts";
 import { processAuthorBatch } from "./consumers/author-warming-consumer.js";
 import { handleScheduledArchival } from "./handlers/scheduled-archival.js";
 import { handleScheduledAlerts } from "./handlers/scheduled-alerts.js";
 import { handleScheduledHarvest } from "./handlers/scheduled-harvest.js";
+import { handleRecommendationsCron } from "./cron/recommendations-cron.ts";
 
 // Export Durable Object classes for Cloudflare Workers runtime
 export {
@@ -33,6 +36,9 @@ export {
   CacheMetricsDO,
   LatencyTestDO,
 };
+
+// Export Workflow classes for Cloudflare Workflows runtime (Issue #71)
+export { BookImportWorkflow };
 
 /**
  * Main fetch handler - routes all HTTP requests to Hono router
@@ -65,6 +71,11 @@ export default {
         case "0 3 * * *": // Daily at 3 AM UTC
           console.log("[Cron] Running daily cover harvest job");
           await handleScheduledHarvest(env, ctx);
+          break;
+
+        case "0 0 * * 0": // Sunday at midnight UTC
+          console.log("[Cron] Running weekly recommendations generation job");
+          await handleRecommendationsCron(env);
           break;
 
         default:

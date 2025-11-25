@@ -77,6 +77,11 @@ export interface ResponseMetadata {
   processingTime?: number; // Request processing duration in milliseconds
   provider?: DataProvider; // Data source that fulfilled the request
   cached?: boolean; // Whether the response was served from cache
+  source?: string; // Sprint 3: Data source identifier (e.g., 'vectorize', 'kv-cache', 'd1-database')
+  searchMode?: string; // Sprint 3: Search mode used (e.g., 'text', 'semantic', 'hybrid')
+  generatedAt?: string; // Sprint 3: When recommendations were generated
+  expiresAt?: string; // Sprint 3: When cached data expires
+  nextGenerationTime?: string; // Sprint 3: Next scheduled generation time
 }
 
 /**

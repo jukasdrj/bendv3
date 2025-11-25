@@ -28,6 +28,8 @@ import { handleImageProxy } from "./handlers/image-proxy";
 import * as bookSearch from "./handlers/book-search.js";
 import * as authorSearch from "./handlers/author-search.js";
 import { triggerBookImportWorkflow, getWorkflowStatus } from "./handlers/workflow-trigger-handler";
+import { handleSimilarBooks, handleSemanticSearch } from "./handlers/semantic-search-handler";
+import { handleV2Search, handleWeeklyRecommendations, handleCapabilities, handleEnrichBook, handleSSEStream } from "./handlers/v2";
 import { getProgressDOStub } from "./utils/durable-object-helpers";
 import { analyticsMiddleware } from "./middleware/hono-analytics";
 import { checkRateLimit } from "./middleware/rate-limiter";
@@ -180,6 +182,20 @@ app.get("/v1/search/advanced", async (c) => {
     getCtx(c),
     c.req.raw,
   );
+});
+
+// ============================================================================
+// Semantic Search Routes (Sprint 3 - Issues #25, #26)
+// ============================================================================
+
+// GET /v1/search/similar - Find similar books using Vectorize
+app.get("/v1/search/similar", async (c) => {
+  return await handleSimilarBooks(c.req.raw, c.env);
+});
+
+// GET /v1/search/semantic - Natural language semantic search
+app.get("/v1/search/semantic", async (c) => {
+  return await handleSemanticSearch(c.req.raw, c.env);
 });
 
 // ============================================================================
@@ -1340,6 +1356,103 @@ app.post("/test/cache-event", async (c) => {
       500,
     );
   }
+});
+
+// ============================================================================
+// V2 API Routes (Sprint 3 - API_CONTRACT_V2_PROPOSAL.md)
+// ============================================================================
+
+// GET /api/v2/search - Unified search (text + semantic modes)
+app.get("/api/v2/search", async (c) => {
+  return await handleV2Search(c.req.raw, c.env);
+});
+
+// GET /api/v2/recommendations/weekly - Global weekly book picks
+app.get("/api/v2/recommendations/weekly", async (c) => {
+  return await handleWeeklyRecommendations(c.req.raw, c.env);
+});
+
+// GET /api/v2/capabilities - Feature discovery endpoint
+app.get("/api/v2/capabilities", async (c) => {
+  return await handleCapabilities(c.req.raw, c.env);
+});
+
+// POST /api/v2/books/enrich - Barcode enrichment with optional vectorization
+app.post("/api/v2/books/enrich", rateLimitMiddleware, async (c) => {
+  return await handleEnrichBook(c.req.raw, c.env);
+});
+
+// POST /api/v2/imports - CSV import initiation (delegates to existing handler)
+app.post("/api/v2/imports", rateLimitMiddleware, async (c) => {
+  return await handleCSVImport(c.req.raw, c.env, getCtx(c));
+});
+
+// GET /api/v2/imports/:jobId - Import job status (delegates to unified endpoint)
+app.get("/api/v2/imports/:jobId", createRateLimitMiddleware(30), async (c) => {
+  const jobId = c.req.param("jobId")?.substring(0, 100);
+
+  if (!jobId || jobId.trim().length === 0) {
+    return createErrorResponse(
+      "Missing jobId parameter",
+      400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "jobId" },
+      c.req.raw
+    );
+  }
+
+  // Get JobStateManagerDO stub for this job
+  const doId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
+  const doStub = c.env.JOB_STATE_MANAGER_DO.get(doId);
+
+  // Fetch current job state via RPC
+  const state = await doStub.getJobState();
+
+  if (!state) {
+    return createErrorResponse(
+      "Import job not found or not initialized",
+      404,
+      ErrorCodes.NOT_FOUND,
+      { jobId },
+      c.req.raw
+    );
+  }
+
+  return createSuccessResponse(
+    {
+      jobId: state.jobId,
+      status: state.status,
+      progress: state.progress,
+      processedCount: state.processedCount,
+      totalCount: state.totalCount,
+      startTime: state.startTime,
+      ...(state.completedTime && { completedTime: state.completedTime }),
+      ...(state.error && { error: state.error }),
+    },
+    {
+      source: "job-state-manager-do",
+      timestamp: new Date().toISOString(),
+    },
+    200,
+    c.req.raw
+  );
+});
+
+// GET /api/v2/imports/:jobId/stream - SSE progress stream
+app.get("/api/v2/imports/:jobId/stream", async (c) => {
+  const jobId = c.req.param("jobId")?.substring(0, 100);
+
+  if (!jobId || jobId.trim().length === 0) {
+    return createErrorResponse(
+      "Missing jobId parameter",
+      400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "jobId" },
+      c.req.raw
+    );
+  }
+
+  return await handleSSEStream(c.req.raw, c.env, jobId);
 });
 
 // ============================================================================

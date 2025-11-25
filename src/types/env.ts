@@ -3,11 +3,38 @@
  * These types match the bindings defined in wrangler.toml
  */
 
+// Workflow types (Cloudflare Workflows API)
+interface WorkflowInstance {
+  id: string;
+}
+
+interface WorkflowStatus {
+  status: 'queued' | 'running' | 'paused' | 'complete' | 'errored' | 'terminated' | 'unknown';
+  output?: unknown;
+  error?: string;
+}
+
+interface WorkflowHandle {
+  status(): Promise<WorkflowStatus>;
+  pause(): Promise<void>;
+  resume(): Promise<void>;
+  terminate(): Promise<void>;
+}
+
+export interface WorkflowBinding<T = unknown> {
+  create(options: { params: T }): Promise<WorkflowInstance>;
+  get(id: string): Promise<WorkflowHandle>;
+}
+
 export interface Env {
   // Feature Flags
   ENABLE_HONO_ROUTER?: string;
   ENABLE_UNIFIED_ENVELOPE?: string;
   ENABLE_REFACTORED_DOS?: string;
+
+  // Workflow Feature Flags (Issue #71)
+  WORKFLOW_ROLLOUT_PERCENT?: string;
+  ENABLE_WORKFLOW_IMPORT?: string;
 
   // Cache Configuration
   CACHE_HOT_TTL: string;
@@ -39,6 +66,7 @@ export interface Env {
   // KV Namespaces
   CACHE: KVNamespace;
   KV_CACHE: KVNamespace;
+  RECOMMENDATIONS_CACHE?: KVNamespace;  // Sprint 3: Weekly recommendations
 
   // Secrets (from Secrets Store)
   GOOGLE_BOOKS_API_KEY: string;
@@ -73,4 +101,14 @@ export interface Env {
 
   // Queues
   AUTHOR_WARMING_QUEUE: Queue;
+  ENRICHMENT_QUEUE?: Queue;  // Sprint 3: Async enrichment with vectorization
+
+  // Cloudflare Workflows (Issue #71 - LAUNCH BLOCKER)
+  BOOK_IMPORT_WORKFLOW?: WorkflowBinding<import('../workflows/import-book').BookImportInput>;
+
+  // D1 Database
+  DB?: D1Database;
+
+  // Vectorize Index (Sprint 3 - Semantic Search)
+  BOOK_VECTORS?: VectorizeIndex;
 }
