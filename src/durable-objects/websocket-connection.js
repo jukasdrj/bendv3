@@ -330,6 +330,87 @@ export class WebSocketConnectionDO extends DurableObject {
   }
 
   /**
+   * RPC Method: Refresh authentication token (for POST /api/refresh-token)
+   *
+   * Allows clients to extend token expiration before it expires.
+   * Security measures:
+   * - Validates old token before issuing new one
+   * - Only allows refresh within 30-minute window before expiration
+   * - Prevents concurrent refresh race conditions
+   * - Extends expiration by 2 hours from refresh time
+   *
+   * @param {string} oldToken - Current token to validate
+   * @returns {Promise<{token?: string, expiresIn?: number, error?: string}>}
+   */
+  async refreshAuthToken(oldToken) {
+    // Prevent concurrent refresh race conditions
+    if (this.refreshInProgress) {
+      console.warn(
+        `[${this.jobId || "unknown"}] Token refresh already in progress`,
+      );
+      return { error: "Refresh in progress, please retry shortly" };
+    }
+
+    this.refreshInProgress = true;
+    try {
+      const storedToken = await this.storage.get("authToken");
+      const expiration = await this.storage.get("authTokenExpiration");
+
+      // Validate old token
+      if (!storedToken || !oldToken || storedToken !== oldToken) {
+        console.warn(
+          `[${this.jobId || "unknown"}] Token refresh failed - invalid token`,
+        );
+        return { error: "Invalid token" };
+      }
+
+      // Check if token is expired
+      if (Date.now() > expiration) {
+        console.warn(
+          `[${this.jobId || "unknown"}] Token refresh failed - token expired`,
+        );
+        return { error: "Token expired" };
+      }
+
+      // Enforce 30-minute refresh window (prevents infinite extension)
+      // Tokens can only be refreshed in the last 30 minutes before expiration
+      const REFRESH_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+      const timeUntilExpiration = expiration - Date.now();
+      if (timeUntilExpiration > REFRESH_WINDOW_MS) {
+        const minutesRemaining = Math.floor(timeUntilExpiration / 60000);
+        console.warn(
+          `[${this.jobId || "unknown"}] Token refresh too early - ${minutesRemaining} minutes remaining`,
+        );
+        return {
+          error: "Refresh not allowed yet",
+          details: `Token can be refreshed ${Math.floor((timeUntilExpiration - REFRESH_WINDOW_MS) / 60000)} minutes from now`,
+        };
+      }
+
+      // Generate new token and extend expiration by 2 hours
+      const TOKEN_EXPIRATION_MS = 2 * 60 * 60 * 1000; // 2 hours
+      const newToken = crypto.randomUUID();
+      const newExpiration = Date.now() + TOKEN_EXPIRATION_MS;
+      await this.storage.put("authToken", newToken);
+      await this.storage.put("authTokenExpiration", newExpiration);
+
+      // Reset consumed flag to allow new WebSocket connection with refreshed token
+      await this.storage.delete("authTokenConsumed");
+
+      console.log(
+        `[${this.jobId || "unknown"}] ✅ Token refreshed successfully (expires in 2 hours)`,
+      );
+
+      return {
+        token: newToken,
+        expiresIn: 7200, // 2 hours in seconds
+      };
+    } finally {
+      this.refreshInProgress = false;
+    }
+  }
+
+  /**
    * RPC Method: Wait for client ready signal
    *
    * @param {number} timeoutMs - Timeout in milliseconds
