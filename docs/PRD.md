@@ -2,10 +2,11 @@
 
 BooksTrack Backend – Ideal State
 
-Status: Draft for review
+Status: Active
 Owner: Backend Platform
 Stakeholders: iOS App, Harvest Dashboard, Operations
-Last Updated: 2025-11-21
+Last Updated: 2025-11-25
+API Contract Version: v2.7.0
 
 ## 1. Product Overview
 - Name: BooksTrack Backend (Cloudflare Workers API)
@@ -57,12 +58,41 @@ Last Updated: 2025-11-21
 - ISBNdb daily limit compliance (≤ 5000/day) with backoff/caching
 
 ## 5. Scope – Feature Requirements
-### 5.1 Multi-Provider Search
-- Inputs: title, author, isbn; optional maxResults
-- Providers: Google Books (primary), OpenLibrary (fallback), ISBNdb (for detail and covers)
-- Normalization: Canonical WorkDTO, EditionDTO, AuthorDTO
-- Edge Caching: Hot KV (2h), Cold R2 (14d), cache keys deterministic and documented
-- Response: Unified envelope `{ data, metadata{timestamp, provider, cached}, error? }`
+### 5.1 Multi-Provider Search & Discovery
+- **Text Search (v1):**
+  - Inputs: title, author, isbn; optional maxResults
+  - Providers: Google Books (primary), OpenLibrary (fallback), ISBNdb (for detail and covers)
+- **Semantic Search (v2):**
+  - Inputs: Natural language query (`q`), `mode=semantic`
+  - Provider: Cloudflare Vectorize with BGE-M3 embeddings
+- **Common Features:**
+  - Normalization: Canonical WorkDTO, EditionDTO, AuthorDTO
+  - Edge Caching: Hot KV (2h), Cold R2 (14d), cache keys deterministic and documented
+  - Response: Unified envelope `{ data, metadata{timestamp, provider, cached}, error? }`
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Backend API
+    participant Vectorize
+    participant Text Search Providers
+
+    Client->>Backend API: GET /api/v2/search?q=...&mode=semantic
+    activate Backend API
+    Backend API->>Vectorize: Generate embeddings for query
+    Vectorize-->>Backend API: Query vector
+    Backend API->>Vectorize: Search for similar vectors
+    Vectorize-->>Backend API: Similar book IDs
+    Backend API-->>Client: 200 OK with BookSearchResponse
+    deactivate Backend API
+
+    Client->>Backend API: GET /v1/search/title?q=...
+    activate Backend API
+    Backend API->>Text Search Providers: Search by title
+    Text Search Providers-->>Backend API: Search results
+    Backend API-->>Client: 200 OK with BookSearchResponse
+    deactivate Backend API
+```
 
 ### 5.2 AI Bookshelf Scan
 - Input: Image up to 10MB (MAX_SCAN_FILE_SIZE)
@@ -71,11 +101,71 @@ Last Updated: 2025-11-21
 - Progress: WebSocket DO with stages and deltas; reconnection sync via job state endpoint
 - Output: Detected books, enrichment, confidence scores, modelUsed, suggestions
 
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Backend API
+    participant WebSocket DO
+    participant Gemini Vision
+
+    Client->>Backend API: POST /v1/scan (image)
+    activate Backend API
+    Backend API-->>Client: 202 Accepted { jobId, token }
+    deactivate Backend API
+
+    Client->>WebSocket DO: Connect wss://...?jobId=...&token=...
+    activate WebSocket DO
+    WebSocket DO-->>Client: Connection established
+
+    WebSocket DO->>Gemini Vision: Analyze image
+    Gemini Vision-->>WebSocket DO: Detected book titles/authors
+
+    loop For each detected book
+        WebSocket DO->>Backend API: Enrich book details
+        Backend API-->>WebSocket DO: Enriched DTOs
+    end
+
+    WebSocket DO-->>Client: job_progress messages
+    WebSocket DO-->>Client: job_complete (summary)
+    deactivate WebSocket DO
+
+    Client->>Backend API: GET /v1/scan/results/{jobId}
+    activate Backend API
+    Backend API-->>Client: 200 OK with full results
+    deactivate Backend API
+```
+
 ### 5.3 CSV Import
-- Input: CSV (max size consistent with MAX_SCAN_FILE_SIZE)
-- AI-assisted parsing (Gemini CSV) with schema inference; validation errors returned in envelope
-- Progress: Same WS progress pattern as AI scan
-- Output: Parsed entries, normalization to canonical DTOs, rejected rows with reasons
+- **WebSocket Flow (v1):**
+  - Input: CSV (max size consistent with MAX_SCAN_FILE_SIZE)
+  - AI-assisted parsing (Gemini CSV) with schema inference
+  - Progress: WebSocket DO with stages and deltas
+- **HTTP/SSE Flow (v2):**
+  - Input: CSV via multipart/form-data
+  - Progress: Server-Sent Events (SSE) stream for real-time updates. Robust against network changes.
+- **Common Features:**
+  - Output: Parsed entries, normalization to canonical DTOs, rejected rows with reasons
+
+```mermaid
+graph TD
+    subgraph V1 WebSocket Flow
+        A[Client POST /v1/import/csv] --> B{Backend};
+        B --> C[WebSocket DO];
+        C --> D[Gemini AI for parsing];
+        D --> C;
+        C -- job_progress --> A;
+        C -- job_complete --> A;
+        A --> E[Client GET /v1/csv/results/{jobId}];
+    end
+    subgraph V2 HTTP/SSE Flow
+        F[Client POST /api/v2/imports] --> G{Backend};
+        G --> H[SSE Stream];
+        H -- progress --> F;
+        G -- Writes to KV --> I[KV Store];
+        F --> J[Client GET /v1/csv/results/{jobId}];
+        J -- Reads from KV --> I;
+    end
+```
 
 ### 5.4 Batch Enrichment
 - Input: list of ISBN/title/author tuples with bounded batch size
@@ -105,6 +195,7 @@ Last Updated: 2025-11-21
 - Never break userspace: provide alternates and migration time; feature flags for safe rollouts
 
 ### 6.3 Endpoints (representative)
+#### 6.3.1 V1 API (WebSocket-centric)
 - `GET /v1/search/isbn?isbn=…` → 200 | 400 (INVALID_ISBN) | 404 (NOT_FOUND)
 - `GET /v1/search/title?q=…&maxResults=…` → 200 | 400
 - `GET /v1/search/advanced?title=…&author=…` → 200 | 400
@@ -114,6 +205,38 @@ Last Updated: 2025-11-21
 - `GET /api/job-state/:jobId` → 200 | 400
 - `GET /metrics` → 200 (analytics, cache metrics)
 - `GET /health` → 200
+
+#### 6.3.2 V2 API (HTTP/SSE & Intelligence)
+- `GET /api/v2/search?q=…&mode=semantic` → Semantic search
+- `GET /v1/search/similar?isbn=…` → Find similar books
+- `GET /api/v2/recommendations/weekly` → AI-curated weekly picks
+- `POST /api/v2/imports` (multipart/form-data) → 202 accepted + SSE progress via `/api/v2/imports/{jobId}/stream`
+- `GET /api/v2/capabilities` → Feature discovery
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Backend API
+    participant Cache
+    participant External Providers
+
+    Client->>Backend API: GET /v1/search/isbn?isbn=...
+    activate Backend API
+
+    Backend API->>Cache: Check for cached response
+    alt Cache Hit
+        Cache-->>Backend API: Cached BookSearchResponse
+        Backend API-->>Client: 200 OK (from cache)
+    else Cache Miss
+        Backend API->>External Providers: Search by ISBN
+        External Providers-->>Backend API: Provider-specific data
+        Backend API->>Backend API: Normalize to DTOs
+        Backend API->>Cache: Store normalized response
+        Backend API-->>Client: 200 OK (from provider)
+    end
+
+    deactivate Backend API
+```
 
 ### 6.4 Rate Limiting and Quotas
 - Per-IP DO-based rate limiter (e.g., 10 req/60s)
@@ -128,7 +251,10 @@ Last Updated: 2025-11-21
 - Runtime: Cloudflare Workers with Hono router (feature-flagged)
 - State: Durable Objects (WS connections, job state, rate limiter, cache metrics)
 - Storage: KV (hot cache), R2 (cold cache, images), Analytics Engine datasets
-- AI: Gemini 2.0 Flash via provider module
+- AI & Search:
+  - Gemini 2.0 Flash for vision and parsing
+  - Cloudflare Workers AI for embedding generation
+  - Cloudflare Vectorize for semantic search index
 - Routers:
   - Hono (default, `ENABLE_HONO_ROUTER=true`); legacy manual router remains as rollback
 - Caching:
