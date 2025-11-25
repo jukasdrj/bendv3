@@ -31,6 +31,7 @@ import { getProgressDOStub } from "./utils/durable-object-helpers";
 import { analyticsMiddleware } from "./middleware/hono-analytics";
 import { checkRateLimit } from "./middleware/rate-limiter";
 import { createSuccessResponse, createErrorResponse, ErrorCodes } from "./utils/response-builder";
+import { validateRequest, validateResponse } from "./middleware/api-contract-validator";
 
 // Properly typed Hono app with Bindings and ExecutionContext support
 const app = new Hono<{ Bindings: Env; Variables: { executionCtx?: ExecutionContext } }>();
@@ -41,6 +42,57 @@ const getCtx = (c: any): ExecutionContext | undefined => c.executionCtx as Execu
 
 // Global analytics middleware (adds X-Router and X-Response-Time headers)
 app.use("*", analyticsMiddleware());
+
+// API Contract Validation Middleware (Task 3.3 - Issue #38)
+// Validates requests/responses against docs/API_CONTRACT.md
+app.use("*", async (c, next) => {
+  // Skip validation for health and metrics endpoints (internal monitoring)
+  const path = c.req.path;
+  if (path === "/health" || path === "/metrics" || path.startsWith("/admin/")) {
+    return next();
+  }
+
+  // Validate request (only for API endpoints)
+  if (path.startsWith("/v1/") || path.startsWith("/api/")) {
+    const requestValidation = validateRequest(c.req.raw);
+    if (!requestValidation.valid) {
+      return c.json(
+        createErrorResponse(
+          ErrorCodes.INVALID_REQUEST,
+          `Request validation failed: ${requestValidation.errors.join(", ")}`,
+          400
+        ),
+        400
+      );
+    }
+  }
+
+  // Continue to handler
+  await next();
+
+  // Validate response (all routes except WebSocket upgrades)
+  if (c.res.status !== 101) {
+    const responseValidation = await validateResponse(c.res);
+    if (!responseValidation.valid) {
+      console.warn(`⚠️ API contract violation on ${path}:`, responseValidation.errors);
+
+      // Log to metrics for alerting (Task 3.4)
+      if (c.env?.METRICS_DO) {
+        try {
+          const id = c.env.METRICS_DO.idFromName("global");
+          const stub = c.env.METRICS_DO.get(id);
+          await stub.recordContractViolation({
+            path,
+            errors: responseValidation.errors,
+            timestamp: Date.now(),
+          });
+        } catch (error) {
+          console.error("Failed to log contract violation:", error);
+        }
+      }
+    }
+  }
+});
 
 // Global CORS middleware (secure with iOS compatibility)
 app.use(
