@@ -277,10 +277,14 @@ export class BookRepository {
 
   /**
    * Save book to D1 database with UPSERT (INSERT OR REPLACE)
+   *
+   * Note: updated_at is auto-set by database trigger (trg_books_updated_at) on UPDATE
+   * No need to manually set updated_at in ON CONFLICT clause
+   *
    * @private
    */
   private async saveToD1(book: BookRecord): Promise<void> {
-    const now = Math.floor(Date.now() / 1000) // Unix epoch in seconds
+    const now = Math.floor(Date.now() / 1000) // Unix epoch in seconds (for created_at only)
 
     // Upsert book record (INSERT OR REPLACE)
     await this.env.DB.prepare(`
@@ -303,8 +307,7 @@ export class BookRepository {
         cover_medium_url = excluded.cover_medium_url,
         cover_large_url = excluded.cover_large_url,
         canonical_metadata = excluded.canonical_metadata,
-        provider_metadata = excluded.provider_metadata,
-        updated_at = ?
+        provider_metadata = excluded.provider_metadata
     `).bind(
       book.isbn,
       book.title,
@@ -320,8 +323,7 @@ export class BookRepository {
       JSON.stringify(book.canonicalMetadata),
       book.providerMetadata ? JSON.stringify(book.providerMetadata) : null,
       now, // created_at (only used on INSERT)
-      now, // updated_at
-      now  // updated_at for ON CONFLICT
+      now  // updated_at (set on INSERT, then auto-updated by trigger on UPDATE)
     ).run()
 
     // Extract and save authors
