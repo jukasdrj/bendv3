@@ -42,16 +42,21 @@ export async function uploadPayloadToR2(env, jobId, type, data) {
       const abortController = new AbortController()
       const timeout = setTimeout(() => abortController.abort(), R2_UPLOAD_TIMEOUT)
 
-      await bucket.put(r2Key, data, {
-        httpMetadata: {
-          contentType: type === 'csv' ? 'text/csv' : 'image/jpeg',
+      await bucket.put(
+        r2Key,
+        data,
+        {
+          httpMetadata: {
+            contentType: type === 'csv' ? 'text/csv' : 'image/jpeg',
+          },
+          customMetadata: {
+            jobId,
+            type,
+            uploadTime: timestamp.toString(),
+          },
         },
-        customMetadata: {
-          jobId,
-          type,
-          uploadTime: timestamp.toString(),
-        },
-      })
+        { signal: abortController.signal } // Issue #59: Pass signal to enforce timeout
+      )
 
       clearTimeout(timeout)
 
@@ -91,7 +96,7 @@ export async function fetchPayloadFromR2(env, r2Key) {
   const timeout = setTimeout(() => abortController.abort(), R2_UPLOAD_TIMEOUT)
 
   try {
-    const object = await bucket.get(r2Key)
+    const object = await bucket.get(r2Key, { signal: abortController.signal }) // Issue #59: Pass signal to enforce timeout
     clearTimeout(timeout)
 
     if (!object) {
@@ -119,10 +124,16 @@ export async function fetchPayloadFromR2(env, r2Key) {
 export async function deletePayloadFromR2(env, r2Key) {
   const bucket = env.BOOKSHELF_IMAGES
 
+  // Issue #59: Add timeout to delete operations
+  const abortController = new AbortController()
+  const timeout = setTimeout(() => abortController.abort(), R2_UPLOAD_TIMEOUT)
+
   try {
-    await bucket.delete(r2Key)
+    await bucket.delete(r2Key, { signal: abortController.signal })
+    clearTimeout(timeout)
     console.log(`[R2] Object deleted: ${r2Key}`)
   } catch (error) {
+    clearTimeout(timeout)
     console.error(`[R2] Delete failed for ${r2Key}:`, error)
     // Don't throw on delete failures - log and continue
     // Worst case: 24-hour lifecycle rule will clean up
@@ -194,14 +205,20 @@ export async function cleanupJobR2Objects(env, jobId) {
       `hibernation/image/${jobId}/`,
     ]
 
+    // Issue #59: Add timeout to list operations
+    const abortController = new AbortController()
+    const timeout = setTimeout(() => abortController.abort(), R2_UPLOAD_TIMEOUT)
+
     for (const prefix of prefixes) {
       let cursor
       do {
-        const result = await bucket.list({ prefix, cursor })
+        const result = await bucket.list({ prefix, cursor }, { signal: abortController.signal })
         allObjects.push(...(result.objects || []))
         cursor = result.truncated ? result.cursor : null
       } while (cursor)
     }
+
+    clearTimeout(timeout)
 
     if (allObjects.length === 0) {
       console.log(`[R2] No objects found for cleanup: ${jobId}`)
