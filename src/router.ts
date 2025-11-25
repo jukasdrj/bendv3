@@ -559,11 +559,20 @@ app.post("/api/token/refresh", rateLimitMiddleware, async (c) => {
       );
     }
 
-    // Get DO stub for this job
-    const doStub = getProgressDOStub(jobId, c.env);
+    // Feature flag: Use refactored architecture or legacy monolithic DO
+    const useRefactoredDOs = c.env.ENABLE_REFACTORED_DOS === "true";
 
-    // Refresh token via Durable Object
-    const result = await doStub.refreshAuthToken(oldToken);
+    let result;
+    if (useRefactoredDOs) {
+      // NEW ARCHITECTURE: Use WEBSOCKET_CONNECTION_DO for auth token management
+      const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId);
+      const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
+      result = await wsDoStub.refreshAuthToken(oldToken);
+    } else {
+      // LEGACY ARCHITECTURE: Use getProgressDOStub()
+      const doStub = getProgressDOStub(jobId, c.env);
+      result = await doStub.refreshAuthToken(oldToken);
+    }
 
     if (result.error) {
       return createErrorResponse(
@@ -750,9 +759,20 @@ app.post("/api/scan-bookshelf/cancel", async (c) => {
       );
     }
 
-    // Call Durable Object to cancel batch
-    const doStub = getProgressDOStub(jobId, c.env);
-    const result = await doStub.cancelBatch();
+    // Feature flag: Use refactored architecture or legacy monolithic DO
+    const useRefactoredDOs = c.env.ENABLE_REFACTORED_DOS === "true";
+
+    let result;
+    if (useRefactoredDOs) {
+      // NEW ARCHITECTURE: Use JOB_STATE_MANAGER_DO for cancellation
+      const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
+      const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(stateDoId);
+      result = await stateDoStub.cancelJob("User canceled bookshelf scan");
+    } else {
+      // LEGACY ARCHITECTURE: Use getProgressDOStub()
+      const doStub = getProgressDOStub(jobId, c.env);
+      result = await doStub.cancelBatch();
+    }
 
     // Return result from DO in ResponseEnvelope format
     return createSuccessResponse(
@@ -848,12 +868,22 @@ app.get("/ws/progress", async (c) => {
   //
   // See API_CONTRACT.md § 7.5 for complete WebSocket authentication flow
 
-  // Get Durable Object instance for this specific jobId
-  const doStub = getProgressDOStub(jobId, c.env);
+  // Feature flag: Use refactored architecture or legacy monolithic DO
+  const useRefactoredDOs = c.env.ENABLE_REFACTORED_DOS === "true";
 
-  // Forward the request to the Durable Object
-  // The DO will handle the WebSocket upgrade and lifecycle
-  return await doStub.fetch(c.req.raw);
+  if (useRefactoredDOs) {
+    // NEW ARCHITECTURE: Use WEBSOCKET_CONNECTION_DO for WebSocket upgrades
+    const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId);
+    const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
+
+    // Forward the request to the WebSocket DO
+    // The DO will handle authentication, upgrade, and lifecycle
+    return await wsDoStub.fetch(c.req.raw);
+  } else {
+    // LEGACY ARCHITECTURE: Use getProgressDOStub()
+    const doStub = getProgressDOStub(jobId, c.env);
+    return await doStub.fetch(c.req.raw);
+  }
 });
 
 // ============================================================================
@@ -1137,9 +1167,19 @@ app.post("/api/scan-bookshelf/cancel", async (c) => {
       );
     }
 
-    // Get DO stub and cancel the batch
-    const doStub = getProgressDOStub(jobId, c.env);
-    await doStub.cancelBatch();
+    // Feature flag: Use refactored architecture or legacy monolithic DO
+    const useRefactoredDOs = c.env.ENABLE_REFACTORED_DOS === "true";
+
+    if (useRefactoredDOs) {
+      // NEW ARCHITECTURE: Use JOB_STATE_MANAGER_DO for cancellation
+      const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
+      const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(stateDoId);
+      await stateDoStub.cancelJob("User canceled batch scan");
+    } else {
+      // LEGACY ARCHITECTURE: Use getProgressDOStub()
+      const doStub = getProgressDOStub(jobId, c.env);
+      await doStub.cancelBatch();
+    }
 
     return createSuccessResponse(
       { jobId, canceled: true },
