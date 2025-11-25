@@ -21,7 +21,7 @@ import { CacheKeyFactory } from "../services/cache-key-factory.js";
  *
  * Cron Schedule:
  * - 0 3 * * * (daily at 3 AM UTC) - Main harvest
- * - 0 */6 * * * (every 6 hours) - Supplementary metadata enrichment
+ * - 0 [star]/6 * * * (every 6 hours) - Supplementary metadata enrichment
  */
 
 import { ISBNdbAPI } from "../services/isbndb-api.js";
