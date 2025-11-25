@@ -12,48 +12,64 @@ import type {
 
 /**
  * Minimal environment interface for Durable Object access
- * Contains PROGRESS_WEBSOCKET_DO bindings (both traditional and hibernation)
+ * Contains refactored DO bindings for job state management
  */
 interface EnvWithProgressDO {
-  PROGRESS_WEBSOCKET_DO: DurableObjectNamespace;
-  PROGRESS_WEBSOCKET_DO_HIBERNATION: DurableObjectNamespace;
+  JOB_STATE_MANAGER_DO: DurableObjectNamespace;
+  WEBSOCKET_CONNECTION_DO: DurableObjectNamespace;
+  // Legacy bindings (deprecated, kept for backward compatibility)
+  PROGRESS_WEBSOCKET_DO?: DurableObjectNamespace;
+  PROGRESS_WEBSOCKET_DO_HIBERNATION?: DurableObjectNamespace;
   ENABLE_HIBERNATION_WEBSOCKET?: string;
+  ENABLE_REFACTORED_DOS?: string;
 }
 
 /**
- * Get a stub for the Progress WebSocket Durable Object
+ * Get a stub for the Job State Manager Durable Object
  *
- * Handles ID generation and stub retrieval for ProgressWebSocketDO.
- * Automatically selects between traditional and hibernation implementation
- * based on ENABLE_HIBERNATION_WEBSOCKET feature flag.
+ * BREAKING CHANGE (Issue #68 - Refactored DO Architecture):
+ * Now returns JOB_STATE_MANAGER_DO instead of PROGRESS_WEBSOCKET_DO.
+ * The refactored architecture separates concerns:
+ * - JOB_STATE_MANAGER_DO: State persistence and queries
+ * - WEBSOCKET_CONNECTION_DO: WebSocket connections and broadcasts
  *
- * Migration Strategy (Issue #221):
- * - Phase 1: flag=false, traditional implementation (default, 100% backward compatible)
- * - Phase 2: flag=true, hibernation implementation (70-80% cost reduction)
- * - Gradual rollout: 1% → 10% → 50% → 100%
+ * Migration controlled by ENABLE_REFACTORED_DOS feature flag:
+ * - flag=false: Legacy PROGRESS_WEBSOCKET_DO (deprecated)
+ * - flag=true: New JOB_STATE_MANAGER_DO (default)
  *
  * @param jobId - Unique job identifier (used as DO instance name)
- * @param env - Worker environment bindings containing PROGRESS_WEBSOCKET_DO
+ * @param env - Worker environment bindings containing JOB_STATE_MANAGER_DO
  * @returns Durable Object stub for the given jobId
  *
  * @example
  * const stub = getProgressDOStub('job-123', env)
- * await stub.updateProgress(50, 'Processing...')
+ * await stub.getJobState() // Returns job state
  */
 export function getProgressDOStub(
   jobId: string,
   env: EnvWithProgressDO,
 ): DurableObjectStub {
-  // Feature flag: Choose implementation
-  const useHibernation = env.ENABLE_HIBERNATION_WEBSOCKET === "true";
+  // Feature flag: Use refactored architecture (enabled as of Nov 25, 2025)
+  // Explicit string comparison for clarity and safety
+  const useRefactoredDOs = env.ENABLE_REFACTORED_DOS === "true";
 
-  if (useHibernation) {
-    // Hibernation API (Issue #221: Cloudflare best practices)
-    const id = env.PROGRESS_WEBSOCKET_DO_HIBERNATION.idFromName(jobId);
-    return env.PROGRESS_WEBSOCKET_DO_HIBERNATION.get(id);
+  if (useRefactoredDOs) {
+    // New refactored architecture: JOB_STATE_MANAGER_DO for state queries
+    const id = env.JOB_STATE_MANAGER_DO.idFromName(jobId);
+    return env.JOB_STATE_MANAGER_DO.get(id);
   } else {
-    // Traditional WebSocket (default, 100% backward compatible)
-    const id = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-    return env.PROGRESS_WEBSOCKET_DO.get(id);
+    // Legacy path: PROGRESS_WEBSOCKET_DO (deprecated)
+    const useHibernation = env.ENABLE_HIBERNATION_WEBSOCKET === "true";
+    if (useHibernation && env.PROGRESS_WEBSOCKET_DO_HIBERNATION) {
+      const id = env.PROGRESS_WEBSOCKET_DO_HIBERNATION.idFromName(jobId);
+      return env.PROGRESS_WEBSOCKET_DO_HIBERNATION.get(id);
+    } else if (env.PROGRESS_WEBSOCKET_DO) {
+      const id = env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
+      return env.PROGRESS_WEBSOCKET_DO.get(id);
+    } else {
+      // Fallback to refactored if legacy bindings not available
+      const id = env.JOB_STATE_MANAGER_DO.idFromName(jobId);
+      return env.JOB_STATE_MANAGER_DO.get(id);
+    }
   }
 }

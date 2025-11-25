@@ -311,6 +311,25 @@ export class WebSocketConnectionDO extends DurableObject {
   }
 
   /**
+   * RPC Method: Get authentication token and expiration (for polling status endpoint)
+   *
+   * Used by /api/job-state/:jobId to validate Bearer token authentication
+   * when clients poll for job status instead of using WebSocket
+   *
+   * @returns {Promise<{token: string, expiresAt: number} | null>}
+   */
+  async getAuthToken() {
+    const token = await this.storage.get("authToken");
+    const expiresAt = await this.storage.get("authTokenExpiration");
+
+    if (!token || !expiresAt) {
+      return null;
+    }
+
+    return { token, expiresAt };
+  }
+
+  /**
    * RPC Method: Wait for client ready signal
    *
    * @param {number} timeoutMs - Timeout in milliseconds

@@ -632,23 +632,69 @@ app.get(
         );
       }
 
-      // Get DO stub for this job
-      const doStub = getProgressDOStub(jobId, c.env);
+      // Feature flag: Use refactored architecture or legacy monolithic DO
+      // Explicit string comparison for clarity and safety
+      const useRefactoredDOs = c.env.ENABLE_REFACTORED_DOS === "true";
 
-      // Fetch job state and auth details (includes validation)
-      const result = await doStub.getJobStateAndAuth();
+      let jobState: any;
+      let authToken: string;
+      let authTokenExpiration: number;
 
-      if (!result) {
-        return createErrorResponse(
-          "Job not found or state not initialized",
-          404,
-          ErrorCodes.NOT_FOUND,
-          { jobId },
-          c.req.raw
-        );
+      if (useRefactoredDOs) {
+        // NEW ARCHITECTURE: Query JOB_STATE_MANAGER_DO and WEBSOCKET_CONNECTION_DO separately
+        const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
+        const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(stateDoId);
+
+        const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId);
+        const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
+
+        // Fetch job state and auth details separately
+        jobState = await stateDoStub.getJobState();
+        const authResult = await wsDoStub.getAuthToken();
+
+        if (!jobState) {
+          return createErrorResponse(
+            "Job not found or state not initialized",
+            404,
+            ErrorCodes.NOT_FOUND,
+            { jobId },
+            c.req.raw
+          );
+        }
+
+        if (!authResult) {
+          return createErrorResponse(
+            "Job authentication not found",
+            404,
+            ErrorCodes.NOT_FOUND,
+            { jobId },
+            c.req.raw
+          );
+        }
+
+        authToken = authResult.token;
+        authTokenExpiration = authResult.expiresAt;
+      } else {
+        // LEGACY ARCHITECTURE: Use getProgressDOStub() which returns PROGRESS_WEBSOCKET_DO
+        const doStub = getProgressDOStub(jobId, c.env);
+
+        // Fetch job state and auth details (combined in legacy DO)
+        const result = await (doStub as any).getJobStateAndAuth();
+
+        if (!result) {
+          return createErrorResponse(
+            "Job not found or state not initialized",
+            404,
+            ErrorCodes.NOT_FOUND,
+            { jobId },
+            c.req.raw
+          );
+        }
+
+        jobState = result.jobState;
+        authToken = result.authToken;
+        authTokenExpiration = result.authTokenExpiration;
       }
-
-      const { jobState, authToken, authTokenExpiration } = result;
 
       // Validate token matches and is not expired
       if (
