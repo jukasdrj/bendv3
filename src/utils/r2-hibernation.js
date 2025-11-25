@@ -14,6 +14,8 @@ const MAX_CSV_SIZE = 10 * 1024 * 1024 // 10MB
 const MAX_IMAGE_SIZE = 15 * 1024 * 1024 // 15MB
 const R2_UPLOAD_TIMEOUT = 30000 // 30 seconds
 const R2_RETRY_COUNT = 3
+const R2_DELETE_BATCH_SIZE = 100 // Issue #62: Batch deletes to avoid rate limits
+const R2_DELETE_DELAY_MS = 100 // Issue #62: Delay between batches
 
 /**
  * Upload payload to R2
@@ -103,12 +105,10 @@ export async function fetchPayloadFromR2(env, r2Key) {
       throw new Error(`R2 object not found: ${r2Key}`)
     }
 
-    // For CSV files, return as text; for images, return as ArrayBuffer
-    if (r2Key.includes('/csv/')) {
-      return await object.text()
-    } else {
-      return await object.arrayBuffer()
-    }
+    // Issue #61: Validate r2Key format with regex instead of simple string check
+    // Expected format: hibernation/{type}/{jobId}/{timestamp}.{ext}
+    const isCsv = r2Key.match(/^hibernation\/csv\/.+?\/.+?\.csv$/)
+    return isCsv ? await object.text() : await object.arrayBuffer()
   } catch (error) {
     clearTimeout(timeout)
     console.error(`[R2] Fetch failed for ${r2Key}:`, error)
@@ -227,14 +227,23 @@ export async function cleanupJobR2Objects(env, jobId) {
 
     console.log(`[R2] Cleaning up ${allObjects.length} objects for job ${jobId}`)
 
-    // Delete all objects
-    await Promise.all(
-      allObjects.map((obj) =>
-        bucket.delete(obj.key).catch((error) =>
-          console.error(`[R2] Failed to delete ${obj.key}:`, error)
+    // Issue #62: Delete objects in batches to avoid R2 rate limits
+    // For jobs with 1000+ objects, parallel deletes could hit 429 errors
+    for (let i = 0; i < allObjects.length; i += R2_DELETE_BATCH_SIZE) {
+      const batch = allObjects.slice(i, i + R2_DELETE_BATCH_SIZE)
+      await Promise.all(
+        batch.map((obj) =>
+          bucket.delete(obj.key).catch((error) =>
+            console.error(`[R2] Failed to delete ${obj.key}:`, error)
+          )
         )
       )
-    )
+
+      // Add delay between batches (except for last batch)
+      if (i + R2_DELETE_BATCH_SIZE < allObjects.length) {
+        await new Promise((resolve) => setTimeout(resolve, R2_DELETE_DELAY_MS))
+      }
+    }
 
     console.log(`[R2] Cleanup completed for job ${jobId}`)
   } catch (error) {
