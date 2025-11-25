@@ -6,7 +6,7 @@ This directory contains SQL migrations for the BooksTrack D1 database schema.
 
 ## Migration Order
 
-### Fresh Deployments (Nov 23, 2025 onwards)
+### Fresh Deployments (Nov 25, 2025 onwards)
 Apply migrations in numerical order (skip 0006):
 
 1. **0001_create_books_table.sql** - Core books table with metadata
@@ -15,6 +15,9 @@ Apply migrations in numerical order (skip 0006):
 4. **0004_create_user_library_table.sql** - User reading lists (includes NULL status)
 5. **0005_add_constraints.sql** - Unique indexes and performance improvements
 6. ~~**0006_allow_null_status.sql**~~ - **SKIP** (0004 already includes fix)
+7. **0007_add_performance_indexes.sql** - Additional query optimization indexes
+8. **0008_add_recommendations.sql** - Recommendations table and indexes
+9. **0009_add_timestamp_triggers.sql** - Auto-update timestamps on row modifications
 
 ### Existing Deployments (Need to Fix Old 0004)
 Apply migrations in this order:
@@ -103,6 +106,56 @@ npx wrangler d1 execute bookstrack-db --file=migrations/0001_create_books_table.
 - Wrapped in `BEGIN TRANSACTION` / `COMMIT` (all-or-nothing)
 - Foreign key checks temporarily disabled during data copy
 - AUTOINCREMENT sequence properly reset after table recreation
+
+### 0009: Timestamp Triggers
+
+**Purpose:** Auto-update `updated_at` columns on row modifications (Issue #42)
+
+**Tables Affected:**
+- `books` - Added trigger `trg_books_updated_at`
+- `authors` - Added `updated_at` column + trigger `trg_authors_updated_at`
+- `user_library` - Added `updated_at` column + trigger `trg_user_library_updated_at`
+
+**What it does:**
+- Adds `updated_at` column to `authors` table (books already has it)
+- Adds `updated_at` column to `user_library` table
+- Creates AFTER UPDATE triggers that automatically set `updated_at = unixepoch()` on modifications
+- Timestamp defaults to current Unix epoch on INSERT
+
+**Design:**
+- Triggers fire AFTER UPDATE (not on INSERT, created_at handles inserts)
+- Uses `unixepoch()` for consistency with existing timestamp columns
+- Removes need for manual timestamp management in application code
+
+**Benefits:**
+- Automatic timestamp updates reduce bugs from forgot-to-update errors
+- Consistent across all tables (single source of truth: database)
+- Simpler repository code (no need to manually set updated_at)
+
+**Example:**
+```sql
+-- Before: Manual update required in application
+UPDATE books SET updated_at = unixepoch() WHERE isbn = ?
+
+-- After: Trigger handles it automatically
+UPDATE books SET title = ? WHERE isbn = ?  -- updated_at auto-set by trg_books_updated_at
+```
+
+**Verification:**
+```bash
+# List all triggers
+npx wrangler d1 execute bookstrack-db --command "SELECT name FROM sqlite_master WHERE type='trigger'"
+
+# Verify trigger fires
+npx wrangler d1 execute bookstrack-db --command "SELECT updated_at FROM books WHERE isbn = '9780439708180' LIMIT 1"
+```
+
+**Rollback:**
+```bash
+npx wrangler d1 execute bookstrack-db --file=migrations/0009_rollback_triggers.sql
+```
+
+**Note:** Rollback drops triggers but leaves columns in place (safe, no data loss)
 
 ## Design Decisions
 
