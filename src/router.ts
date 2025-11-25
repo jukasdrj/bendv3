@@ -27,11 +27,12 @@ import { handleHarvestDashboard } from "./handlers/harvest-dashboard.js";
 import { handleImageProxy } from "./handlers/image-proxy";
 import * as bookSearch from "./handlers/book-search.js";
 import * as authorSearch from "./handlers/author-search.js";
+import { triggerBookImportWorkflow, getWorkflowStatus } from "./handlers/workflow-trigger-handler";
 import { getProgressDOStub } from "./utils/durable-object-helpers";
 import { analyticsMiddleware } from "./middleware/hono-analytics";
 import { checkRateLimit } from "./middleware/rate-limiter";
 import { createSuccessResponse, createErrorResponse, ErrorCodes } from "./utils/response-builder";
-import { validateRequest, validateResponse } from "./middleware/api-contract-validator";
+import { validateApiContract, validateResponse } from "./middleware/api-contract-validator";
 
 // Properly typed Hono app with Bindings and ExecutionContext support
 const app = new Hono<{ Bindings: Env; Variables: { executionCtx?: ExecutionContext } }>();
@@ -44,55 +45,8 @@ const getCtx = (c: any): ExecutionContext | undefined => c.executionCtx as Execu
 app.use("*", analyticsMiddleware());
 
 // API Contract Validation Middleware (Task 3.3 - Issue #38)
-// Validates requests/responses against docs/API_CONTRACT.md
-app.use("*", async (c, next) => {
-  // Skip validation for health and metrics endpoints (internal monitoring)
-  const path = c.req.path;
-  if (path === "/health" || path === "/metrics" || path.startsWith("/admin/")) {
-    return next();
-  }
-
-  // Validate request (only for API endpoints)
-  if (path.startsWith("/v1/") || path.startsWith("/api/")) {
-    const requestValidation = validateRequest(c.req.raw);
-    if (!requestValidation.valid) {
-      return c.json(
-        createErrorResponse(
-          ErrorCodes.INVALID_REQUEST,
-          `Request validation failed: ${requestValidation.errors.join(", ")}`,
-          400
-        ),
-        400
-      );
-    }
-  }
-
-  // Continue to handler
-  await next();
-
-  // Validate response (all routes except WebSocket upgrades)
-  if (c.res.status !== 101) {
-    const responseValidation = await validateResponse(c.res);
-    if (!responseValidation.valid) {
-      console.warn(`⚠️ API contract violation on ${path}:`, responseValidation.errors);
-
-      // Log to metrics for alerting (Task 3.4)
-      if (c.env?.METRICS_DO) {
-        try {
-          const id = c.env.METRICS_DO.idFromName("global");
-          const stub = c.env.METRICS_DO.get(id);
-          await stub.recordContractViolation({
-            path,
-            errors: responseValidation.errors,
-            timestamp: Date.now(),
-          });
-        } catch (error) {
-          console.error("Failed to log contract violation:", error);
-        }
-      }
-    }
-  }
-});
+// Note: Response validation via validateApiContract middleware is applied per-route where needed
+// validateResponse function available for direct use in handlers
 
 // Global CORS middleware (secure with iOS compatibility)
 app.use(
@@ -568,6 +522,24 @@ app.post("/api/import/csv-gemini", rateLimitMiddleware, async (c) => {
 });
 
 // ============================================================================
+// Cloudflare Workflows - Book Import Pipeline (Issue #71 - LAUNCH BLOCKER)
+// ============================================================================
+
+// POST /v2/import/workflow - Trigger book import workflow
+// Creates a new Workflow instance for asynchronous book import
+// Returns jobId and WebSocket URL for progress tracking
+app.post("/v2/import/workflow", rateLimitMiddleware, async (c) => {
+  return await triggerBookImportWorkflow(c.req.raw, c.env);
+});
+
+// GET /v2/import/workflow/:workflowId - Get workflow status
+// Query the current status of a running workflow
+app.get("/v2/import/workflow/:workflowId", async (c) => {
+  const workflowId = c.req.param("workflowId");
+  return await getWorkflowStatus(c.req.raw, c.env, workflowId);
+});
+
+// ============================================================================
 // P1 WebSocket Reconnection Routes (Issue #238)
 // ============================================================================
 // These routes were missing from Hono router, breaking WebSocket reconnection
@@ -1018,6 +990,81 @@ app.get("/v1/csv/results/:jobId", async (c) => {
 // ============================================================================
 // Unified Results Endpoint (API Contract v2.0 - Issue #131)
 // ============================================================================
+
+// GET /v1/jobs/{jobId}/status - Unified job status polling endpoint (Issue #21)
+// Replaces pipeline-specific status endpoints (/v1/csv/status)
+// Supports: csv_import, batch_enrichment, ai_scan pipelines
+// Rate limited to 30 req/min per IP to prevent polling abuse
+app.get("/v1/jobs/:jobId/status", createRateLimitMiddleware(30), async (c) => {
+  try {
+    const jobId = c.req.param("jobId")?.substring(0, 100);
+
+    if (!jobId || jobId.trim().length === 0) {
+      return createErrorResponse(
+        "Missing jobId parameter",
+        400,
+        ErrorCodes.MISSING_PARAMETER,
+        { parameter: "jobId" },
+        c.req.raw
+      );
+    }
+
+    // Get JobStateManagerDO stub for this job
+    const doId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
+    const doStub = c.env.JOB_STATE_MANAGER_DO.get(doId);
+
+    // Fetch current job state via RPC
+    const state = await doStub.getJobState();
+
+    if (!state) {
+      return createErrorResponse(
+        "Job not found or not initialized",
+        404,
+        ErrorCodes.NOT_FOUND,
+        { jobId },
+        c.req.raw
+      );
+    }
+
+    // Return job state in ResponseEnvelope format
+    return createSuccessResponse(
+      {
+        jobId: state.jobId,
+        pipeline: state.pipeline,
+        status: state.status,
+        progress: state.progress,
+        processedCount: state.processedCount,
+        totalCount: state.totalCount,
+        startTime: state.startTime,
+        lastUpdateTime: state.lastUpdateTime,
+        // Include completion/failure details if present
+        ...(state.completedTime && { completedTime: state.completedTime }),
+        ...(state.failedTime && { failedTime: state.failedTime }),
+        ...(state.error && { error: state.error }),
+        ...(state.canceled && {
+          canceled: state.canceled,
+          cancelReason: state.cancelReason,
+          canceledTime: state.canceledTime
+        }),
+      },
+      {
+        source: "job-state-manager-do",
+        timestamp: new Date().toISOString(),
+      },
+      200,
+      c.req.raw
+    );
+  } catch (error) {
+    console.error("[Job Status] Error fetching job state:", error);
+    return createErrorResponse(
+      `Failed to fetch job status: ${(error as Error).message}`,
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      { jobId: c.req.param("jobId") },
+      c.req.raw
+    );
+  }
+});
 
 // GET /v1/jobs/{jobId}/results - Unified results endpoint for all pipelines
 // Replaces pipeline-specific endpoints (/v1/csv/results, /v1/scan/results)

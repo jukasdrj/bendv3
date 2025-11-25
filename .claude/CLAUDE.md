@@ -58,6 +58,56 @@ src/
 - **All routes in `src/router.ts`** - Single source of truth for HTTP routing
 - **Migration guide:** See `docs/HONO_MIGRATION.md` for details on the removal process
 
+### 4. Workflow Architecture (Sprint 2 - Issue #21, #22)
+
+BooksTrack uses a multi-tier job management architecture for async operations:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        HTTP Layer                                │
+│  POST /v2/import/workflow  →  GET /v1/jobs/:jobId/status        │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   JobStateManagerDO                              │
+│  - initializeJobState(jobId, pipeline, totalCount)              │
+│  - updateProgress(pipeline, payload)                            │
+│  - getJobState() → {jobId, status, progress, ...}               │
+│  - complete(pipeline, payload) / sendError(pipeline, payload)   │
+│  - scheduleCSVProcessing() / scheduleBookshelfScan()            │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  WebSocketConnectionDO                           │
+│  - Real-time progress broadcasts to connected clients           │
+│  - Token-based authentication                                   │
+│  - Automatic cleanup after job completion                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Pipeline Types:**
+- `csv_import` - CSV file import with Gemini parsing
+- `batch_enrichment` - OpenLibrary work ID enrichment
+- `ai_scan` - Bookshelf photo scanning with Gemini Vision
+
+**Job States:**
+- `initialized` - Job created, waiting to start
+- `processing` - Actively processing items
+- `completed` - Successfully finished (progress: 1.0)
+- `failed` - Error occurred (includes error details)
+- `canceled` - User canceled job
+
+**Polling vs WebSocket:**
+- **WebSocket** (`/ws/progress?jobId=xxx`) - Real-time updates, preferred
+- **HTTP Polling** (`GET /v1/jobs/:jobId/status`) - Fallback, rate-limited to 30 req/min
+
+**D1 Integration (Issue #22):**
+- Dual-write enabled: KV + D1 for durability
+- D1_READ_PERCENTAGE controls read routing (0-100%)
+- Performance targets: ISBN lookup <500ms p95, author search <1000ms p95
+
 ---
 
 ## Code Style
