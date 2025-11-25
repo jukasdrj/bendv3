@@ -1,9 +1,9 @@
 import { CacheKeyFactory } from "../services/cache-key-factory.js";
 /**
- * Scheduled ISBNdb Cover Harvest Handler
+ * Scheduled ISBNdb Cover Harvest Handler (Day 4: Enhanced Metadata Harvesting)
  *
- * Daily cron job (3 AM UTC) that harvests book cover images from ISBNdb
- * before paid membership expires. Pre-populates R2 + KV for instant cache hits.
+ * Daily cron job (3 AM UTC) that harvests book cover images from ISBNdb AND
+ * enriches full metadata (Google Books, OpenLibrary, ISBNdb) with dual-write to KV + D1.
  *
  * Data Sources:
  * 1. User Library ISBNs (from SwiftData sync via CloudKit)
@@ -17,8 +17,11 @@ import { CacheKeyFactory } from "../services/cache-key-factory.js";
  * 5. Compress to WebP (85% quality, 60% savings)
  * 6. Store in R2 (human-readable key: covers/{isbn13})
  * 7. Index in KV (cover:{isbn} → covers/{isbn})
+ * 8. NEW: Trigger full metadata enrichment via findBookByISBN (dual-write to KV + D1)
  *
- * Cron Schedule: 0 3 * * * (daily at 3 AM UTC)
+ * Cron Schedule:
+ * - 0 3 * * * (daily at 3 AM UTC) - Main harvest
+ * - 0 */6 * * * (every 6 hours) - Supplementary metadata enrichment
  */
 
 import { ISBNdbAPI } from "../services/isbndb-api.js";
@@ -27,6 +30,7 @@ import { getTopEditions } from "../services/edition-discovery.js";
 import { discoverPopularAuthors } from "../services/author-discovery.js";
 import { prioritizeAuthorsForHarvest } from "../services/author-cache-analyzer.js";
 import { expandAuthorBibliography } from "../services/author-bibliography-expansion.js";
+import { findBookByISBN } from "../services/book-service.js";
 
 /**
  * Load curated ISBN list from isbn-harvest-list.txt (478 ISBNs from testImages/csv-expansion)
@@ -350,10 +354,14 @@ async function isCoverHarvested(isbn, env) {
 }
 
 /**
- * Harvest single ISBN cover
+ * Harvest single ISBN cover with metadata enrichment
+ *
+ * Enhanced Day 4: After cover harvest, trigger full metadata enrichment
+ * which dual-writes to KV + D1 automatically via BookRepository.
  */
 async function harvestISBN(isbn, isbndbApi, env, stats) {
   const startTime = Date.now();
+  const MAX_RETRIES = 3;
 
   try {
     // Check if already harvested
@@ -363,9 +371,28 @@ async function harvestISBN(isbn, isbndbApi, env, stats) {
       return { isbn, status: "skipped" };
     }
 
-    // Fetch from ISBNdb
+    // Fetch from ISBNdb with exponential backoff retry
     console.log(`Harvesting ${isbn}...`);
-    const bookData = await isbndbApi.fetchBook(isbn);
+    let bookData = null;
+    let retries = 0;
+
+    while (retries < MAX_RETRIES) {
+      try {
+        bookData = await isbndbApi.fetchBook(isbn);
+        break; // Success, exit retry loop
+      } catch (error) {
+        retries++;
+        if (retries < MAX_RETRIES) {
+          const waitTime = Math.pow(2, retries) * 1000; // Exponential backoff: 2s, 4s, 8s
+          console.warn(
+            `Retry ${retries}/${MAX_RETRIES - 1} for ${isbn}, waiting ${waitTime}ms...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+        } else {
+          throw error;
+        }
+      }
+    }
 
     if (!bookData) {
       console.log(`No cover for ${isbn}`);
@@ -431,6 +458,30 @@ async function harvestISBN(isbn, isbndbApi, env, stats) {
         expirationTtl: 365 * 24 * 60 * 60, // 1 year
       },
     );
+
+    // NEW: Trigger full metadata enrichment (dual-write to KV + D1)
+    // This enriches from Google Books, OpenLibrary, ISBNdb
+    console.log(`Enriching metadata for ${isbn}...`);
+    try {
+      const enrichmentResult = await findBookByISBN(isbn, env);
+      if (
+        enrichmentResult &&
+        enrichmentResult.works &&
+        enrichmentResult.works.length > 0
+      ) {
+        console.log(
+          `✅ Metadata enriched for ${isbn} (${enrichmentResult.works[0].title})`,
+        );
+        stats.metadataEnriched++;
+      } else {
+        console.warn(`Metadata enrichment found no works for ${isbn}`);
+        stats.metadataSkipped++;
+      }
+    } catch (error) {
+      console.error(`Metadata enrichment failed for ${isbn}:`, error.message);
+      stats.metadataErrors++;
+      // Don't fail the harvest - cover was successfully harvested
+    }
 
     const processingTime = Date.now() - startTime;
     console.log(`✅ Harvested ${isbn} in ${processingTime}ms`);
@@ -589,6 +640,10 @@ export async function handleScheduledHarvest(env) {
     errors: 0,
     totalSize: 0,
     totalSavings: 0,
+    // NEW (Day 4): Metadata enrichment metrics
+    metadataEnriched: 0, // Books with full metadata fetched + dual-written
+    metadataSkipped: 0,  // Books with no metadata found
+    metadataErrors: 0,   // Metadata enrichment failures (non-blocking)
   };
 
   const results = [];
@@ -636,6 +691,11 @@ export async function handleScheduledHarvest(env) {
   console.log(`   No cover available: ${stats.noCover}`);
   console.log(`   Errors: ${stats.errors}`);
   console.log("");
+  console.log("📖 Metadata Enrichment (NEW - Day 4):");
+  console.log(`   Enriched (KV + D1): ${stats.metadataEnriched}`);
+  console.log(`   Skipped (no metadata): ${stats.metadataSkipped}`);
+  console.log(`   Errors (non-blocking): ${stats.metadataErrors}`);
+  console.log("");
   console.log("💾 Storage:");
   console.log(`   Total size: ${totalSizeMB} MB`);
   console.log(`   Average compression: ${avgSavings}%`);
@@ -656,6 +716,14 @@ export async function handleScheduledHarvest(env) {
       avgSavings,
       totalSizeMB,
       duration,
+      metadataSuccessRate:
+        stats.metadataEnriched + stats.metadataSkipped > 0
+          ? Math.round(
+              (stats.metadataEnriched /
+                (stats.metadataEnriched + stats.metadataSkipped)) *
+                100,
+            )
+          : 0,
       sources: {
         curated: curatedISBNs.length,
         analytics: analyticsISBNs.length,
