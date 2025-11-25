@@ -1,15 +1,18 @@
 # BooksTrack Backend - Backlog & Sprint Plan
 
 **Last Updated:** November 25, 2025
-**Status:** Soft Launch Ready
+**Status:** Launch Blockers Identified
 
 ---
 
 ## Executive Summary
 
-**Total Open Issues:** 17
-**Soft Launch Blockers:** 0 (None!)
+**Total Open Issues:** 18
+**Launch Blockers:** 3 (Cloudflare Workflows #19, #20, #71)
 **Production Status:** Stable (11+ days, 72% cost savings achieved)
+
+> **⚠️ CRITICAL:** Cloudflare Workflows implementation is required before launch.
+> See [Launch Blockers](#launch-blockers-critical) section below.
 
 ---
 
@@ -43,31 +46,59 @@
 ### Label Legend
 | Label | Description |
 |-------|-------------|
-| `soft-launch` | Required for soft launch (0 issues) |
-| `post-launch` | Post soft launch backlog |
+| `launch-blocker` | **CRITICAL** - Required before launch |
+| `priority: critical` | Must be completed immediately |
+| `post-launch` | Post launch backlog |
 | `sprint-2` | Sprint 2: Workflows & Architecture |
 | `sprint-3` | Sprint 3: D1 & AI Features |
 | `priority: low` | Low priority enhancements |
 
 ---
 
-## Sprint 2: Workflows & Architecture (6 issues)
+## Launch Blockers (CRITICAL)
 
-**Theme:** Cloudflare Workflows migration for simplified state management
-**Duration:** 6 days
-**Priority:** Post-launch
-**Note:** RPC migration (#17-18) may be partially complete - verify before starting
+**⚠️ These issues MUST be completed before launch.**
 
 | # | Issue | Focus | Effort | Status |
 |---|-------|-------|--------|--------|
-| 17 | RateLimiterDO Pure RPC Migration | RPC | 4h | Review needed |
-| 18 | Complete RPC Migration & Unit Tests | RPC | 4h | Review needed |
-| 19 | Cloudflare Workflows Configuration | Workflows | 6h | Not started |
+| 71 | **[MASTER] Cloudflare Workflows Implementation** | Workflows | 20h | Not started |
+| 19 | Cloudflare Workflows Configuration & Structure | Workflows | 6h | Not started |
 | 20 | Complete Workflow Implementation | Workflows | 6h | Not started |
-| 21 | Integration Testing Harness | Testing | 4h | Not started |
-| 22 | Data Integrity Validation | Validation | 4h | Partial (D1 validation exists) |
 
-**Total Effort:** ~28 hours (1 week) - may be less if RPC work is done
+**Total Effort:** ~20 hours (consolidated - #19/#20 are sub-tasks of #71)
+
+**Why Critical:**
+- Current JobStateManagerDO is complex and fragile
+- Workflows provide automatic state persistence
+- Workflows provide automatic retries on failure
+- 60% code reduction expected
+- Required for reliable book import pipeline
+
+**Key Deliverables:**
+- Native Cloudflare Workflows for book import
+- Automatic state persistence and retries
+- Simplified error handling
+- Production-ready reliability
+
+---
+
+## Sprint 2: Workflows & Architecture (4 issues)
+
+**Theme:** Cloudflare Workflows migration for simplified state management
+**Duration:** 4-5 days
+**Priority:** LAUNCH BLOCKING (#19, #20) + Post-launch (#21, #22)
+**Note:** RPC migration (#17-18) COMPLETE - closed
+
+| # | Issue | Focus | Effort | Status |
+|---|-------|-------|--------|--------|
+| ~~17~~ | ~~RateLimiterDO Pure RPC Migration~~ | ~~RPC~~ | ~~4h~~ | ✅ CLOSED |
+| ~~18~~ | ~~Complete RPC Migration & Unit Tests~~ | ~~RPC~~ | ~~4h~~ | ✅ CLOSED |
+| 19 | Cloudflare Workflows Configuration | Workflows | 6h | **LAUNCH BLOCKER** |
+| 20 | Complete Workflow Implementation | Workflows | 6h | **LAUNCH BLOCKER** |
+| 21 | Integration Testing Harness | Testing | 4h | Post-launch |
+| 22 | Data Integrity Validation | Validation | 4h | Post-launch |
+
+**Total Effort:** ~20 hours (8h post-launch)
 
 **Key Deliverables:**
 - Native Cloudflare Workflows for book import
@@ -158,24 +189,29 @@
 
 ## Recommended Sprint Order
 
-### Immediate (Today)
-**Soft Launch!** - No blocking issues
+### Pre-Launch (REQUIRED)
+**Cloudflare Workflows:** Issues #71 (master), #19, #20
+- **Effort:** ~20 hours (2-3 days focused work)
+- **Priority:** CRITICAL - Launch blocker
+- Implement Cloudflare Workflows for book import pipeline
+- Replace complex JobStateManagerDO state management
+- Enable automatic retries and state persistence
 
-### Week 1 Post-Launch
-**Sprint 2 (Days 1-3):** Issues #17-19
-- Focus on Cloudflare Workflows setup
-- Skip RPC migration if already working
+### Post-Launch Week 1
+**Sprint 2 Completion:** Issues #21, #22
+- Integration Testing Harness
+- Data Integrity Validation
 
-### Week 2 Post-Launch
-**Sprint 2 (Days 4-6):** Issues #20-22
-- Complete Workflows implementation
-- Integration testing
-
-### Week 3-4 Post-Launch
+### Post-Launch Week 2-3
 **Sprint 3:** Issues #23-30
-- D1 optimization
+- D1 optimization (indexes)
 - Vectorize & embeddings
 - Recommendation engine foundation
+
+### Post-Launch (As Time Permits)
+**API v2 Enhancements:** Issues #69, #70
+- HTTP Book Enrichment endpoint
+- SSE Streaming for CSV import
 
 ---
 
@@ -183,11 +219,13 @@
 
 ### Issue Counts by Label
 ```
-sprint-2:      6 issues
-sprint-3:      7 issues
-priority: low: 4 issues
------------------------
-Total Open:   17 issues
+launch-blocker:  3 issues (#71, #19, #20) ⚠️ CRITICAL
+sprint-2:        4 issues (2 blocking, 2 post-launch)
+sprint-3:        7 issues
+priority: low:   4 issues
+post-launch:     2 issues (#69, #70 - API v2)
+------------------------------------------
+Total Open:     18 issues
 ```
 
 ### Production URLs
