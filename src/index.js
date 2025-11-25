@@ -16,6 +16,7 @@ import { RateLimiterDO } from "./durable-objects/rate-limiter.js";
 import { WebSocketConnectionDO } from "./durable-objects/websocket-connection.js";
 import { JobStateManagerDO } from "./durable-objects/job-state-manager.js";
 import { CacheMetricsDO } from "./durable-objects/cache-metrics.js";
+import { LatencyTestDO } from "./durable-objects/latency-test-do.js";
 import honoRouter from "./router.ts";
 import { processAuthorBatch } from "./consumers/author-warming-consumer.js";
 import { handleScheduledArchival } from "./handlers/scheduled-archival.js";
@@ -30,6 +31,7 @@ export {
   WebSocketConnectionDO,
   JobStateManagerDO,
   CacheMetricsDO,
+  LatencyTestDO,
 };
 
 /**

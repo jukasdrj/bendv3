@@ -246,27 +246,5 @@
       "*/15 * * * *",
       "0 3 * * *"
     ]
-  },
-  "secrets_store_secrets": [
-    {
-      "binding": "GOOGLE_BOOKS_API_KEY",
-      "store_id": "b0562ac16fde468c8af12717a6c88400",
-      "secret_name": "Google_books_hardoooe"
-    },
-    {
-      "binding": "ISBNDB_API_KEY",
-      "store_id": "b0562ac16fde468c8af12717a6c88400",
-      "secret_name": "ISBNDB_API_KEY"
-    },
-    {
-      "binding": "GEMINI_API_KEY",
-      "store_id": "b0562ac16fde468c8af12717a6c88400",
-      "secret_name": "google_gemini_oooebooks"
-    },
-    {
-      "binding": "METRICS_API_KEY",
-      "store_id": "b0562ac16fde468c8af12717a6c88400",
-      "secret_name": "METRICS_API_KEY"
-    }
-  ]
+  }
 }
