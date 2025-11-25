@@ -9,14 +9,41 @@ describe('Metrics Handler Integration Tests', () => {
     // Mock Durable Object stub with getStats method
     const mockDOStub = {
       getStats: vi.fn(async () => ({
-        currentMinute: { hits: 100, misses: 10 },
-        currentHour: { hits: 1000, misses: 100 },
-        currentDay: { hits: 10000, misses: 1000 },
-        total: { hits: 50000, misses: 5000, reads: 55000, writes: 1000 },
-        websocket: { connectionsEstablished: 50, totalConnectionDuration: 500000 },
-        d1: { queryCount: 100, totalLatencyMs: 2000 },
-        apiContract: { totalValidations: 1000, validationFailures: 10 },
-        externalApi: { googleBooks: { requestCount: 100 }, isbndb: { requestCount: 50 }, gemini: { requestCount: 20 } }
+        currentMinute: {
+          total: { hits: 100, misses: 10, reads: 110, writes: 5, churns: 1 },
+          websocket: {}, d1: {}, apiContract: {}, externalApi: {}
+        },
+        currentHour: {
+          total: { hits: 1000, misses: 100, reads: 1100, writes: 50, churns: 10 },
+          websocket: {}, d1: {}, apiContract: {}, externalApi: {}
+        },
+        currentDay: {
+          total: { hits: 10000, misses: 1000, reads: 11000, writes: 500, churns: 100 },
+          websocket: {}, d1: {}, apiContract: {}, externalApi: {}
+        },
+        total: {
+          hits: 50000,
+          misses: 5000,
+          reads: 55000,
+          writes: 1000,
+          churns: 200
+        },
+        websocket: {
+          total: { connectionsEstablished: 50, totalConnectionDuration: 500000 }
+        },
+        d1: {
+          total: { queryCount: 100, totalLatencyMs: 2000 }
+        },
+        apiContract: {
+          total: { totalValidations: 1000, validationFailures: 10 }
+        },
+        externalApi: {
+          total: {
+            googleBooks: { requestCount: 100, quotaRemaining: 900 },
+            isbndb: { requestCount: 50, quotaRemaining: 4950 },
+            gemini: { requestCount: 20, tokensUsed: 20000 }
+          }
+        }
       }))
     }
 
@@ -125,10 +152,9 @@ describe('Metrics Handler Integration Tests', () => {
       expect(response.headers.get('Content-Type')).toBe('application/json')
       expect(data).toHaveProperty('timestamp')
       expect(data).toHaveProperty('period')
-      expect(data).toHaveProperty('hitRates')
-      expect(data).toHaveProperty('volume')
-      expect(data).toHaveProperty('costs')
+      expect(data).toHaveProperty('cache')
       expect(data).toHaveProperty('health')
+      expect(data).toHaveProperty('derived')
     })
 
     it('should return Prometheus format when requested', async () => {
@@ -142,19 +168,18 @@ describe('Metrics Handler Integration Tests', () => {
       const text = await response.text()
 
       expect(response.headers.get('Content-Type')).toBe('text/plain; version=0.0.4')
-      expect(text).toContain('# HELP cache_hit_rate')
-      expect(text).toContain('# TYPE cache_hit_rate gauge')
-      expect(text).toContain('cache_hit_rate{tier="edge"}')
-      expect(text).toContain('cache_hit_rate{tier="kv"}')
-      expect(text).toContain('cache_hit_rate{tier="combined"}')
-      expect(text).toContain('# HELP cache_requests_total')
-      expect(text).toContain('# TYPE cache_requests_total counter')
+      expect(text).toContain('# HELP cache_operations_total Total cache operations by type')
+      expect(text).toContain('# TYPE cache_operations_total counter')
+      expect(text).toContain('d1_queries_total{type="read"}')
+      expect(text).toContain('websocket_connections_total')
+      expect(text).toContain('external_api_requests_total{provider="google_books"}')
+      expect(text).toContain('system_health')
     })
   })
 
   describe('Period Parameters', () => {
-    it('should support 15m period', async () => {
-      const request = new Request('https://api.example.com/metrics?period=15m', {
+    it('should support "minute" period', async () => {
+      const request = new Request('https://api.example.com/metrics?period=minute', {
         headers: {
           'Authorization': 'Bearer test_metrics_key_123'
         }
@@ -163,10 +188,10 @@ describe('Metrics Handler Integration Tests', () => {
       const response = await handleMetricsRequest(request, mockEnv, mockCtx)
       const data = await response.json()
 
-      expect(data.period).toBe('15m')
+      expect(data.period).toBe('minute')
     })
 
-    it('should support 1h period (default)', async () => {
+    it('should support "hour" period (default)', async () => {
       const request = new Request('https://api.example.com/metrics', {
         headers: {
           'Authorization': 'Bearer test_metrics_key_123'
@@ -176,11 +201,11 @@ describe('Metrics Handler Integration Tests', () => {
       const response = await handleMetricsRequest(request, mockEnv, mockCtx)
       const data = await response.json()
 
-      expect(data.period).toBe('1h')
+      expect(data.period).toBe('hour')
     })
 
-    it('should support 24h period', async () => {
-      const request = new Request('https://api.example.com/metrics?period=24h', {
+    it('should support "day" period', async () => {
+      const request = new Request('https://api.example.com/metrics?period=day', {
         headers: {
           'Authorization': 'Bearer test_metrics_key_123'
         }
@@ -189,11 +214,11 @@ describe('Metrics Handler Integration Tests', () => {
       const response = await handleMetricsRequest(request, mockEnv, mockCtx)
       const data = await response.json()
 
-      expect(data.period).toBe('24h')
+      expect(data.period).toBe('day')
     })
 
-    it('should support 7d period', async () => {
-      const request = new Request('https://api.example.com/metrics?period=7d', {
+    it('should support "total" period', async () => {
+      const request = new Request('https://api.example.com/metrics?period=total', {
         headers: {
           'Authorization': 'Bearer test_metrics_key_123'
         }
@@ -202,7 +227,7 @@ describe('Metrics Handler Integration Tests', () => {
       const response = await handleMetricsRequest(request, mockEnv, mockCtx)
       const data = await response.json()
 
-      expect(data.period).toBe('7d')
+      expect(data.period).toBe('total')
     })
   })
 
@@ -210,8 +235,8 @@ describe('Metrics Handler Integration Tests', () => {
     it('should return cached data when available', async () => {
       const cachedData = JSON.stringify({
         timestamp: '2025-01-01T00:00:00Z',
-        period: '1h',
-        hitRates: { edge: 80, kv: 15, combined: 95 }
+        period: 'hour',
+        cache: { currentHour: { hits: 80, misses: 20 } }
       })
 
       mockEnv.KV_CACHE.get.mockResolvedValue(cachedData)
@@ -225,12 +250,12 @@ describe('Metrics Handler Integration Tests', () => {
       const response = await handleMetricsRequest(request, mockEnv, mockCtx)
       const data = await response.json()
 
-      expect(mockEnv.KV_CACHE.get).toHaveBeenCalledWith('metrics:v1:1h')
+      expect(mockEnv.KV_CACHE.get).toHaveBeenCalledWith('metrics:v2:hour')
       expect(data.timestamp).toBe('2025-01-01T00:00:00Z')
     })
 
     it('should cache fresh metrics with 5min TTL', async () => {
-      const request = new Request('https://api.example.com/metrics?period=24h', {
+      const request = new Request('https://api.example.com/metrics?period=day', {
         headers: {
           'Authorization': 'Bearer test_metrics_key_123'
         }
@@ -242,30 +267,30 @@ describe('Metrics Handler Integration Tests', () => {
       await mockCtx.waitUntil.mock.calls[0][0]
 
       expect(mockEnv.KV_CACHE.put).toHaveBeenCalledWith(
-        'metrics:v1:24h',
+        'metrics:v2:day',
         expect.any(String),
         { expirationTtl: 300 }
       )
     })
 
     it('should use different cache keys for different periods', async () => {
-      const request1 = new Request('https://api.example.com/metrics?period=1h', {
+      const request1 = new Request('https://api.example.com/metrics?period=hour', {
         headers: { 'Authorization': 'Bearer test_metrics_key_123' }
       })
-      const request2 = new Request('https://api.example.com/metrics?period=24h', {
+      const request2 = new Request('https://api.example.com/metrics?period=day', {
         headers: { 'Authorization': 'Bearer test_metrics_key_123' }
       })
 
       await handleMetricsRequest(request1, mockEnv, mockCtx)
       await handleMetricsRequest(request2, mockEnv, mockCtx)
 
-      expect(mockEnv.KV_CACHE.get).toHaveBeenCalledWith('metrics:v1:1h')
-      expect(mockEnv.KV_CACHE.get).toHaveBeenCalledWith('metrics:v1:24h')
+      expect(mockEnv.KV_CACHE.get).toHaveBeenCalledWith('metrics:v2:hour')
+      expect(mockEnv.KV_CACHE.get).toHaveBeenCalledWith('metrics:v2:day')
     })
   })
 
   describe('Metrics Content', () => {
-    it('should include cost estimates', async () => {
+    it('should include derived metrics', async () => {
       const request = new Request('https://api.example.com/metrics', {
         headers: {
           'Authorization': 'Bearer test_metrics_key_123'
@@ -275,10 +300,12 @@ describe('Metrics Handler Integration Tests', () => {
       const response = await handleMetricsRequest(request, mockEnv, mockCtx)
       const data = await response.json()
 
-      expect(data.costs).toBeDefined()
-      expect(data.costs).toHaveProperty('kv_reads_estimate')
-      expect(data.costs).toHaveProperty('r2_reads')
-      expect(data.costs).toHaveProperty('total_estimate')
+      expect(data.derived).toBeDefined()
+      expect(data.derived).toHaveProperty('websocket')
+      expect(data.derived).toHaveProperty('d1')
+      expect(data.derived).toHaveProperty('apiContract')
+      expect(data.derived).toHaveProperty('externalApi')
+      expect(data.derived).toHaveProperty('cache')
     })
 
     it('should include health assessment', async () => {
@@ -294,10 +321,10 @@ describe('Metrics Handler Integration Tests', () => {
       expect(data.health).toBeDefined()
       expect(data.health).toHaveProperty('status')
       expect(data.health).toHaveProperty('issues')
-      expect(['healthy', 'degraded']).toContain(data.health.status)
+      expect(['healthy', 'degraded', 'unhealthy']).toContain(data.health.status)
     })
 
-    it('should include Analytics Engine limitation notice', async () => {
+    it('should not include GraphQL endpoint info', async () => {
       const request = new Request('https://api.example.com/metrics', {
         headers: {
           'Authorization': 'Bearer test_metrics_key_123'
@@ -307,9 +334,9 @@ describe('Metrics Handler Integration Tests', () => {
       const response = await handleMetricsRequest(request, mockEnv, mockCtx)
       const data = await response.json()
 
-      expect(data._limitation).toBeDefined()
-      expect(data._solution).toBeDefined()
-      expect(data._graphql_endpoint).toBe('https://api.cloudflare.com/client/v4/graphql')
+      expect(data._limitation).toBeUndefined()
+      expect(data._solution).toBeUndefined()
+      expect(data._graphql_endpoint).toBeUndefined()
     })
   })
 
@@ -328,8 +355,10 @@ describe('Metrics Handler Integration Tests', () => {
       const data = await response.json()
 
       expect(response.status).toBe(500)
-      expect(data.error).toBe('Failed to fetch metrics')
-      expect(data.message).toContain('KV unavailable')
+      expect(data.error).toBeDefined()
+      expect(data.error.code).toBe('INTERNAL_ERROR')
+      expect(data.error.message).toBe('Failed to fetch metrics')
+      expect(data.error.details.details).toContain('KV unavailable')
     })
   })
 })
