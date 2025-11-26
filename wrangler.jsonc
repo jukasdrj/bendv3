@@ -89,7 +89,21 @@
     "D1_READ_PERCENTAGE": "100",
     "D1_MIGRATION_BATCH_SIZE": "1000",
     "//": "Day 6: Optional dual-write validation (set to 'true' for dev/testing)",
-    "VALIDATE_DUAL_WRITES": "false"
+    "VALIDATE_DUAL_WRITES": "false",
+    "//": "========================================================================",
+    "//": "Cache Monitoring & Alerting",
+    "//": "========================================================================",
+    "MAILGUN_API_KEY": "your-mailgun-api-key",
+    "MAILGUN_DOMAIN": "your-mailgun-domain",
+    "SLACK_WEBHOOK_URL": "your-slack-webhook-url",
+    "ALERT_FROM_EMAIL": "alerts@bookstrack.com",
+    "ALERT_TO_EMAIL": "ops@bookstrack.com",
+    "CACHE_ALERT_HIT_RATE_THRESHOLD_CRITICAL": "0.65",
+    "CACHE_ALERT_HIT_RATE_THRESHOLD_WARNING": "0.70",
+    "CACHE_ALERT_HOT_CACHE_THRESHOLD_CRITICAL": "0.80",
+    "CACHE_ALERT_HOT_CACHE_THRESHOLD_WARNING": "0.85",
+    "CACHE_ALERT_DROP_THRESHOLD_CRITICAL": "0.15",
+    "CACHE_ALERT_DROP_THRESHOLD_WARNING": "0.10"
   },
   "kv_namespaces": [
     {

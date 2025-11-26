@@ -23,6 +23,7 @@ import { handleBatchScan } from "./handlers/batch-scan-handler";
 import { handleCSVImport } from "./handlers/csv-import";
 import { handleMetricsRequest } from "./handlers/metrics-handler";
 import { handleCacheMetrics } from "./handlers/cache-metrics.js";
+import { handleCacheDashboard } from "./handlers/cache-dashboard.js";
 import { handleHarvestDashboard } from "./handlers/harvest-dashboard.js";
 import { handleImageProxy } from "./handlers/image-proxy";
 import * as bookSearch from "./handlers/book-search.js";
@@ -808,6 +809,11 @@ app.get("/api/cache/metrics", async (c) => {
 // GET /admin/harvest-dashboard - ISBNdb harvest dashboard
 app.get("/admin/harvest-dashboard", async (c) => {
   return await handleHarvestDashboard(c.req.raw, c.env);
+});
+
+// GET /api/cache/stats - Real-time cache performance statistics from CacheMetricsDO
+app.get("/api/cache/dashboard", async (c) => {
+  return await handleCacheDashboard(c);
 });
 
 // GET /api/cache/stats - Real-time cache performance statistics from CacheMetricsDO
