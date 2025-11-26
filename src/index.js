@@ -26,6 +26,7 @@ import { handleScheduledAlerts } from "./handlers/scheduled-alerts.js";
 import { handleScheduledHarvest } from "./handlers/scheduled-harvest.js";
 import { handleRecommendationsCron } from "./cron/recommendations-cron.ts";
 import { handleScheduledCacheWarming } from "./handlers/scheduled-cache-warming.js";
+import { handleStaticCacheWarmup } from "./handlers/scheduled-static-cache-warmup.js";
 
 // Export Durable Object classes for Cloudflare Workers runtime
 export {
@@ -77,6 +78,11 @@ export default {
         case "0 0 * * 0": // Sunday at midnight UTC
           console.log("[Cron] Running weekly recommendations generation job");
           await handleRecommendationsCron(env);
+          break;
+
+        case "0 */6 * * *": // Every 6 hours
+          console.log("[Cron] Running static cache warmup job");
+          await handleStaticCacheWarmup(env, ctx);
           break;
 
         case "0 * * * *": // Every hour at :00
