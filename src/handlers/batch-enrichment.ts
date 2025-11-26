@@ -191,7 +191,7 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
       books,
       async (book) => {
         // Call enrichment service (multi-provider fallback: Google Books → OpenLibrary)
-        // Returns SingleEnrichmentResult { work, edition, authors } or null
+        // Returns EnrichmentResult with structured success/error information
         const enriched = await enrichSingleBook(
           {
             title: book.title,
@@ -202,7 +202,7 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
         );
 
         // Return EnrichedBookDTO structure (iOS expects nested 'enriched' field)
-        if (enriched) {
+        if (enriched.success && enriched.work) {
           return {
             title: book.title,
             author: book.author,
@@ -210,17 +210,27 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
             success: true,
             enriched: {
               work: enriched.work,
-              edition: enriched.edition,
+              edition: enriched.edition || null,
               authors: enriched.authors || [],
             },
           };
         } else {
+          // Enhanced error message with code and retryability information
+          const errorMsg = enriched.error
+            ? `${enriched.error.code}: ${enriched.error.message}${enriched.error.provider ? ` (${enriched.error.provider})` : ""}`
+            : "Book not found in any provider";
+
+          console.error(
+            `enrichSingleBook failed for "${book.title}": ${errorMsg}`,
+            enriched.error?.retryable ? "[RETRYABLE]" : "[NOT_RETRYABLE]",
+          );
+
           return {
             title: book.title,
             author: book.author,
             isbn: book.isbn,
             success: false,
-            error: "Book not found in any provider",
+            error: errorMsg,
           };
         }
       },

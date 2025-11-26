@@ -318,6 +318,39 @@ export interface EnrichedBookDTO {
   };
 }
 
+/**
+ * Enrichment Error - Structured error information for enrichment failures
+ *
+ * Provides detailed context about why enrichment failed, enabling:
+ * - Intelligent retry logic
+ * - Circuit breaker implementation
+ * - Better observability and debugging
+ * - Proper error reporting to clients
+ */
+export interface EnrichmentError {
+  code: "NOT_FOUND" | "API_ERROR" | "RATE_LIMIT" | "NETWORK_ERROR" | "TIMEOUT" | "INVALID_RESPONSE";
+  message: string;
+  provider?: DataProvider; // Which provider failed
+  retryable: boolean; // Whether the error is transient and retryable
+  details?: any; // Additional error context
+}
+
+/**
+ * Enrichment Result - Result of enrichSingleBook operation
+ *
+ * Structured result that distinguishes between successful enrichment,
+ * "not found" cases, and actual errors (API failures, timeouts, etc.)
+ *
+ * Used by: src/services/enrichment.ts enrichSingleBook()
+ */
+export interface EnrichmentResult {
+  success: boolean;
+  work?: WorkDTO;
+  edition?: EditionDTO;
+  authors?: AuthorDTO[];
+  error?: EnrichmentError;
+}
+
 // ============================================================================
 // HELPER FUNCTIONS - DEPRECATED
 // ============================================================================

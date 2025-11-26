@@ -14,6 +14,7 @@
 import * as externalApis from "./external-apis.ts";
 import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js";
 import type { DataProvider } from "../types/enums.js";
+import type { EnrichmentResult, EnrichmentError } from "../types/responses.js";
 
 // ========================================================================================
 // INTERFACES
@@ -102,6 +103,103 @@ export interface SingleEnrichmentResult {
   work: WorkDTO;
   edition: EditionDTO | null;
   authors: AuthorDTO[];
+}
+
+// ========================================================================================
+// HELPER FUNCTIONS
+// ========================================================================================
+
+/**
+ * Classify error and create structured EnrichmentError
+ * Determines error code, retryability, and provider from error object
+ *
+ * @param error - The caught error object
+ * @param provider - The provider that generated the error (optional)
+ * @returns EnrichmentError with structured error information
+ */
+function classifyEnrichmentError(
+  error: any,
+  provider?: DataProvider,
+): EnrichmentError {
+  const errorMessage = error?.message || String(error);
+
+  // Check for rate limiting errors
+  if (
+    errorMessage.includes("429") ||
+    errorMessage.toLowerCase().includes("rate limit") ||
+    errorMessage.toLowerCase().includes("too many requests")
+  ) {
+    return {
+      code: "RATE_LIMIT",
+      message: errorMessage,
+      provider,
+      retryable: true,
+      details: { originalError: errorMessage },
+    };
+  }
+
+  // Check for timeout errors
+  if (
+    errorMessage.toLowerCase().includes("timeout") ||
+    errorMessage.toLowerCase().includes("timed out") ||
+    error?.name === "TimeoutError"
+  ) {
+    return {
+      code: "TIMEOUT",
+      message: errorMessage,
+      provider,
+      retryable: true,
+      details: { originalError: errorMessage },
+    };
+  }
+
+  // Check for network errors
+  if (
+    errorMessage.toLowerCase().includes("network") ||
+    errorMessage.toLowerCase().includes("fetch failed") ||
+    errorMessage.toLowerCase().includes("econnrefused") ||
+    errorMessage.toLowerCase().includes("enotfound") ||
+    error?.name === "NetworkError" ||
+    error?.cause?.code === "ECONNREFUSED"
+  ) {
+    return {
+      code: "NETWORK_ERROR",
+      message: errorMessage,
+      provider,
+      retryable: true,
+      details: { originalError: errorMessage },
+    };
+  }
+
+  // Check for invalid/malformed response errors
+  if (
+    errorMessage.toLowerCase().includes("invalid response") ||
+    errorMessage.toLowerCase().includes("malformed") ||
+    errorMessage.toLowerCase().includes("parse")
+  ) {
+    return {
+      code: "INVALID_RESPONSE",
+      message: errorMessage,
+      provider,
+      retryable: false,
+      details: { originalError: errorMessage },
+    };
+  }
+
+  // Default: Generic API error (may be retryable depending on status code)
+  const isRetryable =
+    errorMessage.includes("500") ||
+    errorMessage.includes("502") ||
+    errorMessage.includes("503") ||
+    errorMessage.includes("504");
+
+  return {
+    code: "API_ERROR",
+    message: errorMessage,
+    provider,
+    retryable: isRetryable,
+    details: { originalError: errorMessage },
+  };
 }
 
 // ========================================================================================
@@ -312,21 +410,34 @@ export async function enrichMultipleBooks(
  * Enrich a single book with metadata from external providers
  * Used by enrichment pipeline that needs best match for a specific book
  *
+ * Returns structured result with either:
+ * - Success: work, edition, and authors data
+ * - Not Found: success=false with NOT_FOUND error code
+ * - Error: success=false with detailed error information (API failure, timeout, etc.)
+ *
  * @param query - Search parameters
  * @param env - Worker environment bindings
- * @returns SingleEnrichmentResult with work, edition, and authors, or null if not found
+ * @param ctx - ExecutionContext for cache operations (optional)
+ * @returns EnrichmentResult with structured success/error information
  */
 export async function enrichSingleBook(
   query: BookSearchQuery,
   env: WorkerEnv,
   ctx?: ExecutionContext,
-): Promise<SingleEnrichmentResult | null> {
+): Promise<EnrichmentResult> {
   const { title, author, isbn, openLibraryId, googleBooksId } = query;
 
   // Require at least one search parameter
   if (!title && !isbn && !author && !openLibraryId && !googleBooksId) {
     console.warn("enrichSingleBook: No search parameters provided");
-    return null;
+    return {
+      success: false,
+      error: {
+        code: "NOT_FOUND",
+        message: "No search parameters provided",
+        retryable: false,
+      },
+    };
   }
 
   try {
@@ -341,7 +452,12 @@ export async function enrichSingleBook(
         result &&
         (result.work.coverImageURL || result.edition?.coverImageURL)
       ) {
-        return result;
+        return {
+          success: true,
+          work: result.work,
+          edition: result.edition,
+          authors: result.authors,
+        };
       }
     }
 
@@ -354,8 +470,14 @@ export async function enrichSingleBook(
       if (
         result &&
         (result.work.coverImageURL || result.edition?.coverImageURL)
-      )
-        return result;
+      ) {
+        return {
+          success: true,
+          work: result.work,
+          edition: result.edition,
+          authors: result.authors,
+        };
+      }
     }
 
     if (openLibraryId) {
@@ -366,8 +488,14 @@ export async function enrichSingleBook(
       if (
         result &&
         (result.work.coverImageURL || result.edition?.coverImageURL)
-      )
-        return result;
+      ) {
+        return {
+          success: true,
+          work: result.work,
+          edition: result.edition,
+          authors: result.authors,
+        };
+      }
     }
 
     if (query.goodreadsId) {
@@ -376,8 +504,14 @@ export async function enrichSingleBook(
       if (
         result &&
         (result.work.coverImageURL || result.edition?.coverImageURL)
-      )
-        return result;
+      ) {
+        return {
+          success: true,
+          work: result.work,
+          edition: result.edition,
+          authors: result.authors,
+        };
+      }
     }
 
     // Strategy 3: Try Google Books with title+author
@@ -389,28 +523,57 @@ export async function enrichSingleBook(
       googleResult &&
       (googleResult.work.coverImageURL || googleResult.edition?.coverImageURL)
     ) {
-      return googleResult;
+      return {
+        success: true,
+        work: googleResult.work,
+        edition: googleResult.edition,
+        authors: googleResult.authors,
+      };
     }
 
     // Strategy 4: Fallback to OpenLibrary with title+author
     const openLibResult: SingleEnrichmentResult | null =
       await searchOpenLibrary({ title, author }, env);
     if (openLibResult) {
-      return openLibResult;
+      return {
+        success: true,
+        work: openLibResult.work,
+        edition: openLibResult.edition,
+        authors: openLibResult.authors,
+      };
     }
 
     // If Google Books found a result but it had no cover, return that partial result
     if (googleResult) {
-      return googleResult;
+      return {
+        success: true,
+        work: googleResult.work,
+        edition: googleResult.edition,
+        authors: googleResult.authors,
+      };
     }
 
     // Book not found in any provider
     console.log(`enrichSingleBook: No results for query:`, query);
-    return null;
+    return {
+      success: false,
+      error: {
+        code: "NOT_FOUND",
+        message: "Book not found in any provider",
+        retryable: false,
+        details: { query },
+      },
+    };
   } catch (error) {
     console.error("enrichSingleBook error:", error);
-    // Best-effort: API errors = not found (don't propagate errors)
-    return null;
+    
+    // Classify the error to provide structured information
+    const enrichmentError = classifyEnrichmentError(error);
+    
+    return {
+      success: false,
+      error: enrichmentError,
+    };
   }
 }
 
