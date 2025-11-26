@@ -12,6 +12,11 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import honoRouter from '../../src/router.ts'
 
 /**
+ * Test Constants
+ */
+const TEST_ISBN_13 = '9780747532743' // Harry Potter and the Philosopher's Stone (UK edition)
+
+/**
  * Mock Environment Setup
  */
 function createMockEnv() {
@@ -22,11 +27,13 @@ function createMockEnv() {
         // Mock empty cache for most tests
         if (key.startsWith('recommendations:weekly:')) {
           // Return mock recommendations
+          // Note: Using UK edition ISBN and title (Philosopher's Stone vs Sorcerer's Stone)
+          // Both editions exist; this matches the original UK publication
           return {
             weekOf: '2025-11-25',
             recommendations: [
               {
-                isbn: '9780747532743',
+                isbn: TEST_ISBN_13,
                 title: 'Harry Potter and the Philosopher\'s Stone',
                 author: 'J.K. Rowling',
                 coverUrl: 'https://example.com/cover.jpg',
@@ -256,7 +263,7 @@ describe('V2 API Endpoints - Section 6.5 of API_CONTRACT.md', () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          barcode: '9780747532743',
+          barcode: TEST_ISBN_13,
           prefer_provider: 'auto'
         })
       })
