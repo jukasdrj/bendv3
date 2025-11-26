@@ -278,26 +278,35 @@ export async function searchGoogleBooks(
   // Create cache service with 'search' prefix
   const cache = createCacheService(kvNamespace, 'search', env, ctx);
 
-  // Generate cache key from query + maxResults
-  const maxResults = params.maxResults || 20;
-  const cacheKey = `${query.toLowerCase().trim()}:${maxResults}`;
+  // Generate cache key from query only (no maxResults to improve cache hit rate)
+  const requestedMaxResults = params.maxResults || 20;
+  const cacheKey = `${query.toLowerCase().trim()}`;
   const cached = await cache.get(cacheKey);
 
   if (cached) {
     console.log(`📦 Cache HIT: Search "${query}"`);
     try {
-      return JSON.parse(cached);
+      const cachedResult = JSON.parse(cached);
+      // Filter cached results to requested maxResults
+      if (cachedResult.works && cachedResult.works.length > requestedMaxResults) {
+        return {
+          ...cachedResult,
+          works: cachedResult.works.slice(0, requestedMaxResults),
+        };
+      }
+      return cachedResult;
     } catch (error) {
       console.error(`❌ Cache parse error for search "${query}":`, error);
       // Fall through to API call
     }
   }
 
-  // Cache MISS - fetch from API
+  // Cache MISS - fetch from API with max results (40 = Google Books API limit)
   console.log(`🌐 Cache MISS: Searching Google Books for "${query}"`);
-  const result = await searchGoogleBooks_Uncached(query, params, env);
+  const fullParams = { ...params, maxResults: 40 };
+  const result = await searchGoogleBooks_Uncached(query, fullParams, env);
 
-  // Write successful results to cache
+  // Write successful results to cache (full result set)
   if (result && result.works && result.works.length > 0) {
     const hotTtl = parseInt(env.CACHE_HOT_TTL || '7200'); // 2h default
     const coldTtl = parseInt(env.CACHE_COLD_TTL || '1209600'); // 14d default
@@ -308,6 +317,14 @@ export async function searchGoogleBooks(
     } catch (error) {
       console.error(`❌ Cache write error for search "${query}":`, error);
     }
+  }
+
+  // Filter to requested maxResults before returning
+  if (result && result.works && result.works.length > requestedMaxResults) {
+    return {
+      ...result,
+      works: result.works.slice(0, requestedMaxResults),
+    };
   }
 
   return result;
@@ -649,25 +666,34 @@ export async function searchOpenLibrary(
   // Create cache service with 'ol' (OpenLibrary) prefix
   const cache = createCacheService(kvNamespace, 'ol', env, ctx);
 
-  // Generate cache key
-  const maxResults = params.maxResults || 20;
-  const cacheKey = `search:${query.toLowerCase().trim()}:${maxResults}`;
+  // Generate cache key from query only (no maxResults to improve cache hit rate)
+  const requestedMaxResults = params.maxResults || 20;
+  const cacheKey = `search:${query.toLowerCase().trim()}`;
   const cached = await cache.get(cacheKey);
 
   if (cached) {
     console.log(`📦 Cache HIT: OpenLibrary "${query}"`);
     try {
-      return JSON.parse(cached);
+      const cachedResult = JSON.parse(cached);
+      // Filter cached results to requested maxResults
+      if (cachedResult.works && cachedResult.works.length > requestedMaxResults) {
+        return {
+          ...cachedResult,
+          works: cachedResult.works.slice(0, requestedMaxResults),
+        };
+      }
+      return cachedResult;
     } catch (error) {
       console.error(`❌ Cache parse error for OpenLibrary "${query}":`, error);
     }
   }
 
-  // Cache MISS - fetch from API
+  // Cache MISS - fetch from API with max results (100 for broader cache coverage)
   console.log(`🌐 Cache MISS: Searching OpenLibrary for "${query}"`);
-  const result = await searchOpenLibrary_Uncached(query, params, env);
+  const fullParams = { ...params, maxResults: 100 };
+  const result = await searchOpenLibrary_Uncached(query, fullParams, env);
 
-  // Write successful results to cache
+  // Write successful results to cache (full result set)
   if (result && result.works && result.works.length > 0) {
     const hotTtl = parseInt(env.CACHE_HOT_TTL || '7200');
     const coldTtl = parseInt(env.CACHE_COLD_TTL || '1209600');
@@ -678,6 +704,14 @@ export async function searchOpenLibrary(
     } catch (error) {
       console.error(`❌ Cache write error for OpenLibrary "${query}":`, error);
     }
+  }
+
+  // Filter to requested maxResults before returning
+  if (result && result.works && result.works.length > requestedMaxResults) {
+    return {
+      ...result,
+      works: result.works.slice(0, requestedMaxResults),
+    };
   }
 
   return result;
