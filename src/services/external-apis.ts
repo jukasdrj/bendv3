@@ -31,6 +31,8 @@ import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js";
 import type { DataProvider } from "../types/enums.js";
 import { logExternalApiCall } from "../utils/analytics-logger.ts";
 import { createCacheService } from "./cache-service.js";
+import { withCircuitBreaker } from "./circuit-breaker";
+import { CircuitBreakerOpenError } from "../types/errors";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -167,7 +169,7 @@ export async function searchGoogleBooksById(
   // If no KV cache or ExecutionContext, skip caching
   if (!kvNamespace || !ctx) {
     console.warn(`⚠️ Volume ID search without cache (missing ${!kvNamespace ? 'KV namespace' : 'ExecutionContext'})`);
-    return searchGoogleBooksById_Uncached(volumeId, env);
+    return withCircuitBreaker('google-books', env, () => searchGoogleBooksById_Uncached(volumeId, env));
   }
 
   // Create cache service with 'volumeid' prefix
@@ -184,9 +186,9 @@ export async function searchGoogleBooksById(
     }
   }
 
-  // Cache MISS - fetch from API
+  // Cache MISS - fetch from API with circuit breaker
   console.log(`🌐 Cache MISS: Fetching volume ID ${volumeId} from Google Books`);
-  const result = await searchGoogleBooksById_Uncached(volumeId, env);
+  const result = await withCircuitBreaker('google-books', env, () => searchGoogleBooksById_Uncached(volumeId, env));
 
   // Write successful results to cache
   if (result && result.works && result.works.length > 0) {
@@ -272,7 +274,7 @@ export async function searchGoogleBooks(
   // If no KV cache or ExecutionContext, skip caching
   if (!kvNamespace || !ctx) {
     console.warn(`⚠️ Title/author search without cache (missing ${!kvNamespace ? 'KV namespace' : 'ExecutionContext'})`);
-    return searchGoogleBooks_Uncached(query, params, env);
+    return withCircuitBreaker('google-books', env, () => searchGoogleBooks_Uncached(query, params, env));
   }
 
   // Create cache service with 'search' prefix
@@ -293,9 +295,9 @@ export async function searchGoogleBooks(
     }
   }
 
-  // Cache MISS - fetch from API
+  // Cache MISS - fetch from API with circuit breaker
   console.log(`🌐 Cache MISS: Searching Google Books for "${query}"`);
-  const result = await searchGoogleBooks_Uncached(query, params, env);
+  const result = await withCircuitBreaker('google-books', env, () => searchGoogleBooks_Uncached(query, params, env));
 
   // Write successful results to cache
   if (result && result.works && result.works.length > 0) {
@@ -377,7 +379,7 @@ export async function searchGoogleBooksByISBN(
   // If no KV cache or ExecutionContext, skip caching (fallback to direct API call)
   if (!kvNamespace || !ctx) {
     console.warn(`⚠️ ISBN search without cache (missing ${!kvNamespace ? 'KV namespace' : 'ExecutionContext'})`);
-    return searchGoogleBooksByISBN_Uncached(isbn, env);
+    return withCircuitBreaker('google-books', env, () => searchGoogleBooksByISBN_Uncached(isbn, env));
   }
 
   // Create cache service with 'isbn' prefix
@@ -397,9 +399,9 @@ export async function searchGoogleBooksByISBN(
     }
   }
 
-  // Cache MISS - fetch from API
+  // Cache MISS - fetch from API with circuit breaker
   console.log(`🌐 Cache MISS: Fetching ISBN ${isbn} from Google Books API`);
-  const result = await searchGoogleBooksByISBN_Uncached(isbn, env);
+  const result = await withCircuitBreaker('google-books', env, () => searchGoogleBooksByISBN_Uncached(isbn, env));
 
   // Write successful results to cache
   if (result && result.works && result.works.length > 0) {
@@ -643,7 +645,7 @@ export async function searchOpenLibrary(
   // If no KV cache or ExecutionContext, skip caching
   if (!kvNamespace || !ctx) {
     console.warn(`⚠️ OpenLibrary search without cache (missing ${!kvNamespace ? 'KV namespace' : 'ExecutionContext'})`);
-    return searchOpenLibrary_Uncached(query, params, env);
+    return withCircuitBreaker('open-library', env, () => searchOpenLibrary_Uncached(query, params, env));
   }
 
   // Create cache service with 'ol' (OpenLibrary) prefix
@@ -663,9 +665,9 @@ export async function searchOpenLibrary(
     }
   }
 
-  // Cache MISS - fetch from API
+  // Cache MISS - fetch from API with circuit breaker
   console.log(`🌐 Cache MISS: Searching OpenLibrary for "${query}"`);
-  const result = await searchOpenLibrary_Uncached(query, params, env);
+  const result = await withCircuitBreaker('open-library', env, () => searchOpenLibrary_Uncached(query, params, env));
 
   // Write successful results to cache
   if (result && result.works && result.works.length > 0) {
@@ -860,7 +862,7 @@ export async function searchISBNdb(
   // If no KV cache or ExecutionContext, skip caching
   if (!kvNamespace || !ctx) {
     console.warn(`⚠️ ISBNdb search without cache (missing ${!kvNamespace ? 'KV namespace' : 'ExecutionContext'})`);
-    return searchISBNdb_Uncached(title, authorName, env);
+    return withCircuitBreaker('isbndb', env, () => searchISBNdb_Uncached(title, authorName, env));
   }
 
   // Create cache service with 'isbndb' prefix
@@ -880,9 +882,9 @@ export async function searchISBNdb(
     }
   }
 
-  // Cache MISS - fetch from API
+  // Cache MISS - fetch from API with circuit breaker
   console.log(`🌐 Cache MISS: Searching ISBNdb for "${title}" by "${authorName || 'any'}"`);
-  const result = await searchISBNdb_Uncached(title, authorName, env);
+  const result = await withCircuitBreaker('isbndb', env, () => searchISBNdb_Uncached(title, authorName, env));
 
   // Write successful results to cache
   if (result && result.works && result.works.length > 0) {
@@ -978,7 +980,7 @@ export async function getISBNdbEditionsForWork(
   // If no KV cache or ExecutionContext, skip caching
   if (!kvNamespace || !ctx) {
     console.warn(`⚠️ ISBNdb editions search without cache (missing ${!kvNamespace ? 'KV namespace' : 'ExecutionContext'})`);
-    return getISBNdbEditionsForWork_Uncached(title, authorName, env);
+    return withCircuitBreaker('isbndb', env, () => getISBNdbEditionsForWork_Uncached(title, authorName, env));
   }
 
   // Create cache service with 'isbndb' prefix
@@ -998,9 +1000,9 @@ export async function getISBNdbEditionsForWork(
     }
   }
 
-  // Cache MISS - fetch from API
+  // Cache MISS - fetch from API with circuit breaker
   console.log(`🌐 Cache MISS: Fetching ISBNdb editions for "${title}" by "${authorName}"`);
-  const result = await getISBNdbEditionsForWork_Uncached(title, authorName, env);
+  const result = await withCircuitBreaker('isbndb', env, () => getISBNdbEditionsForWork_Uncached(title, authorName, env));
 
   // Write successful results to cache
   if (result && result.length > 0) {
@@ -1070,7 +1072,7 @@ export async function getISBNdbBookByISBN(
   // If no KV cache or ExecutionContext, skip caching
   if (!kvNamespace || !ctx) {
     console.warn(`⚠️ ISBNdb ISBN search without cache (missing ${!kvNamespace ? 'KV namespace' : 'ExecutionContext'})`);
-    return getISBNdbBookByISBN_Uncached(isbn, env);
+    return withCircuitBreaker('isbndb', env, () => getISBNdbBookByISBN_Uncached(isbn, env));
   }
 
   // Create cache service with 'isbndb' prefix
@@ -1090,9 +1092,9 @@ export async function getISBNdbBookByISBN(
     }
   }
 
-  // Cache MISS - fetch from API
+  // Cache MISS - fetch from API with circuit breaker
   console.log(`🌐 Cache MISS: Fetching ISBNdb ISBN ${isbn}`);
-  const result = await getISBNdbBookByISBN_Uncached(isbn, env);
+  const result = await withCircuitBreaker('isbndb', env, () => getISBNdbBookByISBN_Uncached(isbn, env));
 
   // Write successful results to cache (longer TTL for ISBNdb - premium API)
   if (result) {
