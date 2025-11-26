@@ -14,6 +14,7 @@
 import * as externalApis from "./external-apis.ts";
 import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js";
 import type { DataProvider } from "../types/enums.js";
+import type { EnrichmentResult } from "../types/responses.js";
 
 // ========================================================================================
 // INTERFACES
@@ -320,97 +321,128 @@ export async function enrichSingleBook(
   query: BookSearchQuery,
   env: WorkerEnv,
   ctx?: ExecutionContext,
-): Promise<SingleEnrichmentResult | null> {
+): Promise<EnrichmentResult> {
   const { title, author, isbn, openLibraryId, googleBooksId } = query;
 
   // Require at least one search parameter
   if (!title && !isbn && !author && !openLibraryId && !googleBooksId) {
     console.warn("enrichSingleBook: No search parameters provided");
-    return null;
+    return {
+      success: false,
+      error: {
+        code: "INVALID_REQUEST",
+        message: "No search parameters provided",
+        retryable: false,
+      },
+    };
   }
 
   try {
+    let result: SingleEnrichmentResult | null = null;
+
     // Strategy 1: If ISBN provided, use ISBN search (most accurate)
     if (isbn) {
-      const result: SingleEnrichmentResult | null = await searchByISBN(
-        isbn,
-        env,
-      );
-      // If we have a result with a cover, we're done
-      if (
-        result &&
-        (result.work.coverImageURL || result.edition?.coverImageURL)
-      ) {
-        return result;
+      result = await searchByISBN(isbn, env);
+      if (result && (result.work.coverImageURL || result.edition?.coverImageURL)) {
+        return {
+          success: true,
+          work: result.work,
+          edition: result.edition,
+          authors: result.authors,
+        };
       }
     }
 
     // Strategy 2: Use other specific identifiers if available
     if (googleBooksId) {
-      const result: SingleEnrichmentResult | null = await searchGoogleBooksById(
-        googleBooksId,
-        env,
-      );
-      if (
-        result &&
-        (result.work.coverImageURL || result.edition?.coverImageURL)
-      )
-        return result;
+      result = await searchGoogleBooksById(googleBooksId, env);
+      if (result && (result.work.coverImageURL || result.edition?.coverImageURL)) {
+        return {
+          success: true,
+          work: result.work,
+          edition: result.edition,
+          authors: result.authors,
+        };
+      }
     }
 
     if (openLibraryId) {
-      const result: SingleEnrichmentResult | null = await searchOpenLibraryById(
-        openLibraryId,
-        env,
-      );
-      if (
-        result &&
-        (result.work.coverImageURL || result.edition?.coverImageURL)
-      )
-        return result;
+      result = await searchOpenLibraryById(openLibraryId, env);
+      if (result && (result.work.coverImageURL || result.edition?.coverImageURL)) {
+        return {
+          success: true,
+          work: result.work,
+          edition: result.edition,
+          authors: result.authors,
+        };
+      }
     }
 
     if (query.goodreadsId) {
-      const result: SingleEnrichmentResult | null =
-        await searchOpenLibraryByGoodreadsId(query.goodreadsId, env);
-      if (
-        result &&
-        (result.work.coverImageURL || result.edition?.coverImageURL)
-      )
-        return result;
+      result = await searchOpenLibraryByGoodreadsId(query.goodreadsId, env);
+      if (result && (result.work.coverImageURL || result.edition?.coverImageURL)) {
+        return {
+          success: true,
+          work: result.work,
+          edition: result.edition,
+          authors: result.authors,
+        };
+      }
     }
 
     // Strategy 3: Try Google Books with title+author
-    const googleResult: SingleEnrichmentResult | null = await searchGoogleBooks(
-      { title, author },
-      env,
-    );
-    if (
-      googleResult &&
-      (googleResult.work.coverImageURL || googleResult.edition?.coverImageURL)
-    ) {
-      return googleResult;
+    const googleResult = await searchGoogleBooks({ title, author }, env);
+    if (googleResult && (googleResult.work.coverImageURL || googleResult.edition?.coverImageURL)) {
+      return {
+        success: true,
+        work: googleResult.work,
+        edition: googleResult.edition,
+        authors: googleResult.authors,
+      };
     }
 
     // Strategy 4: Fallback to OpenLibrary with title+author
-    const openLibResult: SingleEnrichmentResult | null =
-      await searchOpenLibrary({ title, author }, env);
+    const openLibResult = await searchOpenLibrary({ title, author }, env);
     if (openLibResult) {
-      return openLibResult;
+      return {
+        success: true,
+        work: openLibResult.work,
+        edition: openLibResult.edition,
+        authors: openLibResult.authors,
+      };
     }
 
     // If Google Books found a result but it had no cover, return that partial result
     if (googleResult) {
-      return googleResult;
+      return {
+        success: true,
+        work: googleResult.work,
+        edition: googleResult.edition,
+        authors: googleResult.authors,
+      };
     }
 
     // Book not found in any provider
     console.log(`enrichSingleBook: No results for query:`, query);
-    return null;
+    return {
+      success: false,
+      error: {
+        code: "NOT_FOUND",
+        message: "Book not found in any provider",
+        retryable: false,
+      },
+    };
   } catch (error) {
     console.error("enrichSingleBook error:", error);
-    // Best-effort: API errors = not found (don't propagate errors)
-    return null;
+    return {
+      success: false,
+      error: {
+        code: "API_ERROR",
+        message: error.message,
+        provider: "unknown", // This could be improved to detect the provider
+        retryable: true, // Assume API errors are potentially retryable
+      },
+    };
   }
 }
 

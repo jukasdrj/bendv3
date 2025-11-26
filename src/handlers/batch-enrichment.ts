@@ -202,7 +202,7 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
         );
 
         // Return EnrichedBookDTO structure (iOS expects nested 'enriched' field)
-        if (enriched) {
+        if (enriched.success) {
           return {
             title: book.title,
             author: book.author,
@@ -220,7 +220,7 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
             author: book.author,
             isbn: book.isbn,
             success: false,
-            error: "Book not found in any provider",
+            error: enriched.error.message,
           };
         }
       },

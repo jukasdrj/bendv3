@@ -65,19 +65,18 @@ describe("enrichSingleBook()", () => {
 
     const result = await enrichSingleBook({ isbn: "9780451524935" }, mockEnv);
 
-    expect(result).toMatchObject({
-      work: {
+    expect(result.success).toBe(true);
+    expect(result.work).toMatchObject({
         title: "1984",
         authors: [{ name: "George Orwell" }],
         primaryProvider: "google-books",
         contributors: ["google-books"],
         synthetic: false,
-      },
-    });
+      }
+    );
     expect(searchByISBNSpy).toHaveBeenCalledWith(
       "9780451524935",
-      mockEnv,
-      undefined, // ctx parameter (optional ExecutionContext)
+      mockEnv
     );
   });
 
@@ -106,19 +105,18 @@ describe("enrichSingleBook()", () => {
       mockEnv,
     );
 
-    expect(result).toMatchObject({
-      work: {
+    expect(result.success).toBe(true);
+    expect(result.work).toMatchObject({
         title: "Pride and Prejudice",
         authors: [{ name: "Jane Austen" }],
         primaryProvider: "google-books",
         contributors: ["google-books"],
-      },
-    });
+      }
+    );
     expect(searchGoogleBooksSpy).toHaveBeenCalledWith(
       "Pride and Prejudice Jane Austen",
       { maxResults: 1 },
-      mockEnv,
-      undefined, // ctx parameter (optional ExecutionContext)
+      mockEnv
     );
   });
 
@@ -142,7 +140,9 @@ describe("enrichSingleBook()", () => {
       mockEnv,
     );
 
-    expect(result).toBeNull();
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+    expect(result.error.code).toBe("NOT_FOUND");
   });
 
   test("tries Google Books first, OpenLibrary as fallback", async () => {
@@ -176,7 +176,8 @@ describe("enrichSingleBook()", () => {
       mockEnv,
     );
 
-    expect(result).not.toBeNull();
+    expect(result.success).toBe(true);
+    expect(result.work).toBeDefined();
     expect(result.work.primaryProvider).toBe("openlibrary");
     expect(result.work.contributors).toEqual(["openlibrary"]);
     expect(searchGoogleBooksSpy).toHaveBeenCalled();
@@ -196,13 +197,17 @@ describe("enrichSingleBook()", () => {
 
     const result = await enrichSingleBook({ title: "Any Book" }, mockEnv);
 
-    // Should not throw, returns null for graceful degradation
-    expect(result).toBeNull();
+    // Should not throw, returns structured error
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+    expect(result.error.code).toBe("API_ERROR");
   });
 
-  test("returns null when no search parameters provided", async () => {
+  test("returns structured error when no search parameters provided", async () => {
     const result = await enrichSingleBook({}, mockEnv);
-    expect(result).toBeNull();
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+    expect(result.error.code).toBe("INVALID_REQUEST");
 
     // Should not call any external APIs
     expect(externalApis.searchGoogleBooks).not.toHaveBeenCalled();
@@ -231,7 +236,8 @@ describe("enrichSingleBook()", () => {
       mockEnv,
     );
 
-    expect(result).not.toBeNull();
+    expect(result.success).toBe(true);
+    expect(result.work).toBeDefined();
     expect(result.work.title).toBe("The Great Gatsby");
 
     // Should use ISBN search, not title search
@@ -265,7 +271,8 @@ describe("enrichSingleBook()", () => {
       mockEnv,
     );
 
-    expect(result).not.toBeNull();
+    expect(result.success).toBe(true);
+    expect(result.work).toBeDefined();
     expect(result.work.title).toBe("Obscure Indie Book");
     expect(result.work.primaryProvider).toBe("openlibrary");
 

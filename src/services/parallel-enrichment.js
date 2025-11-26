@@ -36,7 +36,8 @@ export async function enrichBooksParallel(
       try {
         const enriched = await enrichFn(book);
         completed++;
-        await progressCallback(completed, books.length, book.title || book.isbn || 'Unknown', false);
+        const hasError = !enriched.success;
+        await progressCallback(completed, books.length, book.title || book.isbn || 'Unknown', hasError);
         return enriched;
       } catch (error) {
         completed++;

@@ -187,6 +187,23 @@ export interface BookSearchResponse {
 }
 
 /**
+ * Single book enrichment result
+ * Used by: enrichSingleBook() service
+ */
+export interface EnrichmentResult {
+  success: boolean;
+  work?: WorkDTO;
+  edition?: EditionDTO;
+  authors?: AuthorDTO[];
+  error?: {
+    code: string; // "NOT_FOUND" | "API_ERROR" | "RATE_LIMIT" | "NETWORK_ERROR"
+    message: string;
+    provider?: string; // Which provider failed
+    retryable: boolean;
+  };
+}
+
+/**
  * Enrichment job response
  * Used by: /v1/api/enrichment/start
  */
