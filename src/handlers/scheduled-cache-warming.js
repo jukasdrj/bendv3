@@ -5,19 +5,28 @@
  * Reduces cold cache misses and API costs by proactively refreshing
  * the most accessed books in the last 24 hours.
  *
- * Strategy:
- * 1. List access keys from CACHE (access:book:isbn:* pattern)
- * 2. Sort by access count (descending)
- * 3. Fetch top 100 books with >10 accesses/day
- * 4. Refresh each via findBookByISBN (updates KV + Edge)
- * 5. Rate limit to 5 req/sec to avoid API quota issues
+ * Dual Strategy:
+ * 1. Static List (Phase 1): Top 100 popular ISBNs from config/popular-books.js
+ *    - Classic literature, bestsellers, popular series (Harry Potter, etc.)
+ *    - Refreshed every 6 hours (0 */6 * * *)
+ * 2. Analytics-Driven (Phase 2): Most accessed books from access tracking
+ *    - List access keys from CACHE (access:book:isbn:* pattern)
+ *    - Sort by access count (descending)
+ *    - Fetch top 100 books with >10 accesses/day
+ *    - Refreshed hourly (0 * * * *)
  *
- * Cron Schedule: 0 * * * * (every hour at :00)
+ * Rate limiting: 5 req/sec to avoid API quota issues
+ *
+ * Cron Schedule:
+ * - 0 * * * * (every hour at :00) - Analytics-driven warm-up
+ * - 0 */6 * * * (every 6 hours) - Static popular books warm-up
+ *
  * Duration: ~5-30 seconds (depends on number of popular books)
- * Cost: ~50-100 API calls/day (1000 warming calls across 24 hours)
+ * Cost: ~400 API calls/day (static) + ~100 API calls/day (analytics) = ~500/day
  */
 
 import { findBookByISBN } from '../services/book-service.ts'
+import { getPopularISBNs } from '../config/popular-books.js'
 
 /**
  * Get top accessed cache keys from last 24 hours
@@ -72,15 +81,76 @@ async function getPopularCacheKeys(env, limit = 100) {
 }
 
 /**
- * Main handler for scheduled cache warming
+ * Warm static popular books from config/popular-books.js
  *
  * @param {Object} env - Cloudflare environment bindings
- * @param {Object} ctx - Execution context
  * @returns {Promise<Object>} Stats object with warming results
  */
-export async function handleScheduledCacheWarming(env, ctx) {
+async function warmStaticPopularBooks(env) {
   const startTime = Date.now()
-  console.log('🔥 Starting scheduled cache warming...')
+  console.log('📚 Warming static popular books from config...')
+
+  const stats = {
+    total: 0,
+    warmed: 0,
+    alreadyCached: 0,
+    errors: 0,
+    duration: 0
+  }
+
+  try {
+    const popularISBNs = getPopularISBNs()
+    stats.total = popularISBNs.length
+    console.log(`Found ${stats.total} popular ISBNs in config`)
+
+    // Warm each popular book (rate limited)
+    for (const isbn of popularISBNs) {
+      try {
+        // Check if already cached to avoid unnecessary API calls
+        const cacheKey = `book:isbn:${isbn}`
+        const cached = await env.CACHE.get(cacheKey)
+
+        if (cached) {
+          stats.alreadyCached++
+          // Still refresh to extend TTL
+          await findBookByISBN(isbn, env)
+          stats.warmed++
+        } else {
+          // Cache miss - fetch from external APIs
+          await findBookByISBN(isbn, env)
+          stats.warmed++
+        }
+
+        // Rate limit: 5 req/sec = 200ms between requests
+        await new Promise((r) => setTimeout(r, 200))
+      } catch (error) {
+        console.error(`Failed to warm static popular book ${isbn}:`, error.message)
+        stats.errors++
+      }
+    }
+
+    stats.duration = Date.now() - startTime
+    console.log(
+      `✅ Static popular books warming complete: ${stats.warmed}/${stats.total} warmed (${stats.alreadyCached} already cached), ${stats.errors} errors in ${stats.duration}ms`
+    )
+
+    return { success: true, stats }
+  } catch (error) {
+    console.error('❌ Static popular books warming failed:', error.message)
+    stats.duration = Date.now() - startTime
+    return { success: false, error: error.message, stats }
+  }
+}
+
+/**
+ * Warm analytics-driven popular books from access tracking
+ *
+ * @param {Object} env - Cloudflare environment bindings
+ * @returns {Promise<Object>} Stats object with warming results
+ */
+async function warmAnalyticsDrivenBooks(env) {
+  const startTime = Date.now()
+  console.log('📊 Warming analytics-driven popular books...')
 
   const stats = {
     total: 0,
@@ -96,12 +166,12 @@ export async function handleScheduledCacheWarming(env, ctx) {
     stats.total = popularKeys.length
 
     if (stats.total === 0) {
-      console.log('No popular books to warm, exiting')
+      console.log('No analytics-driven popular books found, skipping')
       stats.duration = Date.now() - startTime
       return { success: true, stats }
     }
 
-    console.log(`🔄 Warming ${stats.total} popular books...`)
+    console.log(`🔄 Warming ${stats.total} analytics-driven popular books...`)
 
     // Warm each book (rate limited to avoid API quota issues)
     for (const cacheKey of popularKeys) {
@@ -122,20 +192,71 @@ export async function handleScheduledCacheWarming(env, ctx) {
           console.warn(`Skipped invalid cache key format: ${cacheKey}`)
         }
       } catch (error) {
-        console.error(`Failed to warm ${cacheKey}:`, error.message)
+        console.error(`Failed to warm analytics book ${cacheKey}:`, error.message)
         stats.errors++
       }
     }
 
     stats.duration = Date.now() - startTime
     console.log(
-      `✅ Cache warming complete: ${stats.warmed}/${stats.total} warmed, ${stats.errors} errors in ${stats.duration}ms`
+      `✅ Analytics-driven warming complete: ${stats.warmed}/${stats.total} warmed, ${stats.errors} errors in ${stats.duration}ms`
     )
 
     return { success: true, stats }
   } catch (error) {
-    console.error('❌ Cache warming failed:', error.message)
+    console.error('❌ Analytics-driven warming failed:', error.message)
     stats.duration = Date.now() - startTime
     return { success: false, error: error.message, stats }
+  }
+}
+
+/**
+ * Main handler for scheduled cache warming
+ * Supports both static popular books and analytics-driven warming
+ *
+ * @param {Object} env - Cloudflare environment bindings
+ * @param {Object} ctx - Execution context
+ * @param {Object} options - Warming options
+ * @param {boolean} options.staticOnly - If true, only warm static popular books (for 6-hour cron)
+ * @returns {Promise<Object>} Stats object with warming results
+ */
+export async function handleScheduledCacheWarming(env, ctx, options = {}) {
+  const startTime = Date.now()
+  const { staticOnly = false } = options
+
+  console.log(`🔥 Starting scheduled cache warming (${staticOnly ? 'static only' : 'full'})...`)
+
+  const results = {
+    static: null,
+    analytics: null,
+    totalDuration: 0
+  }
+
+  try {
+    if (staticOnly) {
+      // Only warm static popular books (runs every 6 hours)
+      results.static = await warmStaticPopularBooks(env)
+    } else {
+      // Full warming: both static and analytics (runs every hour)
+      results.static = await warmStaticPopularBooks(env)
+      results.analytics = await warmAnalyticsDrivenBooks(env)
+    }
+
+    results.totalDuration = Date.now() - startTime
+
+    const totalWarmed =
+      (results.static?.stats?.warmed || 0) + (results.analytics?.stats?.warmed || 0)
+    const totalErrors =
+      (results.static?.stats?.errors || 0) + (results.analytics?.stats?.errors || 0)
+
+    console.log(
+      `✅ Overall cache warming complete: ${totalWarmed} books warmed, ${totalErrors} errors in ${results.totalDuration}ms`
+    )
+
+    return { success: true, results }
+  } catch (error) {
+    console.error('❌ Cache warming failed:', error.message)
+    results.totalDuration = Date.now() - startTime
+    return { success: false, error: error.message, results }
   }
 }

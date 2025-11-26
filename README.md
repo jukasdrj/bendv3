@@ -68,6 +68,11 @@ Single monolith worker with direct function calls (no RPC service bindings):
 - **Batch Enrichment**: Background job processing
 - **WebSocket Progress**: Real-time updates for all background jobs
 - **Cover Harvest**: Automated ISBNdb cover caching (5000 req/day)
+- **Cache Warm-up**: Automated popular books cache refresh
+  - **Static List**: Top 100 popular books (classics, bestsellers, popular series)
+  - **Analytics-Driven**: Most accessed books from access tracking
+  - **Schedule**: Every 6 hours (static) + hourly (analytics)
+  - **Benefits**: <50ms latency for popular books, reduced API costs
 
 See `ARCHITECTURE_OVERVIEW.md` for architecture details.
 

@@ -79,6 +79,11 @@ export default {
           await handleRecommendationsCron(env);
           break;
 
+        case "0 */6 * * *": // Every 6 hours at :00
+          console.log("[Cron] Running 6-hour static popular books cache warming");
+          await handleScheduledCacheWarming(env, ctx, { staticOnly: true });
+          break;
+
         case "0 * * * *": // Every hour at :00
           console.log("[Cron] Running hourly cache warming job");
           await handleScheduledCacheWarming(env, ctx);
