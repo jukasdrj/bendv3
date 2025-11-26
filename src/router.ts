@@ -112,6 +112,64 @@ app.get("/health", (c) => {
 });
 
 // ============================================================================
+// V2 API Aliases (Issue #42 - Documented but not implemented)
+// ============================================================================
+
+// GET /api/v2/features - Alias for /api/v2/capabilities
+app.get("/api/v2/features", async (c) => {
+  return await handleCapabilities(c.req.raw, c.env);
+});
+
+// GET /api/v2/recommendations - Alias for /api/v2/recommendations/weekly
+app.get("/api/v2/recommendations", async (c) => {
+  return await handleWeeklyRecommendations(c.req.raw, c.env);
+});
+
+// POST /api/v2/search/semantic - Alias for GET /api/v2/search?mode=semantic
+app.post("/api/v2/search/semantic", async (c) => {
+  try {
+    const body = await c.req.json();
+    const query = body.query;
+
+    if (!query) {
+      return createErrorResponse(
+        'Missing "query" in request body',
+        400,
+        ErrorCodes.INVALID_REQUEST,
+        { details: "POST /api/v2/search/semantic expects a JSON body with a 'query' field." },
+        c.req.raw
+      );
+    }
+
+    // Construct a synthetic request for the GET handler
+    const url = new URL(c.req.url);
+    url.pathname = '/api/v2/search';
+    url.searchParams.set('q', query);
+    url.searchParams.set('mode', 'semantic');
+
+    const newRequest = new Request(url.toString(), {
+      method: 'GET',
+      headers: c.req.headers,
+    });
+
+    return await handleV2Search(newRequest, c.env);
+  } catch (e) {
+    return createErrorResponse(
+      'Invalid JSON in request body',
+      400,
+      ErrorCodes.INVALID_REQUEST,
+      { details: (e as Error).message },
+      c.req.raw
+    );
+  }
+});
+
+// POST /api/v2/import/workflow - Alias for /v2/import/workflow
+app.post("/api/v2/import/workflow", rateLimitMiddleware, async (c) => {
+  return await triggerBookImportWorkflow(c.req.raw, c.env);
+});
+
+// ============================================================================
 // MVP Route 2: ISBN Search (Full Stack Integration Test)
 // ============================================================================
 app.get("/v1/search/isbn", async (c) => {
