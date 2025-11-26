@@ -3178,14 +3178,73 @@ ws.onmessage = async (event) => {
 };
 ```
 
+### 12.3 Cache Configuration
+
+**Overview:**
+All cache TTL values are centralized in `src/config/cache.js` and can be overridden via environment variables.
+
+**Default TTL Values:**
+| Cache Type | Default TTL | Environment Variable | Rationale |
+|------------|-------------|---------------------|-----------|
+| ISBN | 365 days | `CACHE_TTL_ISBN` | ISBN metadata never changes |
+| Title | 7 days | `CACHE_TTL_TITLE` | New editions published occasionally |
+| Author | 7 days | `CACHE_TTL_AUTHOR` | Author metadata stable, new books periodically |
+| Enrichment | 180 days | `CACHE_TTL_ENRICHMENT` | Wikidata enrichment very stable |
+| Cover | 365 days | `CACHE_TTL_COVER` | Cover images rarely change |
+| Hot | 2 hours | `CACHE_TTL_HOT` | Hot tier for hot/cold caching strategy |
+| Cold | 14 days | `CACHE_TTL_COLD` | Cold tier for hot/cold caching strategy |
+
+**Hot/Cold Caching Strategy:**
+- External API responses use two-tier caching:
+  - **Hot TTL (2h):** Tracks cache effectiveness for recent data
+  - **Cold TTL (14d):** Actual KV storage expiration
+- Legacy environment variables (`CACHE_HOT_TTL`, `CACHE_COLD_TTL`) are supported for backward compatibility
+
+**Environment Configuration:**
+```jsonc
+// wrangler.jsonc
+{
+  "vars": {
+    "CACHE_TTL_ISBN": "31536000",     // 365 days
+    "CACHE_TTL_TITLE": "604800",      // 7 days
+    "CACHE_TTL_AUTHOR": "604800",     // 7 days
+    "CACHE_TTL_ENRICHMENT": "15552000", // 180 days
+    "CACHE_TTL_COVER": "31536000",    // 365 days
+    "CACHE_TTL_HOT": "7200",          // 2 hours
+    "CACHE_TTL_COLD": "1209600"       // 14 days
+  }
+}
+```
+
+**Usage in Code:**
+```javascript
+import { CacheConfig } from './config/cache.js';
+
+// Get specific TTL
+const isbnTTL = CacheConfig.getTTL('isbn', env);
+
+// Get all TTLs
+const ttls = CacheConfig.getAllTTLs(env);
+
+// Get hot/cold TTLs (with legacy support)
+const hotTTL = CacheConfig.getHotTTL(env);
+const coldTTL = CacheConfig.getColdTTL(env);
+```
+
+**Affected Services:**
+- `src/services/kv-cache.js` - Uses getAllTTLs() for smart TTL adjustment
+- `src/services/external-apis.ts` - Uses getHotTTL()/getColdTTL() for API caching
+- `src/utils/cache.js` - Accepts TTL as parameter, uses centralized values upstream
+
 ---
 
 **END OF CONTRACT**
 
 **Questions?** Contact: api-support@oooefam.net
-**Last Updated:** November 22, 2025 (v2.6 - Sprint 1: RPC & Hibernation Optimization)
+**Last Updated:** November 26, 2025 (v2.7.1 - Cache TTL Standardization)
 **Next Review:** February 15, 2026
 **Related Issues:**
 - #67 (API Contract Standardization - v2.1)
 - #91 (iOS WebSocket Migration Docs - v2.1)
 - PHASE_1_HONO_MIGRATION (Hono Router Week 2 - v2.2)
+- Cache TTL Standardization (November 2025)
