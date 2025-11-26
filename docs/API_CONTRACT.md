@@ -1320,7 +1320,7 @@ type CulturalRegion =
 
 **Cultural Enrichment:**
 - Gender, nationality, and cultural region are enriched via **Wikidata API**
-- Cache TTL: **7 days** (author metadata is stable)
+- Cache TTL is configurable via environment variables (see `wrangler.jsonc`)
 - Fallback: `gender: "Unknown"` if Wikidata lookup fails
 
 ---

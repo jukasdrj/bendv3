@@ -2,6 +2,7 @@
  * KV caching utilities
  * Migrated from books-api-proxy caching logic
  */
+import { CacheConfig } from '../config/cache.ts';
 
 /**
  * Track cache event in CacheMetricsDO (fire-and-forget)
@@ -124,19 +125,20 @@ export async function setCached(
 ) {
   const timestamp = Date.now();
   const prefix = extractPrefix(key);
+  const effectiveTtl = ttl || CacheConfig.getTTL(prefix, env);
 
   try {
     const cachedWithMeta = {
       data: value,
       cachedAt: timestamp, // Timestamp for age calculation
-      ttl: ttl, // Original TTL for headers
+      ttl: effectiveTtl, // Original TTL for headers
     };
 
     // Calculate hot TTL expiry for effectiveness tracking
     const hotTtlExpiry = hotTtl ? timestamp + hotTtl * 1000 : null;
 
     await env.CACHE.put(key, JSON.stringify(cachedWithMeta), {
-      expirationTtl: ttl,
+      expirationTtl: effectiveTtl,
       metadata: hotTtlExpiry ? { hotTtlExpiry } : {},
     });
 
