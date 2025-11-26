@@ -14,6 +14,7 @@
 import * as externalApis from "./external-apis.ts";
 import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js";
 import type { DataProvider } from "../types/enums.js";
+import { CircuitBreakerOpenError } from "../types/errors.js";
 
 // ========================================================================================
 // INTERFACES
@@ -155,11 +156,15 @@ export async function enrichMultipleBooks(
         `enrichMultipleBooks: Google Books returned no results, trying OpenLibrary`,
       );
     } catch (error) {
-      // Google Books failed (network error, 500, etc.), proceed to fallback
-      console.error(
-        `enrichMultipleBooks: Google Books error for ISBN "${isbn}":`,
-        error,
-      );
+      if (error instanceof CircuitBreakerOpenError) {
+        console.log('Google Books circuit OPEN, using fallback immediately');
+      } else {
+        // Google Books failed (network error, 500, etc.), proceed to fallback
+        console.error(
+          `enrichMultipleBooks: Google Books error for ISBN "${isbn}":`,
+          error,
+        );
+      }
       console.log(`enrichMultipleBooks: Trying OpenLibrary fallback`);
     }
 
@@ -187,11 +192,15 @@ export async function enrichMultipleBooks(
         `enrichMultipleBooks: OpenLibrary returned no results, trying ISBNdb`,
       );
     } catch (error) {
-      // OpenLibrary failed too
-      console.error(
-        `enrichMultipleBooks: OpenLibrary error for ISBN "${isbn}":`,
-        error,
-      );
+      if (error instanceof CircuitBreakerOpenError) {
+        console.log('OpenLibrary circuit OPEN, using fallback immediately');
+      } else {
+        // OpenLibrary failed too
+        console.error(
+          `enrichMultipleBooks: OpenLibrary error for ISBN "${isbn}":`,
+          error,
+        );
+      }
       console.log(`enrichMultipleBooks: Trying ISBNdb fallback`);
     }
 
@@ -210,11 +219,15 @@ export async function enrichMultipleBooks(
       // No results from ISBNdb either
       console.log(`enrichMultipleBooks: ISBNdb returned no results`);
     } catch (error) {
-      // ISBNdb failed too
-      console.error(
-        `enrichMultipleBooks: ISBNdb error for ISBN "${isbn}":`,
-        error,
-      );
+      if (error instanceof CircuitBreakerOpenError) {
+        console.log('ISBNdb circuit OPEN, no more fallbacks.');
+      } else {
+        // ISBNdb failed too
+        console.error(
+          `enrichMultipleBooks: ISBNdb error for ISBN "${isbn}":`,
+          error,
+        );
+      }
     }
 
     // No results from any provider
@@ -302,7 +315,11 @@ export async function enrichMultipleBooks(
     console.log(`enrichMultipleBooks: No results for "${searchQuery}"`);
     return { works: [], editions: [], authors: [] };
   } catch (error) {
-    console.error("enrichMultipleBooks error:", error);
+    if (error instanceof CircuitBreakerOpenError) {
+      console.log('Circuit breaker open, returning empty results');
+    } else {
+      console.error("enrichMultipleBooks error:", error);
+    }
     // Best-effort: API errors = empty results (don't propagate errors)
     return { works: [], editions: [], authors: [] };
   }
@@ -335,6 +352,7 @@ export async function enrichSingleBook(
       const result: SingleEnrichmentResult | null = await searchByISBN(
         isbn,
         env,
+        ctx,
       );
       // If we have a result with a cover, we're done
       if (
@@ -384,6 +402,7 @@ export async function enrichSingleBook(
     const googleResult: SingleEnrichmentResult | null = await searchGoogleBooks(
       { title, author },
       env,
+      ctx,
     );
     if (
       googleResult &&
@@ -394,7 +413,7 @@ export async function enrichSingleBook(
 
     // Strategy 4: Fallback to OpenLibrary with title+author
     const openLibResult: SingleEnrichmentResult | null =
-      await searchOpenLibrary({ title, author }, env);
+      await searchOpenLibrary({ title, author }, env, ctx);
     if (openLibResult) {
       return openLibResult;
     }
@@ -408,7 +427,11 @@ export async function enrichSingleBook(
     console.log(`enrichSingleBook: No results for query:`, query);
     return null;
   } catch (error) {
-    console.error("enrichSingleBook error:", error);
+    if (error instanceof CircuitBreakerOpenError) {
+      console.log('Circuit breaker open, returning null');
+    } else {
+      console.error("enrichSingleBook error:", error);
+    }
     // Best-effort: API errors = not found (don't propagate errors)
     return null;
   }
@@ -425,6 +448,7 @@ export async function enrichSingleBook(
 async function searchGoogleBooks(
   query: BookSearchQuery,
   env: WorkerEnv,
+  ctx?: ExecutionContext,
 ): Promise<SingleEnrichmentResult | null> {
   const { title, author, isbn } = query;
 
@@ -434,8 +458,13 @@ async function searchGoogleBooks(
     : [title, author].filter(Boolean).join(" ");
 
   const result = isbn
-    ? await externalApis.searchGoogleBooksByISBN(searchQuery, env)
-    : await externalApis.searchGoogleBooks(searchQuery, { maxResults: 1 }, env);
+    ? await externalApis.searchGoogleBooksByISBN(searchQuery, env, ctx)
+    : await externalApis.searchGoogleBooks(
+        searchQuery,
+        { maxResults: 1 },
+        env,
+        ctx,
+      );
 
   if (!result || !result.works || result.works.length === 0) {
     return null;
@@ -461,14 +490,16 @@ async function searchGoogleBooks(
 async function searchOpenLibrary(
   query: BookSearchQuery,
   env: WorkerEnv,
+  ctx?: ExecutionContext,
 ): Promise<SingleEnrichmentResult | null> {
-  const { title, author } = query;
+  const { title, author, isbn } = query;
 
-  const searchQuery: string = [title, author].filter(Boolean).join(" ");
+  const searchQuery: string = isbn ?? [title, author].filter(Boolean).join(" ");
   const result = await externalApis.searchOpenLibrary(
     searchQuery,
     { maxResults: 1 },
     env,
+    ctx,
   );
 
   if (!result || !result.works || result.works.length === 0) {
@@ -495,11 +526,13 @@ async function searchOpenLibrary(
 async function searchByISBN(
   isbn: string,
   env: WorkerEnv,
+  ctx?: ExecutionContext,
 ): Promise<SingleEnrichmentResult | null> {
   // Try Google Books ISBN search first
   const googleResult: SingleEnrichmentResult | null = await searchGoogleBooks(
     { isbn },
     env,
+    ctx,
   );
   if (
     googleResult &&
@@ -512,6 +545,7 @@ async function searchByISBN(
   const olResult: SingleEnrichmentResult | null = await searchOpenLibrary(
     { isbn },
     env,
+    ctx,
   );
   if (olResult) {
     return olResult;

@@ -1114,6 +1114,7 @@ func webSocket(_ webSocket: URLSessionWebSocket, didCloseWith closeCode: URLSess
 | `RATE_LIMIT_EXCEEDED` | 429 | Too many requests | Yes (after delay) |
 | `PROVIDER_TIMEOUT` | 504 | External API timeout | Yes |
 | `PROVIDER_ERROR` | 502 | External API error | Yes |
+| `SERVICE_UNAVAILABLE` | 503 | Circuit breaker open | Yes (after delay) |
 | `INTERNAL_ERROR` | 500 | Server error | Yes |
 
 ---

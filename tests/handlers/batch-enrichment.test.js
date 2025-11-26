@@ -358,8 +358,7 @@ describe('handleBatchEnrichment', () => {
       await handleBatchEnrichment(request, mockEnv, mockCtx);
 
       // Verify DO stub was retrieved with correct jobId
-      expect(mockEnv.PROGRESS_WEBSOCKET_DO.idFromName).toHaveBeenCalledWith(jobId);
-      expect(mockEnv.PROGRESS_WEBSOCKET_DO.get).toHaveBeenCalled();
+      expect(getProgressDOStub).toHaveBeenCalledWith(jobId, mockEnv);
     });
   });
 });
