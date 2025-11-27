@@ -1343,6 +1343,46 @@ app.post("/test/cache-event", async (c) => {
 });
 
 // ============================================================================
+// Test Route: Trigger Recommendations Cron (DEBUG mode only)
+// ============================================================================
+app.post("/test/trigger-recommendations-cron", async (c) => {
+  // Only available in DEBUG mode
+  if (c.env.LOG_LEVEL !== "DEBUG") {
+    return createErrorResponse(
+      "Endpoint not found: POST /test/trigger-recommendations-cron",
+      404,
+      ErrorCodes.NOT_FOUND,
+      undefined,
+      c.req.raw
+    );
+  }
+
+  try {
+    const { handleRecommendationsCron } = await import("./cron/recommendations-cron");
+    await handleRecommendationsCron(c.env);
+
+    return createSuccessResponse(
+      {
+        message: "Weekly recommendations cron triggered successfully",
+        timestamp: new Date().toISOString(),
+      },
+      { source: "manual-trigger" },
+      200,
+      c.req.raw
+    );
+  } catch (error) {
+    console.error("Failed to trigger recommendations cron:", error);
+    return createErrorResponse(
+      `Failed to trigger recommendations cron: ${(error as Error).message}`,
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      { details: (error as Error).message },
+      c.req.raw
+    );
+  }
+});
+
+// ============================================================================
 // V2 API Routes (Sprint 3 - API_CONTRACT_V2_PROPOSAL.md)
 // ============================================================================
 

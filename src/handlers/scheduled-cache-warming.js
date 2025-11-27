@@ -8,18 +8,18 @@
  * Dual Strategy:
  * 1. Static List (Phase 1): Top 100 popular ISBNs from config/popular-books.js
  *    - Classic literature, bestsellers, popular series (Harry Potter, etc.)
- *    - Refreshed every 6 hours (0 */6 * * *)
+ *    - Refreshed every 6 hours (cron: 0 star-slash-6 star star star)
  * 2. Analytics-Driven (Phase 2): Most accessed books from access tracking
- *    - List access keys from CACHE (access:book:isbn:* pattern)
+ *    - List access keys from CACHE (access:book:isbn:star pattern)
  *    - Sort by access count (descending)
  *    - Fetch top 100 books with >10 accesses/day
- *    - Refreshed hourly (0 * * * *)
+ *    - Refreshed hourly (cron: 0 star star star star)
  *
  * Rate limiting: 5 req/sec to avoid API quota issues
  *
  * Cron Schedule:
- * - 0 * * * * (every hour at :00) - Analytics-driven warm-up
- * - 0 */6 * * * (every 6 hours) - Static popular books warm-up
+ * - Every hour at :00 - Analytics-driven warm-up
+ * - Every 6 hours - Static popular books warm-up
  *
  * Duration: ~5-30 seconds (depends on number of popular books)
  * Cost: ~400 API calls/day (static) + ~100 API calls/day (analytics) = ~500/day
