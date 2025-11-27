@@ -56,58 +56,69 @@ export class BookRepository {
   }
 
   /**
-   * Dual-Write: Always KV + Conditionally D1 (with validation)
+   * Sequential Write: D1 Primary → KV Cache (durability-first)
    *
-   * Day 6: Added data consistency validation between KV and D1 writes
+   * FIX (Shelf Scan Plan - Issue 3.1): Simplified D1 primary, KV cache pattern
+   * - D1: Primary store (durable, relational queries)
+   * - KV: Cache layer (fast reads, TTL-based expiration)
+   *
+   * Write order: D1 first (ensures durability), then KV (cache population)
    *
    * @param book - BookRecord with all metadata
    * @throws Never throws - D1 write failures are logged but don't fail the request
    */
   async save(book: BookRecord): Promise<void> {
     const startTime = Date.now()
+    let d1WriteTime = 0
+    let kvWriteTime = 0
 
-    // Step 1: Always write to KV (fast cache)
-    await this.saveToKV(book)
-    const kvWriteTime = Date.now() - startTime
-    console.log(`[BookRepository] ✅ Saved to KV: ${book.isbn} (${kvWriteTime}ms)`)
-
-    // Step 2: Conditionally write to D1 (dual-write phase)
+    // Step 1: Write to D1 FIRST (primary, durable store)
+    // FIX (Shelf Scan Plan - Issue 3.1): D1 first ensures durability before caching
     if (this.env.ENABLE_D1_WRITES === 'true') {
       const d1StartTime = Date.now()
 
       try {
         await this.saveToD1(book)
-        const d1WriteTime = Date.now() - d1StartTime
+        d1WriteTime = Date.now() - d1StartTime
 
-        console.log(`[BookRepository] ✅ Dual-write to D1: ${book.isbn} (${d1WriteTime}ms)`)
-
-        // Day 6: Emit metrics for monitoring
-        this.emitDualWriteMetrics({
-          isbn: book.isbn,
-          kvWriteTime,
-          d1WriteTime,
-          success: true,
-        })
+        console.log(`[BookRepository] ✅ Saved to D1 (primary): ${book.isbn} (${d1WriteTime}ms)`)
 
         // Day 6: Optional validation - verify D1 write (only in dev/testing)
         if (this.env.VALIDATE_DUAL_WRITES === 'true') {
           await this.validateDualWrite(book.isbn, book)
         }
       } catch (error) {
-        const d1WriteTime = Date.now() - d1StartTime
+        d1WriteTime = Date.now() - d1StartTime
         console.error(`[BookRepository] ❌ D1 write failed for ${book.isbn} (${d1WriteTime}ms):`, error)
 
-        // Emit failure metrics
+        // Emit failure metrics (kvWriteTime will be updated after KV write)
         this.emitDualWriteMetrics({
           isbn: book.isbn,
-          kvWriteTime,
+          kvWriteTime: 0, // Not yet written
           d1WriteTime,
           success: false,
           errorMessage: error instanceof Error ? error.message : 'Unknown error',
         })
 
-        // Don't fail request - eventual consistency OK
+        // Don't fail request - continue to KV write for cache population
       }
+    }
+
+    // Step 2: Write to KV SECOND (cache layer for fast reads)
+    // This happens regardless of D1 write success - cache still useful
+    const kvStartTime = Date.now()
+    await this.saveToKV(book)
+    kvWriteTime = Date.now() - kvStartTime
+    console.log(`[BookRepository] ✅ Saved to KV (cache): ${book.isbn} (${kvWriteTime}ms)`)
+
+    // Emit success metrics if D1 write also succeeded
+    if (this.env.ENABLE_D1_WRITES === 'true' && d1WriteTime > 0) {
+      this.emitDualWriteMetrics({
+        isbn: book.isbn,
+        kvWriteTime,
+        d1WriteTime,
+        success: true,
+      })
     }
   }
 
