@@ -837,6 +837,28 @@ app.get("/api/cache/stats", async (c) => {
 });
 
 // ============================================================================
+// Cache Dashboard & Monitoring (Issue #99)
+// ============================================================================
+
+// GET /api/cache/dashboard - Full cache dashboard with health, alerts, and stats
+app.get("/api/cache/dashboard", async (c) => {
+  const { handleCacheDashboard } = await import("./handlers/cache-dashboard");
+  return await handleCacheDashboard(c);
+});
+
+// GET /api/cache/health - Cache health check only (lightweight)
+app.get("/api/cache/health", async (c) => {
+  const { handleCacheHealth } = await import("./handlers/cache-dashboard");
+  return await handleCacheHealth(c);
+});
+
+// GET /api/cache/alerts - Alert history with optional limit parameter
+app.get("/api/cache/alerts", async (c) => {
+  const { handleCacheAlerts } = await import("./handlers/cache-dashboard");
+  return await handleCacheAlerts(c);
+});
+
+// ============================================================================
 // MVP Route 4: WebSocket Progress (WebSocket Routing Test)
 // ============================================================================
 app.get("/ws/progress", async (c) => {
