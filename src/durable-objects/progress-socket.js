@@ -140,15 +140,18 @@ export class ProgressWebSocketDO extends DurableObject {
     }
 
     // SECURITY FIX (Issue #163): Extract token from WebSocket Subprotocol header
-    // Supports both NEW method (subprotocol) and OLD method (query param) for migration
-    // Priority: Subprotocol > Query param (clients should migrate to subprotocol)
+    // Feature flag: REQUIRE_SUBPROTOCOL_AUTH (default: false for migration period)
+    // When true: query param tokens are rejected immediately
+    // When false: query param tokens are allowed with deprecation warning
+    const requireSubprotocol = this.env.REQUIRE_SUBPROTOCOL_AUTH === "true";
+
     const wsProtocol = request.headers.get("Sec-WebSocket-Protocol");
     let providedToken = null;
     let tokenSource = null;
 
     if (wsProtocol) {
-      // NEW METHOD: Extract token from subprotocol header (secure)
-      // Format: "bookstrack-auth, <base64-encoded-token>"
+      // NEW METHOD (SECURE): Extract token from subprotocol header
+      // Format: "bookstrack-auth.<token>"
       const protocols = wsProtocol.split(",").map((p) => p.trim());
       const authProtocol = protocols.find((p) =>
         p.startsWith("bookstrack-auth."),
@@ -165,10 +168,25 @@ export class ProgressWebSocketDO extends DurableObject {
     }
 
     if (!providedToken) {
-      // OLD METHOD (DEPRECATED): Fallback to query param for backward compatibility
-      // SECURITY WARNING: This method leaks tokens in logs/history
-      providedToken = url.searchParams.get("token");
-      if (providedToken) {
+      // OLD METHOD (DEPRECATED): Query param fallback
+      const queryToken = url.searchParams.get("token");
+
+      if (queryToken && requireSubprotocol) {
+        // SECURITY: Reject query param tokens when feature flag is enabled
+        console.warn(
+          `[${jobId}] 🚫 REJECTED: Token via URL query parameter. REQUIRE_SUBPROTOCOL_AUTH=true. ` +
+            `Client must use Sec-WebSocket-Protocol header. See API_CONTRACT.md §7.5`,
+        );
+        return new Response("Query parameter tokens are no longer supported. Use Sec-WebSocket-Protocol header.", {
+          status: 401,
+          headers: {
+            ...getCorsHeaders(request),
+            "Content-Type": "text/plain",
+          },
+        });
+      } else if (queryToken) {
+        // Allow with deprecation warning during migration period
+        providedToken = queryToken;
         tokenSource = "query_param";
         console.warn(
           `[${jobId}] ⚠️ DEPRECATED: Token provided via URL query parameter (INSECURE). ` +
@@ -488,6 +506,44 @@ export class ProgressWebSocketDO extends DurableObject {
       this.cleanupInMemoryOnly();
     });
 
+    // Return client-side WebSocket to iOS app
+    // SECURITY FIX (Issue #163): Include Sec-WebSocket-Protocol in upgrade response
+    const responseHeaders = getCorsHeaders(request);
+    if (tokenSource === "subprotocol") {
+      // Echo the exact subprotocol value offered by the client (RFC 6455 requirement)
+      responseHeaders["Sec-WebSocket-Protocol"] = wsProtocol;
+    }
+    // API Contract compliance (Issue #240): Add X-Response-Format header
+    responseHeaders["X-Response-Format"] = "v2.0";
+
+    // FIX (Shelf Scan Plan - Issue 1.2): Check for stored completion on ANY connect
+    // If job already completed, send the completion message immediately and close
+    const storedCompletion = await this.storage.get("completionPayload");
+    if (storedCompletion) {
+      console.log(
+        `[${jobId}] ✅ Job already complete - sending stored completion to late client`,
+      );
+      this.webSocket.send(JSON.stringify(storedCompletion));
+
+      // Close connection after brief delay to ensure message delivery
+      setTimeout(() => {
+        if (this.webSocket) {
+          this.webSocket.close(
+            WebSocketCloseCodes.NORMAL_CLOSURE,
+            "Job already complete",
+          );
+          this.cleanup();
+        }
+      }, 500);
+
+      // Return the response - client got what they needed
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+        headers: responseHeaders,
+      });
+    }
+
     // RECONNECTION SUPPORT: Send current job state to reconnected client
     if (isReconnect) {
       // Retrieve current job state from storage
@@ -523,20 +579,10 @@ export class ProgressWebSocketDO extends DurableObject {
       }
     }
 
-    // Return client-side WebSocket to iOS app
-    // SECURITY FIX (Issue #163): Include Sec-WebSocket-Protocol in upgrade response
-    const headers = getCorsHeaders(request);
-    if (tokenSource === "subprotocol") {
-      // Echo the exact subprotocol value offered by the client (RFC 6455 requirement)
-      headers["Sec-WebSocket-Protocol"] = wsProtocol;
-    }
-    // API Contract compliance (Issue #240): Add X-Response-Format header
-    headers["X-Response-Format"] = "v2.0";
-
     return new Response(null, {
       status: 101,
       webSocket: client,
-      headers,
+      headers: responseHeaders,
     });
   }
 
@@ -1353,16 +1399,14 @@ export class ProgressWebSocketDO extends DurableObject {
   /**
    * RPC Method: Send job_complete message
    *
+   * FIX (Shelf Scan Plan - Issue 1.2): Persist completion payload for late WebSocket connects
+   * If client connects after job completes, they receive the completion immediately.
+   *
    * @param {string} pipeline - Pipeline type
    * @param {Object} payload - Completion payload (pipeline-specific)
    * @returns {Promise<{success: boolean}>}
    */
   async complete(pipeline, payload) {
-    if (!this.webSocket) {
-      console.warn(`[${this.jobId}] No WebSocket connection available`);
-      return { success: false };
-    }
-
     // Calculate expiry timestamp (24 hours from now)
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
@@ -1380,27 +1424,39 @@ export class ProgressWebSocketDO extends DurableObject {
       },
     };
 
-    try {
-      const messageStr = JSON.stringify(message);
-      this.validateMessageSize(messageStr); // ISSUE #135: Validate size
-      this.webSocket.send(messageStr);
-      console.log(`[${this.jobId}] Job complete message sent`);
+    // FIX: Persist completion payload FIRST for late WebSocket connects
+    // This ensures clients that connect after job completes still get the result
+    await this.storage.put("completionPayload", message);
+    console.log(`[${this.jobId}] Completion payload persisted for late connects`);
 
-      // Close connection after completion
-      setTimeout(() => {
-        if (this.webSocket) {
-          this.webSocket.close(
-            WebSocketCloseCodes.NORMAL_CLOSURE,
-            "Job completed",
-          );
-          this.cleanup();
-        }
-      }, 1000); // 1 second delay to ensure message is delivered
+    // If WebSocket is connected, send immediately
+    if (this.webSocket) {
+      try {
+        const messageStr = JSON.stringify(message);
+        this.validateMessageSize(messageStr); // ISSUE #135: Validate size
+        this.webSocket.send(messageStr);
+        console.log(`[${this.jobId}] Job complete message sent`);
 
-      return { success: true };
-    } catch (error) {
-      console.error(`[${this.jobId}] Failed to send job_complete:`, error);
-      return { success: false };
+        // Close connection after completion
+        setTimeout(() => {
+          if (this.webSocket) {
+            this.webSocket.close(
+              WebSocketCloseCodes.NORMAL_CLOSURE,
+              "Job completed",
+            );
+            this.cleanup();
+          }
+        }, 1000); // 1 second delay to ensure message is delivered
+
+        return { success: true };
+      } catch (error) {
+        console.error(`[${this.jobId}] Failed to send job_complete:`, error);
+        return { success: false };
+      }
+    } else {
+      // No WebSocket connected - completion is persisted, client will get it on connect
+      console.warn(`[${this.jobId}] No WebSocket connection - completion persisted for late retrieval`);
+      return { success: true, persistedForLateConnect: true };
     }
   }
 

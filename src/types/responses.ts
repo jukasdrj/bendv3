@@ -248,7 +248,8 @@ export interface DetectedBookDTO {
   isbn?: string;
   confidence?: number; // 0.0-1.0 (AI confidence score)
   boundingBox?: BoundingBox;
-  enrichmentStatus?: "pending" | "success" | "not_found" | "error";
+  // FIX (Shelf Scan Plan - Issue 2.2): Added "circuit_open" status for circuit breaker failures
+  enrichmentStatus?: "pending" | "success" | "not_found" | "error" | "circuit_open";
 
   // Flattened edition fields (not nested) - DEPRECATED, use enrichment below
   coverUrl?: string;
@@ -256,14 +257,16 @@ export interface DetectedBookDTO {
   publicationYear?: number;
 
   // Nested enrichment data (canonical DTOs) - Added Nov 2025 to fix enrichment loss
+  // FIX (Shelf Scan Plan - Issue 2.2): Added "circuit_open" status + retryAfterMs for circuit breaker failures
   enrichment?: {
-    status: "success" | "not_found" | "error";
+    status: "success" | "not_found" | "error" | "circuit_open";
     work?: WorkDTO;
     editions?: EditionDTO[];
     authors?: AuthorDTO[];
     provider?: string;
     cachedResult?: boolean;
     error?: string;
+    retryAfterMs?: number; // For circuit_open: when client can retry
   };
 }
 

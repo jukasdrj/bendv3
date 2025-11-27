@@ -246,12 +246,13 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
     const failureCount = totalProcessed - successCount;
     const duration = Date.now() - startTime;
 
-    // Store full results in KV for HTTP retrieval (1-hour TTL)
+    // Store full results in KV for HTTP retrieval (2-hour TTL to match token expiry)
+    // FIX (Shelf Scan Plan - Issue 1.3): Align TTL with token expiry to prevent 404 with valid token
     const resourceId = `job-results:${jobId}`;
     await env.KV_CACHE.put(
       resourceId,
       JSON.stringify(enrichedBooks),
-      { expirationTtl: 3600 }, // 1 hour
+      { expirationTtl: 7200 }, // 2 hours (matches token expiry)
     );
 
     // Send summary-only payload to DO (mobile-optimized)

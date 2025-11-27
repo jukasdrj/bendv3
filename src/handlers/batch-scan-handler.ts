@@ -18,6 +18,7 @@ import { enrichBooksParallel } from "../services/parallel-enrichment.js";
 import { handleSearchAdvanced } from "./v1/search-advanced.js";
 import { getConfidenceThreshold } from "../utils/confidence.js";
 import { deleteR2Objects } from "../utils/r2-utils.js";
+import { CircuitBreakerOpenError } from "../types/errors.js";
 import type {
   DetectedBookDTO,
   BookshelfScanInitResponse,
@@ -297,12 +298,35 @@ async function processBatchPhotos(jobId, images, env, doStub) {
           partialBooks,
           async (book) => {
             // Enrichment function: fetch metadata for this book
-            const response = await handleSearchAdvanced(
-              book.title || "",
-              book.author || "",
-              env,
-              ctx,
-            );
+            // FIX: Catch CircuitBreakerOpenError to set proper status
+            let response;
+            try {
+              response = await handleSearchAdvanced(
+                book.title || "",
+                book.author || "",
+                env,
+                ctx,
+              );
+            } catch (error) {
+              if (error instanceof CircuitBreakerOpenError) {
+                console.warn(`[Batch Scan] Circuit breaker OPEN for ${error.provider}, book: ${book.title}`);
+                return {
+                  ...book,
+                  enrichmentStatus: "circuit_open",
+                  enrichment: {
+                    status: "circuit_open",
+                    error: `Provider ${error.provider} temporarily unavailable`,
+                    provider: error.provider,
+                    retryable: true,
+                    retryAfterMs: error.retryAfterMs,
+                    work: null,
+                    editions: [],
+                    authors: [],
+                  },
+                };
+              }
+              throw error;
+            }
 
             // Parse Response object to get canonical ApiResponse<BookSearchResponse>
             let apiResponse;
@@ -384,11 +408,13 @@ async function processBatchPhotos(jobId, images, env, doStub) {
         });
 
         // Store partial results in KV (canceled job)
+        // FIX: Align TTL with token expiry (2 hours)
+        const RESULTS_TTL_SECONDS = 7200;
         const resourceId = `scan-results:${jobId}`;
         await env.KV_CACHE.put(
           resourceId,
           JSON.stringify(enrichedPartialBooks.map(mapToDetectedBook)),
-          { expirationTtl: 3600 }, // 1 hour
+          { expirationTtl: RESULTS_TTL_SECONDS },
         );
 
         // Cleanup: Delete uploaded R2 objects (job was canceled, storage no longer needed)
@@ -483,12 +509,38 @@ async function processBatchPhotos(jobId, images, env, doStub) {
       uniqueBooks,
       async (book) => {
         // Enrichment function: fetch metadata for this book
-        const response = await handleSearchAdvanced(
-          book.title || "",
-          book.author || "",
-          env,
-          ctx,
-        );
+        // FIX: Catch CircuitBreakerOpenError to set proper status instead of "pending"
+        // See: docs/plans/shelf-scan-fixes-plan.md §2.2
+        let response;
+        try {
+          response = await handleSearchAdvanced(
+            book.title || "",
+            book.author || "",
+            env,
+            ctx,
+          );
+        } catch (error) {
+          // Handle circuit breaker open - provider is temporarily unavailable
+          if (error instanceof CircuitBreakerOpenError) {
+            console.warn(`[Batch Scan] Circuit breaker OPEN for ${error.provider}, book: ${book.title}`);
+            return {
+              ...book,
+              enrichmentStatus: "circuit_open",
+              enrichment: {
+                status: "circuit_open",
+                error: `Provider ${error.provider} temporarily unavailable`,
+                provider: error.provider,
+                retryable: true,
+                retryAfterMs: error.retryAfterMs,
+                work: null,
+                editions: [],
+                authors: [],
+              },
+            };
+          }
+          // Re-throw other errors
+          throw error;
+        }
 
         // Parse Response object to get canonical ApiResponse<BookSearchResponse>
         let apiResponse;
@@ -526,14 +578,23 @@ async function processBatchPhotos(jobId, images, env, doStub) {
             },
           };
         } else {
+          // FIX (Shelf Scan Plan - Issue 2.2): Detect circuit breaker errors in API response
+          const errorCode = apiResponse.error?.code;
+          const isCircuitOpen = errorCode === "CIRCUIT_OPEN";
+
           return {
             ...book,
+            enrichmentStatus: isCircuitOpen ? "circuit_open" : "error",
             enrichment: {
-              status: "error",
+              status: isCircuitOpen ? "circuit_open" : "error",
               error: apiResponse.error.message,
               work: null,
               editions: [],
               authors: [],
+              // Include retryAfterMs for circuit_open so client knows when to retry
+              ...(isCircuitOpen && apiResponse.error.retryAfterMs && {
+                retryAfterMs: apiResponse.error.retryAfterMs,
+              }),
             },
           };
         }
@@ -610,12 +671,15 @@ async function processBatchPhotos(jobId, images, env, doStub) {
         (failedCount > 0 ? ` (${failedCount} failed)` : ''),
     );
 
-    // Store full results in KV for HTTP retrieval (1-hour TTL)
+    // Store full results in KV for HTTP retrieval
+    // FIX: Align TTL with token expiry (2 hours) to prevent "valid token, expired results"
+    // See: docs/plans/shelf-scan-fixes-plan.md §1.3
+    const RESULTS_TTL_SECONDS = 7200; // 2 hours (matches token expiry)
     const resourceId = `scan-results:${jobId}`;
     await env.KV_CACHE.put(
       resourceId,
       JSON.stringify(uniqueEnrichedBooks.map(mapToDetectedBook)),
-      { expirationTtl: 3600 }, // 1 hour
+      { expirationTtl: RESULTS_TTL_SECONDS },
     );
 
     // Final progress update before completion (100%)
@@ -627,16 +691,28 @@ async function processBatchPhotos(jobId, images, env, doStub) {
     });
 
     // Send summary-only payload (mobile-optimized)
+    // FIX (Shelf Scan Plan - Issue 3.2): Clarified summary count semantics
     await doStub.complete("ai_scan", {
       summary: {
+        // Phase counts (clear semantics)
+        photosProcessed: photoResults.length,       // How many photos were scanned
+        booksDetected: allBooks.length,             // Total books found across all photos (before dedup)
+        booksUnique: uniqueEnrichedBooks.length,    // Unique books (after ISBN deduplication)
+        booksEnriched: enrichedBooks.filter(b => b.enrichment?.status === "success").length,
+
+        // Confidence thresholds
+        approved: approvedCount,                    // Books with confidence >= threshold
+        needsReview: reviewCount,                   // Books with confidence < threshold
+
+        // Metadata
+        duration: Date.now() - startTime,
+        resourceId,
+
+        // DEPRECATED: Keep for backward compatibility (remove in v3)
         totalProcessed: enrichedBooks.length,
         successCount: approvedCount,
         failureCount: reviewCount,
-        duration: Date.now() - startTime,
-        resourceId,
         totalDetected: enrichedBooks.length,
-        approved: approvedCount,
-        needsReview: reviewCount,
       },
     });
   } catch (error) {
