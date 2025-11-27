@@ -38,7 +38,9 @@ export class UnifiedCacheService {
 
     if (edgeResult) {
       // Track access for popularity analysis (non-blocking)
-      this.ctx.waitUntil(this.trackAccess(cacheKey))
+      if (this.ctx?.waitUntil) {
+        this.ctx.waitUntil(this.trackAccess(cacheKey));
+      }
 
       // Fresh hit - return immediately
       if (!edgeResult.stale) {
@@ -53,7 +55,9 @@ export class UnifiedCacheService {
       );
 
       // Background refresh (non-blocking)
-      this.ctx.waitUntil(this.refreshStaleCache(cacheKey, endpoint, options));
+      if (this.ctx?.waitUntil) {
+        this.ctx.waitUntil(this.refreshStaleCache(cacheKey, endpoint, options));
+      }
 
       return edgeResult;
     }
@@ -62,12 +66,16 @@ export class UnifiedCacheService {
     const kvResult = await this.kvCache.get(cacheKey, endpoint);
     if (kvResult) {
       // Track access for popularity analysis (non-blocking)
-      this.ctx.waitUntil(this.trackAccess(cacheKey))
+      if (this.ctx?.waitUntil) {
+        this.ctx.waitUntil(this.trackAccess(cacheKey));
+      }
 
       // Populate edge cache for next request (async, non-blocking)
-      this.ctx.waitUntil(
-        this.edgeCache.set(cacheKey, kvResult.data, 6 * 60 * 60), // 6h edge TTL
-      );
+      if (this.ctx?.waitUntil) {
+        this.ctx.waitUntil(
+          this.edgeCache.set(cacheKey, kvResult.data, 6 * 60 * 60), // 6h edge TTL
+        );
+      }
 
       this.logMetrics("kv_hit", cacheKey, Date.now() - startTime);
       return kvResult;
@@ -82,7 +90,9 @@ export class UnifiedCacheService {
       this.logMetrics("cold_check", cacheKey, Date.now() - startTime);
 
       // Trigger background rehydration (non-blocking)
-      this.ctx.waitUntil(this.rehydrateFromR2(cacheKey, coldIndex, endpoint));
+      if (this.ctx?.waitUntil) {
+        this.ctx.waitUntil(this.rehydrateFromR2(cacheKey, coldIndex, endpoint));
+      }
 
       // Return null immediately (user gets fresh API data)
       return { data: null, source: "COLD", latency: Date.now() - startTime };
@@ -236,6 +246,7 @@ export class UnifiedCacheService {
    */
   trackCacheEvent(type, cacheKey, options = {}) {
     if (!this.env.CACHE_METRICS_DO) return;
+    if (!this.ctx?.waitUntil) return; // Skip if no ExecutionContext
 
     try {
       const prefix = this.extractPrefix(cacheKey);
