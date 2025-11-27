@@ -553,20 +553,68 @@ async function processBatchPhotos(jobId, images, env, doStub) {
       10, // maxConcurrent
     );
 
+    // FIX #2: Deduplicate by ISBN before persistence (Grok-4 gap analysis)
+    const { deduplicateBooksByISBN } = await import('../utils/book-mappers.js');
+    const uniqueEnrichedBooks = deduplicateBooksByISBN(enrichedBooks);
+    console.log(
+      `[Batch Scan] Deduplicated ${enrichedBooks.length} → ${uniqueEnrichedBooks.length} unique ISBNs`,
+    );
+
     // Calculate approved vs review queue counts (using env threshold)
     const threshold = getConfidenceThreshold(env);
-    const approvedCount = enrichedBooks.filter(
+    const approvedCount = uniqueEnrichedBooks.filter(
       (b) => b.confidence >= threshold,
     ).length;
-    const reviewCount = enrichedBooks.filter(
+    const reviewCount = uniqueEnrichedBooks.filter(
       (b) => b.confidence < threshold,
     ).length;
+
+    // FIX #2: Persist enriched books to D1+KV (Issue #2 - Bookshelf scan data loss)
+    // This ensures scanned books accumulate in D1 instead of expiring after 1 hour
+    await doStub.updateProgress("ai_scan", {
+      progress: 0.95,
+      status: `Saving ${uniqueEnrichedBooks.length} books to database...`,
+      processedCount: uniqueEnrichedBooks.length,
+      currentItem: "Persisting to database",
+    });
+
+    const { BookRepository } = await import('../repositories/book-repository.js');
+    const { mapGeminiVisionBookToBookRecord, isValidISBN } = await import('../utils/book-mappers.js');
+    const bookRepo = new BookRepository(env);
+
+    // FIX: Parallelize D1 saves to avoid CPU timeout (Grok-4 critical issue)
+    // Also fixes duplicate parameter issue (single enrichedBook arg instead of two)
+    const savePromises = uniqueEnrichedBooks
+      .filter((book) => isValidISBN(book.isbn))
+      .map(async (enrichedBook) => {
+        try {
+          // Use enriched data (includes external API data)
+          const bookRecord = mapGeminiVisionBookToBookRecord(enrichedBook);
+          await bookRepo.save(bookRecord);
+          return { status: 'fulfilled', isbn: enrichedBook.isbn };
+        } catch (error) {
+          console.error(
+            `[Batch Scan] Failed to save ISBN ${enrichedBook.isbn}:`,
+            error,
+          );
+          return { status: 'rejected', isbn: enrichedBook.isbn, error };
+        }
+      });
+
+    const results = await Promise.allSettled(savePromises);
+    const savedCount = results.filter((r) => r.status === 'fulfilled').length;
+    const failedCount = results.filter((r) => r.status === 'rejected').length;
+
+    console.log(
+      `[Batch Scan] ✅ Persisted ${savedCount}/${uniqueEnrichedBooks.length} books to D1+KV` +
+        (failedCount > 0 ? ` (${failedCount} failed)` : ''),
+    );
 
     // Store full results in KV for HTTP retrieval (1-hour TTL)
     const resourceId = `scan-results:${jobId}`;
     await env.KV_CACHE.put(
       resourceId,
-      JSON.stringify(enrichedBooks.map(mapToDetectedBook)),
+      JSON.stringify(uniqueEnrichedBooks.map(mapToDetectedBook)),
       { expirationTtl: 3600 }, // 1 hour
     );
 
