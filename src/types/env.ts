@@ -44,6 +44,14 @@ export interface Env {
   CONCURRENCY_LIMIT: string;
   AGGRESSIVE_CACHING: string;
 
+  // Cache Alert Thresholds (configurable)
+  CACHE_ALERT_HIT_RATE_THRESHOLD_CRITICAL?: string;
+  CACHE_ALERT_HIT_RATE_THRESHOLD_WARNING?: string;
+  CACHE_ALERT_HOT_CACHE_THRESHOLD_CRITICAL?: string;
+  CACHE_ALERT_HOT_CACHE_THRESHOLD_WARNING?: string;
+  CACHE_ALERT_DROP_THRESHOLD_CRITICAL?: string;
+  CACHE_ALERT_DROP_THRESHOLD_WARNING?: string;
+
   // Logging Configuration
   LOG_LEVEL: string;
   ENABLE_PERFORMANCE_LOGGING: string;
@@ -76,6 +84,13 @@ export interface Env {
   // Worker Secrets (via wrangler secret put)
   CF_ACCOUNT_ID?: string;
   CF_API_TOKEN?: string;
+
+  // Alerting Configuration (secrets - use wrangler secret put)
+  MAILGUN_API_KEY?: string;
+  MAILGUN_DOMAIN?: string;
+  SLACK_WEBHOOK_URL?: string;
+  ALERT_FROM_EMAIL?: string;
+  ALERT_TO_EMAIL?: string;
 
   // R2 Buckets
   API_CACHE_COLD: R2Bucket;
