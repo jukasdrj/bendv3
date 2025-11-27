@@ -31,8 +31,8 @@ export const analyticsMiddleware = (): MiddlewareHandler<{ Bindings: Env }> => {
       // ExecutionContext is passed via fetch() but may not be available in Hono context
       const ctx = (c as any).executionCtx as ExecutionContext | undefined;
       if (ctx) {
-        ctx.waitUntil(
-          c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
+        try {
+          const dataPointResult = c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
             blobs: [
               "hono_router",
               c.req.method,
@@ -42,10 +42,20 @@ export const analyticsMiddleware = (): MiddlewareHandler<{ Bindings: Env }> => {
             ],
             doubles: [responseTime],
             indexes: [new Date().toISOString()],
-          }).catch((err) => {
-            console.error("[Hono Analytics] Failed to log performance:", err);
-          }),
-        );
+          });
+
+          // BUGFIX: Only call .catch() if writeDataPoint returns a valid value
+          // Prevents "Cannot read properties of undefined (reading 'catch')" error
+          if (dataPointResult) {
+            ctx.waitUntil(
+              Promise.resolve(dataPointResult).catch((err) => {
+                console.error("[Hono Analytics] Failed to log performance:", err);
+              }),
+            );
+          }
+        } catch (syncError) {
+          console.error("[Hono Analytics] Sync error logging performance:", syncError);
+        }
       }
     }
   };

@@ -312,8 +312,8 @@ export async function trackAnalytics(request, response, env, ctx, startTime) {
     const clientIP = request.headers.get("CF-Connecting-IP");
     const anonymizedIP = anonymizeIP(clientIP);
 
-    ctx.waitUntil(
-      env.PERFORMANCE_ANALYTICS.writeDataPoint({
+    try {
+      const dataPointResult = env.PERFORMANCE_ANALYTICS.writeDataPoint({
         // Blobs: String dimensions for filtering
         blobs: [
           url.pathname, // Endpoint path
@@ -328,27 +328,48 @@ export async function trackAnalytics(request, response, env, ctx, startTime) {
         doubles: [processingTime],
         // Indexes: Indexed dimensions for fast queries
         indexes: [url.pathname],
-      }).catch((err) => {
-        // Log but don't fail request if analytics write fails
-        console.error("[Analytics] Failed to write data point:", err);
-      }),
-    );
+      });
+
+      // BUGFIX: Only call .catch() if writeDataPoint returns a valid value
+      // Prevents "Cannot read properties of undefined (reading 'catch')" error
+      if (dataPointResult) {
+        ctx.waitUntil(
+          Promise.resolve(dataPointResult).catch((err) => {
+            // Log but don't fail request if analytics write fails
+            console.error("[Analytics] Failed to write data point:", err);
+          }),
+        );
+      }
+    } catch (syncError) {
+      console.error("[Analytics] Sync error writing data point:", syncError);
+    }
   } else if (!shouldWriteAnalytics) {
     // Track sampling skip metrics (production-safe)
     // Use Analytics Engine to track sampling behavior without verbose logging
     if (env.SAMPLING_ANALYTICS && ctx) {
-      ctx.waitUntil(
-        env.SAMPLING_ANALYTICS.writeDataPoint({
+      try {
+        const samplingResult = env.SAMPLING_ANALYTICS.writeDataPoint({
           blobs: [url.pathname, "SAMPLED_OUT"],
           doubles: [samplingRate],
           indexes: [url.pathname],
-        }).catch((err) => {
-          // Silently fail - sampling metrics are informational only
-          if (env.LOG_LEVEL === "DEBUG") {
-            console.error("[Analytics] Failed to write sampling metric:", err);
-          }
-        }),
-      );
+        });
+
+        // BUGFIX: Only call .catch() if writeDataPoint returns a valid value
+        if (samplingResult) {
+          ctx.waitUntil(
+            Promise.resolve(samplingResult).catch((err) => {
+              // Silently fail - sampling metrics are informational only
+              if (env.LOG_LEVEL === "DEBUG") {
+                console.error("[Analytics] Failed to write sampling metric:", err);
+              }
+            }),
+          );
+        }
+      } catch (syncError) {
+        if (env.LOG_LEVEL === "DEBUG") {
+          console.error("[Analytics] Sync error writing sampling metric:", syncError);
+        }
+      }
     }
 
     // Log sampling skip (debug mode only, for development)
