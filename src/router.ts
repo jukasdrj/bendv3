@@ -183,6 +183,11 @@ app.get("/v1/search/advanced", async (c) => {
 });
 
 // ============================================================================
+// Trending/Popular Books Route - TODO: Implement properly (Issue TBD)
+// Currently returns 404, iOS app uses fallback curated list
+// ============================================================================
+
+// ============================================================================
 // Semantic Search Routes (Sprint 3 - Issues #25, #26)
 // ============================================================================
 
@@ -1107,6 +1112,142 @@ app.get("/v1/jobs/:jobId/status", createRateLimitMiddleware(30), async (c) => {
     console.error("[Job Status] Error fetching job state:", error);
     return createErrorResponse(
       `Failed to fetch job status: ${(error as Error).message}`,
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      { jobId: c.req.param("jobId") },
+      c.req.raw
+    );
+  }
+});
+
+// DELETE /v1/jobs/{jobId} - Cancel job and cleanup resources
+// FIX: Shelf Scan Plan §2.3 - Cancel endpoint with R2 rollback
+// SECURITY: Requires Bearer token auth (Issue #102)
+// Supports: csv_import, batch_enrichment, ai_scan pipelines
+app.delete("/v1/jobs/:jobId", async (c) => {
+  try {
+    const jobId = c.req.param("jobId")?.substring(0, 100);
+
+    if (!jobId || jobId.trim().length === 0) {
+      return createErrorResponse(
+        "Missing jobId parameter",
+        400,
+        ErrorCodes.MISSING_PARAMETER,
+        { parameter: "jobId" },
+        c.req.raw
+      );
+    }
+
+    // Validate Bearer token (REQUIRED for auth) - Issue #102
+    const authHeader = c.req.header("Authorization");
+    const providedToken = authHeader?.replace("Bearer ", "");
+    if (!providedToken) {
+      return createErrorResponse(
+        "Authorization header required",
+        401,
+        ErrorCodes.UNAUTHORIZED,
+        { endpoint: "DELETE /v1/jobs/:jobId" },
+        c.req.raw
+      );
+    }
+
+    // 1. Get DO stub and validate auth before canceling
+    // Use PROGRESS_WEBSOCKET_DO to match batch-scan-handler.ts (creates jobs with this DO)
+    // JOB_STATE_MANAGER_DO is for the refactored architecture (future migration)
+    const doId = c.env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
+    const doStub = c.env.PROGRESS_WEBSOCKET_DO.get(doId);
+
+    // Validate token against DO storage before allowing cancellation
+    const authResult = await (doStub as any).getJobStateAndAuth();
+    if (!authResult) {
+      return createErrorResponse(
+        "Job not found",
+        404,
+        ErrorCodes.NOT_FOUND,
+        { jobId },
+        c.req.raw
+      );
+    }
+
+    const { authToken, authTokenExpiration } = authResult;
+    if (!authToken || providedToken !== authToken || Date.now() > authTokenExpiration) {
+      return createErrorResponse(
+        "Invalid or expired token",
+        401,
+        ErrorCodes.UNAUTHORIZED,
+        { jobId, tokenExpired: authTokenExpiration ? Date.now() > authTokenExpiration : false },
+        c.req.raw
+      );
+    }
+
+    // Token validated - proceed with cancellation
+    const cancelResult = await doStub.cancelJob("Canceled by user request");
+
+    if (!cancelResult.success) {
+      return createErrorResponse(
+        "Job not found or already completed",
+        404,
+        ErrorCodes.NOT_FOUND,
+        { jobId },
+        c.req.raw
+      );
+    }
+
+    // 2. Cleanup R2 objects for this job (bookshelf scans)
+    let r2CleanedCount = 0;
+    try {
+      const r2Prefix = `bookshelf-scans/${jobId}/`;
+      const r2List = await c.env.BOOKSHELF_IMAGES?.list({ prefix: r2Prefix });
+
+      if (r2List?.objects && r2List.objects.length > 0) {
+        const deletePromises = r2List.objects.map((obj) =>
+          c.env.BOOKSHELF_IMAGES.delete(obj.key)
+        );
+        await Promise.allSettled(deletePromises);
+        r2CleanedCount = r2List.objects.length;
+        console.log(`[Job Cancel] Cleaned up ${r2CleanedCount} R2 objects for job ${jobId}`);
+      }
+    } catch (r2Error) {
+      console.warn(`[Job Cancel] R2 cleanup failed for job ${jobId}:`, r2Error);
+      // Continue - R2 cleanup failure shouldn't fail cancellation
+    }
+
+    // 3. Clear KV cache entries
+    let kvCleared = false;
+    try {
+      const kvKeys = [
+        `csv-results:${jobId}`,
+        `scan-results:${jobId}`,
+        `job-results:${jobId}`,
+      ];
+      await Promise.allSettled(kvKeys.map((key) => c.env.KV_CACHE.delete(key)));
+      kvCleared = true;
+    } catch (kvError) {
+      console.warn(`[Job Cancel] KV cleanup failed for job ${jobId}:`, kvError);
+    }
+
+    // 4. Return cancellation confirmation
+    return createSuccessResponse(
+      {
+        jobId,
+        status: "canceled",
+        message: "Job canceled successfully",
+        cleanup: {
+          r2ObjectsDeleted: r2CleanedCount,
+          kvCacheCleared: kvCleared,
+        },
+      },
+      {
+        source: "job-cancel",
+        timestamp: new Date().toISOString(),
+      },
+      200,
+      c.req.raw
+    );
+  } catch (error) {
+    console.error("[Job Cancel] Error canceling job:", error);
+    return createErrorResponse(
+      `Failed to cancel job: ${(error as Error).message}`,
       500,
       ErrorCodes.INTERNAL_ERROR,
       { jobId: c.req.param("jobId") },
