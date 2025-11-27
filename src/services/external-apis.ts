@@ -281,15 +281,23 @@ export async function searchGoogleBooks(
   // Create cache service with 'search' prefix
   const cache = createCacheService(kvNamespace, 'search', env, ctx);
 
-  // Generate cache key from query + maxResults
+  // Generate cache key from query only (no maxResults for better hit rate)
   const maxResults = params.maxResults || 20;
-  const cacheKey = `${query.toLowerCase().trim()}:${maxResults}`;
+  const cacheKey = `${query.toLowerCase().trim()}`;
   const cached = await cache.get(cacheKey);
 
   if (cached) {
     console.log(`📦 Cache HIT: Search "${query}"`);
     try {
-      return JSON.parse(cached);
+      const cachedResult = JSON.parse(cached);
+      // Filter cached results to requested maxResults in-memory
+      if (cachedResult.works && cachedResult.works.length > maxResults) {
+        return {
+          ...cachedResult,
+          works: cachedResult.works.slice(0, maxResults),
+        };
+      }
+      return cachedResult;
     } catch (error) {
       console.error(`❌ Cache parse error for search "${query}":`, error);
       // Fall through to API call
@@ -297,10 +305,12 @@ export async function searchGoogleBooks(
   }
 
   // Cache MISS - fetch from API with circuit breaker
-  console.log(`🌐 Cache MISS: Searching Google Books for "${query}"`);
-  const result = await withCircuitBreaker('google-books', env, () => searchGoogleBooks_Uncached(query, params, env));
+  // Always fetch max results (40) to populate cache for all future requests
+  const cacheParams = { ...params, maxResults: 40 };
+  console.log(`🌐 Cache MISS: Searching Google Books for "${query}" (fetching 40 results for cache)`);
+  const result = await withCircuitBreaker('google-books', env, () => searchGoogleBooks_Uncached(query, cacheParams, env));
 
-  // Write successful results to cache
+  // Write successful results to cache (cache full 40 results)
   if (result && result.works && result.works.length > 0) {
     const hotTtl = getCacheTTL('hot', env);
     const coldTtl = getCacheTTL('cold', env);
@@ -311,6 +321,14 @@ export async function searchGoogleBooks(
     } catch (error) {
       console.error(`❌ Cache write error for search "${query}":`, error);
     }
+  }
+
+  // Filter result to requested maxResults before returning
+  if (result && result.works && result.works.length > maxResults) {
+    return {
+      ...result,
+      works: result.works.slice(0, maxResults),
+    };
   }
 
   return result;
@@ -652,25 +670,35 @@ export async function searchOpenLibrary(
   // Create cache service with 'ol' (OpenLibrary) prefix
   const cache = createCacheService(kvNamespace, 'ol', env, ctx);
 
-  // Generate cache key
+  // Generate cache key from query only (no maxResults for better hit rate)
   const maxResults = params.maxResults || 20;
-  const cacheKey = `search:${query.toLowerCase().trim()}:${maxResults}`;
+  const cacheKey = `search:${query.toLowerCase().trim()}`;
   const cached = await cache.get(cacheKey);
 
   if (cached) {
     console.log(`📦 Cache HIT: OpenLibrary "${query}"`);
     try {
-      return JSON.parse(cached);
+      const cachedResult = JSON.parse(cached);
+      // Filter cached results to requested maxResults in-memory
+      if (cachedResult.works && cachedResult.works.length > maxResults) {
+        return {
+          ...cachedResult,
+          works: cachedResult.works.slice(0, maxResults),
+        };
+      }
+      return cachedResult;
     } catch (error) {
       console.error(`❌ Cache parse error for OpenLibrary "${query}":`, error);
     }
   }
 
   // Cache MISS - fetch from API with circuit breaker
-  console.log(`🌐 Cache MISS: Searching OpenLibrary for "${query}"`);
-  const result = await withCircuitBreaker('open-library', env, () => searchOpenLibrary_Uncached(query, params, env));
+  // Always fetch max results (40) to populate cache for all future requests
+  const cacheParams = { ...params, maxResults: 40 };
+  console.log(`🌐 Cache MISS: Searching OpenLibrary for "${query}" (fetching 40 results for cache)`);
+  const result = await withCircuitBreaker('open-library', env, () => searchOpenLibrary_Uncached(query, cacheParams, env));
 
-  // Write successful results to cache
+  // Write successful results to cache (cache full 40 results)
   if (result && result.works && result.works.length > 0) {
     const hotTtl = getCacheTTL('hot', env);
     const coldTtl = getCacheTTL('cold', env);
@@ -681,6 +709,14 @@ export async function searchOpenLibrary(
     } catch (error) {
       console.error(`❌ Cache write error for OpenLibrary "${query}":`, error);
     }
+  }
+
+  // Filter result to requested maxResults before returning
+  if (result && result.works && result.works.length > maxResults) {
+    return {
+      ...result,
+      works: result.works.slice(0, maxResults),
+    };
   }
 
   return result;
