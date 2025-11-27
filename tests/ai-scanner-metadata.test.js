@@ -129,7 +129,8 @@ describe("AI Scanner Metadata", () => {
     expect(completionUpdate).toBeDefined();
     expect(completionUpdate.result).toBeDefined();
     expect(completionUpdate.result.metadata).toBeDefined();
-    expect(completionUpdate.result.metadata.modelUsed).toBe("gemini-2.5-flash");
+    // Issue #101: Default model changed from Flash to Flash-Lite
+    expect(completionUpdate.result.metadata.modelUsed).toBe("gemini-2.5-flash-lite");
   });
 
   it("should handle missing model metadata gracefully", async () => {

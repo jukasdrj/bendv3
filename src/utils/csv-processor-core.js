@@ -103,6 +103,16 @@ export async function processCSVCore(
     const cacheKey = await generateCSVCacheKey(csvText, PROMPT_VERSION);
     let parsedBooks = await env.KV_CACHE.get(cacheKey, "json");
 
+    // Issue #101: Cache hit telemetry for monitoring effectiveness
+    const cacheHit = !!parsedBooks;
+    console.log(JSON.stringify({
+      type: "CSV_CACHE_TELEMETRY",
+      hit: cacheHit,
+      cacheKey: cacheKey.substring(0, 24) + "...",
+      csvSizeBytes: csvText.length,
+      timestamp: new Date().toISOString(),
+    }));
+
     if (!parsedBooks) {
       // NOTE: Gemini 2.0 Flash typically responds in <20 seconds for CSV parsing
       // Paid Plan: 30M CPU milliseconds/month, 5-minute max per invocation
@@ -178,11 +188,20 @@ export async function processCSVCore(
         (failedCount > 0 ? ` (${failedCount} failed)` : ''),
     );
 
-    // Store full results in KV for HTTP retrieval
+    // Store full results in KV for HTTP retrieval (API Contract format)
     const resourceId = `${resultsKeyPrefix}:${jobId}`;
+    const apiContractResults = {
+      booksCreated: validatedBooks.length,
+      booksUpdated: 0, // CSV import always creates new books
+      duplicatesSkipped: 0, // TODO: Track duplicates
+      enrichmentSucceeded: validatedBooks.length, // All validated books are enriched
+      enrichmentFailed: 0, // TODO: Track enrichment failures
+      errors: [], // TODO: Store validation errors with row numbers
+      books: validatedBooks // Include full book data for compatibility
+    };
     await env.KV_CACHE.put(
       resourceId,
-      JSON.stringify({ books: validatedBooks, errors: [] }),
+      JSON.stringify(apiContractResults),
       { expirationTtl: resultsTTL },
     );
 
