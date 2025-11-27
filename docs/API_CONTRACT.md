@@ -1792,6 +1792,230 @@ Same structure as `/v1/scan/results/{jobId}`.
 
 ---
 
+### 6.3 Cache Monitoring Dashboard (Internal Ops)
+
+**Purpose:** Real-time visibility into cache performance, health status, and alert history.
+
+**Endpoints:**
+- `GET /api/cache/dashboard` - Full monitoring dashboard
+- `GET /api/cache/health` - Lightweight health check
+- `GET /api/cache/alerts` - Alert history
+
+**Access:** Internal use only (not rate-limited)
+
+**Documentation:** See `docs/CACHE_MONITORING.md` for comprehensive guide
+
+---
+
+#### 6.3.1 Full Dashboard - GET /api/cache/dashboard
+
+Returns comprehensive cache health, recent alerts, and performance statistics.
+
+**Request:**
+```http
+GET /api/cache/dashboard HTTP/1.1
+Host: api.oooefam.net
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "health": {
+      "healthy": true,
+      "status": "healthy",
+      "alerts": {
+        "critical": 0,
+        "warning": 0,
+        "total": 0
+      },
+      "metrics": {
+        "hitRate": 87.5,
+        "edgeHitRate": 45.2,
+        "kvHitRate": 42.3,
+        "missRate": 12.5,
+        "totalRequests": 15432
+      },
+      "timestamp": "2025-11-27T10:15:00Z"
+    },
+    "alerts": {
+      "recent": [
+        {
+          "severity": "warning",
+          "type": "edge_hit_rate",
+          "value": 72.3,
+          "threshold": 75,
+          "message": "Edge hit rate below target: 72.3%",
+          "timestamp": "2025-11-27T10:00:00Z"
+        }
+      ],
+      "count": 1
+    },
+    "stats": {
+      "current": {
+        "period": "15m",
+        "hitRate": 87.5,
+        "edgeHitRate": 45.2,
+        "kvHitRate": 42.3,
+        "r2HitRate": 0.0,
+        "apiMissRate": 12.5,
+        "totalRequests": 15432
+      },
+      "trends": {
+        "oneHour": { "hitRate": 86.1, "totalRequests": 58921 },
+        "oneDay": { "hitRate": 88.3, "totalRequests": 1423567 }
+      },
+      "breakdown": {
+        "edge": { "percentage": 45.2, "count": 6975 },
+        "kv": { "percentage": 42.3, "count": 6528 },
+        "r2": { "percentage": 0.0, "count": 0 },
+        "api": { "percentage": 12.5, "count": 1929 }
+      }
+    }
+  },
+  "metadata": {
+    "source": "cache-dashboard",
+    "cached": false,
+    "timestamp": "2025-11-27T10:15:00Z"
+  }
+}
+```
+
+**Status Field Values:**
+- `healthy` - No critical alerts, system operating normally
+- `degraded` - Warning alerts present, performance suboptimal
+- `critical` - Critical alerts present, immediate attention required
+- `unknown` - Health check failed, monitoring system error
+
+---
+
+#### 6.3.2 Health Check - GET /api/cache/health
+
+Lightweight health status check without historical data.
+
+**Request:**
+```http
+GET /api/cache/health HTTP/1.1
+Host: api.oooefam.net
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "healthy": true,
+    "status": "healthy",
+    "alerts": {
+      "critical": 0,
+      "warning": 0,
+      "total": 0
+    },
+    "metrics": {
+      "hitRate": 87.5,
+      "edgeHitRate": 45.2,
+      "kvHitRate": 42.3,
+      "missRate": 12.5,
+      "totalRequests": 15432
+    },
+    "timestamp": "2025-11-27T10:15:00Z"
+  },
+  "metadata": {
+    "source": "cache-health",
+    "cached": false
+  }
+}
+```
+
+---
+
+#### 6.3.3 Alert History - GET /api/cache/alerts
+
+Retrieve recent alert history with configurable limit.
+
+**Request:**
+```http
+GET /api/cache/alerts?limit=50 HTTP/1.1
+Host: api.oooefam.net
+```
+
+**Query Parameters:**
+- `limit` (optional, default: 20) - Number of alerts to retrieve (1-100)
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "alerts": [
+      {
+        "alerts": [
+          {
+            "severity": "warning",
+            "type": "miss_rate",
+            "value": 11.2,
+            "threshold": 10,
+            "message": "Cache miss rate elevated: 11.2%"
+          }
+        ],
+        "metrics": {
+          "hitRate": 88.8,
+          "edgeHitRate": 47.1,
+          "kvHitRate": 41.7,
+          "totalRequests": 14892
+        },
+        "timestamp": "2025-11-27T10:00:00Z",
+        "key": "alert:stored:1732702800000",
+        "storedAt": "2025-11-27T10:00:00Z"
+      }
+    ],
+    "count": 1,
+    "limit": 50
+  },
+  "metadata": {
+    "source": "cache-alerts",
+    "cached": false
+  }
+}
+```
+
+**Error Response (400 Bad Request - Invalid Limit):**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "Invalid limit parameter (must be 1-100)",
+    "statusCode": 400
+  },
+  "metadata": {
+    "timestamp": "2025-11-27T10:15:00Z"
+  }
+}
+```
+
+**Alert Severity Levels:**
+- `critical` - Immediate attention required (e.g., miss rate > 15%, error rate > 5%)
+- `warning` - Performance degraded (e.g., miss rate > 10%, edge hit rate < 75%)
+
+**Alert Types:**
+- `miss_rate` - Cache miss rate elevated/critical
+- `edge_hit_rate` - Edge cache effectiveness below target
+- `p99_latency` - 99th percentile latency exceeds threshold
+- `d1_p95_latency` - D1 database latency elevated
+- `error_rate` - Endpoint error rate elevated
+- `contract_violations` - API contract violations detected
+- `websocket_disconnect_rate` - WebSocket disconnect rate elevated
+
+**Monitoring Automation:**
+- Automated health checks run every 15 minutes via cron
+- Alert deduplication: 4-hour suppression window
+- Alert storage: 7-day retention in KV
+- See `docs/CACHE_MONITORING.md` for configuration and thresholds
+
+---
+
 ## 6.5 V2 API Endpoints (Sprint 3 - Intelligence Layer)
 
 > **Status:** ✅ IMPLEMENTED (November 25, 2025)
