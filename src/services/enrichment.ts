@@ -14,6 +14,7 @@
 import * as externalApis from "./external-apis.ts";
 import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js";
 import type { DataProvider } from "../types/enums.js";
+import { CircuitBreakerOpenError, ExternalAPIError, RateLimitError } from "../types/errors";
 
 // ========================================================================================
 // INTERFACES
@@ -95,14 +96,40 @@ interface EnrichmentResult {
 }
 
 /**
- * Return type for enrichSingleBook
+ * Enrichment error details
+ * Provides context about why enrichment failed
+ */
+export interface EnrichmentError {
+  code: 'NOT_FOUND' | 'API_ERROR' | 'RATE_LIMIT' | 'CIRCUIT_OPEN' | 'NETWORK_ERROR' | 'INVALID_INPUT';
+  message: string;
+  provider?: string;      // Which provider failed (e.g., 'google-books', 'open-library')
+  retryable: boolean;     // Whether the client should retry
+  retryAfterMs?: number;  // Suggested retry delay in milliseconds
+}
+
+/**
+ * Return type for enrichSingleBook (success case)
  * Contains work, edition (with cover URL), and authors for a single book
  */
 export interface SingleEnrichmentResult {
+  success: true;
   work: WorkDTO;
   edition: EditionDTO | null;
   authors: AuthorDTO[];
 }
+
+/**
+ * Return type for enrichSingleBook (error case)
+ */
+export interface SingleEnrichmentError {
+  success: false;
+  error: EnrichmentError;
+}
+
+/**
+ * Combined return type for enrichSingleBook
+ */
+export type SingleEnrichmentResponse = SingleEnrichmentResult | SingleEnrichmentError | null;
 
 // ========================================================================================
 // PUBLIC FUNCTIONS
@@ -320,7 +347,7 @@ export async function enrichSingleBook(
   query: BookSearchQuery,
   env: WorkerEnv,
   ctx?: ExecutionContext,
-): Promise<SingleEnrichmentResult | null> {
+): Promise<SingleEnrichmentResponse> {
   const { title, author, isbn, openLibraryId, googleBooksId } = query;
 
   // Require at least one search parameter
@@ -406,11 +433,81 @@ export async function enrichSingleBook(
 
     // Book not found in any provider
     console.log(`enrichSingleBook: No results for query:`, query);
-    return null;
+    return {
+      success: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: 'Book not found in any provider',
+        retryable: false
+      }
+    };
   } catch (error) {
     console.error("enrichSingleBook error:", error);
-    // Best-effort: API errors = not found (don't propagate errors)
-    return null;
+
+    // Handle circuit breaker open
+    if (error instanceof CircuitBreakerOpenError) {
+      console.log(`Circuit breaker OPEN for ${error.provider}, skipping to fallback`);
+      return {
+        success: false,
+        error: {
+          code: 'CIRCUIT_OPEN',
+          message: `Provider ${error.provider} circuit breaker is open`,
+          provider: error.provider,
+          retryable: true,
+          retryAfterMs: error.retryAfterMs
+        }
+      };
+    }
+
+    // Handle rate limit errors
+    if (error instanceof RateLimitError) {
+      return {
+        success: false,
+        error: {
+          code: 'RATE_LIMIT',
+          message: `Rate limit exceeded for ${error.provider}`,
+          provider: error.provider,
+          retryable: true,
+          retryAfterMs: error.retryAfterMs || 60000
+        }
+      };
+    }
+
+    // Handle external API errors
+    if (error instanceof ExternalAPIError) {
+      return {
+        success: false,
+        error: {
+          code: 'API_ERROR',
+          message: error.message,
+          provider: error.provider,
+          retryable: error.retryable
+        }
+      };
+    }
+
+    // Handle network/timeout errors
+    if (error.name === 'TypeError' || error.message?.includes('fetch')) {
+      return {
+        success: false,
+        error: {
+          code: 'NETWORK_ERROR',
+          message: 'Network error while fetching book data',
+          retryable: true,
+          retryAfterMs: 5000
+        }
+      };
+    }
+
+    // Unknown error - not retryable
+    return {
+      success: false,
+      error: {
+        code: 'API_ERROR',
+        message: error.message || 'Unknown error during enrichment',
+        retryable: false
+      }
+    };
   }
 }
 
@@ -447,7 +544,7 @@ async function searchGoogleBooks(
     result.editions && result.editions.length > 0 ? result.editions[0] : null;
   const authors: AuthorDTO[] = result.authors || [];
 
-  return { work, edition, authors };
+  return { success: true, work, edition, authors };
 }
 
 /**
@@ -481,7 +578,7 @@ async function searchOpenLibrary(
     result.editions && result.editions.length > 0 ? result.editions[0] : null;
   const authors: AuthorDTO[] = result.authors || [];
 
-  return { work, edition, authors };
+  return { success: true, work, edition, authors };
 }
 
 /**
@@ -497,28 +594,23 @@ async function searchByISBN(
   env: WorkerEnv,
 ): Promise<SingleEnrichmentResult | null> {
   // Try Google Books ISBN search first
-  const googleResult: SingleEnrichmentResult | null = await searchGoogleBooks(
-    { isbn },
-    env,
-  );
+  const googleResult = await searchGoogleBooks({ isbn }, env);
   if (
     googleResult &&
+    googleResult.success &&
     (googleResult.work.coverImageURL || googleResult.edition?.coverImageURL)
   ) {
     return googleResult;
   }
 
   // Fallback to OpenLibrary ISBN search
-  const olResult: SingleEnrichmentResult | null = await searchOpenLibrary(
-    { isbn },
-    env,
-  );
-  if (olResult) {
+  const olResult = await searchOpenLibrary({ isbn }, env);
+  if (olResult && olResult.success) {
     return olResult;
   }
 
   // If Google Books found a result but it had no cover, return that partial result
-  if (googleResult) {
+  if (googleResult && googleResult.success) {
     return googleResult;
   }
 
