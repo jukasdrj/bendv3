@@ -74,10 +74,23 @@ npm run deploy                 # Deploy to production
 - Canonical response format (see API_CONTRACT.md)
 - ZERO direct client API calls
 - Multi-provider orchestration
+- Circuit breaker pattern for external APIs
 
 **Routing:**
 - ✅ Hono router (`src/router.ts`) - DEFAULT, add all new routes here
 - ⚠️ Manual router (`src/index.js`) - DEPRECATED, removal March 2026
+
+**Error Handling:**
+- Structured errors with `success` discriminator
+- Circuit breaker errors: `CIRCUIT_OPEN`, `RATE_LIMIT`, `API_ERROR`
+- Retryable flag + `retryAfterMs` for intelligent retry
+- Provider-specific error context
+
+**Circuit Breaker:**
+- Per-provider circuits (google-books, open-library, isbndb)
+- 5 failures → OPEN, 2 successes → CLOSED, 60s cooldown
+- KV-backed state with 5min TTL
+- Analytics logging for observability
 
 **Testing:**
 - Vitest framework
@@ -88,12 +101,18 @@ npm run deploy                 # Deploy to production
 
 ## 📊 Current Sprint Status
 
-**Active Issues:** 6 (as of Nov 21, 2025) - DOWN FROM 11! 🎉
+**Active Issues:** 2 (as of Nov 26, 2025) - DOWN FROM 11! 🎉
 - **P1:** 0 (ALL COMPLETE ✅)
-- **P2:** 1 (PRD tracking)
-- **P3:** 5 (Recommendations, monitoring, tests)
+- **P2:** 1 (PRD tracking #240)
+- **P3:** 1 (Documentation #96)
 
 **Recent Completions:**
+- ✅ **Circuit Breaker Chain (Nov 26)** - Issues #80, #77, #97, #98
+  - Core CircuitBreaker class with CLOSED/OPEN/HALF_OPEN states
+  - All 9 external API functions protected
+  - Structured error differentiation (NOT_FOUND, CIRCUIT_OPEN, RATE_LIMIT, etc)
+  - 16 comprehensive unit tests passing
+  - Full API contract documentation (v2.7.1)
 - ✅ Sprint 3 Phase 2: 6 P1/P2 issues complete (Nov 21)
   - #245: Cache-metrics v2.0 migration
   - #242: ResponseEnvelope migration complete
