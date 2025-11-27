@@ -2,12 +2,17 @@
  * Google Gemini AI vision provider
  * Extracted from ai-scanner service for compartmentalization
  *
- * Uses Gemini 2.5 Flash (production-stable) for high-accuracy bookshelf scanning
+ * Uses Gemini 2.5 Flash-Lite (default) for cost-effective bookshelf scanning
+ * Issue #101: Migrated from Flash to Flash-Lite (99.7% cost reduction, 95.5% detection rate)
  * Issue #183: Retry logic with exponential backoff for Vision API failures
  */
 
 import { BOOKSHELF_RESPONSE_SCHEMA } from "../types/gemini-schemas.js";
 import { retryWithBackoff } from "../utils/retry.js";
+
+// Configurable model selection (Issue #101: Flash-Lite migration)
+// Override via GEMINI_VISION_MODEL env var if needed (rollback: set to "gemini-2.5-flash")
+const DEFAULT_VISION_MODEL = "gemini-2.5-flash-lite";
 
 /**
  * Scan bookshelf image using Gemini AI
@@ -63,10 +68,14 @@ export async function scanImageWithGemini(imageData, env) {
   const binaryString = chunks.join(''); // O(n) - single allocation instead of O(n²) concatenation
   const base64Image = btoa(binaryString);
 
+  // Get model from env or use default (Issue #101: Flash-Lite migration)
+  const visionModel = env.GEMINI_VISION_MODEL || DEFAULT_VISION_MODEL;
+  console.log(`[GeminiProvider] Using model: ${visionModel}`);
+
   // Call Gemini API with retry logic (Issue #183: exponential backoff on transient failures)
   const response = await retryWithBackoff(async () => {
     const res = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      `https://generativelanguage.googleapis.com/v1beta/models/${visionModel}:generateContent`,
       {
         method: "POST",
         headers: {
@@ -123,7 +132,7 @@ Extract all visible book information now.`,
           },
         ],
         generationConfig: {
-          temperature: 0.4, // Balanced: deterministic enough for accuracy, flexible enough for inference
+          temperature: 0.2, // Issue #101: Optimized for determinism - vision tasks need accuracy over creativity
           topK: 40, // Allow some variation for better book spine recognition
           topP: 0.95, // Nucleus sampling for quality
           maxOutputTokens: 8192, // Increased from 2048 to prevent truncation with many books
@@ -168,7 +177,7 @@ Extract all visible book information now.`,
       suggestions: [],
       metadata: {
         provider: "gemini",
-        model: "gemini-2.0-flash-exp",
+        model: visionModel,
         timestamp: new Date().toISOString(),
         processingTimeMs: Date.now() - startTime,
         tokenUsage: {
@@ -194,7 +203,7 @@ Extract all visible book information now.`,
       suggestions: [],
       metadata: {
         provider: "gemini",
-        model: "gemini-2.5-flash",
+        model: visionModel,
         timestamp: new Date().toISOString(),
         processingTimeMs: Date.now() - startTime,
         tokenUsage: {
@@ -219,7 +228,7 @@ Extract all visible book information now.`,
       suggestions: [],
       metadata: {
         provider: "gemini",
-        model: "gemini-2.5-flash",
+        model: visionModel,
         timestamp: new Date().toISOString(),
         processingTimeMs: Date.now() - startTime,
         tokenUsage: {
@@ -250,7 +259,7 @@ Extract all visible book information now.`,
     suggestions: [], // Gemini doesn't provide suggestions in current implementation
     metadata: {
       provider: "gemini",
-      model: "gemini-2.5-flash",
+      model: visionModel,
       timestamp: new Date().toISOString(),
       processingTimeMs: Date.now() - startTime,
       tokenUsage: {
