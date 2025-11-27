@@ -116,8 +116,9 @@ export async function handleSSEStream(
     })
   }
 
-  // TODO: Implement Last-Event-ID support for reconnection
-  // const lastEventId = request.headers.get('Last-Event-ID')
+  // Last-Event-ID support for reconnection (SSE standard)
+  const lastEventId = request.headers.get('Last-Event-ID')
+  const skipToEventId = lastEventId ? parseInt(lastEventId.split('-')[0], 10) : null
 
   // Create readable/writable stream pair for SSE
   const { readable, writable } = new TransformStream()
@@ -135,7 +136,11 @@ export async function handleSSEStream(
   (async () => {
     try {
       // Send connection established comment and retry interval
-      await writer.write(encoder.encode(': connection established\n'))
+      if (skipToEventId) {
+        await writer.write(encoder.encode(`: reconnected from event ${lastEventId}\n`))
+      } else {
+        await writer.write(encoder.encode(': connection established\n'))
+      }
       await writer.write(encoder.encode('retry: 5000\n\n'))
 
       // Get JobStateManagerDO stub for this job
@@ -161,20 +166,26 @@ export async function handleSSEStream(
         return
       }
 
-      // Send initial status event
-      const eventId = `${Date.now()}-initial`
-      await writeEvent({
-        id: eventId,
-        event: state.status,
-        data: JSON.stringify({
-          jobId: state.jobId,
-          status: state.status,
-          progress: state.progress,
-          processedCount: state.processedCount,
-          totalCount: state.totalCount,
-          ...(state.startTime && { startedAt: new Date(state.startTime).toISOString() })
+      // Skip initial event if reconnecting and event is old
+      const currentTimestamp = Date.now()
+      const shouldSkipInitial = skipToEventId && currentTimestamp - skipToEventId < 10000
+
+      if (!shouldSkipInitial) {
+        // Send initial status event
+        const eventId = `${currentTimestamp}-initial`
+        await writeEvent({
+          id: eventId,
+          event: state.status,
+          data: JSON.stringify({
+            jobId: state.jobId,
+            status: state.status,
+            progress: state.progress,
+            processedCount: state.processedCount,
+            totalCount: state.totalCount,
+            ...(state.startTime && { startedAt: new Date(state.startTime).toISOString() })
+          })
         })
-      })
+      }
 
       // If job already complete, send complete event and close
       if (state.status === 'completed' || state.status === 'failed' || state.status === 'canceled') {

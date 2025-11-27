@@ -1501,6 +1501,53 @@ app.get("/api/v2/imports/:jobId/stream", async (c) => {
   return await handleSSEStream(c.req.raw, c.env, jobId);
 });
 
+// GET /api/v2/imports/:jobId/results - Get import job results (V2 endpoint)
+app.get("/api/v2/imports/:jobId/results", async (c) => {
+  const jobId = c.req.param("jobId")?.substring(0, 100);
+
+  if (!jobId || jobId.trim().length === 0) {
+    return createErrorResponse(
+      "Missing jobId parameter",
+      400,
+      ErrorCodes.MISSING_PARAMETER,
+      { parameter: "jobId" },
+      c.req.raw
+    );
+  }
+
+  // Try all possible result keys (pipeline-agnostic lookup)
+  const resultKeys = [
+    `csv-results:${jobId}`,      // csv_import pipeline
+    `scan-results:${jobId}`,     // ai_scan pipeline
+    `job-results:${jobId}`,      // batch_enrichment pipeline (generic)
+  ];
+
+  // Try each key in parallel for fastest lookup
+  const lookupPromises = resultKeys.map((key) =>
+    c.env.KV_CACHE.get(key, "json").then((result) => ({ key, result }))
+  );
+
+  const lookups = await Promise.all(lookupPromises);
+  const found = lookups.find((lookup) => lookup.result !== null);
+
+  if (!found) {
+    return createErrorResponse(
+      "Job results not found or expired. Results are stored for 1 hour after job completion.",
+      404,
+      ErrorCodes.NOT_FOUND,
+      { jobId, ttl: "1 hour", checkedKeys: resultKeys },
+      c.req.raw
+    );
+  }
+
+  return createSuccessResponse(
+    found.result,
+    { cached: true, provider: "kv_cache", resourceId: found.key },
+    200,
+    c.req.raw
+  );
+});
+
 // ============================================================================
 // Global 404 Handler
 // ============================================================================
