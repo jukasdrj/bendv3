@@ -58,7 +58,31 @@ export async function handleScheduledAlerts(env, ctx) {
     );
     console.log(`  Volume: ${metrics.volume.total_requests} requests`);
 
-    // 5. Mark as sent to prevent duplicates
+    // 5. Store alerts in KV for dashboard retrieval (Issue #99)
+    const timestamp = new Date().toISOString();
+    const alertData = {
+      alerts,
+      metrics: {
+        hitRate: metrics.hitRates.combined,
+        edgeHitRate: metrics.hitRates.edge,
+        kvHitRate: metrics.hitRates.kv,
+        totalRequests: metrics.volume.total_requests,
+      },
+      timestamp,
+    };
+
+    await env.CACHE.put(
+      `alert:stored:${Date.now()}`,
+      JSON.stringify(alertData),
+      {
+        expirationTtl: 604800, // 7 days
+        metadata: { timestamp },
+      },
+    );
+
+    console.log("[Alert Monitor] Alerts stored in KV for dashboard access");
+
+    // 6. Mark as sent to prevent duplicates
     await markAlertSent(alerts, env);
 
     console.log("[Alert Monitor] Alert logged and marked as sent");
