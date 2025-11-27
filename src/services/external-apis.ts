@@ -33,6 +33,7 @@ import { logExternalApiCall } from "../utils/analytics-logger.ts";
 import { createCacheService } from "./cache-service.js";
 import { withCircuitBreaker } from "./circuit-breaker";
 import { CircuitBreakerOpenError } from "../types/errors";
+import { getCacheTTL } from "../config/cache-ttl.js";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -192,8 +193,8 @@ export async function searchGoogleBooksById(
 
   // Write successful results to cache
   if (result && result.works && result.works.length > 0) {
-    const hotTtl = parseInt(env.CACHE_HOT_TTL || '7200');
-    const coldTtl = parseInt(env.CACHE_COLD_TTL || '1209600');
+    const hotTtl = getCacheTTL('hot', env);
+    const coldTtl = getCacheTTL('cold', env);
 
     try {
       await cache.put(volumeId, JSON.stringify(result), hotTtl, coldTtl);
@@ -301,8 +302,8 @@ export async function searchGoogleBooks(
 
   // Write successful results to cache
   if (result && result.works && result.works.length > 0) {
-    const hotTtl = parseInt(env.CACHE_HOT_TTL || '7200'); // 2h default
-    const coldTtl = parseInt(env.CACHE_COLD_TTL || '1209600'); // 14d default
+    const hotTtl = getCacheTTL('hot', env);
+    const coldTtl = getCacheTTL('cold', env);
 
     try {
       await cache.put(cacheKey, JSON.stringify(result), hotTtl, coldTtl);
@@ -405,8 +406,8 @@ export async function searchGoogleBooksByISBN(
 
   // Write successful results to cache
   if (result && result.works && result.works.length > 0) {
-    const hotTtl = parseInt(env.CACHE_HOT_TTL || '7200'); // 2h default
-    const coldTtl = parseInt(env.CACHE_COLD_TTL || '1209600'); // 14d default
+    const hotTtl = getCacheTTL('hot', env);
+    const coldTtl = getCacheTTL('cold', env);
 
     try {
       await cache.put(cacheKey, JSON.stringify(result), hotTtl, coldTtl);
@@ -671,8 +672,8 @@ export async function searchOpenLibrary(
 
   // Write successful results to cache
   if (result && result.works && result.works.length > 0) {
-    const hotTtl = parseInt(env.CACHE_HOT_TTL || '7200');
-    const coldTtl = parseInt(env.CACHE_COLD_TTL || '1209600');
+    const hotTtl = getCacheTTL('hot', env);
+    const coldTtl = getCacheTTL('cold', env);
 
     try {
       await cache.put(cacheKey, JSON.stringify(result), hotTtl, coldTtl);
@@ -888,8 +889,8 @@ export async function searchISBNdb(
 
   // Write successful results to cache
   if (result && result.works && result.works.length > 0) {
-    const hotTtl = parseInt(env.CACHE_HOT_TTL || '7200');
-    const coldTtl = parseInt(env.CACHE_COLD_TTL || '1209600');
+    const hotTtl = getCacheTTL('hot', env);
+    const coldTtl = getCacheTTL('cold', env);
 
     try {
       await cache.put(cacheKey, JSON.stringify(result), hotTtl, coldTtl);
@@ -1006,8 +1007,8 @@ export async function getISBNdbEditionsForWork(
 
   // Write successful results to cache
   if (result && result.length > 0) {
-    const hotTtl = parseInt(env.CACHE_HOT_TTL || '7200');
-    const coldTtl = parseInt(env.CACHE_COLD_TTL || '1209600');
+    const hotTtl = getCacheTTL('hot', env);
+    const coldTtl = getCacheTTL('cold', env);
 
     try {
       await cache.put(cacheKey, JSON.stringify(result), hotTtl, coldTtl);
@@ -1098,8 +1099,8 @@ export async function getISBNdbBookByISBN(
 
   // Write successful results to cache (longer TTL for ISBNdb - premium API)
   if (result) {
-    const hotTtl = parseInt(env.CACHE_HOT_TTL || '7200');
-    const coldTtl = parseInt(env.CACHE_COLD_TTL || '1209600');
+    const hotTtl = getCacheTTL('hot', env);
+    const coldTtl = getCacheTTL('cold', env);
 
     try {
       await cache.put(cacheKey, JSON.stringify(result), hotTtl, coldTtl);

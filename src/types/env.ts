@@ -37,12 +37,19 @@ export interface Env {
   ENABLE_WORKFLOW_IMPORT?: string;
 
   // Cache Configuration
-  CACHE_HOT_TTL: string;
-  CACHE_COLD_TTL: string;
+  CACHE_HOT_TTL?: string;  // Optional: defaults to 7200 (2h)
+  CACHE_COLD_TTL?: string; // Optional: defaults to 1209600 (14d)
   MAX_RESULTS_DEFAULT: string;
   RATE_LIMIT_MS: string;
   CONCURRENCY_LIMIT: string;
   AGGRESSIVE_CACHING: string;
+
+  // Content-specific Cache TTLs (all optional, see src/config/cache-ttl.js for defaults)
+  CACHE_TTL_ISBN?: string;       // Default: 31536000 (365 days)
+  CACHE_TTL_TITLE?: string;      // Default: 604800 (7 days)
+  CACHE_TTL_AUTHOR?: string;     // Default: 604800 (7 days)
+  CACHE_TTL_ENRICHMENT?: string; // Default: 15552000 (180 days)
+  CACHE_TTL_COVER?: string;      // Default: 31536000 (365 days)
 
   // Cache Alert Thresholds (configurable)
   CACHE_ALERT_HIT_RATE_THRESHOLD_CRITICAL?: string;

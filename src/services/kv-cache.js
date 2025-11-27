@@ -1,31 +1,26 @@
 // src/services/kv-cache.js
 import { getCached, setCached } from "../utils/cache.js";
+import { getAllCacheTTLs } from "../config/cache-ttl.js";
 
 /**
- * KV Cache Service with extended TTLs optimized for Paid Plan
+ * KV Cache Service with centralized TTL configuration
  *
- * TTL Strategy (vs Original PRD):
- * - Title: 24h (vs 6h) - Paid plan KV is cheap, longer = fewer API calls
- * - ISBN: 30d (vs 7d) - ISBN metadata never changes
- * - Author: 7d (vs 12h) - Popular authors stable
- * - Enrichment: 90d - Metadata very stable
+ * TTL values are now managed by src/config/cache-ttl.js and can be
+ * overridden via environment variables for production tuning.
+ *
+ * Default TTL Strategy:
+ * - Title: 7 days (new editions occasionally)
+ * - ISBN: 365 days (ISBN metadata never changes)
+ * - Author: 7 days (new books occasionally)
+ * - Enrichment: 180 days (very stable metadata)
+ * - Cover: 365 days (cover images don't change)
  */
 export class KVCacheService {
   constructor(env, ctx = null) {
     this.env = env;
     this.ctx = ctx;
-    // Optimized TTLs based on data staleness analysis:
-    // - ISBNs never change (365 days)
-    // - Titles get new editions occasionally (7 days, was 24h)
-    // - Authors get new books (7 days, unchanged)
-    // - Enrichment metadata is very stable (180 days, was 90d)
-    this.ttls = {
-      title: 7 * 24 * 60 * 60, // 7 days (was 24h)
-      isbn: 365 * 24 * 60 * 60, // 365 days (was 30d)
-      author: 7 * 24 * 60 * 60, // 7 days (unchanged)
-      enrichment: 180 * 24 * 60 * 60, // 180 days (was 90d)
-      cover: 365 * 24 * 60 * 60, // 365 days (max practical - was Infinity which breaks KV writes)
-    };
+    // Get TTLs from centralized configuration
+    this.ttls = getAllCacheTTLs(env);
   }
 
   /**
