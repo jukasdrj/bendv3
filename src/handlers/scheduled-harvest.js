@@ -241,13 +241,28 @@ async function collectAnalyticsISBNs(env) {
 }
 
 /**
- * Collect ISBNs from user library (via D1 or KV)
- * Note: This requires user library sync to be implemented
+ * Collect ISBNs from user library (via D1)
+ *
+ * FIX #3: Query D1 for all accumulated books from CSV imports and bookshelf scans
+ * This enables user-driven cover harvesting (books users actually have)
  */
 async function collectUserLibraryISBNs(env) {
-  // TODO: Implement once CloudKit → D1 sync is active
-  // For now, return empty array (Phase 2 feature)
-  return [];
+  try {
+    // Query D1 for all unique ISBNs (ordered by newest first, limit 10k)
+    const results = await env.DB.prepare(
+      'SELECT DISTINCT isbn FROM books WHERE isbn IS NOT NULL ORDER BY createdAt DESC LIMIT 10000'
+    ).all();
+
+    console.log(
+      `📚 Collected ${results.results.length} ISBNs from user library (D1)`,
+    );
+
+    return results.results.map((row) => row.isbn);
+  } catch (error) {
+    console.error('❌ Failed to collect user library ISBNs from D1:', error);
+    // Graceful degradation - harvest continues with curated list + analytics
+    return [];
+  }
 }
 
 /**

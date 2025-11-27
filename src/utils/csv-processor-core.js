@@ -138,6 +138,46 @@ export async function processCSVCore(
         isbn: book.isbn ? String(book.isbn).trim() : undefined,
       }));
 
+    // FIX #1: Persist parsed books to D1+KV (Issue #1 - CSV import data loss)
+    // This ensures books accumulate in D1 database instead of being lost after iOS enrichment
+    await progressReporter.updateProgress("csv_import", {
+      progress: 0.80,
+      status: `Saving ${parsedBooks.length} books to database...`,
+      processedCount: parsedBooks.length,
+    });
+
+    const { BookRepository } = await import('../repositories/book-repository.js');
+    const { mapGeminiCSVBookToBookRecord, isValidISBN } = await import('./book-mappers.js');
+    const bookRepo = new BookRepository(env);
+
+    // FIX: Parallelize D1 saves to avoid CPU timeout (Grok-4 critical issue)
+    // 478 books × 50ms sequential = 23.9s (near 30s limit)
+    // Parallel saves complete in <5s
+    const savePromises = parsedBooks
+      .filter((book) => isValidISBN(book.isbn))
+      .map(async (geminiBook) => {
+        try {
+          const bookRecord = mapGeminiCSVBookToBookRecord(geminiBook);
+          await bookRepo.save(bookRecord);
+          return { status: 'fulfilled', isbn: geminiBook.isbn };
+        } catch (error) {
+          console.error(
+            `[CSV Processor Core] Failed to save ISBN ${geminiBook.isbn}:`,
+            error,
+          );
+          return { status: 'rejected', isbn: geminiBook.isbn, error };
+        }
+      });
+
+    const results = await Promise.allSettled(savePromises);
+    const savedCount = results.filter((r) => r.status === 'fulfilled').length;
+    const failedCount = results.filter((r) => r.status === 'rejected').length;
+
+    console.log(
+      `[CSV Processor Core] ✅ Persisted ${savedCount}/${parsedBooks.length} books to D1+KV` +
+        (failedCount > 0 ? ` (${failedCount} failed)` : ''),
+    );
+
     // Store full results in KV for HTTP retrieval
     const resourceId = `${resultsKeyPrefix}:${jobId}`;
     await env.KV_CACHE.put(
