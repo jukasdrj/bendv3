@@ -272,18 +272,55 @@ router.get('/v1/new-endpoint', async (c) => {
 - **Rate limit:** 1000 requests/day per API key
 - **Cache TTL:** 24 hours
 - **Fallback:** OpenLibrary if Google Books fails
+- **Circuit breaker:** 5 failures → OPEN, 60s cooldown
 
 ### ISBNdb API
 - **Base URL:** `https://api2.isbndb.com`
 - **Rate limit:** 5000 requests/day (Premium plan)
 - **Usage:** Cover image harvest only
 - **Cache TTL:** 7 days (covers don't change)
+- **Circuit breaker:** 5 failures → OPEN, 60s cooldown
+
+### OpenLibrary API
+- **Base URL:** `https://openlibrary.org/api`
+- **Rate limit:** No official limit (be respectful)
+- **Cache TTL:** 24 hours
+- **Circuit breaker:** 5 failures → OPEN, 60s cooldown
 
 ### Gemini 2.0 Flash
 - **Model:** `gemini-2.0-flash-exp`
 - **Context window:** 2M tokens
 - **Use case:** Bookshelf scanning, CSV parsing
 - **Cost optimization:** Use caching for repeated prompts
+
+### Circuit Breaker Configuration
+
+All external API providers are protected by per-provider circuit breakers:
+
+**Default Configuration:**
+```typescript
+{
+  failureThreshold: 5,      // Open after 5 consecutive failures
+  successThreshold: 2,      // Close after 2 successes in HALF_OPEN
+  cooldownMs: 60000,        // 60 seconds before attempting recovery
+  stateExpirationTtl: 300   // 5 minutes KV cache TTL
+}
+```
+
+**Circuit States:**
+- **CLOSED** (Normal): All requests flow through to provider
+- **OPEN** (Failing): Requests fail immediately, skip provider
+- **HALF_OPEN** (Testing): Allow limited requests to test recovery
+
+**KV Storage:**
+- State stored at `circuit:{provider}` (e.g., `circuit:google-books`)
+- Includes failure count, success count, last failure time
+- Automatic expiration after 5 minutes of inactivity
+
+**Analytics:**
+- Circuit opened/closed events logged to PERFORMANCE_ANALYTICS
+- Includes provider name, failure count, timestamp
+- Use for monitoring provider health and circuit breaker effectiveness
 
 ---
 

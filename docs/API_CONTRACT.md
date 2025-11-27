@@ -1,10 +1,66 @@
-# BooksTrack API Contract v2.7.0
+# BooksTrack API Contract v2.7.1
 
 **Status:** Production ✅
-**Effective Date:** November 25, 2025
-**Last Updated:** November 25, 2025 (v2.7.0 - V2 API & Intelligence Layer)
+**Effective Date:** November 26, 2025
+**Last Updated:** November 26, 2025 (v2.7.1 - Circuit Breaker & Enhanced Error Handling)
 **Contract Owner:** Backend Team
 **Audience:** iOS, Flutter, Web Frontend Teams
+
+---
+
+## 🚀 What's New in v2.7.1 (Circuit Breaker & Enhanced Error Handling)
+
+### **🔄 NEW: Circuit Breaker Pattern for External APIs**
+- **Feature:** Automatic fail-fast when external providers (Google Books, OpenLibrary, ISBNdb) are down
+- **Benefits:**
+  - **Faster failover:** Instant vs 10-30s timeout waits during outages
+  - **Reduced costs:** No wasted API quota on failing endpoints
+  - **Better UX:** Immediate fallback to alternative providers
+  - **Auto-recovery:** Automatic testing and recovery after cooldown
+- **Configuration:**
+  - Failure threshold: 5 consecutive failures → circuit OPEN
+  - Success threshold: 2 successes → circuit CLOSED
+  - Cooldown period: 60 seconds before retry attempt
+  - Per-provider tracking: Independent circuits for each API
+- **New Error Code:** `CIRCUIT_OPEN` (503) with `retryAfterMs` guidance
+- **Backward Compatibility:** 100% compatible - transparent to clients
+
+**Technical Details:**
+- Circuit states: CLOSED (normal) → OPEN (failing) → HALF_OPEN (testing recovery)
+- KV-backed state persistence with 5-minute TTL
+- Analytics logging for observability (circuit opened/closed events)
+- Provider-specific circuits: `google-books`, `open-library`, `isbndb`
+
+### **🎯 NEW: Structured Error Differentiation**
+- **Feature:** Enrichment endpoints now return detailed error information
+- **Error Types:**
+  - `NOT_FOUND`: Book not found in any provider (not retryable)
+  - `CIRCUIT_OPEN`: Circuit breaker protecting provider (retryable after delay)
+  - `RATE_LIMIT`: External API rate limit exceeded (retryable with `retryAfterMs`)
+  - `API_ERROR`: External API error (check `retryable` flag)
+  - `NETWORK_ERROR`: Network/timeout error (retryable after 5s)
+- **Response Format:**
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "CIRCUIT_OPEN",
+      "message": "Provider google-books circuit breaker is open",
+      "provider": "google-books",
+      "retryable": true,
+      "retryAfterMs": 45000
+    }
+  }
+  ```
+- **Benefits:**
+  - Clear distinction between "not found" vs "temporary failure"
+  - Intelligent retry guidance with `retryAfterMs`
+  - Provider-specific error context for debugging
+  - Retryable flag for programmatic handling
+
+**Migration Note:** Enrichment responses now include `success` discriminator. Check `result.success` before accessing `work`, `edition`, or `authors` fields.
+
+**See:** Section 4.3 for complete error code documentation.
 
 ---
 
@@ -1105,16 +1161,71 @@ func webSocket(_ webSocket: URLSessionWebSocket, didCloseWith closeCode: URLSess
 
 ### 4.3 Error Codes
 
-| Code | HTTP Status | Description | Retry? |
-|------|-------------|-------------|--------|
-| `INVALID_ISBN` | 400 | Invalid ISBN format | No |
-| `INVALID_QUERY` | 400 | Missing or invalid query parameter | No |
-| `INVALID_REQUEST` | 400 | Malformed request body | No |
-| `NOT_FOUND` | 404 | Resource not found | No |
-| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests | Yes (after delay) |
-| `PROVIDER_TIMEOUT` | 504 | External API timeout | Yes |
-| `PROVIDER_ERROR` | 502 | External API error | Yes |
-| `INTERNAL_ERROR` | 500 | Server error | Yes |
+| Code | HTTP Status | Description | Retry? | Retry After |
+|------|-------------|-------------|--------|-------------|
+| `INVALID_ISBN` | 400 | Invalid ISBN format | No | - |
+| `INVALID_QUERY` | 400 | Missing or invalid query parameter | No | - |
+| `INVALID_REQUEST` | 400 | Malformed request body | No | - |
+| `INVALID_INPUT` | 400 | Invalid input parameters | No | - |
+| `NOT_FOUND` | 404 | Resource not found in any provider | No | - |
+| `RATE_LIMIT_EXCEEDED` | 429 | Client rate limit exceeded | Yes | Header: `Retry-After` |
+| `RATE_LIMIT` | 429 | External provider rate limit | Yes | `retryAfterMs` in response |
+| `SERVICE_UNAVAILABLE` | 503 | Circuit breaker open (provider down) | Yes | `retryAfterMs` in response |
+| `CIRCUIT_OPEN` | 503 | Circuit breaker protecting provider | Yes | `retryAfterMs` in response |
+| `NETWORK_ERROR` | 502 | Network/timeout error | Yes | 5000ms (5 seconds) |
+| `API_ERROR` | 502 | External API error | Maybe | Check `retryable` flag |
+| `PROVIDER_TIMEOUT` | 504 | External API timeout | Yes | 5000ms (5 seconds) |
+| `PROVIDER_ERROR` | 502 | External API error | Yes | 5000ms (5 seconds) |
+| `INTERNAL_ERROR` | 500 | Server error | Yes | 5000ms (5 seconds) |
+
+**Circuit Breaker Error Codes (New in v2.7.1):**
+
+When an external API provider (Google Books, OpenLibrary, ISBNdb) experiences failures, the circuit breaker pattern automatically opens the circuit to prevent cascading failures. During this time:
+
+- **`CIRCUIT_OPEN`**: The provider's circuit breaker is OPEN (fail-fast mode)
+  - **Behavior**: Requests fail immediately without calling the provider
+  - **Retry**: Wait for `retryAfterMs` (typically 60 seconds) before retrying
+  - **Fallback**: Backend automatically tries alternative providers
+
+- **`SERVICE_UNAVAILABLE`**: Generic service unavailability (includes circuit open)
+  - **Behavior**: Service temporarily unavailable
+  - **Retry**: Exponential backoff recommended (start with `retryAfterMs`)
+
+**Enrichment Error Details:**
+
+Enrichment endpoints (`/v1/search/*`, `/api/enrichment/batch`) now return structured error information:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "CIRCUIT_OPEN",
+    "message": "Provider google-books circuit breaker is open",
+    "provider": "google-books",
+    "retryable": true,
+    "retryAfterMs": 45000
+  }
+}
+```
+
+**Fields:**
+- `code`: Error code (see table above)
+- `message`: Human-readable error description
+- `provider`: Which provider failed (e.g., "google-books", "open-library", "isbndb")
+- `retryable`: Boolean indicating if client should retry
+- `retryAfterMs`: Suggested retry delay in milliseconds (optional)
+
+**Client Retry Recommendations:**
+
+1. **Check `retryable` flag**: Only retry if `true`
+2. **Use `retryAfterMs`**: Wait specified time before retry
+3. **Exponential backoff**: If `retryAfterMs` not provided:
+   - First retry: 5 seconds
+   - Second retry: 10 seconds
+   - Third retry: 20 seconds
+   - Max 3 retries total
+4. **Circuit breaker errors**: Backend handles fallback automatically, but client may retry after cooldown
+5. **Not found errors**: Never retry - book doesn't exist
 
 ---
 
