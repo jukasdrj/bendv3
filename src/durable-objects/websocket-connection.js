@@ -484,37 +484,19 @@ export class WebSocketConnectionDO extends DurableObject {
    * @returns {Promise<{success: boolean}>}
    */
   async send(message) {
-    if (!this.webSocket) {
-      console.warn(
-        `[${this.jobId}] [cid: ${this.correlationId}] Cannot send message - no WebSocket connection`,
-      );
-      // Track send failure (Issue #36)
-      this.metrics.messageSendFailures++;
-
-      // Alert if we've had multiple failures (Issue #109)
-      if (this.metrics.messageSendFailures >= 3) {
-        console.warn(
-          `[WebSocket ${this.jobId}] [cid: ${this.correlationId}] Message send failures: ${this.metrics.messageSendFailures}`,
-        );
-      }
-
-      return { success: false };
-    }
-
-    // ENHANCED LOGGING: Check WebSocket state before sending
-    if (this.webSocket.readyState !== WebSocket.OPEN) {
-       console.warn(
-        `[${this.jobId}] [cid: ${this.correlationId}] Cannot send message - WebSocket is not open. State: ${this.webSocket.readyState}`,
-      );
-      this.metrics.messageSendFailures++;
-      return { success: false };
-    }
-
+    // Atomic send with single readyState check to prevent race condition (Issue #117)
+    // Leverages synchronous throw behavior of Cloudflare Workers WebSocket.send()
     try {
+      if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+        throw new Error(`WebSocket not open: ${this.webSocket?.readyState || 'null'}`);
+      }
       this.webSocket.send(JSON.stringify(message));
       return { success: true };
     } catch (error) {
-      console.error(`[${this.jobId}] [cid: ${this.correlationId}] Failed to send message:`, error);
+      // Single catch handles both !OPEN throws and network errors
+      console.warn(
+        `[${this.jobId}] [cid: ${this.correlationId}] Send failed: ${error.message}`,
+      );
       // Track send failure (Issue #36)
       this.metrics.messageSendFailures++;
 
