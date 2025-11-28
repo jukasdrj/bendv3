@@ -277,18 +277,33 @@ export async function batchEnrichBooks(
     }
   }
 
-  // Step 4: Save all book records in parallel (performance optimization)
+  // Step 4: Save all book records in parallel with concurrency limit
+  // Prevents overwhelming the database with too many simultaneous writes
+  const BATCH_SIZE = 10 // Maximum concurrent saves
   if (booksToSave.length > 0) {
-    const saveResults = await Promise.allSettled(
-      booksToSave.map(({ record }) => bookRepo.save(record))
-    )
+    let savedCount = 0
+    let failedCount = 0
 
-    // Log any failures (non-blocking - eventual consistency is acceptable)
-    saveResults.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        console.error(`[BookService] Failed to save ${booksToSave[index].isbn} to repository:`, result.reason)
-      }
-    })
+    // Process in batches to limit concurrency
+    for (let i = 0; i < booksToSave.length; i += BATCH_SIZE) {
+      const batch = booksToSave.slice(i, i + BATCH_SIZE)
+      const batchResults = await Promise.allSettled(
+        batch.map(({ record }) => bookRepo.save(record))
+      )
+
+      // Log failures for each batch
+      batchResults.forEach((result, batchIndex) => {
+        if (result.status === 'rejected') {
+          const actualIndex = i + batchIndex
+          console.error(`[BookService] Failed to save ${booksToSave[actualIndex].isbn} to repository:`, result.reason)
+          failedCount++
+        } else {
+          savedCount++
+        }
+      })
+    }
+
+    console.log(`[BookService] Batch save complete: ${savedCount} saved, ${failedCount} failed`)
   }
 
   return results

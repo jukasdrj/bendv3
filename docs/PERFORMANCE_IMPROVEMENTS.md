@@ -45,14 +45,20 @@ for (let i = 0; i < missingISBNs.length; i++) {
   booksToSave.push({ isbn, record: bookRecord })
 }
 
-// Step 4: Save all in parallel
-const saveResults = await Promise.allSettled(
-  booksToSave.map(({ record }) => bookRepo.save(record))
-)
+// Step 4: Save in parallel with concurrency limit
+const BATCH_SIZE = 10 // Maximum concurrent saves
+for (let i = 0; i < booksToSave.length; i += BATCH_SIZE) {
+  const batch = booksToSave.slice(i, i + BATCH_SIZE)
+  const batchResults = await Promise.allSettled(
+    batch.map(({ record }) => bookRepo.save(record))
+  )
+  // Handle results...
+}
 ```
 
 **Benefits:**
 - Parallel database writes instead of sequential
+- Concurrency limit (10) prevents overwhelming the database
 - Estimated 50-80% reduction in batch save time for large batches
 - Non-blocking error handling (failures don't stop other saves)
 
