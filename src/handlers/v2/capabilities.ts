@@ -106,14 +106,16 @@ export async function handleCapabilities(
       {
         name: 'csv_import',
         enabled: true,
-        version: '1.0.0',
+        version: '2.0.0',
         endpoints: [
-          'POST /api/v2/imports',
+          'POST /api/v2/imports',  // PRIMARY V2 endpoint
           'GET /api/v2/imports/{jobId}',
           'GET /api/v2/imports/{jobId}/stream',
-          'POST /api/import/csv-gemini',
+          'GET /api/v2/imports/{jobId}/results',
+          'POST /api/import/csv-gemini',  // Legacy, still supported
         ],
         rateLimit: { requests: 5, windowMs: 60000 },
+        notes: 'Use /api/v2/imports for new integrations (preferred)',
       },
       {
         name: 'bookshelf_scan',
@@ -131,12 +133,21 @@ export async function handleCapabilities(
       {
         name: 'barcode_enrichment',
         enabled: true,
-        version: '1.0.0',
+        version: '2.0.0',
         endpoints: [
-          'POST /api/v2/books/enrich',
-          'POST /v1/enrichment/batch',
+          'POST /api/v2/books/enrich',  // Single book enrichment
         ],
         rateLimit: { requests: 10, windowMs: 60000 },
+      },
+      {
+        name: 'batch_enrichment',
+        enabled: true,
+        version: '1.0.0',
+        endpoints: [
+          'POST /v1/enrichment/batch',  // Batch enrichment with WebSocket progress
+        ],
+        rateLimit: { requests: 5, windowMs: 60000 },
+        notes: 'Async job with WebSocket or SSE progress updates',
       },
       {
         name: 'async_enrichment',
@@ -167,6 +178,15 @@ export async function handleCapabilities(
           'GET /v1/jobs/{jobId}/results',
         ],
         rateLimit: { requests: 30, windowMs: 60000 },
+      },
+      {
+        name: 'job_cancellation',
+        enabled: true,
+        version: '1.0.0',
+        endpoints: [
+          'DELETE /v1/jobs/{jobId}',
+        ],
+        notes: 'Requires Bearer token authentication (v3.2). Cancels job and cleans up resources.',
       },
       {
         name: 'websocket_progress',
