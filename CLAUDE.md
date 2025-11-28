@@ -15,14 +15,22 @@
 npm install
 npm run dev                    # Start local Wrangler dev server
 
-# Testing
-npm test                       # Run all tests
-npm run test:watch             # Watch mode
-npm run test:coverage          # With coverage
+# Testing (Resource-Aware - Prevents Laptop Crashes)
+npm run test:smoke             # ⚡ Quick validation (5s, minimal resources)
+npm run test:safe              # 🛡️ Full suite with limits (60s, 512MB max)
+npm run test:unit              # 🎯 Unit tests only (skip integration)
+npm run validate               # ✅ Pre-commit check (smoke + lint)
+
+# Testing (Advanced - Use on 16GB+ RAM or CI/CD)
+npm test                       # Full test suite (may overwhelm 8GB laptops)
+npm run test:watch             # Watch mode (high CPU usage)
+npm run test:coverage          # Coverage analysis (memory-intensive)
 
 # Deployment
 npm run deploy                 # Deploy to production
 ```
+
+**💡 Testing Guide:** See [README_TESTING.md](README_TESTING.md) for laptop-safe testing practices
 
 ---
 
@@ -93,9 +101,11 @@ npm run deploy                 # Deploy to production
 - Analytics logging for observability
 
 **Testing:**
-- Vitest framework
+- Vitest framework (forks pool, max 2 forks)
 - Mock external APIs (no real calls)
 - 75%+ coverage target
+- Resource-aware modes: `test:smoke` (5s), `test:safe` (512MB limit)
+- See [README_TESTING.md](README_TESTING.md) for laptop-safe practices
 
 ---
 
@@ -134,6 +144,6 @@ npm run deploy                 # Deploy to production
 
 ---
 
-**Last Updated:** November 27, 2025
+**Last Updated:** November 28, 2025
 **Maintained by:** Justin Gardner (@jukasdrj)
 **Full Documentation:** [.claude/CLAUDE.md](.claude/CLAUDE.md)

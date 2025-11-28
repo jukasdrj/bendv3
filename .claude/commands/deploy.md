@@ -5,7 +5,8 @@ description: Deploy BooksTrack backend to Cloudflare Workers with monitoring
 Deploy the BooksTrack backend to production using Wrangler, then monitor health metrics and auto-rollback if errors spike.
 
 **Pre-deployment checks:**
-- Verify wrangler.toml configuration
+- Run `npm run test:safe` to validate all tests pass (laptop-safe mode)
+- Verify wrangler.jsonc configuration
 - Ensure all required secrets are set
 - Check git status for uncommitted changes
 

@@ -2,6 +2,13 @@
 description: Review code changes for Cloudflare Workers best practices
 ---
 
+**Before review, ensure tests pass:**
+```bash
+npm run test:smoke  # Quick validation (5s)
+# OR
+npm run test:safe   # Full suite (60s, laptop-safe)
+```
+
 Review recent code changes for:
 
 **Workers Patterns:**
