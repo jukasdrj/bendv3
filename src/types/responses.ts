@@ -297,7 +297,10 @@ export interface EnrichmentJobInitResponse {
   success: boolean;
   processedCount: number;
   totalCount: number;
-  token: string; // WebSocket authentication token
+  authToken: string; // WebSocket authentication token (canonical field)
+  token?: string; // DEPRECATED: Use 'authToken'. Backward compatibility only. Removal: March 1, 2026
+  message?: string; // Human-readable status message
+  websocketUrl: string; // Full WebSocket URL with jobId and token
 }
 
 /**

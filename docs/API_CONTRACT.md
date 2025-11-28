@@ -310,12 +310,21 @@ Content-Type: application/json
   "success": true,
   "data": {
     "jobId": "batch_abc123",
+    "processedCount": 0,
+    "totalCount": 2,
     "authToken": "uuid-token",
+    "token": "uuid-token",
     "message": "Batch enrichment initiated",
     "websocketUrl": "/ws/progress?jobId=batch_abc123&token=uuid-token"
   }
 }
 ```
+
+**Field Notes:**
+- `authToken` (string): WebSocket authentication token - **canonical field, use this**
+- `token` (string): **DEPRECATED** - Use `authToken` instead. Provided for backward compatibility with existing clients. **Removal: March 1, 2026**
+- `processedCount` (number): Books processed so far (0 at job start)
+- `totalCount` (number): Total books to process
 
 **Rate Limit:** 10 req/min per IP
 
@@ -524,7 +533,22 @@ Content-Type: multipart/form-data
 photos: <1-5 JPEG/PNG files>
 ```
 
-**Response:** Same async job format as CSV import (section 7.1)
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "jobId": "scan_abc123",
+    "authToken": "uuid-token",
+    "sseUrl": "/api/v2/imports/scan_abc123/stream",
+    "statusUrl": "/api/v2/imports/scan_abc123",
+    "totalPhotos": 3,
+    "status": "processing"
+  }
+}
+```
+
+**Migration Note (Nov 2025):** Previous versions returned a `token` field instead of `authToken`. The backend now returns `authToken` + `sseUrl` for SSE-based progress tracking. iOS clients must migrate from WebSocket to SSE (see issue #120 for migration guide).
 
 **Rate Limit:** 5 req/min per IP
 
