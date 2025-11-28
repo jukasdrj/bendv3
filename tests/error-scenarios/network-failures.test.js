@@ -37,7 +37,7 @@ describe('Error Scenarios: Network Failures', () => {
 
     // Mock KV cache environment
     mockEnv = {
-      KV_CACHE: {
+      CACHE: {
         get: vi.fn(async () => null), // Cache miss by default
         put: vi.fn(async () => {}),
       },
@@ -162,7 +162,7 @@ describe('Error Scenarios: Network Failures', () => {
       }
 
       // First call: Store negative cache entry
-      mockEnv.KV_CACHE.get.mockResolvedValueOnce(null)
+      mockEnv.CACHE.get.mockResolvedValueOnce(null)
 
       // Simulate rate limit
       global.fetch.mockResolvedValue({
@@ -179,7 +179,7 @@ describe('Error Scenarios: Network Failures', () => {
       expect(result.error).toContain('429')
 
       // Verify negative cache was stored
-      expect(mockEnv.KV_CACHE.put).toHaveBeenCalledWith(
+      expect(mockEnv.CACHE.put).toHaveBeenCalledWith(
         expect.stringContaining('negative:'),
         expect.any(String),
         expect.objectContaining({ expirationTtl: 300 })
@@ -279,7 +279,7 @@ describe('Error Scenarios: Network Failures', () => {
       }
 
       // Mock cache miss
-      mockEnv.KV_CACHE.get.mockResolvedValue(null)
+      mockEnv.CACHE.get.mockResolvedValue(null)
 
       // Simulate 503 Service Unavailable
       global.fetch.mockResolvedValue({
@@ -296,7 +296,7 @@ describe('Error Scenarios: Network Failures', () => {
       expect(result.error).toContain('503')
 
       // Verify negative cache stored with 5-minute TTL
-      expect(mockEnv.KV_CACHE.put).toHaveBeenCalledWith(
+      expect(mockEnv.CACHE.put).toHaveBeenCalledWith(
         expect.stringContaining('negative:'),
         expect.any(String),
         { expirationTtl: 300 }
@@ -382,7 +382,7 @@ describe('Error Scenarios: Network Failures', () => {
       }
 
       // Mock cache miss
-      mockEnv.KV_CACHE.get.mockResolvedValue(null)
+      mockEnv.CACHE.get.mockResolvedValue(null)
 
       // First attempt: Network error (packet loss)
       global.fetch.mockRejectedValue(new Error('ETIMEDOUT'))
@@ -395,7 +395,7 @@ describe('Error Scenarios: Network Failures', () => {
       expect(result.error).toContain('ETIMEDOUT')
 
       // Verify negative cache was stored for timeout
-      expect(mockEnv.KV_CACHE.put).toHaveBeenCalledWith(
+      expect(mockEnv.CACHE.put).toHaveBeenCalledWith(
         expect.stringContaining('negative:'),
         expect.any(String),
         expect.objectContaining({ expirationTtl: 300 })

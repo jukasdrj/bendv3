@@ -49,7 +49,7 @@ describe('Metrics Handler Integration Tests', () => {
 
     mockEnv = {
       METRICS_API_KEY: 'test_metrics_key_123',
-      KV_CACHE: {
+      CACHE: {
         get: vi.fn(async () => null),
         put: vi.fn(async () => {})
       },
@@ -239,7 +239,7 @@ describe('Metrics Handler Integration Tests', () => {
         cache: { currentHour: { hits: 80, misses: 20 } }
       })
 
-      mockEnv.KV_CACHE.get.mockResolvedValue(cachedData)
+      mockEnv.CACHE.get.mockResolvedValue(cachedData)
 
       const request = new Request('https://api.example.com/metrics', {
         headers: {
@@ -250,7 +250,7 @@ describe('Metrics Handler Integration Tests', () => {
       const response = await handleMetricsRequest(request, mockEnv, mockCtx)
       const data = await response.json()
 
-      expect(mockEnv.KV_CACHE.get).toHaveBeenCalledWith('metrics:v2:hour')
+      expect(mockEnv.CACHE.get).toHaveBeenCalledWith('metrics:v2:hour')
       expect(data.timestamp).toBe('2025-01-01T00:00:00Z')
     })
 
@@ -266,7 +266,7 @@ describe('Metrics Handler Integration Tests', () => {
       expect(mockCtx.waitUntil).toHaveBeenCalled()
       await mockCtx.waitUntil.mock.calls[0][0]
 
-      expect(mockEnv.KV_CACHE.put).toHaveBeenCalledWith(
+      expect(mockEnv.CACHE.put).toHaveBeenCalledWith(
         'metrics:v2:day',
         expect.any(String),
         { expirationTtl: 300 }
@@ -284,8 +284,8 @@ describe('Metrics Handler Integration Tests', () => {
       await handleMetricsRequest(request1, mockEnv, mockCtx)
       await handleMetricsRequest(request2, mockEnv, mockCtx)
 
-      expect(mockEnv.KV_CACHE.get).toHaveBeenCalledWith('metrics:v2:hour')
-      expect(mockEnv.KV_CACHE.get).toHaveBeenCalledWith('metrics:v2:day')
+      expect(mockEnv.CACHE.get).toHaveBeenCalledWith('metrics:v2:hour')
+      expect(mockEnv.CACHE.get).toHaveBeenCalledWith('metrics:v2:day')
     })
   })
 
@@ -343,7 +343,7 @@ describe('Metrics Handler Integration Tests', () => {
   describe('Error Handling', () => {
     it('should handle aggregation errors gracefully', async () => {
       // Force an error by making KV throw
-      mockEnv.KV_CACHE.get.mockRejectedValue(new Error('KV unavailable'))
+      mockEnv.CACHE.get.mockRejectedValue(new Error('KV unavailable'))
 
       const request = new Request('https://api.example.com/metrics', {
         headers: {

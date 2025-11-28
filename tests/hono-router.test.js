@@ -39,7 +39,7 @@ const mockEnv = {
     put: async () => {},
     delete: async () => {}
   },
-  KV_CACHE: {
+  CACHE: {
     get: async () => null,
     put: async () => {},
     delete: async () => {}

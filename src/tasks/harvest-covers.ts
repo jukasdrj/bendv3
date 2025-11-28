@@ -152,7 +152,7 @@ const RATE_LIMIT_KEY = "harvest_isbndb_last_request";
 const RATE_LIMIT_INTERVAL = 1000; // 1 second
 
 async function enforceRateLimit(env: Env): Promise<void> {
-  const lastRequest = await env.KV_CACHE.get(RATE_LIMIT_KEY);
+  const lastRequest = await env.CACHE.get(RATE_LIMIT_KEY);
 
   if (lastRequest) {
     const timeDiff = Date.now() - parseInt(lastRequest);
@@ -162,7 +162,7 @@ async function enforceRateLimit(env: Env): Promise<void> {
     }
   }
 
-  await env.KV_CACHE.put(RATE_LIMIT_KEY, Date.now().toString(), {
+  await env.CACHE.put(RATE_LIMIT_KEY, Date.now().toString(), {
     expirationTtl: 60,
   });
 }
@@ -272,7 +272,7 @@ async function storeMetadata(
   env: Env,
 ): Promise<void> {
   const kvKey = CacheKeyFactory.coverImage(isbn);
-  await env.KV_CACHE.put(kvKey, JSON.stringify(metadata));
+  await env.CACHE.put(kvKey, JSON.stringify(metadata));
   console.log(`  💾 Stored KV metadata: ${kvKey}`);
 }
 
@@ -295,7 +295,7 @@ async function harvestSingleBook(
 
     // Check if already cached
     const kvKey = CacheKeyFactory.coverImage(isbn);
-    const existing = await env.KV_CACHE.get(kvKey);
+    const existing = await env.CACHE.get(kvKey);
 
     if (existing) {
       console.log(`  ⏭ Already cached: ${isbn}`);
@@ -410,8 +410,8 @@ export async function harvestCovers(env: Env): Promise<HarvestReport> {
     console.log("  ✓ R2 write permissions OK");
 
     // Test KV write
-    await env.KV_CACHE.put("test_harvest_kv", "test", { expirationTtl: 60 });
-    await env.KV_CACHE.delete("test_harvest_kv");
+    await env.CACHE.put("test_harvest_kv", "test", { expirationTtl: 60 });
+    await env.CACHE.delete("test_harvest_kv");
     console.log("  ✓ KV write permissions OK");
 
     console.log("✅ Pre-flight checks passed\n");

@@ -73,7 +73,7 @@ export async function handleWeeklyRecommendations(
     const cacheKey = `${CACHE_KEY_PREFIX}${weekOf}`
 
     // Check KV cache first
-    const recommendationsCache = env.RECOMMENDATIONS_CACHE || env.KV_CACHE
+    const recommendationsCache = env.RECOMMENDATIONS_CACHE || env.CACHE
 
     if (recommendationsCache) {
       const cached = await recommendationsCache.get(cacheKey, 'json') as WeeklyRecommendationsResponse | null

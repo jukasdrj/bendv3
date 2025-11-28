@@ -60,7 +60,7 @@ import { buildCSVParserPrompt, PROMPT_VERSION } from "../prompts/csv-parser-prom
 ```javascript
 // Check cache first (matches csv-processor-core.js pattern)
 const cacheKey = await generateCSVCacheKey(csvText, PROMPT_VERSION)
-let books = await env.KV_CACHE.get(cacheKey, "json")
+let books = await env.CACHE.get(cacheKey, "json")
 
 if (books) {
   console.log(`[Warming Upload] Cache HIT for ${cacheKey.substring(0, 20)}...`)
@@ -70,7 +70,7 @@ if (books) {
   books = await parseCSVWithGemini(csvText, prompt, apiKey)
 
   // Cache for 7 days (matches csv-processor-core.js TTL)
-  await env.KV_CACHE.put(cacheKey, JSON.stringify(books), {
+  await env.CACHE.put(cacheKey, JSON.stringify(books), {
     expirationTtl: 604800
   })
 }
@@ -89,7 +89,7 @@ Add structured logging to track cache effectiveness:
 
 ```javascript
 const cacheKey = await generateCSVCacheKey(csvText, PROMPT_VERSION)
-let parsedBooks = await env.KV_CACHE.get(cacheKey, "json")
+let parsedBooks = await env.CACHE.get(cacheKey, "json")
 
 // NEW: Add telemetry for cache hit tracking
 const cacheHit = !!parsedBooks

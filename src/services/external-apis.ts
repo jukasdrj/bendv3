@@ -46,7 +46,6 @@ export interface ExternalAPIEnv {
   GOOGLE_BOOKS_API_KEY?: any; // Can be string or SecretBinding
   ISBNDB_API_KEY?: any; // Can be string or SecretBinding
   GOOGLE_BOOKS_ANALYTICS?: AnalyticsEngineDataset;
-  KV_CACHE?: KVNamespace;
   CACHE?: KVNamespace;
   CACHE_HOT_TTL?: string; // Hot TTL in seconds (default: 7200 = 2h)
   CACHE_COLD_TTL?: string; // Cold TTL in seconds (default: 1209600 = 14d)
@@ -165,7 +164,7 @@ export async function searchGoogleBooksById(
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
   // Get KV namespace
-  const kvNamespace = env.KV_CACHE || env.CACHE;
+  const kvNamespace = env.CACHE;
 
   // If no KV cache or ExecutionContext, skip caching
   if (!kvNamespace || !ctx) {
@@ -270,7 +269,7 @@ export async function searchGoogleBooks(
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
   // Get KV namespace
-  const kvNamespace = env.KV_CACHE || env.CACHE;
+  const kvNamespace = env.CACHE;
 
   // If no KV cache or ExecutionContext, skip caching
   if (!kvNamespace || !ctx) {
@@ -283,7 +282,7 @@ export async function searchGoogleBooks(
 
   // Generate cache key from query only (no maxResults for better hit rate)
   const maxResults = params.maxResults || 20;
-  const cacheKey = `${query.toLowerCase().trim()}`;
+  const cacheKey = `${query.normalize('NFC').toLowerCase().trim()}`;
   const cached = await cache.get(cacheKey);
 
   if (cached) {
@@ -392,8 +391,8 @@ export async function searchGoogleBooksByISBN(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  // Get KV namespace (try KV_CACHE first, fallback to CACHE)
-  const kvNamespace = env.KV_CACHE || env.CACHE;
+  // Get KV namespace (try CACHE first, fallback to CACHE)
+  const kvNamespace = env.CACHE;
 
   // If no KV cache or ExecutionContext, skip caching (fallback to direct API call)
   if (!kvNamespace || !ctx) {
@@ -659,7 +658,7 @@ export async function searchOpenLibrary(
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
   // Get KV namespace
-  const kvNamespace = env.KV_CACHE || env.CACHE;
+  const kvNamespace = env.CACHE;
 
   // If no KV cache or ExecutionContext, skip caching
   if (!kvNamespace || !ctx) {
@@ -672,7 +671,7 @@ export async function searchOpenLibrary(
 
   // Generate cache key from query only (no maxResults for better hit rate)
   const maxResults = params.maxResults || 20;
-  const cacheKey = `search:${query.toLowerCase().trim()}`;
+  const cacheKey = `search:${query.normalize('NFC').toLowerCase().trim()}`;
   const cached = await cache.get(cacheKey);
 
   if (cached) {
@@ -894,7 +893,7 @@ export async function searchISBNdb(
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
   // Get KV namespace
-  const kvNamespace = env.KV_CACHE || env.CACHE;
+  const kvNamespace = env.CACHE;
 
   // If no KV cache or ExecutionContext, skip caching
   if (!kvNamespace || !ctx) {
@@ -906,7 +905,7 @@ export async function searchISBNdb(
   const cache = createCacheService(kvNamespace, 'isbndb', env, ctx);
 
   // Generate cache key from title + author
-  const cacheKey = `search:${title.toLowerCase().trim()}:${authorName?.toLowerCase().trim() || 'any'}`;
+  const cacheKey = `search:${title.normalize('NFC').toLowerCase().trim()}:${authorName?.normalize('NFC').toLowerCase().trim() || 'any'}`;
   const cached = await cache.get(cacheKey);
 
   if (cached) {
@@ -1012,7 +1011,7 @@ export async function getISBNdbEditionsForWork(
   ctx?: ExecutionContext,
 ): Promise<EditionDTO[] | null> {
   // Get KV namespace
-  const kvNamespace = env.KV_CACHE || env.CACHE;
+  const kvNamespace = env.CACHE;
 
   // If no KV cache or ExecutionContext, skip caching
   if (!kvNamespace || !ctx) {
@@ -1024,7 +1023,7 @@ export async function getISBNdbEditionsForWork(
   const cache = createCacheService(kvNamespace, 'isbndb', env, ctx);
 
   // Generate cache key
-  const cacheKey = `editions:${title.toLowerCase().trim()}:${authorName.toLowerCase().trim()}`;
+  const cacheKey = `editions:${title.normalize('NFC').toLowerCase().trim()}:${authorName.normalize('NFC').toLowerCase().trim()}`;
   const cached = await cache.get(cacheKey);
 
   if (cached) {
@@ -1104,7 +1103,7 @@ export async function getISBNdbBookByISBN(
   ctx?: ExecutionContext,
 ): Promise<ISBNdbBookData | null> {
   // Get KV namespace
-  const kvNamespace = env.KV_CACHE || env.CACHE;
+  const kvNamespace = env.CACHE;
 
   // If no KV cache or ExecutionContext, skip caching
   if (!kvNamespace || !ctx) {
@@ -1209,8 +1208,8 @@ async function fetchWithAuth(
 }
 
 async function enforceRateLimit(env: ExternalAPIEnv): Promise<void> {
-  // Use CACHE binding instead of KV_CACHE (unified naming)
-  const kvBinding = env.KV_CACHE || env.CACHE;
+  // Use CACHE binding instead of CACHE (unified naming)
+  const kvBinding = env.CACHE;
   if (!kvBinding) {
     console.warn("No KV cache available for rate limiting");
     return;

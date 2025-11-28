@@ -56,6 +56,12 @@
     "CONCURRENCY_LIMIT": "10",
     "AGGRESSIVE_CACHING": "true",
     "//": "========================================================================",
+    "//": "Access Tracking Sampling (Issue #112 - KV Write Optimization)",
+    "//": "Sample rate: 0.01 = 1% sampling (99% write reduction)",
+    "//": "10,000 req/hour → 100 access tracking writes instead of 10,000",
+    "//": "========================================================================",
+    "ACCESS_TRACKING_SAMPLE_RATE": "0.01",
+    "//": "========================================================================",
     "//": "Cache Monitoring & Alerting Configuration",
     "//": "Thresholds for cache hit rate alerts (0.0 - 1.0 scale)",
     "//": "========================================================================",
@@ -106,10 +112,6 @@
   "kv_namespaces": [
     {
       "binding": "CACHE",
-      "id": "b9cade63b6db48fd80c109a013f38fdb"
-    },
-    {
-      "binding": "KV_CACHE",
       "id": "b9cade63b6db48fd80c109a013f38fdb"
     },
     {
@@ -308,6 +310,28 @@
       "name": "book-import-workflow",
       "binding": "BOOK_IMPORT_WORKFLOW",
       "class_name": "BookImportWorkflow"
+    }
+  ],
+  "//": "========================================================================",
+  "//": "Secrets Store Bindings (Account-level secrets)",
+  "//": "Using Cloudflare Secrets Store instead of per-Worker secrets",
+  "//": "Store ID: b0562ac16fde468c8af12717a6c88400 (default_secrets_store)",
+  "//": "========================================================================",
+  "secrets_store_secrets": [
+    {
+      "binding": "GEMINI_API_KEY",
+      "store_id": "b0562ac16fde468c8af12717a6c88400",
+      "secret_name": "google_gemini_oooebooks"
+    },
+    {
+      "binding": "GOOGLE_BOOKS_API_KEY",
+      "store_id": "b0562ac16fde468c8af12717a6c88400",
+      "secret_name": "Google_books_hardoooe"
+    },
+    {
+      "binding": "ISBNDB_API_KEY",
+      "store_id": "b0562ac16fde468c8af12717a6c88400",
+      "secret_name": "ISBNDB_API_KEY"
     }
   ]
 }

@@ -17,7 +17,7 @@ import type { BookRecord } from '../../src/types/database'
 const createMockEnv = (overrides = {}) => ({
   D1_READ_PERCENTAGE: '0',
   ENABLE_D1_WRITES: 'false',
-  KV_CACHE: {
+  CACHE: {
     get: vi.fn(),
     put: vi.fn(),
   },
@@ -70,13 +70,13 @@ describe('BookRepository', () => {
   describe('Smart Routing (findByISBN)', () => {
     it('should route to KV when D1_READ_PERCENTAGE=0', async () => {
       env.D1_READ_PERCENTAGE = '0'
-      env.KV_CACHE.get.mockResolvedValueOnce(mockBookRecord.canonicalMetadata)
+      env.CACHE.get.mockResolvedValueOnce(mockBookRecord.canonicalMetadata)
 
       const result = await bookRepo.findByISBN('9780439708180')
 
       expect(result).toBeDefined()
       expect(result?.isbn).toBe('9780439708180')
-      expect(env.KV_CACHE.get).toHaveBeenCalledWith('book:isbn:9780439708180', 'json')
+      expect(env.CACHE.get).toHaveBeenCalledWith('book:isbn:9780439708180', 'json')
       expect(env.DB.prepare).not.toHaveBeenCalled()
     })
 
@@ -112,7 +112,7 @@ describe('BookRepository', () => {
       expect(result).toBeDefined()
       expect(result?.isbn).toBe('9780439708180')
       expect(env.DB.prepare).toHaveBeenCalled()
-      expect(env.KV_CACHE.get).not.toHaveBeenCalled()
+      expect(env.CACHE.get).not.toHaveBeenCalled()
     })
 
     it('should fallback to KV when D1 fails', async () => {
@@ -126,21 +126,21 @@ describe('BookRepository', () => {
       })
 
       // KV succeeds
-      env.KV_CACHE.get.mockResolvedValueOnce(mockBookRecord.canonicalMetadata)
+      env.CACHE.get.mockResolvedValueOnce(mockBookRecord.canonicalMetadata)
 
       const result = await bookRepo.findByISBN('9780439708180')
 
       expect(result).toBeDefined()
       expect(result?.isbn).toBe('9780439708180')
       expect(env.DB.prepare).toHaveBeenCalled()
-      expect(env.KV_CACHE.get).toHaveBeenCalled()
+      expect(env.CACHE.get).toHaveBeenCalled()
     })
 
     it('should fallback to D1 when KV fails', async () => {
       env.D1_READ_PERCENTAGE = '0'
 
       // KV fails
-      env.KV_CACHE.get.mockResolvedValueOnce(null)
+      env.CACHE.get.mockResolvedValueOnce(null)
 
       // D1 succeeds
       const mockD1Result = {
@@ -171,14 +171,14 @@ describe('BookRepository', () => {
 
       expect(result).toBeDefined()
       expect(result?.isbn).toBe('9780439708180')
-      expect(env.KV_CACHE.get).toHaveBeenCalled()
+      expect(env.CACHE.get).toHaveBeenCalled()
       expect(env.DB.prepare).toHaveBeenCalled()
     })
 
     it('should return null when both KV and D1 fail', async () => {
       env.D1_READ_PERCENTAGE = '0'
 
-      env.KV_CACHE.get.mockResolvedValueOnce(null)
+      env.CACHE.get.mockResolvedValueOnce(null)
       env.DB.prepare.mockReturnValueOnce({
         bind: vi.fn(() => ({
           first: vi.fn().mockResolvedValueOnce(null),
@@ -197,7 +197,7 @@ describe('BookRepository', () => {
 
       await bookRepo.save(mockBookRecord)
 
-      expect(env.KV_CACHE.put).toHaveBeenCalledWith(
+      expect(env.CACHE.put).toHaveBeenCalledWith(
         'book:isbn:9780439708180',
         JSON.stringify(mockBookRecord.canonicalMetadata),
         { expirationTtl: 86400 }
@@ -217,7 +217,7 @@ describe('BookRepository', () => {
 
       await bookRepo.save(mockBookRecord)
 
-      expect(env.KV_CACHE.put).toHaveBeenCalled()
+      expect(env.CACHE.put).toHaveBeenCalled()
       expect(env.DB.prepare).toHaveBeenCalled()
     })
 
@@ -233,7 +233,7 @@ describe('BookRepository', () => {
       // Should not throw
       await expect(bookRepo.save(mockBookRecord)).resolves.not.toThrow()
 
-      expect(env.KV_CACHE.put).toHaveBeenCalled()
+      expect(env.CACHE.put).toHaveBeenCalled()
     })
   })
 
@@ -241,7 +241,7 @@ describe('BookRepository', () => {
     it('should use same routing decision for same ISBN', async () => {
       env.D1_READ_PERCENTAGE = '50'
 
-      env.KV_CACHE.get.mockResolvedValue(mockBookRecord.canonicalMetadata)
+      env.CACHE.get.mockResolvedValue(mockBookRecord.canonicalMetadata)
 
       // Call multiple times with same ISBN
       await bookRepo.findByISBN('9780439708180')
@@ -249,7 +249,7 @@ describe('BookRepository', () => {
       await bookRepo.findByISBN('9780439708180')
 
       // All calls should route to same source (KV or D1, but consistent)
-      const kvCallCount = env.KV_CACHE.get.mock.calls.length
+      const kvCallCount = env.CACHE.get.mock.calls.length
       const d1CallCount = env.DB.prepare.mock.calls.length
 
       // For ISBN 9780439708180 at 50%, routing should be consistent
@@ -260,7 +260,7 @@ describe('BookRepository', () => {
     it('should distribute traffic based on percentage', async () => {
       env.D1_READ_PERCENTAGE = '50'
 
-      env.KV_CACHE.get.mockResolvedValue(mockBookRecord.canonicalMetadata)
+      env.CACHE.get.mockResolvedValue(mockBookRecord.canonicalMetadata)
 
       // Test with multiple different ISBNs
       const testISBNs = [
@@ -277,7 +277,7 @@ describe('BookRepository', () => {
       ]
 
       for (const isbn of testISBNs) {
-        env.KV_CACHE.get.mockClear()
+        env.CACHE.get.mockClear()
         env.DB.prepare.mockClear()
 
         env.DB.prepare.mockReturnValue({

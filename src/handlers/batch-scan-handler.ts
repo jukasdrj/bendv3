@@ -411,7 +411,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
         // FIX: Align TTL with token expiry (2 hours)
         const RESULTS_TTL_SECONDS = 7200;
         const resourceId = `scan-results:${jobId}`;
-        await env.KV_CACHE.put(
+        await env.CACHE.put(
           resourceId,
           JSON.stringify(enrichedPartialBooks.map(mapToDetectedBook)),
           { expirationTtl: RESULTS_TTL_SECONDS },
@@ -676,7 +676,7 @@ async function processBatchPhotos(jobId, images, env, doStub) {
     // See: docs/plans/shelf-scan-fixes-plan.md §1.3
     const RESULTS_TTL_SECONDS = 7200; // 2 hours (matches token expiry)
     const resourceId = `scan-results:${jobId}`;
-    await env.KV_CACHE.put(
+    await env.CACHE.put(
       resourceId,
       JSON.stringify(uniqueEnrichedBooks.map(mapToDetectedBook)),
       { expirationTtl: RESULTS_TTL_SECONDS },

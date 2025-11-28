@@ -27,7 +27,7 @@ import { CircuitBreakerOpenError, ExternalAPIError, RateLimitError } from "../ty
 interface WorkerEnv {
   // KV Namespaces
   CACHE: KVNamespace;
-  KV_CACHE: KVNamespace;
+  CACHE: KVNamespace;
 
   // Secrets
   GOOGLE_BOOKS_API_KEY: string;

@@ -66,8 +66,8 @@ function generateSearchCacheKey(searchParams) {
   const { bookTitle, authorName, isbn } = searchParams;
   const parts = [
     isbn || "",
-    bookTitle?.toLowerCase().trim() || "",
-    authorName?.toLowerCase().trim() || "",
+    bookTitle?.normalize('NFC').toLowerCase().trim() || "",
+    authorName?.normalize('NFC').toLowerCase().trim() || "",
   ];
   return `search:${parts.filter(Boolean).join(":")}`;
 }
@@ -79,7 +79,7 @@ function generateSearchCacheKey(searchParams) {
 async function checkNegativeCache(cacheKey, env) {
   try {
     const negativeKey = `negative:${cacheKey}`;
-    const cached = await env.KV_CACHE.get(negativeKey, "json");
+    const cached = await env.CACHE.get(negativeKey, "json");
 
     if (cached && cached.timestamp) {
       const age = Date.now() - cached.timestamp;
@@ -107,7 +107,7 @@ async function checkNegativeCache(cacheKey, env) {
 async function storeNegativeCache(cacheKey, error, type, env) {
   try {
     const negativeKey = `negative:${cacheKey}`;
-    await env.KV_CACHE.put(
+    await env.CACHE.put(
       negativeKey,
       JSON.stringify({
         type: type || "error", // 'no_results' vs 'error'

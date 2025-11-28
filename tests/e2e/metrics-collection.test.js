@@ -9,7 +9,7 @@ describe('End-to-End Metrics Collection', () => {
   beforeEach(() => {
     mockEnv = {
       METRICS_API_KEY: 'e2e_test_key',
-      KV_CACHE: {
+      CACHE: {
         get: vi.fn(async () => null),
         put: vi.fn(async () => {})
       },
@@ -54,14 +54,14 @@ describe('End-to-End Metrics Collection', () => {
       expect(mockCtx.waitUntil).toHaveBeenCalled()
       await mockCtx.waitUntil.mock.calls[0][0]
 
-      expect(mockEnv.KV_CACHE.put).toHaveBeenCalledWith(
+      expect(mockEnv.CACHE.put).toHaveBeenCalledWith(
         'metrics:v1:1h',
         expect.any(String),
         { expirationTtl: 300 }
       )
 
       // Verify cached data matches response
-      const cachedData = mockEnv.KV_CACHE.put.mock.calls[0][1]
+      const cachedData = mockEnv.CACHE.put.mock.calls[0][1]
       const cachedMetrics = JSON.parse(cachedData)
 
       expect(cachedMetrics.timestamp).toBe(metrics.timestamp)
@@ -78,7 +78,7 @@ describe('End-to-End Metrics Collection', () => {
       const firstMetrics = await firstResponse.json()
 
       // Simulate cache hit for second request
-      mockEnv.KV_CACHE.get.mockResolvedValue(JSON.stringify(firstMetrics))
+      mockEnv.CACHE.get.mockResolvedValue(JSON.stringify(firstMetrics))
 
       // Second request - cache hit
       const secondRequest = new Request('https://api.example.com/metrics?period=24h', {
@@ -89,7 +89,7 @@ describe('End-to-End Metrics Collection', () => {
       const secondMetrics = await secondResponse.json()
 
       // Verify cache was checked
-      expect(mockEnv.KV_CACHE.get).toHaveBeenCalledWith('metrics:v1:24h')
+      expect(mockEnv.CACHE.get).toHaveBeenCalledWith('metrics:v1:24h')
 
       // Verify same data returned
       expect(secondMetrics.timestamp).toBe(firstMetrics.timestamp)
@@ -107,7 +107,7 @@ describe('End-to-End Metrics Collection', () => {
       const jsonMetrics = await jsonResponse.json()
 
       // Request Prometheus format (reset cache)
-      mockEnv.KV_CACHE.get.mockResolvedValue(null)
+      mockEnv.CACHE.get.mockResolvedValue(null)
 
       const prometheusRequest = new Request('https://api.example.com/metrics?format=prometheus', {
         headers: { 'Authorization': 'Bearer e2e_test_key' }
@@ -203,7 +203,7 @@ describe('End-to-End Metrics Collection', () => {
   describe('Error Recovery', () => {
     it('should handle aggregation service errors gracefully', async () => {
       // Force aggregateMetrics to throw by making KV.get throw during caching
-      mockEnv.KV_CACHE.get.mockRejectedValue(new Error('KV service unavailable'))
+      mockEnv.CACHE.get.mockRejectedValue(new Error('KV service unavailable'))
 
       const request = new Request('https://api.example.com/metrics', {
         headers: { 'Authorization': 'Bearer e2e_test_key' }
@@ -221,7 +221,7 @@ describe('End-to-End Metrics Collection', () => {
 
     it('should continue working after cache failures', async () => {
       // First request - cache put fails
-      mockEnv.KV_CACHE.put.mockRejectedValue(new Error('Cache write failed'))
+      mockEnv.CACHE.put.mockRejectedValue(new Error('Cache write failed'))
 
       const firstRequest = new Request('https://api.example.com/metrics', {
         headers: { 'Authorization': 'Bearer e2e_test_key' }
@@ -233,8 +233,8 @@ describe('End-to-End Metrics Collection', () => {
       expect(firstResponse.status).toBe(200)
 
       // Second request - reset mock and succeed
-      mockEnv.KV_CACHE.get.mockResolvedValue(null)
-      mockEnv.KV_CACHE.put.mockResolvedValue(undefined)
+      mockEnv.CACHE.get.mockResolvedValue(null)
+      mockEnv.CACHE.put.mockResolvedValue(undefined)
 
       const secondRequest = new Request('https://api.example.com/metrics', {
         headers: { 'Authorization': 'Bearer e2e_test_key' }
@@ -252,7 +252,7 @@ describe('End-to-End Metrics Collection', () => {
       const responses = []
 
       for (const period of periods) {
-        mockEnv.KV_CACHE.get.mockResolvedValue(null) // Force fresh fetch
+        mockEnv.CACHE.get.mockResolvedValue(null) // Force fresh fetch
 
         const request = new Request(`https://api.example.com/metrics?period=${period}`, {
           headers: { 'Authorization': 'Bearer e2e_test_key' }
@@ -270,7 +270,7 @@ describe('End-to-End Metrics Collection', () => {
       }
 
       // Verify different cache keys used
-      const cacheKeys = mockEnv.KV_CACHE.get.mock.calls.map(call => call[0])
+      const cacheKeys = mockEnv.CACHE.get.mock.calls.map(call => call[0])
       expect(cacheKeys).toContain('metrics:v1:15m')
       expect(cacheKeys).toContain('metrics:v1:1h')
       expect(cacheKeys).toContain('metrics:v1:24h')

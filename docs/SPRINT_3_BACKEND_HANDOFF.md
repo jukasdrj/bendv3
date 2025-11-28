@@ -78,7 +78,7 @@ This document provides everything the frontend team needs to know about Sprint 3
 // KV Namespaces - ALREADY EXISTS
 "kv_namespaces": [
   { "binding": "CACHE", "id": "b9cade63b6db48fd80c109a013f38fdb" },
-  { "binding": "KV_CACHE", "id": "b9cade63b6db48fd80c109a013f38fdb" }
+  { "binding": "CACHE", "id": "b9cade63b6db48fd80c109a013f38fdb" }
 ]
 
 // Durable Objects - ALREADY EXISTS

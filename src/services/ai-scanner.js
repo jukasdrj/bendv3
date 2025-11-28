@@ -278,7 +278,7 @@ export async function processBookshelfScan(
       },
     };
 
-    await env.KV_CACHE.put(resultsKey, JSON.stringify(fullResults), {
+    await env.CACHE.put(resultsKey, JSON.stringify(fullResults), {
       expirationTtl: 86400, // 24 hours
     });
 

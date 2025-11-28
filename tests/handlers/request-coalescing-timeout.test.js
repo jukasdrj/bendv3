@@ -26,7 +26,7 @@ describe("Request Coalescing Timeout & Cleanup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockEnv = {
-      KV_CACHE: {
+      CACHE: {
         get: vi.fn().mockResolvedValue(null),
         put: vi.fn().mockResolvedValue(undefined),
       },
@@ -383,7 +383,7 @@ describe("Request Coalescing Timeout & Cleanup", () => {
 
   it("should handle negative cache entries correctly without leaking", async () => {
     // Mock negative cache response (404)
-    mockEnv.KV_CACHE.get = vi.fn().mockResolvedValueOnce({
+    mockEnv.CACHE.get = vi.fn().mockResolvedValueOnce({
       type: "no_results",
       error: "No results found",
       status: 404,

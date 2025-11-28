@@ -377,7 +377,7 @@ describe('Workflow Integration - Unit Tests', () => {
 
     expect(mockEnv.AI).toBeDefined()
     expect(mockEnv.DB).toBeDefined()
-    expect(mockEnv.KV_CACHE).toBeDefined()
+    expect(mockEnv.CACHE).toBeDefined()
     expect(mockEnv.BOOK_COVERS).toBeDefined()
     expect(mockEnv.BOOK_VECTORS).toBeDefined()
     expect(mockEnv.WEBSOCKET_CONNECTION_DO).toBeDefined()

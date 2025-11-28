@@ -286,7 +286,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
 
     // Check KV blacklist (cross-instance invalidation)
     const blacklistEntry = providedToken
-      ? await this.env.KV_CACHE.get(`token:blacklist:${providedToken}`, "json")
+      ? await this.env.CACHE.get(`token:blacklist:${providedToken}`, "json")
       : null;
 
     if (blacklistEntry) {
@@ -1183,7 +1183,7 @@ export class ProgressWebSocketDO_Hibernation extends DurableObject {
       const { token: newToken, expiresAt } = await response.json();
 
       // Blacklist old token
-      await this.env.KV_CACHE.put(
+      await this.env.CACHE.put(
         `token:blacklist:${currentToken}`,
         "1",
         { expirationTtl: BLACKLIST_TTL_SECONDS },

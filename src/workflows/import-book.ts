@@ -56,7 +56,7 @@ export interface BookImportInput {
 interface WorkflowEnv {
   // KV Namespaces
   CACHE: KVNamespace
-  KV_CACHE: KVNamespace
+  CACHE: KVNamespace
 
   // R2 Buckets
   BOOK_COVERS: R2Bucket
@@ -606,7 +606,7 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
       source: 'workflow',
     }
 
-    await this.env.KV_CACHE.put(
+    await this.env.CACHE.put(
       `book:isbn:${metadata.isbn}`,
       JSON.stringify(bookData),
       { expirationTtl: 86400 * 30 } // 30 days TTL

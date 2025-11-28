@@ -59,7 +59,7 @@ export async function handleMetricsRequest(request, env, ctx) {
 
     // Check cache first (5min TTL)
     const cacheKey = `metrics:v2:${period}`;
-    const cached = await env.KV_CACHE.get(cacheKey);
+    const cached = await env.CACHE.get(cacheKey);
     if (cached) {
       return new Response(cached, {
         headers: {
@@ -88,7 +88,7 @@ export async function handleMetricsRequest(request, env, ctx) {
 
     // Cache for 5 minutes
     ctx.waitUntil(
-      env.KV_CACHE.put(cacheKey, body, {
+      env.CACHE.put(cacheKey, body, {
         expirationTtl: 300,
       }),
     );

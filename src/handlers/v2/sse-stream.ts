@@ -35,7 +35,12 @@ interface JobState {
   lastUpdateTime?: number
   completedTime?: number
   failedTime?: number
-  error?: string
+  error?: {
+    code: string
+    message: string
+    details?: any
+    retryable?: boolean
+  }
   canceled?: boolean
   cancelReason?: string
   canceledTime?: number
@@ -199,7 +204,16 @@ export async function handleSSEStream(
             processedCount: state.processedCount,
             totalCount: state.totalCount,
             ...(state.completedTime && { completedAt: new Date(state.completedTime).toISOString() }),
-            ...(state.error && { error: state.error })
+            // Always include error for failed status, with fallback if not yet set
+            ...(state.status === 'failed' && {
+              error: state.error || {
+                code: 'E_UNKNOWN_ERROR',
+                message: 'Job failed (error details pending)',
+                retryable: false
+              }
+            }),
+            // Include error for other statuses if present
+            ...(state.status !== 'failed' && state.error && { error: state.error })
           })
         })
         await writer.close()

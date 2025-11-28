@@ -95,7 +95,7 @@ export async function handleEnrichBook(
   try {
     // Check KV cache first
     const cacheKey = `book:isbn:${isbn}`
-    const cached = await env.KV_CACHE.get(cacheKey, 'json') as EnrichResponse | null
+    const cached = await env.CACHE.get(cacheKey, 'json') as EnrichResponse | null
 
     if (cached) {
       // If embedding requested and book wasn't vectorized, do it now
@@ -103,7 +103,7 @@ export async function handleEnrichBook(
         const vectorized = await vectorizeBook(cached, env)
         if (vectorized) {
           cached.vectorized = true
-          await env.KV_CACHE.put(cacheKey, JSON.stringify(cached), {
+          await env.CACHE.put(cacheKey, JSON.stringify(cached), {
             expirationTtl: 86400, // 24 hours
           })
         }
@@ -157,7 +157,7 @@ export async function handleEnrichBook(
     }
 
     // Cache the result
-    await env.KV_CACHE.put(cacheKey, JSON.stringify(enrichedBook), {
+    await env.CACHE.put(cacheKey, JSON.stringify(enrichedBook), {
       expirationTtl: 86400, // 24 hours
     })
 

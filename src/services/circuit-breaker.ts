@@ -32,6 +32,9 @@ export class CircuitBreaker {
   private provider: string
   private env: any // Env type with CACHE binding
   private options: CircuitBreakerOptions
+  private pendingWrites: number = 0
+  private pendingState: CircuitBreakerState | null = null
+  private readonly WRITE_BATCH_SIZE = 10 // Write to KV every 10th state change
 
   constructor(
     provider: string,
@@ -81,9 +84,16 @@ export class CircuitBreaker {
   }
 
   /**
-   * Get current circuit breaker state from KV cache
+   * Get current circuit breaker state
+   * Returns pending in-memory state if available, otherwise reads from KV
    */
   private async getState(): Promise<CircuitBreakerState> {
+    // Return pending state if we have one (batching optimization)
+    if (this.pendingState) {
+      return this.pendingState
+    }
+
+    // Otherwise read from KV cache
     const key = this.getCacheKey()
     const cached = await this.env.CACHE?.get(key, 'json')
 
@@ -100,15 +110,43 @@ export class CircuitBreaker {
   }
 
   /**
-   * Update circuit breaker state in KV cache
+   * Update circuit breaker state with batched writes
+   * Critical transitions (OPEN/CLOSED) are persisted immediately
    */
-  private async setState(state: CircuitBreakerState): Promise<void> {
+  private async setState(state: CircuitBreakerState, forceWrite: boolean = false): Promise<void> {
+    // Store pending state in memory
+    this.pendingState = state
+
+    // Critical state transitions should always write immediately
+    const isCriticalTransition = state.state === 'OPEN' || state.state === 'CLOSED'
+
+    // Increment pending writes counter
+    this.pendingWrites++
+
+    // Write to KV if:
+    // 1. Critical state transition (OPEN/CLOSED)
+    // 2. Batch size reached (every 10th write)
+    // 3. Force write requested
+    if (isCriticalTransition || this.pendingWrites >= this.WRITE_BATCH_SIZE || forceWrite) {
+      await this.persistState()
+    }
+  }
+
+  /**
+   * Persist pending state to KV cache
+   */
+  private async persistState(): Promise<void> {
+    if (!this.pendingState) return
+
     const key = this.getCacheKey()
     await this.env.CACHE?.put(
       key,
-      JSON.stringify(state),
+      JSON.stringify(this.pendingState),
       { expirationTtl: this.options.stateExpirationTtl }
     )
+
+    // Reset counter after successful write
+    this.pendingWrites = 0
   }
 
   /**
@@ -257,7 +295,18 @@ export class CircuitBreaker {
       state: 'CLOSED',
       failureCount: 0,
       successCount: 0
-    })
+    }, true) // Force immediate write for manual reset
+  }
+
+  /**
+   * Flush any pending state writes to KV
+   * Call this during graceful shutdown or before long-running operations
+   */
+  async flush(): Promise<void> {
+    if (this.pendingWrites > 0) {
+      console.log(`[CircuitBreaker] ${this.provider}: Flushing ${this.pendingWrites} pending writes`)
+      await this.persistState()
+    }
   }
 }
 

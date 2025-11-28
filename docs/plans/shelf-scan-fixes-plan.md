@@ -149,7 +149,7 @@ async handleWebSocket(request) {
 
 **Current:**
 ```typescript
-await env.KV_CACHE.put(`scan-results:${jobId}`, JSON.stringify(results), {
+await env.CACHE.put(`scan-results:${jobId}`, JSON.stringify(results), {
   expirationTtl: 3600  // 1 hour - PROBLEM
 })
 ```
@@ -158,7 +158,7 @@ await env.KV_CACHE.put(`scan-results:${jobId}`, JSON.stringify(results), {
 ```typescript
 const RESULTS_TTL = 7200  // 2 hours - matches token expiry
 
-await env.KV_CACHE.put(`scan-results:${jobId}`, JSON.stringify(results), {
+await env.CACHE.put(`scan-results:${jobId}`, JSON.stringify(results), {
   expirationTtl: RESULTS_TTL
 })
 
@@ -292,7 +292,7 @@ router.delete('/v1/jobs/:jobId', async (c) => {
   await deleteR2Objects(env.BOOKSHELF_IMAGES, r2Keys)
 
   // 4. Clear KV cache
-  await env.KV_CACHE.delete(`scan-results:${jobId}`)
+  await env.CACHE.delete(`scan-results:${jobId}`)
 
   // 5. Return partial results if any
   return c.json({
@@ -375,7 +375,7 @@ async function saveResults(jobId, results, env) {
 
   // 2. Write-through to KV cache (best effort)
   try {
-    await env.KV_CACHE.put(`scan-results:${jobId}`, JSON.stringify(results), {
+    await env.CACHE.put(`scan-results:${jobId}`, JSON.stringify(results), {
       expirationTtl: 7200
     })
   } catch (error) {
@@ -387,7 +387,7 @@ async function saveResults(jobId, results, env) {
 // Read results - KV first, D1 fallback
 async function getResults(jobId, env) {
   // 1. Try KV cache first (fast)
-  const cached = await env.KV_CACHE.get(`scan-results:${jobId}`, 'json')
+  const cached = await env.CACHE.get(`scan-results:${jobId}`, 'json')
   if (cached) {
     return { data: cached, cached: true }
   }
@@ -403,7 +403,7 @@ async function getResults(jobId, env) {
 
   // 3. Repopulate cache for next request
   const results = JSON.parse(row.results)
-  await env.KV_CACHE.put(`scan-results:${jobId}`, JSON.stringify(results), {
+  await env.CACHE.put(`scan-results:${jobId}`, JSON.stringify(results), {
     expirationTtl: 7200
   }).catch(() => {}) // Ignore cache write failures
 

@@ -68,7 +68,7 @@ export async function handleCapabilities(
   // Check which features are available based on environment bindings
   const hasVectorize = !!(env as unknown as { BOOK_VECTORS?: unknown }).BOOK_VECTORS
   const hasWorkersAI = !!env.AI
-  const hasRecommendationsCache = !!(env as unknown as { RECOMMENDATIONS_CACHE?: unknown }).RECOMMENDATIONS_CACHE || !!env.KV_CACHE
+  const hasRecommendationsCache = !!(env as unknown as { RECOMMENDATIONS_CACHE?: unknown }).RECOMMENDATIONS_CACHE || !!env.CACHE
   const hasEnrichmentQueue = !!(env as unknown as { ENRICHMENT_QUEUE?: unknown }).ENRICHMENT_QUEUE
 
   const capabilities: CapabilitiesResponse = {

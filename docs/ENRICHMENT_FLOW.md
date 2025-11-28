@@ -161,7 +161,7 @@ webSocketTask.resume()
 
 3. **Result Storage:**
    - All books processed → `enrichedBooks` array
-   - Store in KV: `env.KV_CACHE.put("job-results:{jobId}", JSON.stringify(enrichedBooks), { expirationTtl: 3600 })`
+   - Store in KV: `env.CACHE.put("job-results:{jobId}", JSON.stringify(enrichedBooks), { expirationTtl: 3600 })`
    - Key format: `job-results:9FFBB845-2261-480C-9C4D-49233883FB90`
 
 4. **Completion:**
@@ -506,7 +506,7 @@ wrangler tail | grep "updateProgress"
 **Debug:**
 ```bash
 # Check KV storage
-wrangler kv:key list --binding=KV_CACHE | grep "job-results"
+wrangler kv:key list --binding=CACHE | grep "job-results"
 
 # Check completion message
 wrangler tail | grep "complete"

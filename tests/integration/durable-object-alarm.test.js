@@ -2,7 +2,7 @@
  * Integration Tests: Durable Object Alarm Handlers
  *
  * Tests that verify the Durable Object alarm handlers have proper access
- * to environment bindings (KV_CACHE, GEMINI_API_KEY, etc.).
+ * to environment bindings (CACHE, GEMINI_API_KEY, etc.).
  *
  * This test caught a critical bug where this.env was not stored in the
  * constructor, causing KV writes to fail silently during alarm execution.
@@ -82,9 +82,9 @@ describe("Durable Object Alarm - Environment Bindings", () => {
       waitUntil: vi.fn(),
     };
 
-    // Mock environment with KV_CACHE
+    // Mock environment with CACHE
     mockEnv = {
-      KV_CACHE: {
+      CACHE: {
         get: vi.fn(async () => null), // Cache miss
         put: vi.fn(async () => {}),
       },
@@ -100,14 +100,14 @@ describe("Durable Object Alarm - Environment Bindings", () => {
       // CRITICAL: Verify this.env is set in constructor
       expect(doInstance.env).toBeDefined();
       expect(doInstance.env).toBe(mockEnv);
-      expect(doInstance.env.KV_CACHE).toBeDefined();
+      expect(doInstance.env.CACHE).toBeDefined();
       expect(doInstance.env.GEMINI_API_KEY).toBe("test-api-key");
     });
 
-    it("should have access to KV_CACHE binding", () => {
-      expect(doInstance.env.KV_CACHE).toBeDefined();
-      expect(doInstance.env.KV_CACHE.get).toBeDefined();
-      expect(doInstance.env.KV_CACHE.put).toBeDefined();
+    it("should have access to CACHE binding", () => {
+      expect(doInstance.env.CACHE).toBeDefined();
+      expect(doInstance.env.CACHE.get).toBeDefined();
+      expect(doInstance.env.CACHE.put).toBeDefined();
     });
 
     it("should have access to GEMINI_API_KEY binding", () => {
@@ -134,11 +134,11 @@ describe("Durable Object Alarm - Environment Bindings", () => {
       // Execute alarm handler (this is where the bug would manifest)
       await doInstance.processCSVImportAlarm();
 
-      // CRITICAL: Verify KV_CACHE.put was called (this would fail if this.env is undefined)
-      expect(mockEnv.KV_CACHE.put).toHaveBeenCalled();
+      // CRITICAL: Verify CACHE.put was called (this would fail if this.env is undefined)
+      expect(mockEnv.CACHE.put).toHaveBeenCalled();
 
       // Verify results were stored with correct key format
-      const kvPutCalls = mockEnv.KV_CACHE.put.mock.calls;
+      const kvPutCalls = mockEnv.CACHE.put.mock.calls;
       const resultsPut = kvPutCalls.find((call) =>
         call[0].startsWith("csv-results:"),
       );
@@ -206,7 +206,7 @@ describe("Durable Object Alarm - Environment Bindings", () => {
   });
 
   describe("Regression Test: Missing env Bug", () => {
-    it("should NOT throw TypeError when accessing env.KV_CACHE in alarm", async () => {
+    it("should NOT throw TypeError when accessing env.CACHE in alarm", async () => {
       // This test specifically validates the bug fix where this.env was missing
 
       await mockState.storage.put("csvData", "title,author\nBook,Author");
@@ -220,14 +220,14 @@ describe("Durable Object Alarm - Environment Bindings", () => {
         close: vi.fn(),
       };
 
-      // Before fix: This would throw "Cannot read property 'KV_CACHE' of undefined"
+      // Before fix: This would throw "Cannot read property 'CACHE' of undefined"
       // After fix: This should complete successfully
       await expect(
         doInstance.processCSVImportAlarm(),
       ).resolves.not.toThrow();
 
       // Verify KV write succeeded
-      expect(mockEnv.KV_CACHE.put).toHaveBeenCalled();
+      expect(mockEnv.CACHE.put).toHaveBeenCalled();
     });
   });
 });

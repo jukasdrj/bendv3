@@ -24,7 +24,7 @@ describe('Cache Key Optimization (#76)', () => {
 
     mockEnv = {
       CACHE: mockCache,
-      KV_CACHE: mockCache,
+      CACHE: mockCache,
       GOOGLE_BOOKS_API_KEY: 'test-key',
       CACHE_HOT_TTL: '7200',
       CACHE_COLD_TTL: '1209600',

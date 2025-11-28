@@ -24,7 +24,7 @@ describe('Hibernation DO - WebSocket Authentication', () => {
 
     // Mock environment
     mockEnv = {
-      KV_CACHE: {
+      CACHE: {
         get: vi.fn((key, type) => Promise.resolve(null)),
         put: vi.fn(() => Promise.resolve()),
       },
@@ -71,7 +71,7 @@ describe('Hibernation DO - WebSocket Authentication', () => {
 
         // Check KV blacklist
         const blacklistEntry = providedToken
-          ? await this.env.KV_CACHE.get(`token:blacklist:${providedToken}`, 'json')
+          ? await this.env.CACHE.get(`token:blacklist:${providedToken}`, 'json')
           : null;
 
         if (blacklistEntry) {
@@ -327,7 +327,7 @@ describe('Hibernation DO - WebSocket Authentication', () => {
       await hibernationDO.storage.put('authTokenExpiration', Date.now() + 2 * 60 * 60 * 1000);
 
       // Mock blacklist entry in KV
-      hibernationDO.env.KV_CACHE.get = vi.fn((key, type) => {
+      hibernationDO.env.CACHE.get = vi.fn((key, type) => {
         if (key === `token:blacklist:${token}`) {
           return Promise.resolve({
             reason: 'Job completed or failed',
@@ -358,7 +358,7 @@ describe('Hibernation DO - WebSocket Authentication', () => {
       await hibernationDO.storage.put('authToken', token);
       await hibernationDO.storage.put('authTokenExpiration', Date.now() + 2 * 60 * 60 * 1000);
 
-      hibernationDO.env.KV_CACHE.get = vi.fn((key, type) => {
+      hibernationDO.env.CACHE.get = vi.fn((key, type) => {
         if (key === `token:blacklist:${token}`) {
           return Promise.resolve({
             reason: 'Job completed or failed',
@@ -384,7 +384,7 @@ describe('Hibernation DO - WebSocket Authentication', () => {
       // Arrange - Blacklisted token, no stored token
       const token = 'blacklisted-before-validation';
 
-      hibernationDO.env.KV_CACHE.get = vi.fn((key) => {
+      hibernationDO.env.CACHE.get = vi.fn((key) => {
         if (key === `token:blacklist:${token}`) {
           return Promise.resolve({ reason: 'Test blacklist' });
         }
@@ -416,8 +416,8 @@ describe('Hibernation DO - WebSocket Authentication', () => {
       const validationSteps = [];
 
       // Track KV blacklist check
-      const originalKVGet = hibernationDO.env.KV_CACHE.get;
-      hibernationDO.env.KV_CACHE.get = vi.fn((key) => {
+      const originalKVGet = hibernationDO.env.CACHE.get;
+      hibernationDO.env.CACHE.get = vi.fn((key) => {
         validationSteps.push('blacklist_check');
         return originalKVGet(key);
       });
@@ -454,7 +454,7 @@ describe('Hibernation DO - WebSocket Authentication', () => {
       // Arrange
       const token = 'short-circuit-token';
 
-      hibernationDO.env.KV_CACHE.get = vi.fn(() =>
+      hibernationDO.env.CACHE.get = vi.fn(() =>
         Promise.resolve({ reason: 'Blacklisted' })
       );
 

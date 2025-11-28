@@ -1,5 +1,6 @@
 /**
  * Normalizes book title for cache key generation and search matching
+ * - Unicode NFC normalization (prevents duplicates for é vs e+́)
  * - Lowercase for case-insensitive matching
  * - Trim whitespace
  * - Remove leading articles (the, a, an) for better deduplication
@@ -7,6 +8,7 @@
  */
 export function normalizeTitle(title: string): string {
   return title
+    .normalize('NFC') // Unicode canonical composition
     .toLowerCase()
     .trim()
     .replace(/^(the|a|an)\s+/, "") // "The Hobbit" → "hobbit"
@@ -28,11 +30,12 @@ export function normalizeISBN(isbn: string): string {
 
 /**
  * Normalizes author name for cache matching
+ * - Unicode NFC normalization (prevents duplicates for é vs e+́)
  * - Lowercase
  * - Trim whitespace
  */
 export function normalizeAuthor(author: string): string {
-  return author.toLowerCase().trim();
+  return author.normalize('NFC').toLowerCase().trim();
 }
 
 /**
