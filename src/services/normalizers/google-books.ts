@@ -5,19 +5,10 @@
 import type { WorkDTO, EditionDTO } from "../../types/canonical.js";
 import { GenreNormalizer } from "../genre-normalizer.js";
 import { getPlaceholderCover } from "../../utils/book-metadata.js";
+import { extractYear } from "../../utils/date-utils.js";
 
 // Create genre normalizer instance (reused across all normalizations)
 const genreNormalizer = new GenreNormalizer();
-
-/**
- * Extract year from Google Books date string
- * Formats: "1949", "1949-06", "1949-06-08"
- */
-function extractYear(dateString?: string): number | undefined {
-  if (!dateString) return undefined;
-  const match = dateString.match(/^(\d{4})/);
-  return match ? parseInt(match[1], 10) : undefined;
-}
 
 /**
  * Get high-resolution cover URL from Google Books API thumbnail link
