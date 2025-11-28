@@ -7,19 +7,10 @@ import type { EditionFormat } from "../../types/enums.js";
 import { GenreNormalizer } from "../genre-normalizer.js";
 import { getPlaceholderCover } from "../../utils/book-metadata.js";
 import { ISBNDB_QUALITY_WEIGHTS as W } from "../../utils/quality-scoring.js";
+import { extractYear } from "../../utils/date-utils.js";
 
 // Create genre normalizer instance (reused across all normalizations)
 const genreNormalizer = new GenreNormalizer();
-
-/**
- * Extract year from ISBNdb date string
- * Formats: "2020", "2020-01", "2020-01-15"
- */
-function extractYear(dateString?: string): number | undefined {
-  if (!dateString) return undefined;
-  const match = dateString.match(/^(\d{4})/);
-  return match ? parseInt(match[1], 10) : undefined;
-}
 
 /**
  * Normalize ISBNdb binding to EditionFormat
