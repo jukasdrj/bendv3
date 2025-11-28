@@ -29,6 +29,10 @@ export class WebSocketConnectionDO extends DurableObject {
     // Add a correlation ID for improved logging per-connection instance
     this.correlationId = crypto.randomUUID().slice(0, 8);
 
+    // Log level control (Issue #122)
+    // Supported levels: 'error' (critical only), 'info' (default), 'debug' (verbose)
+    this.logLevel = env.LOG_LEVEL || 'info';
+
     // WebSocket health metrics (Issue #36)
     this.metrics = {
       connectionEstablished: 0,
@@ -55,12 +59,14 @@ export class WebSocketConnectionDO extends DurableObject {
     const url = new URL(request.url);
     const upgradeHeader = request.headers.get("Upgrade");
 
-    console.log(`[WebSocketConnectionDO] [cid: ${this.correlationId}] Incoming request`, {
-      url: url.toString(),
-      upgradeHeader,
-      method: request.method,
-      timestamp: upgradeStartTime,
-    });
+    if (this.logLevel === 'debug') {
+      console.log(`[WebSocketConnectionDO] [cid: ${this.correlationId}] Incoming request`, {
+        url: url.toString(),
+        upgradeHeader,
+        method: request.method,
+        timestamp: upgradeStartTime,
+      });
+    }
 
     // Validate WebSocket upgrade
     if (!upgradeHeader || upgradeHeader !== "websocket") {
@@ -95,7 +101,9 @@ export class WebSocketConnectionDO extends DurableObject {
     ]);
     const storageDuration = Date.now() - storageStartTime;
 
-    console.log(`[${jobId}] [cid: ${this.correlationId}] Storage reads took ${storageDuration}ms`);
+    if (this.logLevel === 'debug') {
+      console.log(`[${jobId}] [cid: ${this.correlationId}] Storage reads took ${storageDuration}ms`);
+    }
 
     // SECURITY FIX (#212): Check if token has already been consumed (one-time use)
     const tokenConsumed = await this.storage.get("authTokenConsumed");
@@ -146,9 +154,11 @@ export class WebSocketConnectionDO extends DurableObject {
     // This prevents race conditions where multiple clients try to connect simultaneously
     await this.storage.put("authTokenConsumed", true);
 
-    console.log(
-      `[${jobId}] [cid: ${this.correlationId}] ✅ WebSocket authentication successful (token now invalidated for reuse)`,
-    );
+    if (this.logLevel === 'debug') {
+      console.log(
+        `[${jobId}] [cid: ${this.correlationId}] ✅ WebSocket authentication successful (token now invalidated for reuse)`,
+      );
+    }
 
     // Create WebSocket pair
     const pairStartTime = Date.now();
@@ -174,15 +184,19 @@ export class WebSocketConnectionDO extends DurableObject {
     });
 
     const totalUpgradeDuration = Date.now() - upgradeStartTime;
-    console.log(
-      `[${this.jobId}] [cid: ${this.correlationId}] WebSocket connection accepted, waiting for ready signal`,
-    );
-    console.log(`[${this.jobId}] [cid: ${this.correlationId}] 📊 WebSocket upgrade timing:`, {
-      storageDuration: `${storageDuration}ms`,
-      pairCreation: `${pairDuration}ms`,
-      accept: `${acceptDuration}ms`,
-      totalUpgrade: `${totalUpgradeDuration}ms`,
-    });
+    if (this.logLevel === 'info' || this.logLevel === 'debug') {
+      console.log(
+        `[${this.jobId}] [cid: ${this.correlationId}] WebSocket connection accepted, waiting for ready signal`,
+      );
+    }
+    if (this.logLevel === 'debug') {
+      console.log(`[${this.jobId}] [cid: ${this.correlationId}] 📊 WebSocket upgrade timing:`, {
+        storageDuration: `${storageDuration}ms`,
+        pairCreation: `${pairDuration}ms`,
+        accept: `${acceptDuration}ms`,
+        totalUpgrade: `${totalUpgradeDuration}ms`,
+      });
+    }
 
     // Setup event handlers
     this.webSocket.addEventListener("message", (event) => {
@@ -190,11 +204,13 @@ export class WebSocketConnectionDO extends DurableObject {
     });
 
     this.webSocket.addEventListener("close", (event) => {
-      console.log(
-        `[${this.jobId}] [cid: ${this.correlationId}] WebSocket closed:`,
-        event.code,
-        event.reason,
-      );
+      if (this.logLevel === 'info' || this.logLevel === 'debug') {
+        console.log(
+          `[${this.jobId}] [cid: ${this.correlationId}] WebSocket closed:`,
+          event.code,
+          event.reason,
+        );
+      }
 
       // Track disconnect reason (Issue #36)
       if (event.code === 1000) {
@@ -212,7 +228,9 @@ export class WebSocketConnectionDO extends DurableObject {
       if (this.metrics.connectionStartTime) {
         const duration = Date.now() - this.metrics.connectionStartTime;
         this.metrics.totalConnectionDuration += duration;
-        console.log(`[${this.jobId}] [cid: ${this.correlationId}] Connection duration: ${duration}ms`);
+        if (this.logLevel === 'info' || this.logLevel === 'debug') {
+          console.log(`[${this.jobId}] [cid: ${this.correlationId}] Connection duration: ${duration}ms`);
+        }
       }
 
       this.cleanup();
@@ -241,7 +259,9 @@ export class WebSocketConnectionDO extends DurableObject {
    * @param {string} data - Message data from client
    */
   async handleMessage(data) {
-    console.log(`[${this.jobId}] [cid: ${this.correlationId}] Received message:`, data);
+    if (this.logLevel === 'debug') {
+      console.log(`[${this.jobId}] [cid: ${this.correlationId}] Received message:`, data);
+    }
 
     try {
       const msg = JSON.parse(data);
@@ -264,7 +284,9 @@ export class WebSocketConnectionDO extends DurableObject {
 
       // Handle ready signal
       if (msg.type === "ready") {
-        console.log(`[${this.jobId}] [cid: ${this.correlationId}] ✅ Client ready signal received`);
+        if (this.logLevel === 'info' || this.logLevel === 'debug') {
+          console.log(`[${this.jobId}] [cid: ${this.correlationId}] ✅ Client ready signal received`);
+        }
         this.isReady = true;
 
         // Resolve the ready promise to unblock processing
@@ -291,9 +313,13 @@ export class WebSocketConnectionDO extends DurableObject {
         });
 
         // ENHANCED LOGGING: Log immediately after sending ready_ack to establish a timing baseline
-        console.log(`[${this.jobId}] [cid: ${this.correlationId}] ✅ ready_ack sent. WebSocket readyState: ${this.webSocket?.readyState}`);
+        if (this.logLevel === 'debug') {
+          console.log(`[${this.jobId}] [cid: ${this.correlationId}] ✅ ready_ack sent. WebSocket readyState: ${this.webSocket?.readyState}`);
+        }
       } else {
-        console.log(`[${this.jobId}] [cid: ${this.correlationId}] Unknown message type: ${msg.type}`);
+        if (this.logLevel === 'debug') {
+          console.log(`[${this.jobId}] [cid: ${this.correlationId}] Unknown message type: ${msg.type}`);
+        }
       }
     } catch (error) {
       console.error(`[${this.jobId}] [cid: ${this.correlationId}] Failed to parse message:`, error);
@@ -326,9 +352,11 @@ export class WebSocketConnectionDO extends DurableObject {
     // SECURITY FIX (#212): Reset consumed flag when new token is issued
     // This allows legitimate reconnections with fresh tokens
     await this.storage.delete("authTokenConsumed");
-    console.log(
-      `[${this.jobId || "unknown"}] Auth token set (expires in 2 hours, one-time use)`,
-    );
+    if (this.logLevel === 'debug') {
+      console.log(
+        `[${this.jobId || "unknown"}] Auth token set (expires in 2 hours, one-time use)`,
+      );
+    }
     return { success: true };
   }
 
@@ -341,7 +369,9 @@ export class WebSocketConnectionDO extends DurableObject {
    */
   async setPipeline(pipeline) {
     await this.storage.put("pipeline", pipeline);
-    console.log(`[${this.jobId || "unknown"}] Pipeline set to: ${pipeline}`);
+    if (this.logLevel === 'debug') {
+      console.log(`[${this.jobId || "unknown"}] Pipeline set to: ${pipeline}`);
+    }
     return { success: true };
   }
 
@@ -432,9 +462,11 @@ export class WebSocketConnectionDO extends DurableObject {
       // Reset consumed flag to allow new WebSocket connection with refreshed token
       await this.storage.delete("authTokenConsumed");
 
-      console.log(
-        `[${this.jobId || "unknown"}] ✅ Token refreshed successfully (expires in 2 hours)`,
-      );
+      if (this.logLevel === 'debug') {
+        console.log(
+          `[${this.jobId || "unknown"}] ✅ Token refreshed successfully (expires in 2 hours)`,
+        );
+      }
 
       return {
         token: newToken,
@@ -519,7 +551,9 @@ export class WebSocketConnectionDO extends DurableObject {
    */
   async closeConnection(reason = "Job completed") {
     if (this.webSocket) {
-      console.log(`[${this.jobId}] Closing WebSocket: ${reason}`);
+      if (this.logLevel === 'debug') {
+        console.log(`[${this.jobId}] Closing WebSocket: ${reason}`);
+      }
       try {
         this.webSocket.close(1000, reason);
       } catch (error) {
@@ -539,7 +573,9 @@ export class WebSocketConnectionDO extends DurableObject {
   async cleanupStorage() {
     await this.storage.delete("authToken");
     await this.storage.delete("authTokenExpiration");
-    console.log(`[${this.jobId || "unknown"}] Auth token storage cleaned up`);
+    if (this.logLevel === 'debug') {
+      console.log(`[${this.jobId || "unknown"}] Auth token storage cleaned up`);
+    }
     return { success: true };
   }
 

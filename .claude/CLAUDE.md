@@ -326,21 +326,90 @@ All external API providers are protected by per-provider circuit breakers:
 
 ## Testing Patterns
 
+### Testing Commands (Resource-Aware)
+
+**⚡ RECOMMENDED - Use these to prevent laptop crashes:**
+
+```bash
+# Quick validation (5 seconds, minimal resources)
+npm run test:smoke
+
+# Full test suite with resource limits (60 seconds, 512MB max)
+npm run test:safe
+
+# Unit tests only (skip slow integration tests)
+npm run test:unit
+
+# Pre-commit validation
+npm run validate
+```
+
+**⚠️ USE CAREFULLY - May cause high CPU/memory on 8GB laptops:**
+
+```bash
+# Default mode (use only on 16GB+ RAM machines or CI/CD)
+npm test
+
+# Coverage analysis (memory-intensive)
+npm run test:coverage
+```
+
+**See:** `README_TESTING.md` for full guide, `docs/LAPTOP_TESTING.md` for detailed documentation
+
+### Development Workflow
+
+```bash
+# Daily workflow (prevents system lockups)
+npm run dev              # Start dev server
+# ... make code changes ...
+npm run test:smoke       # Quick validation (5s)
+
+# Before commits
+npm run validate         # Smoke tests + lint
+
+# Full validation (when needed)
+npm run test:safe        # Complete suite with constraints
+```
+
 ### Unit Tests
 ```javascript
 import { describe, it, expect } from 'vitest'
-import { validateISBN } from './utils/validation'
+import { isValidISBN } from './utils/isbn-validation'
 
 describe('ISBN Validation', () => {
   it('should validate ISBN-13', () => {
-    expect(validateISBN('9780439708180')).toBe(true)
+    expect(isValidISBN('9780439708180')).toBe(true)
   })
 
   it('should reject invalid ISBN', () => {
-    expect(validateISBN('123')).toBe(false)
+    expect(isValidISBN('123')).toBe(false)
   })
 })
 ```
+
+### Smoke Tests (Fast Validation)
+
+**Location:** `tests/smoke/` - Lightweight tests for quick sanity checks
+
+```javascript
+// tests/smoke/validation.test.js
+import { describe, it, expect } from 'vitest'
+
+describe('Validation Smoke Tests', () => {
+  it('should validate ISBN format checking works', async () => {
+    const { isValidISBN } = await import('../../src/utils/isbn-validation.ts')
+
+    expect(isValidISBN('9780439708180')).toBe(true)
+    expect(isValidISBN('123')).toBe(false)
+  })
+})
+```
+
+**When to use smoke tests:**
+- Before every commit
+- After dependency updates
+- Quick sanity checks during development
+- Testing in low-resource environments
 
 ### Integration Tests
 ```javascript
@@ -357,6 +426,22 @@ describe('Search API', () => {
   })
 })
 ```
+
+### Resource Constraints
+
+**Vitest Configuration** (vitest.config.js:51-63):
+- Pool: `forks` (better isolation than threads)
+- Max forks: `2` (reduced from 4 to prevent CPU overload)
+- Safe mode: Sequential execution via `TEST_SAFE_MODE=true`
+
+**Memory Limits:**
+- Safe mode: 512MB per process (`NODE_OPTIONS='--max-old-space-size=512'`)
+- Default mode: No limit (can use 2GB+ per fork on powerful machines)
+
+**Hardware Recommendations:**
+- **8GB RAM:** Use `npm run test:safe` or `npm run test:smoke` only
+- **16GB+ RAM:** Can use `npm test` (default mode)
+- **CI/CD:** Use `npm test` (dedicated resources)
 
 ---
 

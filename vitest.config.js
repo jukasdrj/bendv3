@@ -48,9 +48,18 @@ export default defineConfig({
     // Bail after first failure (optional, remove if you want all results)
     // bail: 1,
 
-    // Parallel test execution
-    threads: true,
-    maxThreads: 4,
-    minThreads: 1
+    // Parallel test execution - REDUCED for laptop resource constraints
+    // Use pool: 'forks' instead of threads for better isolation
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: false,
+        maxForks: 2,  // Reduced from 4 to prevent CPU overload
+        minForks: 1
+      }
+    },
+
+    // Sequential fallback for low-resource mode (use with npm run test:safe)
+    fileParallelism: process.env.TEST_SAFE_MODE === 'true' ? false : true
   }
 })

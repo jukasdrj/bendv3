@@ -381,7 +381,9 @@ describe("WebSocketConnectionDO", () => {
       expect(doInstance.readyResolver).toBeNull(); // Cleared after resolve
     });
 
-    it("should log unknown message types", () => {
+    it("should log unknown message types (debug mode)", () => {
+      // Set debug mode to enable verbose logging
+      doInstance.logLevel = 'debug';
       const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       doInstance.handleMessage(JSON.stringify({ type: "unknown" }));

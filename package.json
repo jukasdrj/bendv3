@@ -13,6 +13,11 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:e2e": "RUN_E2E_TESTS=true vitest run",
+    "test:safe": "TEST_SAFE_MODE=true NODE_OPTIONS='--max-old-space-size=512' vitest run --pool=forks --poolOptions.forks.singleFork=true",
+    "test:smoke": "vitest run tests/smoke",
+    "test:unit": "vitest run --exclude='tests/integration/**' --exclude='tests/e2e/**'",
+    "validate": "npm run test:smoke && npm run lint:check",
+    "lint:check": "echo 'Placeholder: Add ESLint when needed'",
     "update-wrangler": "npm install wrangler@latest"
   },
   "devDependencies": {

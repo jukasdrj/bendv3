@@ -81,10 +81,11 @@ This document provides a high-level overview of specialized AI agents available 
 ### Workflow Examples
 
 **Deploying New Features:**
-1. `cf-code-reviewer` validates code quality
-2. `cf-ops-monitor` deploys with health checks
-3. `cf-ops-monitor` monitors for 4 hours post-launch
-4. Auto-rollback if error rate > 5%
+1. Run `npm run test:smoke` or `npm run test:safe` for validation
+2. `cf-code-reviewer` validates code quality
+3. `cf-ops-monitor` deploys with health checks
+4. `cf-ops-monitor` monitors for 4 hours post-launch
+5. Auto-rollback if error rate > 5%
 
 **Investigating Production Issues:**
 1. `cf-ops-monitor` streams logs and identifies patterns
@@ -93,10 +94,11 @@ This document provides a high-level overview of specialized AI agents available 
 4. `cf-ops-monitor` deploys and monitors recovery
 
 **Pre-PR Code Review:**
-1. Developer requests `cf-code-reviewer` review
-2. Agent validates patterns, security, API contract
-3. Suggests improvements and optimizations
-4. Developer addresses feedback and re-reviews if needed
+1. Run `npm run validate` (smoke tests + lint)
+2. Developer requests `cf-code-reviewer` review
+3. Agent validates patterns, security, API contract
+4. Suggests improvements and optimizations
+5. Developer addresses feedback and re-reviews if needed
 
 ---
 
@@ -115,16 +117,67 @@ For complex scenarios requiring deep analysis, escalate to Zen MCP:
 ## Quick Tips
 
 ### When to Use Agents
-✅ Production deployments and monitoring  
-✅ Pre-PR code reviews  
-✅ API contract validation  
-✅ Workers-specific pattern enforcement  
-✅ Performance optimization  
+✅ Production deployments and monitoring
+✅ Pre-PR code reviews
+✅ API contract validation
+✅ Workers-specific pattern enforcement
+✅ Performance optimization
 
 ### When NOT to Use Agents
-❌ Simple one-line changes  
-❌ Documentation-only updates (unless API changes)  
-❌ Generic Node.js code (not Workers-specific)  
+❌ Simple one-line changes
+❌ Documentation-only updates (unless API changes)
+❌ Generic Node.js code (not Workers-specific)
+
+---
+
+## Testing Integration
+
+### Resource-Aware Testing
+**Before invoking agents, always run tests in resource-aware modes:**
+
+```bash
+# Quick validation (recommended for daily use)
+npm run test:smoke      # 5 seconds, minimal resources
+
+# Pre-commit validation
+npm run validate        # Smoke tests + lint
+
+# Full validation (laptop-safe)
+npm run test:safe       # 512MB limit, sequential execution
+```
+
+### Agent Testing Workflows
+
+**cf-code-reviewer Integration:**
+```bash
+# 1. Make code changes
+# 2. Run quick validation
+npm run test:smoke
+
+# 3. If tests pass, invoke reviewer
+@cf-code-reviewer
+
+# 4. Address feedback, then full validation
+npm run test:safe
+```
+
+**cf-ops-monitor Integration:**
+```bash
+# 1. Validate changes locally
+npm run test:safe
+
+# 2. Deploy with monitoring
+@cf-ops-monitor deploy
+
+# 3. Monitor logs for issues
+@cf-ops-monitor logs
+```
+
+**Why Resource-Aware Testing?**
+- Prevents laptop crashes from Node.js memory/CPU exhaustion
+- Faster feedback loop with smoke tests (5s vs 30s+)
+- Safe for 8GB RAM laptops (512MB memory limits)
+- See [README_TESTING.md](README_TESTING.md) for full guide  
 
 ---
 

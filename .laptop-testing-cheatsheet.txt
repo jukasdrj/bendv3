@@ -1,0 +1,53 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    LAPTOP-SAFE TESTING CHEAT SHEET                           ║
+║                          BooksTrack Backend                                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🚀 QUICK START (Use these commands to avoid crashes)                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  npm run test:smoke     ← FASTEST - Quick sanity check (5s)
+  npm run test:safe      ← SAFEST - Full suite with 512MB limit (60s)
+  npm run test:unit      ← FOCUSED - Skip slow integration tests (20s)
+  npm run validate       ← PRE-COMMIT - Smoke tests + lint (10s)
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ⚠️  DANGER ZONE (May cause laptop freezing)                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  npm test               ← Use only on 16GB+ RAM machines
+  npm run test:coverage  ← High memory usage, use test:safe instead
+  npm run test:ui        ← Runs dev server + tests simultaneously
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🛠️  DEVELOPMENT WORKFLOW                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  1. Start dev server:   npm run dev
+  2. Make code changes
+  3. Quick validation:   npm run test:smoke
+  4. Before commit:      npm run validate
+  5. Stop dev server:    Ctrl+C
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🆘 EMERGENCY - System Freezing                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  pkill -f node          ← Kill all Node.js processes
+  pkill -f vitest        ← Kill only Vitest processes
+
+  Then restart with:     npm run test:smoke
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📊 MONITOR RESOURCE USAGE                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  Activity Monitor       ← macOS: Cmd+Space → "Activity Monitor"
+  Sort by CPU or Memory  ← Watch for node processes >200% CPU or >2GB RAM
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📖 FULL DOCUMENTATION                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  See: docs/LAPTOP_TESTING.md
