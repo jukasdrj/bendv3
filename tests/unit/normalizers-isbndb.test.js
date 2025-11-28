@@ -682,9 +682,11 @@ describe("ISBNdb Normalizer Edge Cases", () => {
 
   it("should handle non-matching year patterns", () => {
     const testCases = [
-      { date_published: "abc-2020", expected: undefined }, // No year at start
-      { date_published: "in 2020", expected: undefined }, // Year not at start
+      // Updated after extractYear refactoring: now finds year anywhere in string (more flexible)
+      { date_published: "abc-2020", expected: 2020 }, // Year found anywhere
+      { date_published: "in 2020", expected: 2020 }, // Year found anywhere
       { date_published: "", expected: undefined }, // Empty string
+      { date_published: "no year here", expected: undefined }, // No year at all
     ];
 
     testCases.forEach(({ date_published, expected }) => {

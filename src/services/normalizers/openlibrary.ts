@@ -5,24 +5,10 @@
 import type { WorkDTO, EditionDTO, AuthorDTO } from "../../types/canonical.js";
 import { GenreNormalizer } from "../genre-normalizer.js";
 import { getPlaceholderCover } from "../../utils/book-metadata.js";
+import { extractYear } from "../../utils/date-utils.js";
 
 // Create genre normalizer instance (reused across all normalizations)
 const genreNormalizer = new GenreNormalizer();
-
-/**
- * Extract year from various date formats
- * OpenLibrary uses inconsistent formats: "1949", "Jun 8, 1949", etc.
- */
-function extractYear(dateString?: string | number): number | undefined {
-  if (!dateString) return undefined;
-
-  // Handle numeric year directly
-  if (typeof dateString === "number") return dateString;
-
-  // Extract year from string
-  const match = dateString.match(/\b(\d{4})\b/);
-  return match ? parseInt(match[1], 10) : undefined;
-}
 
 /**
  * Normalize OpenLibrary search result to WorkDTO
