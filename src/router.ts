@@ -55,9 +55,12 @@ const getCtx = (c: any): ExecutionContext | undefined => c.executionCtx as Execu
 // Global analytics middleware (adds X-Router and X-Response-Time headers)
 app.use("*", analyticsMiddleware());
 
-// API Contract Validation Middleware (Task 3.3 - Issue #38)
-// Note: Response validation via validateApiContract middleware is applied per-route where needed
-// validateResponse function available for direct use in handlers
+// API Contract Validation Middleware (Sprint 1, Day 1-2 - OpenAPI Migration)
+// Validates ResponseEnvelope format compliance on all v1 and v2 API routes
+// Start in monitoring mode (strict: false) - logs violations but doesn't reject
+// TODO: Enable strict mode (strict: true) after Sprint 3 when all endpoints migrated
+app.use("/v1/*", validateApiContract({ strict: false, logFailures: true }));
+app.use("/api/*", validateApiContract({ strict: false, logFailures: true }));
 
 // Global CORS middleware (secure with iOS compatibility)
 app.use(
