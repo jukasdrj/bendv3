@@ -9,9 +9,15 @@
  * - GET /v1/search/isbn - ISBN search (full stack integration test)
  * - GET /metrics - Metrics endpoint (analytics integration test)
  * - GET /ws/progress - WebSocket upgrade (WebSocket routing test)
+ *
+ * OpenAPI Migration (Phase 1.4 POC):
+ * - GET /api/v2/capabilities - First OpenAPI route (POC)
+ * - GET /doc - Swagger UI
+ * - GET /doc/openapi.json - OpenAPI spec
  */
 
-import { Hono } from "hono";
+import { OpenAPIHono } from "@hono/zod-openapi";
+import { swaggerUI } from "@hono/swagger-ui";
 import { cors } from "hono/cors";
 import type { Env } from "./types/env";
 import { handleSearchISBN } from "./handlers/v1/search-isbn";
@@ -32,12 +38,15 @@ import { handleSimilarBooks, handleSemanticSearch } from "./handlers/semantic-se
 import { handleV2Search, handleWeeklyRecommendations, handleCapabilities, handleEnrichBook, handleSSEStream } from "./handlers/v2";
 import { getProgressDOStub } from "./utils/durable-object-helpers";
 import { analyticsMiddleware } from "./middleware/hono-analytics";
+import { capabilitiesRoute } from "./openapi/routes/capabilities";
+import { openAPIConfig } from "./openapi/config";
 import { checkRateLimit } from "./middleware/rate-limiter";
 import { createSuccessResponse, createErrorResponse, ErrorCodes } from "./utils/response-builder";
 import { validateApiContract, validateResponse } from "./middleware/api-contract-validator";
 
-// Properly typed Hono app with Bindings and ExecutionContext support
-const app = new Hono<{ Bindings: Env; Variables: { executionCtx?: ExecutionContext } }>();
+// OpenAPI-enabled Hono app with Bindings and ExecutionContext support
+// Using OpenAPIHono for automatic OpenAPI spec generation (Phase 1.4 POC)
+const app = new OpenAPIHono<{ Bindings: Env; Variables: { executionCtx?: ExecutionContext } }>();
 
 // Helper to safely get ExecutionContext from Hono context
 // ExecutionContext is stored in c.executionCtx by Hono's native support
@@ -1559,8 +1568,14 @@ app.get("/api/v2/recommendations/weekly", async (c) => {
   return await handleWeeklyRecommendations(c.req.raw, c.env);
 });
 
-// GET /api/v2/capabilities - Feature discovery endpoint
-app.get("/api/v2/capabilities", async (c) => {
+// ============================================================================
+// OpenAPI Migration POC (Phase 1.4) - First OpenAPI Route
+// ============================================================================
+
+// GET /api/v2/capabilities - Feature discovery endpoint (OpenAPI POC)
+// This is the first route migrated to @hono/zod-openapi
+// Response format is EXACTLY the same as before (backward compatible)
+app.openapi(capabilitiesRoute, async (c) => {
   return await handleCapabilities(c.req.raw, c.env);
 });
 
@@ -1824,5 +1839,20 @@ app.onError((err, c) => {
     c.req.raw
   );
 });
+
+// ============================================================================
+// OpenAPI Documentation Endpoints (Phase 1.4 POC)
+// ============================================================================
+
+// GET /doc - Swagger UI
+app.get(
+  "/doc",
+  swaggerUI({
+    url: "/doc/openapi.json",
+  })
+);
+
+// GET /doc/openapi.json - OpenAPI JSON spec
+app.doc("/doc/openapi.json", openAPIConfig);
 
 export default app;
