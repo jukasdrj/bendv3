@@ -26,6 +26,8 @@ export class WebSocketConnectionDO extends DurableObject {
     this.isReady = false;
     this.readyPromise = null;
     this.readyResolver = null;
+    // Add a correlation ID for improved logging per-connection instance
+    this.correlationId = crypto.randomUUID().slice(0, 8);
 
     // WebSocket health metrics (Issue #36)
     this.metrics = {
@@ -53,7 +55,7 @@ export class WebSocketConnectionDO extends DurableObject {
     const url = new URL(request.url);
     const upgradeHeader = request.headers.get("Upgrade");
 
-    console.log("[WebSocketConnectionDO] Incoming request", {
+    console.log(`[WebSocketConnectionDO] [cid: ${this.correlationId}] Incoming request`, {
       url: url.toString(),
       upgradeHeader,
       method: request.method,
@@ -62,7 +64,7 @@ export class WebSocketConnectionDO extends DurableObject {
 
     // Validate WebSocket upgrade
     if (!upgradeHeader || upgradeHeader !== "websocket") {
-      console.warn("[WebSocketConnectionDO] Invalid upgrade header", {
+      console.warn(`[WebSocketConnectionDO] [cid: ${this.correlationId}] Invalid upgrade header`, {
         upgradeHeader,
       });
       return new Response("Expected Upgrade: websocket", {
@@ -77,7 +79,7 @@ export class WebSocketConnectionDO extends DurableObject {
     // Extract jobId from query params
     const jobId = url.searchParams.get("jobId");
     if (!jobId) {
-      console.error("[WebSocketConnectionDO] Missing jobId parameter");
+      console.error(`[WebSocketConnectionDO] [cid: ${this.correlationId}] Missing jobId parameter`);
       return new Response("Missing jobId parameter", {
         status: 400,
         headers: getCorsHeaders(request),
@@ -93,14 +95,14 @@ export class WebSocketConnectionDO extends DurableObject {
     ]);
     const storageDuration = Date.now() - storageStartTime;
 
-    console.log(`[${jobId}] Storage reads took ${storageDuration}ms`);
+    console.log(`[${jobId}] [cid: ${this.correlationId}] Storage reads took ${storageDuration}ms`);
 
     // SECURITY FIX (#212): Check if token has already been consumed (one-time use)
     const tokenConsumed = await this.storage.get("authTokenConsumed");
 
     if (tokenConsumed) {
       console.warn(
-        `[${jobId}] WebSocket authentication failed - token already used (prevents session hijacking)`,
+        `[${jobId}] [cid: ${this.correlationId}] WebSocket authentication failed - token already used (prevents session hijacking)`,
       );
       return new Response(
         "Token already consumed. Only one connection per token is allowed.",
@@ -116,7 +118,7 @@ export class WebSocketConnectionDO extends DurableObject {
 
     if (!storedToken || !providedToken || storedToken !== providedToken) {
       console.warn(
-        `[${jobId}] WebSocket authentication failed - invalid token`,
+        `[${jobId}] [cid: ${this.correlationId}] WebSocket authentication failed - invalid token`,
       );
       return new Response("Unauthorized", {
         status: 401,
@@ -129,7 +131,7 @@ export class WebSocketConnectionDO extends DurableObject {
 
     if (Date.now() > expiration) {
       console.warn(
-        `[${jobId}] WebSocket authentication failed - token expired`,
+        `[${jobId}] [cid: ${this.correlationId}] WebSocket authentication failed - token expired`,
       );
       return new Response("Token expired", {
         status: 401,
@@ -145,7 +147,7 @@ export class WebSocketConnectionDO extends DurableObject {
     await this.storage.put("authTokenConsumed", true);
 
     console.log(
-      `[${jobId}] ✅ WebSocket authentication successful (token now invalidated for reuse)`,
+      `[${jobId}] [cid: ${this.correlationId}] ✅ WebSocket authentication successful (token now invalidated for reuse)`,
     );
 
     // Create WebSocket pair
@@ -173,9 +175,9 @@ export class WebSocketConnectionDO extends DurableObject {
 
     const totalUpgradeDuration = Date.now() - upgradeStartTime;
     console.log(
-      `[${this.jobId}] WebSocket connection accepted, waiting for ready signal`,
+      `[${this.jobId}] [cid: ${this.correlationId}] WebSocket connection accepted, waiting for ready signal`,
     );
-    console.log(`[${this.jobId}] 📊 WebSocket upgrade timing:`, {
+    console.log(`[${this.jobId}] [cid: ${this.correlationId}] 📊 WebSocket upgrade timing:`, {
       storageDuration: `${storageDuration}ms`,
       pairCreation: `${pairDuration}ms`,
       accept: `${acceptDuration}ms`,
@@ -189,13 +191,16 @@ export class WebSocketConnectionDO extends DurableObject {
 
     this.webSocket.addEventListener("close", (event) => {
       console.log(
-        `[${this.jobId}] WebSocket closed:`,
+        `[${this.jobId}] [cid: ${this.correlationId}] WebSocket closed:`,
         event.code,
         event.reason,
       );
 
       // Track disconnect reason (Issue #36)
       if (event.code === 1000) {
+        this.metrics.disconnectReasons.clientClose++;
+      } else if (event.code === 1001) {
+        // Specifically track "Going Away" (client switching protocols or navigating)
         this.metrics.disconnectReasons.clientClose++;
       } else if (event.code === 1006) {
         this.metrics.disconnectReasons.timeout++;
@@ -207,13 +212,14 @@ export class WebSocketConnectionDO extends DurableObject {
       if (this.metrics.connectionStartTime) {
         const duration = Date.now() - this.metrics.connectionStartTime;
         this.metrics.totalConnectionDuration += duration;
+        console.log(`[${this.jobId}] [cid: ${this.correlationId}] Connection duration: ${duration}ms`);
       }
 
       this.cleanup();
     });
 
     this.webSocket.addEventListener("error", (event) => {
-      console.error(`[${this.jobId}] WebSocket error:`, event);
+      console.error(`[${this.jobId}] [cid: ${this.correlationId}] WebSocket error:`, event);
 
       // Track error disconnect (Issue #36)
       this.metrics.disconnectReasons.error++;
@@ -235,7 +241,7 @@ export class WebSocketConnectionDO extends DurableObject {
    * @param {string} data - Message data from client
    */
   async handleMessage(data) {
-    console.log(`[${this.jobId}] Received message:`, data);
+    console.log(`[${this.jobId}] [cid: ${this.correlationId}] Received message:`, data);
 
     try {
       const msg = JSON.parse(data);
@@ -243,14 +249,14 @@ export class WebSocketConnectionDO extends DurableObject {
       // Validate message structure
       if (!msg || typeof msg !== "object") {
         console.warn(
-          `[${this.jobId}] Invalid message structure: not an object`,
+          `[${this.jobId}] [cid: ${this.correlationId}] Invalid message structure: not an object`,
         );
         return;
       }
 
       if (!msg.type || typeof msg.type !== "string") {
         console.warn(
-          `[${this.jobId}] Invalid message structure: missing or invalid 'type' field`,
+          `[${this.jobId}] [cid: ${this.correlationId}] Invalid message structure: missing or invalid 'type' field`,
           msg,
         );
         return;
@@ -258,7 +264,7 @@ export class WebSocketConnectionDO extends DurableObject {
 
       // Handle ready signal
       if (msg.type === "ready") {
-        console.log(`[${this.jobId}] ✅ Client ready signal received`);
+        console.log(`[${this.jobId}] [cid: ${this.correlationId}] ✅ Client ready signal received`);
         this.isReady = true;
 
         // Resolve the ready promise to unblock processing
@@ -283,11 +289,14 @@ export class WebSocketConnectionDO extends DurableObject {
             timestamp: now,
           },
         });
+
+        // ENHANCED LOGGING: Log immediately after sending ready_ack to establish a timing baseline
+        console.log(`[${this.jobId}] [cid: ${this.correlationId}] ✅ ready_ack sent. WebSocket readyState: ${this.webSocket?.readyState}`);
       } else {
-        console.log(`[${this.jobId}] Unknown message type: ${msg.type}`);
+        console.log(`[${this.jobId}] [cid: ${this.correlationId}] Unknown message type: ${msg.type}`);
       }
     } catch (error) {
-      console.error(`[${this.jobId}] Failed to parse message:`, error);
+      console.error(`[${this.jobId}] [cid: ${this.correlationId}] Failed to parse message:`, error);
     }
   }
 
@@ -477,7 +486,7 @@ export class WebSocketConnectionDO extends DurableObject {
   async send(message) {
     if (!this.webSocket) {
       console.warn(
-        `[${this.jobId}] Cannot send message - no WebSocket connection`,
+        `[${this.jobId}] [cid: ${this.correlationId}] Cannot send message - no WebSocket connection`,
       );
       // Track send failure (Issue #36)
       this.metrics.messageSendFailures++;
@@ -485,10 +494,19 @@ export class WebSocketConnectionDO extends DurableObject {
       // Alert if we've had multiple failures (Issue #109)
       if (this.metrics.messageSendFailures >= 3) {
         console.warn(
-          `[WebSocket ${this.jobId}] Message send failures: ${this.metrics.messageSendFailures}`,
+          `[WebSocket ${this.jobId}] [cid: ${this.correlationId}] Message send failures: ${this.metrics.messageSendFailures}`,
         );
       }
 
+      return { success: false };
+    }
+
+    // ENHANCED LOGGING: Check WebSocket state before sending
+    if (this.webSocket.readyState !== WebSocket.OPEN) {
+       console.warn(
+        `[${this.jobId}] [cid: ${this.correlationId}] Cannot send message - WebSocket is not open. State: ${this.webSocket.readyState}`,
+      );
+      this.metrics.messageSendFailures++;
       return { success: false };
     }
 
@@ -496,7 +514,7 @@ export class WebSocketConnectionDO extends DurableObject {
       this.webSocket.send(JSON.stringify(message));
       return { success: true };
     } catch (error) {
-      console.error(`[${this.jobId}] Failed to send message:`, error);
+      console.error(`[${this.jobId}] [cid: ${this.correlationId}] Failed to send message:`, error);
       // Track send failure (Issue #36)
       this.metrics.messageSendFailures++;
 
