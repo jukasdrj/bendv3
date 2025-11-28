@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { normalizeTitle, normalizeISBN, normalizeAuthor, normalizeImageURL } from '../src/utils/normalization';
+import { normalizeTitle, normalizeISBN, normalizeAuthor, normalizeImageURL, normalizeSearchQuery } from '../src/utils/normalization';
 
 describe('normalizeTitle', () => {
   test('removes leading "The"', () => {
@@ -56,6 +56,30 @@ describe('normalizeAuthor', () => {
 
   test('handles empty string', () => {
     expect(normalizeAuthor('')).toBe('');
+  });
+});
+
+describe('normalizeSearchQuery', () => {
+  test('lowercases and trims', () => {
+    expect(normalizeSearchQuery('  The Hobbit  ')).toBe('the hobbit');
+  });
+
+  test('preserves articles (unlike normalizeTitle)', () => {
+    expect(normalizeSearchQuery('The Hobbit')).toBe('the hobbit');
+  });
+
+  test('preserves punctuation (unlike normalizeTitle)', () => {
+    expect(normalizeSearchQuery('Harry Potter: The Movie')).toBe('harry potter: the movie');
+  });
+
+  test('handles empty string', () => {
+    expect(normalizeSearchQuery('')).toBe('');
+  });
+
+  test('normalizes unicode (NFC)', () => {
+    // café composed vs decomposed form
+    expect(normalizeSearchQuery('café')).toBe('café');
+    expect(normalizeSearchQuery('cafe\u0301')).toBe('café'); // decomposed form
   });
 });
 

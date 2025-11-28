@@ -34,6 +34,7 @@ import { createCacheService } from "./cache-service.js";
 import { withCircuitBreaker } from "./circuit-breaker";
 import { CircuitBreakerOpenError } from "../types/errors";
 import { getCacheTTL } from "../config/cache-ttl.js";
+import { normalizeSearchQuery } from "../utils/normalization";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -282,7 +283,7 @@ export async function searchGoogleBooks(
 
   // Generate cache key from query only (no maxResults for better hit rate)
   const maxResults = params.maxResults || 20;
-  const cacheKey = `${query.normalize('NFC').toLowerCase().trim()}`;
+  const cacheKey = normalizeSearchQuery(query);
   const cached = await cache.get(cacheKey);
 
   if (cached) {
@@ -671,7 +672,7 @@ export async function searchOpenLibrary(
 
   // Generate cache key from query only (no maxResults for better hit rate)
   const maxResults = params.maxResults || 20;
-  const cacheKey = `search:${query.normalize('NFC').toLowerCase().trim()}`;
+  const cacheKey = `search:${normalizeSearchQuery(query)}`;
   const cached = await cache.get(cacheKey);
 
   if (cached) {
@@ -905,7 +906,7 @@ export async function searchISBNdb(
   const cache = createCacheService(kvNamespace, 'isbndb', env, ctx);
 
   // Generate cache key from title + author
-  const cacheKey = `search:${title.normalize('NFC').toLowerCase().trim()}:${authorName?.normalize('NFC').toLowerCase().trim() || 'any'}`;
+  const cacheKey = `search:${normalizeSearchQuery(title)}:${authorName ? normalizeSearchQuery(authorName) : 'any'}`;
   const cached = await cache.get(cacheKey);
 
   if (cached) {
@@ -1023,7 +1024,7 @@ export async function getISBNdbEditionsForWork(
   const cache = createCacheService(kvNamespace, 'isbndb', env, ctx);
 
   // Generate cache key
-  const cacheKey = `editions:${title.normalize('NFC').toLowerCase().trim()}:${authorName.normalize('NFC').toLowerCase().trim()}`;
+  const cacheKey = `editions:${normalizeSearchQuery(title)}:${normalizeSearchQuery(authorName)}`;
   const cached = await cache.get(cacheKey);
 
   if (cached) {

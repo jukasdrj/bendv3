@@ -223,45 +223,42 @@ export async function batchEnrichBooks(
     )
   )
 
-  // Step 3: Save to repository and add to results
+  // Step 3: Prepare book records for saving and add to results
+  const booksToSave: { isbn: string; record: BookRecord }[] = []
+
   for (let i = 0; i < missingISBNs.length; i++) {
     const isbn = missingISBNs[i]
     const result = externalResults[i]
 
     if (result.status === 'fulfilled' && result.value.works.length > 0) {
       const externalResult = result.value
+      const work = externalResult.works[0]
+      const edition = externalResult.editions?.[0]
 
-      // Save to repository
-      try {
-        const work = externalResult.works[0]
-        const edition = externalResult.editions?.[0]
-
-        const bookRecord: BookRecord = {
-          isbn: isbn,
-          title: work.title || 'Unknown',
-          subtitle: work.subtitle || null,
-          description: work.description || null,
-          publisher: edition?.publisher || null,
-          publicationDate: edition?.publicationDate || null,
-          language: edition?.language || 'en',
-          pageCount: edition?.pageCount || null,
-          coverSmallUrl: work.coverImageURL || edition?.coverImageURL || null,
-          coverMediumUrl: work.coverImageURL || edition?.coverImageURL || null,
-          coverLargeUrl: work.coverImageURL || edition?.coverImageURL || null,
-          canonicalMetadata: {
-            works: externalResult.works,
-            editions: externalResult.editions,
-            authors: externalResult.authors,
-          },
-          providerMetadata: null,
-          createdAt: Math.floor(Date.now() / 1000),
-          updatedAt: Math.floor(Date.now() / 1000),
-        }
-
-        await bookRepo.save(bookRecord)
-      } catch (error) {
-        console.error(`[BookService] Failed to save ${isbn} to repository:`, error)
+      const bookRecord: BookRecord = {
+        isbn: isbn,
+        title: work.title || 'Unknown',
+        subtitle: work.subtitle || null,
+        description: work.description || null,
+        publisher: edition?.publisher || null,
+        publicationDate: edition?.publicationDate || null,
+        language: edition?.language || 'en',
+        pageCount: edition?.pageCount || null,
+        coverSmallUrl: work.coverImageURL || edition?.coverImageURL || null,
+        coverMediumUrl: work.coverImageURL || edition?.coverImageURL || null,
+        coverLargeUrl: work.coverImageURL || edition?.coverImageURL || null,
+        canonicalMetadata: {
+          works: externalResult.works,
+          editions: externalResult.editions,
+          authors: externalResult.authors,
+        },
+        providerMetadata: null,
+        createdAt: Math.floor(Date.now() / 1000),
+        updatedAt: Math.floor(Date.now() / 1000),
       }
+
+      // Queue for parallel saving
+      booksToSave.push({ isbn, record: bookRecord })
 
       results.set(isbn, {
         ...externalResult,
@@ -278,6 +275,20 @@ export async function batchEnrichBooks(
         source: 'external',
       })
     }
+  }
+
+  // Step 4: Save all book records in parallel (performance optimization)
+  if (booksToSave.length > 0) {
+    const saveResults = await Promise.allSettled(
+      booksToSave.map(({ record }) => bookRepo.save(record))
+    )
+
+    // Log any failures (non-blocking - eventual consistency is acceptable)
+    saveResults.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(`[BookService] Failed to save ${booksToSave[index].isbn} to repository:`, result.reason)
+      }
+    })
   }
 
   return results

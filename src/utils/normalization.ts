@@ -57,3 +57,20 @@ export function normalizeImageURL(url: string): string {
     return url.trim();
   }
 }
+
+/**
+ * Normalizes a search query string for cache key generation
+ * Used for general text search (title + author combined) cache keys
+ * - Unicode NFC normalization (prevents duplicates for é vs e+́)
+ * - Lowercase for case-insensitive matching
+ * - Trim whitespace
+ *
+ * Note: This is a simpler normalization than normalizeTitle() - it preserves
+ * articles and punctuation to maintain search query fidelity in cache keys.
+ *
+ * @param text - Text string to normalize
+ * @returns Normalized string suitable for cache keys
+ */
+export function normalizeSearchQuery(text: string): string {
+  return text.normalize('NFC').toLowerCase().trim();
+}

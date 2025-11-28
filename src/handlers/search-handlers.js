@@ -15,6 +15,7 @@ import {
 } from "../utils/response-builder.js";
 import { generateSearchLinks } from "../utils/book-metadata.js";
 import { transformWorkToGoogleFormat } from "../utils/transform-work.js";
+import { normalizeSearchQuery } from "../utils/normalization.ts";
 
 // Request coalescing: Map of in-flight requests by cache key
 const IN_FLIGHT_REQUESTS = new Map();
@@ -66,8 +67,8 @@ function generateSearchCacheKey(searchParams) {
   const { bookTitle, authorName, isbn } = searchParams;
   const parts = [
     isbn || "",
-    bookTitle?.normalize('NFC').toLowerCase().trim() || "",
-    authorName?.normalize('NFC').toLowerCase().trim() || "",
+    bookTitle ? normalizeSearchQuery(bookTitle) : "",
+    authorName ? normalizeSearchQuery(authorName) : "",
   ];
   return `search:${parts.filter(Boolean).join(":")}`;
 }
