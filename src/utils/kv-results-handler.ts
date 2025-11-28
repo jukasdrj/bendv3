@@ -12,6 +12,14 @@ import {
 } from "./response-builder.js";
 
 /**
+ * Minimal environment interface required for KV results handler.
+ * This is a subset of the full Env type to keep the handler generic.
+ */
+export interface KVResultsEnv {
+  CACHE: KVNamespace;
+}
+
+/**
  * Configuration for the KV results handler
  */
 export interface KVResultsConfig<T> {
@@ -68,7 +76,7 @@ export function calculateExpiresAt(metadata?: { expiration?: number }): string {
  */
 export async function handleKVResults<T>(
   jobId: string,
-  env: any,
+  env: KVResultsEnv,
   config: KVResultsConfig<T>,
   request: Request | null = null,
 ): Promise<Response> {
