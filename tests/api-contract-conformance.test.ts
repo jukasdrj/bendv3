@@ -169,13 +169,6 @@ function validateResponseEnvelope(body: any): { valid: boolean; violations: stri
     }
   }
 
-  // DISCREPANCY CHECK: OpenAPI expects 'success' field but implementation doesn't use it
-  if ('success' in body) {
-    // This is actually okay - some endpoints might still use legacy format
-    // But we flag it as a warning for awareness
-    // violations.push('LEGACY_FORMAT: Response uses deprecated "success" discriminator field')
-  }
-
   return { valid: violations.length === 0, violations }
 }
 
@@ -631,16 +624,16 @@ describe('Job Status Schema Validation', () => {
 })
 
 describe('Rate Limit Response Validation', () => {
+  const rateLimiterPath = path.join(__dirname, '../src/middleware/rate-limiter.js')
+
   it('should include Retry-After header on rate limit responses', () => {
     // Per API_CONTRACT.md section 10
-    const rateLimiterPath = path.join(__dirname, '../src/middleware/rate-limiter.js')
     const content = fs.readFileSync(rateLimiterPath, 'utf-8')
 
     expect(content).toContain('Retry-After')
   })
 
   it('should use RATE_LIMIT_EXCEEDED error code', () => {
-    const rateLimiterPath = path.join(__dirname, '../src/middleware/rate-limiter.js')
     const content = fs.readFileSync(rateLimiterPath, 'utf-8')
 
     expect(content).toContain('RATE_LIMIT_EXCEEDED')
