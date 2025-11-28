@@ -9,6 +9,7 @@
 
 import { z } from 'zod'
 import { BookSchema, EnrichmentDataSchema } from './book.js'
+import { ResponseEnvelopeSchema } from './common.js'
 
 // ============================================================================
 // JOB INITIALIZATION SCHEMAS
@@ -44,6 +45,61 @@ export const JobStatusSchema = z.enum([
   'failed',
   'canceled'
 ])
+
+/**
+ * Pipeline Type Schema
+ *
+ * Type of async processing pipeline.
+ */
+export const PipelineTypeSchema = z.enum([
+  'csv_import',
+  'batch_enrichment',
+  'ai_scan'
+])
+
+/**
+ * Job Error Schema
+ *
+ * Error details for failed jobs.
+ */
+export const JobErrorSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  retryable: z.boolean(),
+  details: z.record(z.any()).optional()
+}).strict()
+
+/**
+ * Job State Schema
+ *
+ * Current state of an async job, including progress and optional error details.
+ * Returned by GET /api/v2/imports/:jobId for status polling and GET /v1/jobs/:jobId/status for unified status.
+ *
+ * **Fields:**
+ * - jobId, status, progress, processedCount, totalCount, pipeline - Core job metadata
+ * - startTime - When job started (required)
+ * - lastUpdateTime - When job was last updated (V1 legacy endpoint only)
+ * - completedTime - When job completed successfully (optional)
+ * - failedTime - When job failed (V1 legacy endpoint only)
+ * - error - Error details if job failed (optional)
+ * - canceled, cancelReason, canceledTime - Cancellation details (V1 legacy endpoint only)
+ */
+export const JobStateSchema = z.object({
+  jobId: z.string().uuid(),
+  status: JobStatusSchema,
+  progress: z.number().min(0).max(1), // 0.0 - 1.0
+  processedCount: z.number().int().nonnegative(),
+  totalCount: z.number().int().nonnegative(),
+  pipeline: PipelineTypeSchema.optional(),
+  startTime: z.string().datetime(),
+  lastUpdateTime: z.string().datetime().optional(),
+  completedTime: z.string().datetime().optional(),
+  failedTime: z.string().datetime().optional(),
+  error: JobErrorSchema.optional(),
+  canceled: z.boolean().optional(),
+  cancelReason: z.string().optional(),
+  canceledTime: z.string().datetime().optional()
+}).strict()
 
 /**
  * Job Progress Schema
@@ -184,11 +240,67 @@ export const BookshelfScanResultsSchema = z.object({
 }).strict()
 
 // ============================================================================
+// JOB RESULTS SCHEMAS
+// ============================================================================
+
+/**
+ * Job Error Detail Schema
+ *
+ * Represents an individual error that occurred during job processing.
+ * Includes row number (for CSV) and ISBN context when available.
+ */
+export const JobErrorDetailSchema = z.object({
+  row: z.number().int().nonnegative().optional(),
+  isbn: z.string().optional(),
+  error: z.string()
+}).strict()
+
+/**
+ * Job Results Schema (Pipeline-Agnostic)
+ *
+ * Unified results format for all job types (CSV import, batch enrichment, bookshelf scan).
+ * Returned by GET /api/v2/imports/{jobId}/results.
+ *
+ * **Important for iOS:**
+ * - The `books` array contains FULL canonical book objects
+ * - iOS clients MUST parse this array to save books to SwiftData storage
+ * - This is the source of truth for persisting imported books
+ *
+ * **Field Semantics:**
+ * - `booksCreated` - Total new books added to user library
+ * - `booksUpdated` - Books updated with new metadata (optional, enrichment only)
+ * - `duplicatesSkipped` - Books skipped due to duplicate detection (optional)
+ * - `enrichmentSucceeded` - Books successfully enriched (optional, enrichment only)
+ * - `enrichmentFailed` - Books that failed enrichment (optional, enrichment only)
+ * - `errors` - Array of individual import/enrichment failures
+ * - `books` - Array of CANONICAL book objects (full metadata from providers)
+ */
+export const JobResultsSchema = z.object({
+  booksCreated: z.number().int().nonnegative(),
+  booksUpdated: z.number().int().nonnegative().optional(),
+  duplicatesSkipped: z.number().int().nonnegative().optional(),
+  enrichmentSucceeded: z.number().int().nonnegative().optional(),
+  enrichmentFailed: z.number().int().nonnegative().optional(),
+  errors: z.array(JobErrorDetailSchema),
+  books: z.array(BookSchema) // Full canonical book objects for iOS SwiftData persistence
+}).strict()
+
+/**
+ * Job Results Response Envelope
+ *
+ * Wraps JobResultsSchema in the canonical ResponseEnvelopeSchema
+ */
+export const JobResultsEnvelopeSchema = ResponseEnvelopeSchema(JobResultsSchema)
+
+// ============================================================================
 // TYPE EXPORTS
 // ============================================================================
 
 export type JobResponse = z.infer<typeof JobResponseSchema>
 export type JobStatus = z.infer<typeof JobStatusSchema>
+export type PipelineType = z.infer<typeof PipelineTypeSchema>
+export type JobError = z.infer<typeof JobErrorSchema>
+export type JobState = z.infer<typeof JobStateSchema>
 export type JobProgress = z.infer<typeof JobProgressSchema>
 export type ParsedBook = z.infer<typeof ParsedBookSchema>
 export type CSVImportResults = z.infer<typeof CSVImportResultsSchema>
@@ -196,3 +308,5 @@ export type EnrichedBookResult = z.infer<typeof EnrichedBookResultSchema>
 export type BatchEnrichmentResults = z.infer<typeof BatchEnrichmentResultsSchema>
 export type DetectedBook = z.infer<typeof DetectedBookSchema>
 export type BookshelfScanResults = z.infer<typeof BookshelfScanResultsSchema>
+export type JobErrorDetail = z.infer<typeof JobErrorDetailSchema>
+export type JobResults = z.infer<typeof JobResultsSchema>

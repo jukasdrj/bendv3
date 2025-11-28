@@ -41,6 +41,8 @@ import { analyticsMiddleware } from "./middleware/hono-analytics";
 import { capabilitiesRoute } from "./openapi/routes/capabilities";
 import { searchISBNRoute, searchTitleRoute } from "./openapi/routes/search";
 import { healthRoute } from "./openapi/routes/health";
+import { createImportJobRoute, getImportJobStatusRoute, getImportJobResultsRoute } from "./openapi/routes/imports";
+import { getJobStatusRoute, getScanResultsRoute, getCSVResultsRoute, getCSVStatusRoute } from "./openapi/routes/job";
 import { openAPIConfig } from "./openapi/config";
 import { checkRateLimit } from "./middleware/rate-limiter";
 import { createSuccessResponse, createErrorResponse, ErrorCodes } from "./utils/response-builder";
@@ -912,23 +914,12 @@ app.get("/ws/progress", async (c) => {
 // ============================================================================
 
 // GET /v1/scan/results/{jobId} - Retrieve AI scan results after WebSocket completion
-app.get("/v1/scan/results/:jobId", async (c) => {
-  // Validation: Limit jobId length to prevent abuse (UUIDs are 36 chars)
-  const jobId = c.req.param("jobId")?.substring(0, 100);
+app.openapi(getScanResultsRoute, async (c) => {
+  const { jobId } = c.req.valid('param')
 
-  if (!jobId || jobId.trim().length === 0) {
-    return createErrorResponse(
-      "Missing jobId parameter",
-      400,
-      ErrorCodes.MISSING_PARAMETER,
-      { parameter: "jobId" },
-      c.req.raw
-    );
-  }
-
-  // Retrieve from KV cache (24-hour TTL)
-  const resultsKey = `scan-results:${jobId}`;
-  const results = await c.env.CACHE.get(resultsKey, "json");
+  // Retrieve from KV cache (24-hour TTL for scan results)
+  const resultsKey = `scan-results:${jobId}`
+  const results = await c.env.CACHE.get(resultsKey, "json")
 
   if (!results) {
     return createErrorResponse(
@@ -937,7 +928,7 @@ app.get("/v1/scan/results/:jobId", async (c) => {
       ErrorCodes.NOT_FOUND,
       { jobId, resultsKey, ttl: "24 hours" },
       c.req.raw
-    );
+    )
   }
 
   return createSuccessResponse(
@@ -945,29 +936,23 @@ app.get("/v1/scan/results/:jobId", async (c) => {
     { cached: true, provider: "kv_cache" },
     200,
     c.req.raw
-  );
-});
+  )
+})
 
-// GET /v1/csv/status/{jobId} - Get current CSV import job status (for fallback polling)
-app.get("/v1/csv/status/:jobId", async (c) => {
+// GET /v1/csv/status/{jobId} - OpenAPI v2.1 (Sprint 2, Day 13 Migration)
+app.openapi(getCSVStatusRoute, async (c) => {
+  // Apply rate limiting inline (30 req/min for polling)
+  const rateLimitResponse = await checkRateLimit(c.req.raw, c.env, { limit: 30, window: 60 });
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
-    const jobId = c.req.param("jobId")?.substring(0, 100);
+    const { jobId } = c.req.valid('param')
 
-    if (!jobId || jobId.trim().length === 0) {
-      return createErrorResponse(
-        "Missing jobId parameter",
-        400,
-        ErrorCodes.MISSING_PARAMETER,
-        { parameter: "jobId" },
-        c.req.raw
-      );
-    }
-
-    // Get Durable Object stub for this job
-    const doStub = getProgressDOStub(jobId, c.env);
+    // Get Durable Object stub for this job (legacy ProgressDO)
+    const doStub = getProgressDOStub(jobId, c.env)
 
     // Fetch current job state
-    const state = await doStub.getJobState();
+    const state = await doStub.getJobState()
 
     if (!state) {
       return createErrorResponse(
@@ -976,7 +961,7 @@ app.get("/v1/csv/status/:jobId", async (c) => {
         ErrorCodes.NOT_FOUND,
         { jobId },
         c.req.raw
-      );
+      )
     }
 
     // Return job state in ResponseEnvelope format
@@ -985,35 +970,24 @@ app.get("/v1/csv/status/:jobId", async (c) => {
       { source: "durable-object" },
       200,
       c.req.raw
-    );
+    )
   } catch (error) {
-    console.error("[CSV Status] Error fetching job state:", error);
+    console.error("[CSV Status] Error fetching job state:", error)
     return createErrorResponse(
       `Failed to fetch job status: ${(error as Error).message}`,
       500,
       ErrorCodes.INTERNAL_ERROR,
       { jobId: c.req.param("jobId") },
       c.req.raw
-    );
+    )
   }
 });
 
-// GET /v1/csv/results/{jobId} - Retrieve CSV import results after WebSocket completion
-app.get("/v1/csv/results/:jobId", async (c) => {
-  // Validation: Limit jobId length to prevent abuse (UUIDs are 36 chars)
-  const jobId = c.req.param("jobId")?.substring(0, 100);
+// GET /v1/csv/results/{jobId} - Retrieve CSV import results (OpenAPI v2.1)
+app.openapi(getCSVResultsRoute, async (c) => {
+  const { jobId } = c.req.valid('param');
 
-  if (!jobId || jobId.trim().length === 0) {
-    return createErrorResponse(
-      "Missing jobId parameter",
-      400,
-      ErrorCodes.MISSING_PARAMETER,
-      { parameter: "jobId" },
-      c.req.raw
-    );
-  }
-
-  // Retrieve from KV cache (24-hour TTL)
+  // Retrieve from KV cache (24-hour TTL for CSV results)
   const resultsKey = `csv-results:${jobId}`;
   const results = await c.env.CACHE.get(resultsKey, "json");
 
@@ -1040,22 +1014,16 @@ app.get("/v1/csv/results/:jobId", async (c) => {
 // ============================================================================
 
 // GET /v1/jobs/{jobId}/status - Unified job status polling endpoint (Issue #21)
-// Replaces pipeline-specific status endpoints (/v1/csv/status)
+// OpenAPI route (Sprint 2, Day 12 - OpenAPI Fast Track Migration)
 // Supports: csv_import, batch_enrichment, ai_scan pipelines
 // Rate limited to 30 req/min per IP to prevent polling abuse
-app.get("/v1/jobs/:jobId/status", createRateLimitMiddleware(30), async (c) => {
-  try {
-    const jobId = c.req.param("jobId")?.substring(0, 100);
+app.openapi(getJobStatusRoute, async (c) => {
+  // Apply rate limiting inline (30 req/min for polling)
+  const rateLimitResponse = await checkRateLimit(c.req.raw, c.env, { limit: 30, window: 60 });
+  if (rateLimitResponse) return rateLimitResponse;
 
-    if (!jobId || jobId.trim().length === 0) {
-      return createErrorResponse(
-        "Missing jobId parameter",
-        400,
-        ErrorCodes.MISSING_PARAMETER,
-        { parameter: "jobId" },
-        c.req.raw
-      );
-    }
+  try {
+    const { jobId } = c.req.valid('param')
 
     // Get JobStateManagerDO stub for this job
     const doId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
@@ -1569,24 +1537,22 @@ app.post("/api/v2/books/enrich", rateLimitMiddleware, async (c) => {
   return await handleEnrichBook(c.req.raw, c.env);
 });
 
-// POST /api/v2/imports - CSV import initiation (delegates to existing handler)
-app.post("/api/v2/imports", rateLimitMiddleware, async (c) => {
+// POST /api/v2/imports - CSV import initiation (OpenAPI with rate limiting)
+app.openapi(createImportJobRoute, async (c) => {
+  // Apply rate limiting inline for OpenAPI routes
+  const rateLimitResponse = await checkRateLimit(c.req.raw, c.env);
+  if (rateLimitResponse) return rateLimitResponse;
+
   return await handleCSVImport(c.req.raw, c.env, getCtx(c));
 });
 
-// GET /api/v2/imports/:jobId - Import job status (delegates to unified endpoint)
-app.get("/api/v2/imports/:jobId", createRateLimitMiddleware(30), async (c) => {
-  const jobId = c.req.param("jobId")?.substring(0, 100);
+// GET /api/v2/imports/:jobId - Import job status (OpenAPI with Zod validation)
+app.openapi(getImportJobStatusRoute, async (c) => {
+  // Apply rate limiting inline (30 req/min for polling)
+  const rateLimitResponse = await checkRateLimit(c.req.raw, c.env, { limit: 30, window: 60 });
+  if (rateLimitResponse) return rateLimitResponse;
 
-  if (!jobId || jobId.trim().length === 0) {
-    return createErrorResponse(
-      "Missing jobId parameter",
-      400,
-      ErrorCodes.MISSING_PARAMETER,
-      { parameter: "jobId" },
-      c.req.raw
-    );
-  }
+  const { jobId } = c.req.valid('param');
 
   // Get JobStateManagerDO stub for this job
   const doId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
@@ -1612,6 +1578,7 @@ app.get("/api/v2/imports/:jobId", createRateLimitMiddleware(30), async (c) => {
       progress: state.progress,
       processedCount: state.processedCount,
       totalCount: state.totalCount,
+      ...(state.pipeline && { pipeline: state.pipeline }),
       startTime: state.startTime,
       ...(state.completedTime && { completedTime: state.completedTime }),
       ...(state.error && { error: state.error }),
@@ -1642,52 +1609,42 @@ app.get("/api/v2/imports/:jobId/stream", async (c) => {
   return await handleSSEStream(c.req.raw, c.env, jobId);
 });
 
-// GET /api/v2/imports/:jobId/results - Get import job results (V2 endpoint)
-app.get("/api/v2/imports/:jobId/results", async (c) => {
-  const jobId = c.req.param("jobId")?.substring(0, 100);
-
-  if (!jobId || jobId.trim().length === 0) {
-    return createErrorResponse(
-      "Missing jobId parameter",
-      400,
-      ErrorCodes.MISSING_PARAMETER,
-      { parameter: "jobId" },
-      c.req.raw
-    );
-  }
+// GET /api/v2/imports/{jobId}/results - Get import job results (OpenAPI)
+app.openapi(getImportJobResultsRoute, async (c) => {
+  const { jobId } = c.req.valid('param')
 
   // Try all possible result keys (pipeline-agnostic lookup)
   const resultKeys = [
     `csv-results:${jobId}`,      // csv_import pipeline
     `scan-results:${jobId}`,     // ai_scan pipeline
     `job-results:${jobId}`,      // batch_enrichment pipeline (generic)
-  ];
+  ]
 
   // Try each key in parallel for fastest lookup
   const lookupPromises = resultKeys.map((key) =>
-    c.env.CACHE.get(key, "json").then((result) => ({ key, result }))
-  );
+    c.env.CACHE.get(key, 'json').then((result) => ({ key, result }))
+  )
 
-  const lookups = await Promise.all(lookupPromises);
-  const found = lookups.find((lookup) => lookup.result !== null);
+  const lookups = await Promise.all(lookupPromises)
+  const found = lookups.find((lookup) => lookup.result !== null)
 
   if (!found) {
     return createErrorResponse(
-      "Job results not found or expired. Results are stored for 1 hour after job completion.",
+      'Job results not found or expired. Results are stored for 1 hour after job completion.',
       404,
       ErrorCodes.NOT_FOUND,
-      { jobId, ttl: "1 hour", checkedKeys: resultKeys },
+      { jobId, ttl: '1 hour', checkedKeys: resultKeys },
       c.req.raw
-    );
+    )
   }
 
   return createSuccessResponse(
     found.result,
-    { cached: true, provider: "kv_cache", resourceId: found.key },
+    { cached: true, provider: 'kv_cache', resourceId: found.key },
     200,
     c.req.raw
-  );
-});
+  )
+})
 
 // ============================================================================
 // Global 404 Handler
@@ -1838,6 +1795,9 @@ app.get(
 );
 
 // GET /doc/openapi.json - OpenAPI JSON spec
+// Use the simple app.doc() method with our configuration
 app.doc("/doc/openapi.json", openAPIConfig);
+
+console.log("[OpenAPI] Registered /doc/openapi.json endpoint");
 
 export default app;
