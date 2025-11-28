@@ -1,0 +1,40 @@
+{
+  "name": "@bookstrack/api-client",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for BooksTrack API - Auto-generated from OpenAPI specification",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "generate": "openapi-typescript ../../docs/openapi.yaml -o src/schema.ts",
+    "build": "tsc",
+    "prepublishOnly": "npm run generate && npm run build"
+  },
+  "keywords": [
+    "bookstrack",
+    "api",
+    "sdk",
+    "typescript",
+    "openapi"
+  ],
+  "author": "BooksTrack Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/bendv3.git",
+    "directory": "packages/api-client"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "devDependencies": {
+    "openapi-typescript": "^7.4.3",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.13.3"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}

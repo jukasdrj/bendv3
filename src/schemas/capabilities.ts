@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod'
-import { createResponseEnvelopeSchema } from './common'
+import { ResponseEnvelopeSchema } from './common'
 
 // ============================================================================
 // Feature Capability Schema
@@ -52,7 +52,7 @@ export const CapabilitiesDataSchema = z.object({
 // Full Response Envelope
 // ============================================================================
 
-export const CapabilitiesResponseSchema = createResponseEnvelopeSchema(CapabilitiesDataSchema)
+export const CapabilitiesResponseSchema = ResponseEnvelopeSchema(CapabilitiesDataSchema)
 
 // ============================================================================
 // TypeScript Types (exported for use in handlers)

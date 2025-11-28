@@ -1,0 +1,56 @@
+name: Publish SDK
+
+on:
+  push:
+    branches:
+      - bendv3  # Updated to current main branch
+      - main    # Keep for future when bendv3 is merged
+    paths:
+      - 'docs/openapi.yaml'
+      - 'packages/api-client/**'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@bookstrack'
+
+      - name: Install dependencies
+        working-directory: packages/api-client
+        run: npm ci
+
+      - name: Generate SDK from OpenAPI spec
+        working-directory: packages/api-client
+        run: npm run generate
+
+      - name: Build SDK
+        working-directory: packages/api-client
+        run: npm run build
+
+      - name: Publish to GitHub Packages
+        working-directory: packages/api-client
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create SDK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bookstrack-api-client
+          path: packages/api-client/dist/
+          retention-days: 30

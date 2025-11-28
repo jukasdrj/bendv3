@@ -1,0 +1,133 @@
+name: API Contract Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - bendv3
+    paths:
+      - 'docs/openapi.yaml'
+      - 'src/**/*.ts'
+      - 'src/**/*.js'
+  push:
+    branches:
+      - main
+      - bendv3
+    paths:
+      - 'docs/openapi.yaml'
+
+jobs:
+  detect-breaking-changes:
+    runs-on: ubuntu-latest
+    name: Detect Breaking Changes
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for git comparisons
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check if OpenAPI spec exists
+        id: check_spec
+        run: |
+          if [ -f "docs/openapi.yaml" ]; then
+            echo "spec_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "spec_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Detect breaking changes
+        if: steps.check_spec.outputs.spec_exists == 'true'
+        run: npm run detect-breaking-changes
+        continue-on-error: true
+        id: breaking_changes
+
+      - name: Comment PR with breaking changes (if found)
+        if: steps.breaking_changes.outcome == 'failure' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ⚠️ Breaking Changes Detected
+
+            This PR introduces breaking changes to the API contract.
+
+            **Action Required:**
+            - Review the breaking changes in the workflow logs
+            - Either:
+              1. Bump the major version (e.g., 1.x.x → 2.0.0) in \`docs/openapi.yaml\`
+              2. Revert the breaking changes
+            
+            **What qualifies as a breaking change:**
+            - Removing an endpoint
+            - Removing a required field from a response
+            - Changing a field type (e.g., string → number)
+            - Renaming a field without aliasing
+            - Removing an enum value
+            
+            See the [API Contract Guide](docs/API_CONTRACT.md) for more details.
+            `
+            })
+
+      - name: Fail if breaking changes detected
+        if: steps.breaking_changes.outcome == 'failure'
+        run: |
+          echo "❌ Breaking changes detected. Please review the output above."
+          exit 1
+
+      - name: Skip check if no spec exists
+        if: steps.check_spec.outputs.spec_exists == 'false'
+        run: |
+          echo "⏭️  Skipping breaking change detection (OpenAPI spec not found)"
+          echo "   This is expected before Sprint 1 of the OpenAPI migration"
+          exit 0
+
+  validate-spec:
+    runs-on: ubuntu-latest
+    name: Validate OpenAPI Spec
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check if OpenAPI spec exists
+        id: check_spec
+        run: |
+          if [ -f "docs/openapi.yaml" ]; then
+            echo "spec_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "spec_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate OpenAPI spec format
+        if: steps.check_spec.outputs.spec_exists == 'true'
+        run: npx @stoplight/spectral-cli lint docs/openapi.yaml --ruleset .spectral.yaml
+        continue-on-error: true
+
+      - name: Skip validation if no spec exists
+        if: steps.check_spec.outputs.spec_exists == 'false'
+        run: |
+          echo "⏭️  Skipping OpenAPI validation (spec not found)"
+          echo "   This is expected before Sprint 1 of the OpenAPI migration"
+          exit 0

@@ -1,1 +1,14 @@
 extends: spectral:oas
+rules:
+  # Enforce ResponseEnvelope format
+  operation-success-response: warn
+  info-contact: warn
+  info-description: warn
+  operation-description: warn
+  operation-operationId: warn
+  operation-tags: warn
+
+  # Disable rules that are too strict for our use case or incompatible with OpenAPI 3.1
+  no-$ref-siblings: off
+  openapi-tags: off
+  oas3-schema: off  # Disable - has issues with OpenAPI 3.1 exclusiveMinimum boolean format
