@@ -198,16 +198,21 @@ describe("WebSocketConnectionDO", () => {
       expect(doInstance.readyResolver).toBeNull();
     });
 
-    it("should handle ready message from client", () => {
+    it("should handle ready message from client", async () => {
       doInstance.jobId = "test-123";
       doInstance.readyPromise = new Promise((resolve) => {
         doInstance.readyResolver = resolve;
       });
       doInstance.webSocket = {
         send: vi.fn(),
+        readyState: WebSocket.OPEN,
+      };
+      // Mock storage.get for pipeline
+      doInstance.storage = {
+        get: vi.fn().mockResolvedValue("csv_import"),
       };
 
-      doInstance.handleMessage(JSON.stringify({ type: "ready" }));
+      await doInstance.handleMessage(JSON.stringify({ type: "ready" }));
 
       expect(doInstance.isReady).toBe(true);
       expect(doInstance.webSocket.send).toHaveBeenCalledWith(
@@ -294,6 +299,7 @@ describe("WebSocketConnectionDO", () => {
       doInstance.jobId = "test-123";
       doInstance.webSocket = {
         send: vi.fn(),
+        readyState: WebSocket.OPEN,
       };
 
       const message = { type: "test", data: "hello" };
@@ -353,15 +359,20 @@ describe("WebSocketConnectionDO", () => {
       doInstance.jobId = "test-123";
       doInstance.webSocket = {
         send: vi.fn(),
+        readyState: WebSocket.OPEN,
+      };
+      // Mock storage.get for pipeline
+      doInstance.storage = {
+        get: vi.fn().mockResolvedValue("csv_import"),
       };
     });
 
-    it("should handle ready message and send acknowledgment", () => {
+    it("should handle ready message and send acknowledgment", async () => {
       doInstance.readyPromise = new Promise((resolve) => {
         doInstance.readyResolver = resolve;
       });
 
-      doInstance.handleMessage(JSON.stringify({ type: "ready" }));
+      await doInstance.handleMessage(JSON.stringify({ type: "ready" }));
 
       expect(doInstance.isReady).toBe(true);
       expect(doInstance.webSocket.send).toHaveBeenCalledWith(
