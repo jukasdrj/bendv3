@@ -121,13 +121,20 @@ export class JobStateManagerDO extends DurableObject {
     const wsDoId = this.env.WEBSOCKET_CONNECTION_DO.idFromName(this.jobState.jobId);
     const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
 
+    // WebSocketMessage format (src/types/websocket-messages.ts)
     await wsDoStub.send({
-      type: "progress",
+      type: "job_progress",
       jobId: this.jobState.jobId,
-      pipeline,
+      pipeline: pipeline,
       timestamp: Date.now(),
       version: "2.0.0",
-      payload,
+      payload: {
+        type: "job_progress",
+        progress: payload.progress,
+        status: payload.status || `Processing ${payload.processedCount || 0}/${this.jobState.totalCount}`,
+        processedCount: payload.processedCount,
+        totalCount: this.jobState.totalCount,
+      },
     });
 
     return { success: true };
@@ -166,13 +173,16 @@ export class JobStateManagerDO extends DurableObject {
     const wsDoId = this.env.WEBSOCKET_CONNECTION_DO.idFromName(jobState.jobId);
     const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
 
+    // WebSocketMessage format (src/types/websocket-messages.ts)
     await wsDoStub.send({
-      type: "complete",
+      type: "job_complete",
       jobId: jobState.jobId,
-      pipeline,
+      pipeline: pipeline,
       timestamp: Date.now(),
       version: "2.0.0",
       payload: {
+        type: "job_complete",
+        pipeline: pipeline,
         ...payload,
         expiresAt, // Add expiry timestamp to payload
       },

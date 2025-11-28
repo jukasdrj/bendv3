@@ -625,11 +625,39 @@ This ensures clients that reconnect or connect late still receive results withou
 ```json
 {
   "type": "job_progress",
+  "jobId": "uuid",
+  "pipeline": "batch_enrichment",
+  "timestamp": 1732760000000,
+  "version": "2.0.0",
   "payload": {
-    "jobId": "...",
+    "type": "job_progress",
     "progress": 0.5,
+    "status": "Enriching (50/100): Book Title",
     "processedCount": 50,
     "totalCount": 100
+  }
+}
+```
+
+**Job Complete (Batch Enrichment):**
+```json
+{
+  "type": "job_complete",
+  "jobId": "uuid",
+  "pipeline": "batch_enrichment",
+  "timestamp": 1732760000000,
+  "version": "2.0.0",
+  "payload": {
+    "type": "job_complete",
+    "pipeline": "batch_enrichment",
+    "summary": {
+      "totalProcessed": 100,
+      "successCount": 95,
+      "failureCount": 5,
+      "duration": 12500,
+      "resourceId": "job-results:uuid"
+    },
+    "expiresAt": "2025-11-28T12:00:00.000Z"
   }
 }
 ```

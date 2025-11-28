@@ -234,7 +234,7 @@ export class WebSocketConnectionDO extends DurableObject {
    *
    * @param {string} data - Message data from client
    */
-  handleMessage(data) {
+  async handleMessage(data) {
     console.log(`[${this.jobId}] Received message:`, data);
 
     try {
@@ -267,12 +267,21 @@ export class WebSocketConnectionDO extends DurableObject {
           this.readyResolver = null;
         }
 
-        // Send acknowledgment back to client
+        // Get pipeline from storage for ready_ack message
+        const pipeline = await this.storage.get("pipeline") || "unknown";
+        const now = Date.now();
+
+        // Send acknowledgment back to client (matches hibernation DO format)
         this.send({
           type: "ready_ack",
           jobId: this.jobId,
-          timestamp: Date.now(),
+          pipeline,
+          timestamp: now,
           version: "2.0.0",
+          payload: {
+            type: "ready_ack",
+            timestamp: now,
+          },
         });
       } else {
         console.log(`[${this.jobId}] Unknown message type: ${msg.type}`);
@@ -294,19 +303,36 @@ export class WebSocketConnectionDO extends DurableObject {
    * @param {string} token - Authentication token (UUID)
    * @returns {Promise<{success: boolean}>}
    */
-  async setAuthToken(token) {
+  async setAuthToken(token, pipeline = null) {
     await this.storage.put("authToken", token);
     // Tokens expire after 2 hours
     await this.storage.put(
       "authTokenExpiration",
       Date.now() + 2 * 60 * 60 * 1000,
     );
+    // Store pipeline for ready_ack message (if provided)
+    if (pipeline) {
+      await this.storage.put("pipeline", pipeline);
+    }
     // SECURITY FIX (#212): Reset consumed flag when new token is issued
     // This allows legitimate reconnections with fresh tokens
     await this.storage.delete("authTokenConsumed");
     console.log(
       `[${this.jobId || "unknown"}] Auth token set (expires in 2 hours, one-time use)`,
     );
+    return { success: true };
+  }
+
+  /**
+   * RPC Method: Set pipeline type for this job
+   * Called by handlers to set the pipeline type for ready_ack messages
+   *
+   * @param {string} pipeline - Pipeline type (batch_enrichment, csv_import, ai_scan)
+   * @returns {Promise<{success: boolean}>}
+   */
+  async setPipeline(pipeline) {
+    await this.storage.put("pipeline", pipeline);
+    console.log(`[${this.jobId || "unknown"}] Pipeline set to: ${pipeline}`);
     return { success: true };
   }
 

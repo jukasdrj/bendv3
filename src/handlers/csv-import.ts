@@ -88,8 +88,8 @@ export async function handleCSVImport(request, env, ctx) {
       const stateDoId = env.JOB_STATE_MANAGER_DO.idFromName(jobId);
       const stateDoStub = env.JOB_STATE_MANAGER_DO.get(stateDoId);
 
-      // Set authentication token and initialize job state
-      await wsDoStub.setAuthToken(authToken);
+      // Set authentication token (with pipeline) and initialize job state
+      await wsDoStub.setAuthToken(authToken, "csv_import");
       await stateDoStub.initializeJobState(jobId, "csv_import", 0);
 
       console.log(`[CSV Import] Using new architecture for job ${jobId}`);
