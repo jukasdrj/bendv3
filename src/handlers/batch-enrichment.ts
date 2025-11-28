@@ -18,7 +18,7 @@ import type {
   EnrichmentJobInitResponse,
   EnrichedBookDTO,
 } from "../types/responses.js";
-import { getProgressDOStub } from "../utils/durable-object-helpers.js";
+import { ProgressReporter } from "../utils/progress-reporter.js";
 
 /**
  * Handle batch enrichment request (POST /api/enrichment/batch)
@@ -136,21 +136,31 @@ export async function handleBatchEnrichment(request, env, ctx) {
       if (book.isbn) book.isbn = book.isbn.trim();
     }
 
-    // Get WebSocket DO stub (supports hibernation API migration via Issue #221)
-    const doStub = getProgressDOStub(jobId, env);
+    // Get Durable Object stubs (refactored architecture)
+    // WebSocketConnectionDO: handles auth tokens and WebSocket broadcasts
+    // JobStateManagerDO: handles job state persistence
+    const wsDoId = env.WEBSOCKET_CONNECTION_DO.idFromName(jobId);
+    const wsDoStub = env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
+
+    const stateDoId = env.JOB_STATE_MANAGER_DO.idFromName(jobId);
+    const stateDoStub = env.JOB_STATE_MANAGER_DO.get(stateDoId);
 
     // Generate and store auth token for WebSocket authentication
+    // Also set pipeline type for ready_ack message
     const authToken = crypto.randomUUID();
-    await doStub.setAuthToken(authToken);
+    await wsDoStub.setAuthToken(authToken, "batch_enrichment");
 
     console.log(`[Batch Enrichment] Auth token generated for job ${jobId}`);
 
     // Initialize job state for batch enrichment (CRITICAL: Must be done BEFORE returning response)
     // This sets currentPipeline so ready_ack messages will have the correct pipeline field
-    await doStub.initializeJobState("batch_enrichment", books.length);
+    await stateDoStub.initializeJobState(jobId, "batch_enrichment", books.length);
+
+    // Create ProgressReporter for background processing
+    const reporter = new ProgressReporter(jobId, env);
 
     // Start background enrichment
-    ctx.waitUntil(processBatchEnrichment(books, doStub, env, jobId));
+    ctx.waitUntil(processBatchEnrichment(books, reporter, env, jobId));
 
     // Return typed EnrichmentJobInitResponse
     // iOS expects: { jobId: String, success: Bool, processedCount: Int, totalCount: Int, token: String }
@@ -179,11 +189,11 @@ export async function handleBatchEnrichment(request, env, ctx) {
  * Background processor for batch enrichment
  *
  * @param {Array<Object>} books - Books to enrich (title, author, isbn)
- * @param {Object} doStub - ProgressWebSocketDO stub
+ * @param {ProgressReporter} reporter - Progress reporter for DO communication
  * @param {Object} env - Worker environment bindings
  * @param {string} jobId - The client-provided job identifier
  */
-async function processBatchEnrichment(books, doStub, env, jobId) {
+async function processBatchEnrichment(books, reporter, env, jobId) {
   const startTime = Date.now();
   try {
     // Reuse existing enrichBooksParallel() logic
@@ -230,8 +240,8 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
           ? `Enriching (${completed}/${total}): ${title} [failed]`
           : `Enriching (${completed}/${total}): ${title}`;
 
-        // Call DO with pipeline and payload (DO constructs the message envelope)
-        await doStub.updateProgress("batch_enrichment", {
+        // Use ProgressReporter to update progress (routes to JobStateManagerDO)
+        await reporter.updateProgress("batch_enrichment", {
           progress,
           status,
           processedCount: completed,
@@ -255,8 +265,8 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
       { expirationTtl: 7200 }, // 2 hours (matches token expiry)
     );
 
-    // Send summary-only payload to DO (mobile-optimized)
-    await doStub.complete("batch_enrichment", {
+    // Send completion via ProgressReporter (routes to JobStateManagerDO)
+    await reporter.complete("batch_enrichment", {
       summary: {
         totalProcessed,
         successCount,
@@ -266,8 +276,8 @@ async function processBatchEnrichment(books, doStub, env, jobId) {
       },
     });
   } catch (error) {
-    // Call sendError on DO (DO constructs the error message)
-    await doStub.sendError("batch_enrichment", {
+    // Send error via ProgressReporter (routes to JobStateManagerDO)
+    await reporter.sendError("batch_enrichment", {
       code: "E_BATCH_PROCESSING_FAILED",
       message: error.message,
       retryable: true,

@@ -67,6 +67,10 @@ describe('JobStateManagerDO', () => {
       // Mock alarm scheduling
     });
 
+    mockState.storage.deleteAlarm = vi.fn(async () => {
+      // Mock alarm deletion (Issue #108)
+    });
+
     // Mock environment with WebSocket DO binding
     mockEnv = {
       WEBSOCKET_CONNECTION_DO: {
@@ -142,12 +146,21 @@ describe('JobStateManagerDO', () => {
       const result = await doInstance.updateProgress('csv_import', payload);
 
       expect(result.success).toBe(true);
+      // WebSocketMessage format (src/types/websocket-messages.ts)
       expect(mockWsStub.send).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: 'progress',
+          type: 'job_progress',
           jobId: 'job-123',
           pipeline: 'csv_import',
-          payload
+          timestamp: expect.any(Number),
+          version: '2.0.0',
+          payload: expect.objectContaining({
+            type: 'job_progress',
+            progress: 0.5,
+            status: 'Processing...',
+            processedCount: 50,
+            totalCount: 100
+          })
         })
       );
     });
@@ -252,10 +265,20 @@ describe('JobStateManagerDO', () => {
     it('should notify WebSocket DO on completion', async () => {
       await doInstance.complete('csv_import', { books: [] });
 
+      // WebSocketMessage format (src/types/websocket-messages.ts)
       expect(mockWsStub.send).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: 'complete',
-          pipeline: 'csv_import'
+          type: 'job_complete',
+          jobId: 'job-123',
+          pipeline: 'csv_import',
+          timestamp: expect.any(Number),
+          version: '2.0.0',
+          payload: expect.objectContaining({
+            type: 'job_complete',
+            pipeline: 'csv_import',
+            books: [],
+            expiresAt: expect.any(String)
+          })
         })
       );
     });

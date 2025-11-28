@@ -16,7 +16,7 @@
     "update-wrangler": "npm install wrangler@latest"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20251127.0",
+    "@cloudflare/workers-types": "^4.20251128.0",
     "@vitest/coverage-v8": "^4.0.14",
     "@vitest/ui": "^4.0.14",
     "msw": "^2.12.3",
