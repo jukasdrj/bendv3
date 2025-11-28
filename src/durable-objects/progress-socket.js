@@ -333,6 +333,41 @@ export class ProgressWebSocketDO extends DurableObject {
     this.webSocket.accept();
     const acceptDuration = Date.now() - acceptStartTime;
 
+    // FIX (Issue #103): Check for stored completion EARLY, before handler registration
+    // If job already completed, send the completion message immediately and close
+    const storedCompletion = await this.storage.get("completionPayload");
+    if (storedCompletion) {
+      console.log(
+        `[${jobId}] ✅ Job already complete - sending stored completion to late client`,
+      );
+      this.webSocket.send(JSON.stringify(storedCompletion));
+
+      // Close connection after brief delay to ensure message delivery
+      setTimeout(() => {
+        if (this.webSocket) {
+          this.webSocket.close(
+            WebSocketCloseCodes.NORMAL_CLOSURE,
+            "Job already complete",
+          );
+          this.cleanup();
+        }
+      }, 500);
+
+      // Return early with the response - client got what they needed
+      // API Contract compliance (Issue #240): Add X-Response-Format header
+      const responseHeaders = getCorsHeaders(request);
+      if (tokenSource === "subprotocol") {
+        responseHeaders["Sec-WebSocket-Protocol"] = wsProtocol;
+      }
+      responseHeaders["X-Response-Format"] = "v2.0";
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+        headers: responseHeaders,
+      });
+    }
+
     // Initialize ready promise
     this.readyPromise = new Promise((resolve) => {
       this.readyResolver = resolve;
@@ -515,34 +550,6 @@ export class ProgressWebSocketDO extends DurableObject {
     }
     // API Contract compliance (Issue #240): Add X-Response-Format header
     responseHeaders["X-Response-Format"] = "v2.0";
-
-    // FIX (Shelf Scan Plan - Issue 1.2): Check for stored completion on ANY connect
-    // If job already completed, send the completion message immediately and close
-    const storedCompletion = await this.storage.get("completionPayload");
-    if (storedCompletion) {
-      console.log(
-        `[${jobId}] ✅ Job already complete - sending stored completion to late client`,
-      );
-      this.webSocket.send(JSON.stringify(storedCompletion));
-
-      // Close connection after brief delay to ensure message delivery
-      setTimeout(() => {
-        if (this.webSocket) {
-          this.webSocket.close(
-            WebSocketCloseCodes.NORMAL_CLOSURE,
-            "Job already complete",
-          );
-          this.cleanup();
-        }
-      }, 500);
-
-      // Return the response - client got what they needed
-      return new Response(null, {
-        status: 101,
-        webSocket: client,
-        headers: responseHeaders,
-      });
-    }
 
     // RECONNECTION SUPPORT: Send current job state to reconnected client
     if (isReconnect) {
@@ -1426,8 +1433,11 @@ export class ProgressWebSocketDO extends DurableObject {
 
     // FIX: Persist completion payload FIRST for late WebSocket connects
     // This ensures clients that connect after job completes still get the result
-    await this.storage.put("completionPayload", message);
-    console.log(`[${this.jobId}] Completion payload persisted for late connects`);
+    // FIX (Issue #105): Add 2-hour TTL to match token expiry
+    await this.storage.put("completionPayload", message, {
+      expirationTtl: 7200, // 2 hours in seconds
+    });
+    console.log(`[${this.jobId}] Completion payload persisted for late connects (2h TTL)`);
 
     // If WebSocket is connected, send immediately
     if (this.webSocket) {

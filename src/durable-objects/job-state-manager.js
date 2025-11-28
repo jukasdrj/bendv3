@@ -33,6 +33,7 @@ export class JobStateManagerDO extends DurableObject {
     this.updatesSinceLastPersist = 0;
     this.lastPersistTime = 0;
     this.currentPipeline = null;
+    this.jobState = null; // Fix Issue #107: Cache jobState to prevent state loss
   }
 
   /**
@@ -76,19 +77,22 @@ export class JobStateManagerDO extends DurableObject {
    * @returns {Promise<{success: boolean}>}
    */
   async updateProgress(pipeline, payload) {
-    const jobState = await this.storage.get("jobState");
+    // Fix Issue #107: Use cached state instead of reading from storage each time
+    if (!this.jobState) {
+      this.jobState = await this.storage.get("jobState");
+    }
 
-    if (!jobState) {
+    if (!this.jobState) {
       console.warn("[JobStateManager] No job state found for progress update");
       return { success: false };
     }
 
-    // Update state
-    const updatedState = {
-      ...jobState,
-      progress: payload.progress ?? jobState.progress,
-      status: payload.status ?? jobState.status,
-      processedCount: payload.processedCount ?? jobState.processedCount,
+    // Update cached state (not storage read)
+    this.jobState = {
+      ...this.jobState,
+      progress: payload.progress ?? this.jobState.progress,
+      status: payload.status ?? this.jobState.status,
+      processedCount: payload.processedCount ?? this.jobState.processedCount,
       lastUpdateTime: Date.now(),
     };
 
@@ -105,21 +109,21 @@ export class JobStateManagerDO extends DurableObject {
       timeSinceLastPersist >= throttleConfig.timeSeconds;
 
     if (shouldPersist) {
-      await this.storage.put("jobState", updatedState);
+      await this.storage.put("jobState", this.jobState);
       this.updatesSinceLastPersist = 0;
       this.lastPersistTime = Date.now();
       console.log(
-        `[JobStateManager] State persisted for job ${jobState.jobId}`,
+        `[JobStateManager] State persisted for job ${this.jobState.jobId}`,
       );
     }
 
     // Get WebSocket DO and notify
-    const wsDoId = this.env.WEBSOCKET_CONNECTION_DO.idFromName(jobState.jobId);
+    const wsDoId = this.env.WEBSOCKET_CONNECTION_DO.idFromName(this.jobState.jobId);
     const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
 
     await wsDoStub.send({
       type: "progress",
-      jobId: jobState.jobId,
+      jobId: this.jobState.jobId,
       pipeline,
       timestamp: Date.now(),
       version: "2.0.0",
@@ -174,6 +178,8 @@ export class JobStateManagerDO extends DurableObject {
       },
     });
 
+    // Fix Issue #108: Delete existing alarm to prevent race condition
+    await this.storage.deleteAlarm();
     // Schedule cleanup after 24 hours
     await this.storage.setAlarm(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -249,6 +255,8 @@ export class JobStateManagerDO extends DurableObject {
       },
     });
 
+    // Fix Issue #108: Delete existing alarm to prevent race condition
+    await this.storage.deleteAlarm();
     // Schedule cleanup after 24 hours
     await this.storage.setAlarm(Date.now() + 24 * 60 * 60 * 1000);
 
