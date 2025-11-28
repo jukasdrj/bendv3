@@ -117,13 +117,17 @@ export async function handleCSVImport(request, env, ctx) {
       console.log(`[CSV Import] Using legacy architecture for job ${jobId}`);
     }
 
-    // Return typed CSVImportInitResponse
-    const initResponse: CSVImportInitResponse = {
+    // FIX: Return the response documented in the V2 API contract, which prefers SSE.
+    // This aligns the implementation with the documentation and expected client behavior.
+    // Contract reference: docs/API_CONTRACT.md §7.1
+    const responseData = {
       jobId,
-      token: authToken, // WebSocket authentication token
+      authToken,
+      sseUrl: `/api/v2/imports/${jobId}/stream`,
+      statusUrl: `/api/v2/imports/${jobId}`,
     };
 
-    return createSuccessResponse(initResponse, {}, 202);
+    return createSuccessResponse(responseData, {}, 202);
   } catch (error) {
     console.error("[CSV Import] Error:", error);
     console.error("[CSV Import] Stack trace:", error.stack);

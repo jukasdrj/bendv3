@@ -208,10 +208,14 @@ export async function handleBatchScan(request, env, ctx) {
     // Process batch asynchronously (don't await)
     ctx.waitUntil(processBatchPhotos(jobId, processedImages, env, doStub));
 
-    // Return accepted response immediately with auth token (BookshelfScanInitResponse)
+    // FIX: Return the response documented in the API contract (§7.6)
+    // Contract says: "Same async job format as CSV import (section 7.1)"
+    // This aligns the implementation with the documentation and expected client behavior.
     const initResponse: BookshelfScanInitResponse = {
       jobId,
-      token: authToken, // WebSocket authentication token
+      authToken,
+      sseUrl: `/api/v2/imports/${jobId}/stream`, // Reuse CSV import SSE endpoint
+      statusUrl: `/api/v2/imports/${jobId}`,     // Reuse CSV import status endpoint
       totalPhotos: photoFiles.length,
       status: "processing",
     };

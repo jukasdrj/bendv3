@@ -580,6 +580,8 @@ The `retryAfterMs` field indicates when the client can retry enrichment.
 
 ## 8. WebSocket API
 
+**DEPRECATION NOTICE:** WebSocket progress updates are supported for legacy job types (e.g., `batch_enrichment`) but are considered deprecated. All new integrations, and especially all V2 jobs like CSV Import (§7.1) and Photo Scan (§7.6), **MUST** use the SSE Progress Stream (§7.2) for real-time updates. This WebSocket API may be removed in a future version.
+
 ### 8.1 Connection
 
 **Secure Method (Recommended):**
