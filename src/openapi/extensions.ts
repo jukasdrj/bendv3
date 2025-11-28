@@ -165,23 +165,10 @@ export function createExtensions(options: {
   version?: VersionExtension
   notes?: NotesExtension
 }): OpenAPIExtensions {
-  const extensions: OpenAPIExtensions = {}
-
-  if (options.rateLimit) {
-    extensions['x-rateLimit'] = options.rateLimit
+  return {
+    ...(options.rateLimit && { 'x-rateLimit': options.rateLimit }),
+    ...(options.feature && { 'x-feature': options.feature }),
+    ...(options.version && { 'x-version': options.version }),
+    ...(options.notes && { 'x-notes': options.notes }),
   }
-
-  if (options.feature) {
-    extensions['x-feature'] = options.feature
-  }
-
-  if (options.version) {
-    extensions['x-version'] = options.version
-  }
-
-  if (options.notes) {
-    extensions['x-notes'] = options.notes
-  }
-
-  return extensions
 }

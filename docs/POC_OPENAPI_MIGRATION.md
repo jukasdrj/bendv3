@@ -224,7 +224,7 @@ None! The migration was successful with zero breaking changes.
 
 ## References
 
-- **Migration Plan:** `/Users/juju/dev_repos/bendv3/OPENAPI_MIGRATION_PLAN.md`
+- **Migration Plan:** `../OPENAPI_MIGRATION_PLAN.md`
 - **Handler:** `src/handlers/v2/capabilities.ts` (unchanged)
 - **Router:** `src/router.ts` (modified)
 - **Schemas:** `src/schemas/` (new)

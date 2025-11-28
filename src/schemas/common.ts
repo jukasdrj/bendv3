@@ -59,13 +59,6 @@ export const ResponseEnvelopeSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
     metadata: ResponseMetadataSchema.optional()
   }).strict()
 
-/**
- * Helper function for creating typed ResponseEnvelope schemas
- * (Alternative to direct function call)
- */
-export function createResponseEnvelopeSchema<T extends z.ZodTypeAny>(dataSchema: T) {
-  return ResponseEnvelopeSchema(dataSchema)
-}
 
 // ============================================================================
 // ERROR RESPONSE SCHEMAS
@@ -102,7 +95,7 @@ export const ErrorObjectSchema = z.object({
     'TIMEOUT'
   ]),
   message: z.string(),
-  details: z.record(z.string(), z.any()).optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
   retryable: z.boolean().optional(),
   retryAfterMs: z.number().min(0).optional(),
   provider: z.string().optional()
@@ -140,32 +133,7 @@ export const ErrorResponseSchema = z.object({
   error: ErrorObjectSchema
 }).strict()
 
-/**
- * Helper function for creating error response schemas
- */
-export function createErrorResponseSchema() {
-  return ErrorResponseSchema
-}
 
-// ============================================================================
-// COMMON ERROR CODES ENUM (for documentation)
-// ============================================================================
-
-/**
- * Error Code Enum (for OpenAPI documentation)
- * @deprecated Use ErrorObjectSchema.shape.code instead
- */
-export const ErrorCodeEnum = z.enum([
-  'INVALID_REQUEST',
-  'MISSING_PARAMETER',
-  'INVALID_ISBN',
-  'NOT_FOUND',
-  'UNAUTHORIZED',
-  'RATE_LIMIT_EXCEEDED',
-  'CIRCUIT_OPEN',
-  'API_ERROR',
-  'INTERNAL_ERROR',
-])
 
 // ============================================================================
 // TYPE EXPORTS
