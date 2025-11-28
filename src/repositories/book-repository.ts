@@ -71,6 +71,7 @@ export class BookRepository {
     const startTime = Date.now()
     let d1WriteTime = 0
     let kvWriteTime = 0
+    let d1Success = false
 
     // Step 1: Write to D1 FIRST (primary, durable store)
     // FIX (Shelf Scan Plan - Issue 3.1): D1 first ensures durability before caching
@@ -79,6 +80,7 @@ export class BookRepository {
 
       try {
         await this.saveToD1(book)
+        d1Success = true
         d1WriteTime = Date.now() - d1StartTime
 
         console.log(`[BookRepository] ✅ Saved to D1 (primary): ${book.isbn} (${d1WriteTime}ms)`)
@@ -112,7 +114,7 @@ export class BookRepository {
     console.log(`[BookRepository] ✅ Saved to KV (cache): ${book.isbn} (${kvWriteTime}ms)`)
 
     // Emit success metrics if D1 write also succeeded
-    if (this.env.ENABLE_D1_WRITES === 'true' && d1WriteTime > 0) {
+    if (this.env.ENABLE_D1_WRITES === 'true' && d1Success) {
       this.emitDualWriteMetrics({
         isbn: book.isbn,
         kvWriteTime,

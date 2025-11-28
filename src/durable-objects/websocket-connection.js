@@ -455,6 +455,14 @@ export class WebSocketConnectionDO extends DurableObject {
       );
       // Track send failure (Issue #36)
       this.metrics.messageSendFailures++;
+
+      // Alert if we've had multiple failures (Issue #109)
+      if (this.metrics.messageSendFailures >= 3) {
+        console.warn(
+          `[WebSocket ${this.jobId}] Message send failures: ${this.metrics.messageSendFailures}`,
+        );
+      }
+
       return { success: false };
     }
 
@@ -465,6 +473,14 @@ export class WebSocketConnectionDO extends DurableObject {
       console.error(`[${this.jobId}] Failed to send message:`, error);
       // Track send failure (Issue #36)
       this.metrics.messageSendFailures++;
+
+      // Alert if we've had multiple failures (Issue #109)
+      if (this.metrics.messageSendFailures >= 3) {
+        console.warn(
+          `[WebSocket ${this.jobId}] Message send failures: ${this.metrics.messageSendFailures}`,
+        );
+      }
+
       return { success: false };
     }
   }
