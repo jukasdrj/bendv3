@@ -39,6 +39,8 @@ import { handleV2Search, handleWeeklyRecommendations, handleCapabilities, handle
 import { getProgressDOStub } from "./utils/durable-object-helpers";
 import { analyticsMiddleware } from "./middleware/hono-analytics";
 import { capabilitiesRoute } from "./openapi/routes/capabilities";
+import { searchISBNRoute, searchTitleRoute } from "./openapi/routes/search";
+import { healthRoute } from "./openapi/routes/health";
 import { openAPIConfig } from "./openapi/config";
 import { checkRateLimit } from "./middleware/rate-limiter";
 import { createSuccessResponse, createErrorResponse, ErrorCodes } from "./utils/response-builder";
@@ -98,11 +100,15 @@ app.use(
 );
 
 // ============================================================================
-// MVP Route 1: Health Check (Baseline Test)
+// MVP Route 1: Health Check (OpenAPI Migration - Sprint 1, Day 5)
 // ============================================================================
-app.get("/health", (c) => {
-  // Note: Health endpoint uses ResponseEnvelope format for consistency (Issue #240)
-  const response = new Response(JSON.stringify({
+// MIGRATED TO OPENAPI: Sprint 1, Day 5 - Simple health check endpoint
+// Uses Zod schemas for automatic validation and OpenAPI spec generation
+app.openapi(healthRoute, (c) => {
+  // Query params are validated by Zod schema (HealthQuerySchema)
+  // No query parameters needed for health check
+
+  return c.json({
     data: {
       status: "ok",
       worker: "api-worker",
@@ -112,62 +118,38 @@ app.get("/health", (c) => {
     metadata: {
       timestamp: new Date().toISOString(),
     },
-  }), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Response-Format": "v2.0",
-    },
-  });
-
-  return response;
+  }, 200);
 });
 
 // ============================================================================
-// MVP Route 2: ISBN Search (Full Stack Integration Test)
+// MVP Route 2: ISBN Search (OpenAPI Migration - Sprint 1, Day 3)
 // ============================================================================
-app.get("/v1/search/isbn", async (c) => {
-  const isbn = c.req.query("isbn");
+// MIGRATED TO OPENAPI: Sprint 1, Day 3 - First critical endpoint
+// Uses Zod schemas for automatic validation and OpenAPI spec generation
+app.openapi(searchISBNRoute, async (c) => {
+  // Query params are validated by Zod schema (SearchISBNQuerySchema)
+  const { isbn } = c.req.valid('query');
 
-  // Validation: ISBN format (10 or 13 digits, hyphens allowed)
-  const isbnRegex = /^(?=(?:\D*\d){10}(?:(?:\D*\d){3})?$)[\d-]+$/;
-
-  if (!isbn || !isbnRegex.test(isbn)) {
-    return createErrorResponse(
-      "A valid ISBN-10 or ISBN-13 is required",
-      400,
-      ErrorCodes.INVALID_ISBN,
-      { parameter: "isbn", provided: isbn || null },
-      c.req.raw
-    );
-  }
-
+  // Call existing handler with validated params
   return await handleSearchISBN(isbn, c.env, c.req.raw, c.executionCtx);
 });
 
 // ============================================================================
-// V1 Search API - Additional Routes (Week 1 Migration)
+// MVP Route 3: Title Search (OpenAPI Migration - Sprint 1, Day 4)
 // ============================================================================
+// MIGRATED TO OPENAPI: Sprint 1, Day 4 - Second critical search endpoint
+// Uses Zod schemas for automatic validation and OpenAPI spec generation
+app.openapi(searchTitleRoute, async (c) => {
+  // Query params are validated by Zod schema (SearchTitleQuerySchema)
+  const { q: query } = c.req.valid('query');
 
-// GET /v1/search/title - Search books by title
-app.get("/v1/search/title", async (c) => {
-  const rawQuery = c.req.query("q");
-
-  // Validation: Limit length to prevent DoS and ensure data quality
-  const query = rawQuery?.substring(0, 200);
-
-  if (!query || query.trim().length === 0) {
-    return createErrorResponse(
-      'Query parameter "q" is required (max 200 characters)',
-      400,
-      ErrorCodes.MISSING_PARAMETER,
-      { parameter: "q" },
-      c.req.raw
-    );
-  }
-
+  // Call existing handler with validated params
   return await handleSearchTitle(query, c.env, c.req.raw);
 });
+
+// ============================================================================
+// V1 Search API - Additional Routes (Future Migration)
+// ============================================================================
 
 // GET /v1/search/advanced - Advanced search by title and/or author
 app.get("/v1/search/advanced", async (c) => {

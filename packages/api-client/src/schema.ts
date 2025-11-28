@@ -12,10 +12,80 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Health check
-         * @description Returns API health status
+         * Health check endpoint
+         * @description Simple health check that returns worker status.
+         *
+         *     Returns basic worker information for monitoring purposes:
+         *     - **status**: Health status indicator (always "ok" when responding)
+         *     - **worker**: Worker service name
+         *     - **version**: API version
+         *     - **router**: Router framework type
+         *
+         *     **Example:** `GET /health`
+         *
+         *     This endpoint is publicly accessible and requires no authentication.
+         *     Use it for:
+         *     - Monitoring and uptime checks
+         *     - Load balancer health gates
+         *     - CI/CD pipeline verification
          */
-        get: operations["getHealth"];
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Health check successful */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": {
+                         *         "status": "ok",
+                         *         "worker": "api-worker",
+                         *         "version": "2.1.0",
+                         *         "router": "hono"
+                         *       },
+                         *       "metadata": {
+                         *         "timestamp": "2025-11-28T12:00:00.000Z"
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: {
+                                /**
+                                 * @description Health status indicator
+                                 * @enum {string}
+                                 */
+                                status: "ok";
+                                /** @description Worker service name */
+                                worker: string;
+                                /** @description API version */
+                                version: string;
+                                /**
+                                 * @description Router framework
+                                 * @enum {string}
+                                 */
+                                router: "hono";
+                            };
+                            metadata?: {
+                                /**
+                                 * Format: date-time
+                                 * @description ISO 8601 timestamp
+                                 */
+                                timestamp: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -32,10 +102,506 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Search by ISBN
-         * @description Search for a book by ISBN-10 or ISBN-13
+         * Search for a book by ISBN
+         * @description Search for a book by ISBN-10 or ISBN-13 (digits only, no hyphens).
+         *
+         *     Returns comprehensive book data including:
+         *     - Works: Abstract creative works (title, description, subjects)
+         *     - Editions: Physical/digital editions (publisher, publication date, format)
+         *     - Authors: Author biographical data (name, gender, cultural region)
+         *
+         *     **Example:** `GET /v1/search/isbn?isbn=9780439708180`
+         *
+         *     **Multi-Provider Orchestration:**
+         *     1. BookRepository (KV/D1 cache) - fastest
+         *     2. Google Books API - primary source
+         *     3. OpenLibrary API - fallback #1
+         *     4. ISBNdb API - fallback #2
+         *
+         *     **Cache TTL:** 24 hours (KV), permanent (D1)
+         *
+         *     **Rate Limits:**
+         *     - 100 requests/minute per IP
+         *     - 1000 requests/hour per IP
+         *
+         *     **Circuit Breaker Protection:**
+         *     All external providers are protected by circuit breakers.
+         *     If a provider's circuit is OPEN, the request fails fast with `CIRCUIT_OPEN` error.
          */
-        get: operations["searchByISBN"];
+        get: {
+            parameters: {
+                query: {
+                    /** @description ISBN-10 or ISBN-13 (digits only, no hyphens) */
+                    isbn: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Book found successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": {
+                         *         "works": [
+                         *           {
+                         *             "title": "Harry Potter and the Philosopher's Stone",
+                         *             "subjectTags": [
+                         *               "magic",
+                         *               "wizards",
+                         *               "fantasy"
+                         *             ],
+                         *             "firstPublicationYear": 1997,
+                         *             "description": "Harry Potter has never even heard of Hogwarts...",
+                         *             "coverImageURL": "https://covers.openlibrary.org/b/id/12345-L.jpg",
+                         *             "primaryProvider": "google_books",
+                         *             "goodreadsWorkIDs": [
+                         *               "OL82563W"
+                         *             ],
+                         *             "amazonASINs": [
+                         *               "B0192CTMYG"
+                         *             ],
+                         *             "librarythingIDs": [],
+                         *             "googleBooksVolumeIDs": [
+                         *               "wrOQLV6xB-wC"
+                         *             ],
+                         *             "isbndbQuality": 95,
+                         *             "reviewStatus": "verified",
+                         *             "synthetic": false
+                         *           }
+                         *         ],
+                         *         "editions": [
+                         *           {
+                         *             "isbns": [
+                         *               "9780439708180",
+                         *               "0439708184"
+                         *             ],
+                         *             "title": "Harry Potter and the Philosopher's Stone",
+                         *             "publisher": "Scholastic Inc.",
+                         *             "publicationDate": "1999-09-01",
+                         *             "pageCount": 309,
+                         *             "format": "paperback",
+                         *             "coverImageURL": "https://covers.openlibrary.org/b/isbn/9780439708180-L.jpg",
+                         *             "primaryProvider": "google_books",
+                         *             "amazonASINs": [
+                         *               "0439708184"
+                         *             ],
+                         *             "googleBooksVolumeIDs": [
+                         *               "wrOQLV6xB-wC"
+                         *             ],
+                         *             "librarythingIDs": [],
+                         *             "isbndbQuality": 95
+                         *           }
+                         *         ],
+                         *         "authors": [
+                         *           {
+                         *             "name": "J.K. Rowling",
+                         *             "gender": "female",
+                         *             "culturalRegion": "europe",
+                         *             "nationality": "British",
+                         *             "birthYear": 1965,
+                         *             "openLibraryID": "OL23919A",
+                         *             "bookCount": 42
+                         *           }
+                         *         ],
+                         *         "resultCount": 1
+                         *       },
+                         *       "metadata": {
+                         *         "timestamp": "2025-11-28T12:00:00.000Z",
+                         *         "processingTime": 145,
+                         *         "provider": "google_books",
+                         *         "cached": true
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: {
+                                works: {
+                                    title: string;
+                                    subjectTags: string[];
+                                    originalLanguage?: string;
+                                    firstPublicationYear?: number;
+                                    description?: string;
+                                    /** Format: uri */
+                                    coverImageURL?: string;
+                                    synthetic?: boolean;
+                                    /** @enum {string} */
+                                    primaryProvider?: "google_books" | "open_library" | "isbndb" | "kv_cache";
+                                    contributors?: ("google_books" | "open_library" | "isbndb" | "kv_cache")[];
+                                    openLibraryID?: string;
+                                    openLibraryWorkID?: string;
+                                    isbndbID?: string;
+                                    googleBooksVolumeID?: string;
+                                    goodreadsID?: string;
+                                    goodreadsWorkIDs: string[];
+                                    amazonASINs: string[];
+                                    librarythingIDs: string[];
+                                    googleBooksVolumeIDs: string[];
+                                    /** Format: date-time */
+                                    lastISBNDBSync?: string;
+                                    isbndbQuality: number;
+                                    /** @enum {string} */
+                                    reviewStatus: "unverified" | "verified" | "rejected" | "flagged";
+                                    originalImagePath?: string;
+                                    boundingBox?: {
+                                        x: number;
+                                        y: number;
+                                        width: number;
+                                        height: number;
+                                    };
+                                }[];
+                                editions: {
+                                    isbn?: string;
+                                    isbns: string[];
+                                    title?: string;
+                                    publisher?: string;
+                                    publicationDate?: string;
+                                    pageCount?: number;
+                                    /** @enum {string} */
+                                    format: "hardcover" | "paperback" | "ebook" | "audiobook" | "mass_market" | "board_book" | "unknown";
+                                    /** Format: uri */
+                                    coverImageURL?: string;
+                                    editionTitle?: string;
+                                    editionDescription?: string;
+                                    language?: string;
+                                    /** @enum {string} */
+                                    primaryProvider?: "google_books" | "open_library" | "isbndb" | "kv_cache";
+                                    contributors?: ("google_books" | "open_library" | "isbndb" | "kv_cache")[];
+                                    openLibraryID?: string;
+                                    openLibraryEditionID?: string;
+                                    isbndbID?: string;
+                                    googleBooksVolumeID?: string;
+                                    goodreadsID?: string;
+                                    amazonASINs: string[];
+                                    googleBooksVolumeIDs: string[];
+                                    librarythingIDs: string[];
+                                    /** Format: date-time */
+                                    lastISBNDBSync?: string;
+                                    isbndbQuality: number;
+                                }[];
+                                authors: {
+                                    name: string;
+                                    /** @enum {string} */
+                                    gender: "male" | "female" | "non_binary" | "unknown";
+                                    /** @enum {string} */
+                                    culturalRegion?: "north_america" | "latin_america" | "europe" | "asia" | "africa" | "middle_east" | "oceania" | "unknown";
+                                    nationality?: string;
+                                    birthYear?: number;
+                                    deathYear?: number;
+                                    openLibraryID?: string;
+                                    isbndbID?: string;
+                                    googleBooksID?: string;
+                                    goodreadsID?: string;
+                                    bookCount?: number;
+                                }[];
+                                resultCount: number;
+                            };
+                            metadata?: {
+                                /** Format: date-time */
+                                timestamp: string;
+                                processingTime?: number;
+                                /** @enum {string} */
+                                provider?: "google_books" | "open_library" | "isbndb" | "kv_cache" | "d1_database" | "none";
+                                cached?: boolean;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid ISBN format */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": null,
+                         *       "metadata": {
+                         *         "timestamp": "2025-11-28T12:00:00.000Z"
+                         *       },
+                         *       "error": {
+                         *         "code": "INVALID_ISBN",
+                         *         "message": "Invalid ISBN format. Must be valid ISBN-10 or ISBN-13",
+                         *         "details": {
+                         *           "isbn": "invalid-isbn"
+                         *         }
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: unknown;
+                            metadata?: {
+                                /** Format: date-time */
+                                timestamp: string;
+                                cached?: boolean;
+                                /** @enum {string} */
+                                source?: "google_books" | "open_library" | "isbndb" | "kv_cache" | "d1_database" | "vectorize";
+                            };
+                            error: {
+                                /** @enum {string} */
+                                code: "NOT_FOUND" | "INVALID_REQUEST" | "INVALID_ISBN" | "INVALID_QUERY" | "MISSING_PARAMETER" | "UNAUTHORIZED" | "FORBIDDEN" | "INTERNAL_ERROR" | "API_ERROR" | "NETWORK_ERROR" | "RATE_LIMIT_EXCEEDED" | "CIRCUIT_OPEN" | "PROVIDER_ERROR" | "TIMEOUT";
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                                retryable?: boolean;
+                                retryAfterMs?: number;
+                                provider?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Book not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": {
+                         *         "works": [],
+                         *         "editions": [],
+                         *         "authors": [],
+                         *         "resultCount": 0
+                         *       },
+                         *       "metadata": {
+                         *         "timestamp": "2025-11-28T12:00:00.000Z",
+                         *         "processingTime": 523,
+                         *         "provider": "none",
+                         *         "cached": false
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: {
+                                works: {
+                                    title: string;
+                                    subjectTags: string[];
+                                    originalLanguage?: string;
+                                    firstPublicationYear?: number;
+                                    description?: string;
+                                    /** Format: uri */
+                                    coverImageURL?: string;
+                                    synthetic?: boolean;
+                                    /** @enum {string} */
+                                    primaryProvider?: "google_books" | "open_library" | "isbndb" | "kv_cache";
+                                    contributors?: ("google_books" | "open_library" | "isbndb" | "kv_cache")[];
+                                    openLibraryID?: string;
+                                    openLibraryWorkID?: string;
+                                    isbndbID?: string;
+                                    googleBooksVolumeID?: string;
+                                    goodreadsID?: string;
+                                    goodreadsWorkIDs: string[];
+                                    amazonASINs: string[];
+                                    librarythingIDs: string[];
+                                    googleBooksVolumeIDs: string[];
+                                    /** Format: date-time */
+                                    lastISBNDBSync?: string;
+                                    isbndbQuality: number;
+                                    /** @enum {string} */
+                                    reviewStatus: "unverified" | "verified" | "rejected" | "flagged";
+                                    originalImagePath?: string;
+                                    boundingBox?: {
+                                        x: number;
+                                        y: number;
+                                        width: number;
+                                        height: number;
+                                    };
+                                }[];
+                                editions: {
+                                    isbn?: string;
+                                    isbns: string[];
+                                    title?: string;
+                                    publisher?: string;
+                                    publicationDate?: string;
+                                    pageCount?: number;
+                                    /** @enum {string} */
+                                    format: "hardcover" | "paperback" | "ebook" | "audiobook" | "mass_market" | "board_book" | "unknown";
+                                    /** Format: uri */
+                                    coverImageURL?: string;
+                                    editionTitle?: string;
+                                    editionDescription?: string;
+                                    language?: string;
+                                    /** @enum {string} */
+                                    primaryProvider?: "google_books" | "open_library" | "isbndb" | "kv_cache";
+                                    contributors?: ("google_books" | "open_library" | "isbndb" | "kv_cache")[];
+                                    openLibraryID?: string;
+                                    openLibraryEditionID?: string;
+                                    isbndbID?: string;
+                                    googleBooksVolumeID?: string;
+                                    goodreadsID?: string;
+                                    amazonASINs: string[];
+                                    googleBooksVolumeIDs: string[];
+                                    librarythingIDs: string[];
+                                    /** Format: date-time */
+                                    lastISBNDBSync?: string;
+                                    isbndbQuality: number;
+                                }[];
+                                authors: {
+                                    name: string;
+                                    /** @enum {string} */
+                                    gender: "male" | "female" | "non_binary" | "unknown";
+                                    /** @enum {string} */
+                                    culturalRegion?: "north_america" | "latin_america" | "europe" | "asia" | "africa" | "middle_east" | "oceania" | "unknown";
+                                    nationality?: string;
+                                    birthYear?: number;
+                                    deathYear?: number;
+                                    openLibraryID?: string;
+                                    isbndbID?: string;
+                                    googleBooksID?: string;
+                                    goodreadsID?: string;
+                                    bookCount?: number;
+                                }[];
+                                resultCount: number;
+                            };
+                            metadata?: {
+                                /** Format: date-time */
+                                timestamp: string;
+                                processingTime?: number;
+                                /** @enum {string} */
+                                provider?: "google_books" | "open_library" | "isbndb" | "kv_cache" | "d1_database" | "none";
+                                cached?: boolean;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": null,
+                         *       "metadata": {
+                         *         "timestamp": "2025-11-28T12:00:00.000Z"
+                         *       },
+                         *       "error": {
+                         *         "code": "RATE_LIMIT_EXCEEDED",
+                         *         "message": "Rate limit exceeded. Maximum 100 requests per minute.",
+                         *         "retryable": true,
+                         *         "retryAfterMs": 60000
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: unknown;
+                            metadata?: {
+                                /** Format: date-time */
+                                timestamp: string;
+                                cached?: boolean;
+                                /** @enum {string} */
+                                source?: "google_books" | "open_library" | "isbndb" | "kv_cache" | "d1_database" | "vectorize";
+                            };
+                            error: {
+                                /** @enum {string} */
+                                code: "NOT_FOUND" | "INVALID_REQUEST" | "INVALID_ISBN" | "INVALID_QUERY" | "MISSING_PARAMETER" | "UNAUTHORIZED" | "FORBIDDEN" | "INTERNAL_ERROR" | "API_ERROR" | "NETWORK_ERROR" | "RATE_LIMIT_EXCEEDED" | "CIRCUIT_OPEN" | "PROVIDER_ERROR" | "TIMEOUT";
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                                retryable?: boolean;
+                                retryAfterMs?: number;
+                                provider?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": null,
+                         *       "metadata": {
+                         *         "timestamp": "2025-11-28T12:00:00.000Z"
+                         *       },
+                         *       "error": {
+                         *         "code": "INTERNAL_ERROR",
+                         *         "message": "An unexpected error occurred while processing the request"
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: unknown;
+                            metadata?: {
+                                /** Format: date-time */
+                                timestamp: string;
+                                cached?: boolean;
+                                /** @enum {string} */
+                                source?: "google_books" | "open_library" | "isbndb" | "kv_cache" | "d1_database" | "vectorize";
+                            };
+                            error: {
+                                /** @enum {string} */
+                                code: "NOT_FOUND" | "INVALID_REQUEST" | "INVALID_ISBN" | "INVALID_QUERY" | "MISSING_PARAMETER" | "UNAUTHORIZED" | "FORBIDDEN" | "INTERNAL_ERROR" | "API_ERROR" | "NETWORK_ERROR" | "RATE_LIMIT_EXCEEDED" | "CIRCUIT_OPEN" | "PROVIDER_ERROR" | "TIMEOUT";
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                                retryable?: boolean;
+                                retryAfterMs?: number;
+                                provider?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Circuit breaker open - provider unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": null,
+                         *       "metadata": {
+                         *         "timestamp": "2025-11-28T12:00:00.000Z"
+                         *       },
+                         *       "error": {
+                         *         "code": "CIRCUIT_OPEN",
+                         *         "message": "Provider google-books circuit breaker is open. Service temporarily unavailable.",
+                         *         "provider": "google-books",
+                         *         "retryable": true,
+                         *         "retryAfterMs": 45000
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: unknown;
+                            metadata?: {
+                                /** Format: date-time */
+                                timestamp: string;
+                                cached?: boolean;
+                                /** @enum {string} */
+                                source?: "google_books" | "open_library" | "isbndb" | "kv_cache" | "d1_database" | "vectorize";
+                            };
+                            error: {
+                                /** @enum {string} */
+                                code: "NOT_FOUND" | "INVALID_REQUEST" | "INVALID_ISBN" | "INVALID_QUERY" | "MISSING_PARAMETER" | "UNAUTHORIZED" | "FORBIDDEN" | "INTERNAL_ERROR" | "API_ERROR" | "NETWORK_ERROR" | "RATE_LIMIT_EXCEEDED" | "CIRCUIT_OPEN" | "PROVIDER_ERROR" | "TIMEOUT";
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                                retryable?: boolean;
+                                retryAfterMs?: number;
+                                provider?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -52,10 +618,477 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Search by title
-         * @description Search for books by title
+         * Search for books by title
+         * @description Search for books by title using multi-provider orchestration.
+         *
+         *     Returns up to 20 results by default, each including:
+         *     - Works: Abstract creative works (title, description, subjects)
+         *     - Editions: Physical/digital editions (publisher, publication date, format)
+         *     - Authors: Author biographical data (name, gender, cultural region)
+         *
+         *     **Example:** `GET /v1/search/title?q=harry%20potter&limit=10`
+         *
+         *     **Multi-Provider Orchestration:**
+         *     1. OpenLibrary API - primary source for title searches
+         *     2. Author enrichment from Wikidata (cultural diversity data)
+         *     3. No caching (freshness important for search results)
+         *
+         *     **Query Parameters:**
+         *     - `q` (required): Search query string (1-200 characters)
+         *     - `limit` (optional): Maximum number of results (1-100, default: 20)
+         *
+         *     **Rate Limits:**
+         *     - 100 requests/minute per IP
+         *     - 1000 requests/hour per IP
+         *
+         *     **Author Enrichment:**
+         *     All author results are enriched with cultural and biographical data from Wikidata.
          */
-        get: operations["searchByTitle"];
+        get: {
+            parameters: {
+                query: {
+                    /** @description Book title search query */
+                    q: string;
+                    /** @description Maximum number of results (1-100, default: 20) */
+                    limit?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Books found successfully (may be empty if no matches) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": {
+                         *         "works": [
+                         *           {
+                         *             "title": "Harry Potter and the Philosopher's Stone",
+                         *             "subjectTags": [
+                         *               "magic",
+                         *               "wizards",
+                         *               "fantasy",
+                         *               "adventure"
+                         *             ],
+                         *             "firstPublicationYear": 1997,
+                         *             "description": "Harry Potter has never even heard of Hogwarts...",
+                         *             "coverImageURL": "https://covers.openlibrary.org/b/id/12345-L.jpg",
+                         *             "primaryProvider": "open_library",
+                         *             "goodreadsWorkIDs": [
+                         *               "OL82563W"
+                         *             ],
+                         *             "amazonASINs": [
+                         *               "B0192CTMYG"
+                         *             ],
+                         *             "librarythingIDs": [],
+                         *             "googleBooksVolumeIDs": [],
+                         *             "isbndbQuality": 85,
+                         *             "reviewStatus": "verified",
+                         *             "synthetic": false
+                         *           },
+                         *           {
+                         *             "title": "Harry Potter and the Chamber of Secrets",
+                         *             "subjectTags": [
+                         *               "magic",
+                         *               "wizards",
+                         *               "fantasy"
+                         *             ],
+                         *             "firstPublicationYear": 1998,
+                         *             "description": "The summer after his first year at Hogwarts...",
+                         *             "coverImageURL": "https://covers.openlibrary.org/b/id/12346-L.jpg",
+                         *             "primaryProvider": "open_library",
+                         *             "goodreadsWorkIDs": [
+                         *               "OL82563W"
+                         *             ],
+                         *             "amazonASINs": [
+                         *               "B0192CTNYH"
+                         *             ],
+                         *             "librarythingIDs": [],
+                         *             "googleBooksVolumeIDs": [],
+                         *             "isbndbQuality": 85,
+                         *             "reviewStatus": "verified",
+                         *             "synthetic": false
+                         *           }
+                         *         ],
+                         *         "editions": [
+                         *           {
+                         *             "isbns": [
+                         *               "9780439708180",
+                         *               "0439708184"
+                         *             ],
+                         *             "title": "Harry Potter and the Philosopher's Stone",
+                         *             "publisher": "Scholastic Inc.",
+                         *             "publicationDate": "1999-09-01",
+                         *             "pageCount": 309,
+                         *             "format": "paperback",
+                         *             "coverImageURL": "https://covers.openlibrary.org/b/isbn/9780439708180-L.jpg",
+                         *             "primaryProvider": "open_library",
+                         *             "amazonASINs": [
+                         *               "0439708184"
+                         *             ],
+                         *             "googleBooksVolumeIDs": [],
+                         *             "librarythingIDs": [],
+                         *             "isbndbQuality": 85
+                         *           }
+                         *         ],
+                         *         "authors": [
+                         *           {
+                         *             "name": "J.K. Rowling",
+                         *             "gender": "female",
+                         *             "culturalRegion": "europe",
+                         *             "nationality": "British",
+                         *             "birthYear": 1965,
+                         *             "openLibraryID": "OL23919A",
+                         *             "bookCount": 42
+                         *           }
+                         *         ],
+                         *         "resultCount": 2
+                         *       },
+                         *       "metadata": {
+                         *         "timestamp": "2025-11-28T12:00:00.000Z",
+                         *         "processingTime": 1205,
+                         *         "provider": "open_library",
+                         *         "cached": false
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: {
+                                works: {
+                                    title: string;
+                                    subjectTags: string[];
+                                    originalLanguage?: string;
+                                    firstPublicationYear?: number;
+                                    description?: string;
+                                    /** Format: uri */
+                                    coverImageURL?: string;
+                                    synthetic?: boolean;
+                                    /** @enum {string} */
+                                    primaryProvider?: "google_books" | "open_library" | "isbndb" | "kv_cache";
+                                    contributors?: ("google_books" | "open_library" | "isbndb" | "kv_cache")[];
+                                    openLibraryID?: string;
+                                    openLibraryWorkID?: string;
+                                    isbndbID?: string;
+                                    googleBooksVolumeID?: string;
+                                    goodreadsID?: string;
+                                    goodreadsWorkIDs: string[];
+                                    amazonASINs: string[];
+                                    librarythingIDs: string[];
+                                    googleBooksVolumeIDs: string[];
+                                    /** Format: date-time */
+                                    lastISBNDBSync?: string;
+                                    isbndbQuality: number;
+                                    /** @enum {string} */
+                                    reviewStatus: "unverified" | "verified" | "rejected" | "flagged";
+                                    originalImagePath?: string;
+                                    boundingBox?: {
+                                        x: number;
+                                        y: number;
+                                        width: number;
+                                        height: number;
+                                    };
+                                }[];
+                                editions: {
+                                    isbn?: string;
+                                    isbns: string[];
+                                    title?: string;
+                                    publisher?: string;
+                                    publicationDate?: string;
+                                    pageCount?: number;
+                                    /** @enum {string} */
+                                    format: "hardcover" | "paperback" | "ebook" | "audiobook" | "mass_market" | "board_book" | "unknown";
+                                    /** Format: uri */
+                                    coverImageURL?: string;
+                                    editionTitle?: string;
+                                    editionDescription?: string;
+                                    language?: string;
+                                    /** @enum {string} */
+                                    primaryProvider?: "google_books" | "open_library" | "isbndb" | "kv_cache";
+                                    contributors?: ("google_books" | "open_library" | "isbndb" | "kv_cache")[];
+                                    openLibraryID?: string;
+                                    openLibraryEditionID?: string;
+                                    isbndbID?: string;
+                                    googleBooksVolumeID?: string;
+                                    goodreadsID?: string;
+                                    amazonASINs: string[];
+                                    googleBooksVolumeIDs: string[];
+                                    librarythingIDs: string[];
+                                    /** Format: date-time */
+                                    lastISBNDBSync?: string;
+                                    isbndbQuality: number;
+                                }[];
+                                authors: {
+                                    name: string;
+                                    /** @enum {string} */
+                                    gender: "male" | "female" | "non_binary" | "unknown";
+                                    /** @enum {string} */
+                                    culturalRegion?: "north_america" | "latin_america" | "europe" | "asia" | "africa" | "middle_east" | "oceania" | "unknown";
+                                    nationality?: string;
+                                    birthYear?: number;
+                                    deathYear?: number;
+                                    openLibraryID?: string;
+                                    isbndbID?: string;
+                                    googleBooksID?: string;
+                                    goodreadsID?: string;
+                                    bookCount?: number;
+                                }[];
+                                resultCount: number;
+                            };
+                            metadata?: {
+                                /** Format: date-time */
+                                timestamp: string;
+                                processingTime?: number;
+                                /** @enum {string} */
+                                provider?: "google_books" | "open_library" | "isbndb" | "kv_cache" | "d1_database" | "none";
+                                cached?: boolean;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid query parameters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": null,
+                         *       "metadata": {
+                         *         "timestamp": "2025-11-28T12:00:00.000Z"
+                         *       },
+                         *       "error": {
+                         *         "code": "INVALID_QUERY",
+                         *         "message": "Search query is required and must be 1-200 characters",
+                         *         "details": {
+                         *           "parameter": "q"
+                         *         }
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: unknown;
+                            metadata?: {
+                                /** Format: date-time */
+                                timestamp: string;
+                                cached?: boolean;
+                                /** @enum {string} */
+                                source?: "google_books" | "open_library" | "isbndb" | "kv_cache" | "d1_database" | "vectorize";
+                            };
+                            error: {
+                                /** @enum {string} */
+                                code: "NOT_FOUND" | "INVALID_REQUEST" | "INVALID_ISBN" | "INVALID_QUERY" | "MISSING_PARAMETER" | "UNAUTHORIZED" | "FORBIDDEN" | "INTERNAL_ERROR" | "API_ERROR" | "NETWORK_ERROR" | "RATE_LIMIT_EXCEEDED" | "CIRCUIT_OPEN" | "PROVIDER_ERROR" | "TIMEOUT";
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                                retryable?: boolean;
+                                retryAfterMs?: number;
+                                provider?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": null,
+                         *       "metadata": {
+                         *         "timestamp": "2025-11-28T12:00:00.000Z"
+                         *       },
+                         *       "error": {
+                         *         "code": "RATE_LIMIT_EXCEEDED",
+                         *         "message": "Rate limit exceeded. Maximum 100 requests per minute.",
+                         *         "retryable": true,
+                         *         "retryAfterMs": 60000
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: unknown;
+                            metadata?: {
+                                /** Format: date-time */
+                                timestamp: string;
+                                cached?: boolean;
+                                /** @enum {string} */
+                                source?: "google_books" | "open_library" | "isbndb" | "kv_cache" | "d1_database" | "vectorize";
+                            };
+                            error: {
+                                /** @enum {string} */
+                                code: "NOT_FOUND" | "INVALID_REQUEST" | "INVALID_ISBN" | "INVALID_QUERY" | "MISSING_PARAMETER" | "UNAUTHORIZED" | "FORBIDDEN" | "INTERNAL_ERROR" | "API_ERROR" | "NETWORK_ERROR" | "RATE_LIMIT_EXCEEDED" | "CIRCUIT_OPEN" | "PROVIDER_ERROR" | "TIMEOUT";
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                                retryable?: boolean;
+                                retryAfterMs?: number;
+                                provider?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": null,
+                         *       "metadata": {
+                         *         "timestamp": "2025-11-28T12:00:00.000Z"
+                         *       },
+                         *       "error": {
+                         *         "code": "INTERNAL_ERROR",
+                         *         "message": "An unexpected error occurred while processing the request"
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: unknown;
+                            metadata?: {
+                                /** Format: date-time */
+                                timestamp: string;
+                                cached?: boolean;
+                                /** @enum {string} */
+                                source?: "google_books" | "open_library" | "isbndb" | "kv_cache" | "d1_database" | "vectorize";
+                            };
+                            error: {
+                                /** @enum {string} */
+                                code: "NOT_FOUND" | "INVALID_REQUEST" | "INVALID_ISBN" | "INVALID_QUERY" | "MISSING_PARAMETER" | "UNAUTHORIZED" | "FORBIDDEN" | "INTERNAL_ERROR" | "API_ERROR" | "NETWORK_ERROR" | "RATE_LIMIT_EXCEEDED" | "CIRCUIT_OPEN" | "PROVIDER_ERROR" | "TIMEOUT";
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                                retryable?: boolean;
+                                retryAfterMs?: number;
+                                provider?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get API capabilities and feature availability
+         * @description Returns comprehensive feature availability and configuration.
+         *     Clients should call this on app startup to discover available features.
+         *
+         *     **Use Cases:**
+         *     - Feature discovery (check which endpoints are available)
+         *     - Version compatibility (check API version)
+         *     - Rate limit awareness (know limits before hitting them)
+         *     - Deprecation notices (prepare for sunset endpoints)
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description API capabilities retrieved successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                apiVersion: string;
+                                features: {
+                                    name: string;
+                                    enabled: boolean;
+                                    version: string;
+                                    endpoints: string[];
+                                    rateLimit?: {
+                                        requests: number;
+                                        windowMs: number;
+                                    };
+                                    notes?: string;
+                                }[];
+                                limits: {
+                                    maxBatchSize: number;
+                                    maxCsvRows: number;
+                                    maxImageSizeMb: number;
+                                    maxConcurrentJobs: number;
+                                };
+                                deprecations: {
+                                    endpoint: string;
+                                    sunsetDate: string;
+                                    replacement: string;
+                                }[];
+                            };
+                            metadata?: {
+                                /** Format: date-time */
+                                timestamp: string;
+                                cached?: boolean;
+                                /** @enum {string} */
+                                source?: "google_books" | "open_library" | "isbndb" | "kv_cache" | "d1_database" | "vectorize";
+                            };
+                        };
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: unknown;
+                            metadata?: {
+                                /** Format: date-time */
+                                timestamp: string;
+                                cached?: boolean;
+                                /** @enum {string} */
+                                source?: "google_books" | "open_library" | "isbndb" | "kv_cache" | "d1_database" | "vectorize";
+                            };
+                            error: {
+                                /** @enum {string} */
+                                code: "NOT_FOUND" | "INVALID_REQUEST" | "INVALID_ISBN" | "INVALID_QUERY" | "MISSING_PARAMETER" | "UNAUTHORIZED" | "FORBIDDEN" | "INTERNAL_ERROR" | "API_ERROR" | "NETWORK_ERROR" | "RATE_LIMIT_EXCEEDED" | "CIRCUIT_OPEN" | "PROVIDER_ERROR" | "TIMEOUT";
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                                retryable?: boolean;
+                                retryAfterMs?: number;
+                                provider?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -67,70 +1100,7 @@ export interface paths {
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        /** @description Canonical API response format */
-        ResponseEnvelope: {
-            /** @enum {boolean} */
-            success: true;
-            data: components["schemas"]["Book"];
-            metadata: {
-                /**
-                 * @description Data source provider
-                 * @enum {string}
-                 */
-                source: "google_books" | "open_library" | "isbndb";
-                /** @description Whether result was served from cache */
-                cached: boolean;
-                /**
-                 * Format: date-time
-                 * @description Response timestamp
-                 */
-                timestamp: string;
-            };
-        };
-        /** @description Canonical book metadata object */
-        Book: {
-            /** @description ISBN-13 (primary identifier) */
-            isbn: string;
-            /** @description Book title */
-            title: string;
-            /** @description Primary author name */
-            author?: string;
-            /** @description Publisher name */
-            publisher?: string;
-            /** @description Publication date (YYYY-MM-DD or YYYY) */
-            publishedDate?: string;
-            /** @description Number of pages */
-            pageCount?: number;
-            /**
-             * Format: uri
-             * @description Cover image URL
-             */
-            coverUrl?: string;
-            /** @description Book description/synopsis */
-            description?: string;
-        };
-        /** @description Error response format */
-        ErrorResponse: {
-            /** @enum {boolean} */
-            success: false;
-            error: {
-                /**
-                 * @description Machine-readable error code
-                 * @enum {string}
-                 */
-                code: "MISSING_ISBN" | "INVALID_ISBN" | "NOT_FOUND" | "RATE_LIMIT_EXCEEDED" | "CIRCUIT_OPEN" | "API_ERROR" | "INTERNAL_ERROR";
-                /** @description Human-readable error message */
-                message: string;
-                /** @description HTTP status code */
-                statusCode: number;
-                /** @description Whether the request can be retried */
-                retryable?: boolean;
-                /** @description Milliseconds to wait before retry (if retryable) */
-                retryAfterMs?: number;
-            };
-        };
-    };
+    schemas: never;
     responses: never;
     parameters: never;
     requestBodies: never;
@@ -138,98 +1108,4 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export interface operations {
-    getHealth: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description API is healthy */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @enum {string} */
-                        status: "ok";
-                        /** Format: date-time */
-                        timestamp: string;
-                    };
-                };
-            };
-        };
-    };
-    searchByISBN: {
-        parameters: {
-            query: {
-                /** @description ISBN-10 or ISBN-13 (digits only, no hyphens) */
-                isbn: string;
-                /** @description Include all editions of the book */
-                includeEditions?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Book found */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResponseEnvelope"];
-                };
-            };
-            /** @description Invalid ISBN format */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Book not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    searchByTitle: {
-        parameters: {
-            query: {
-                /** @description Book title search query */
-                q: string;
-                /** @description Maximum number of results */
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Search results */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResponseEnvelope"];
-                };
-            };
-        };
-    };
-}
+export type operations = Record<string, never>;

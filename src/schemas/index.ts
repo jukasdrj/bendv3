@@ -66,5 +66,41 @@ export {
   type BookshelfScanResults
 } from './job.js'
 
+// Search endpoint schemas (Sprint 1, Day 3-4 - OpenAPI Migration)
+export {
+  SearchISBNQuerySchema,
+  SearchTitleQuerySchema,
+  SearchISBNDataSchema,
+  SearchTitleDataSchema,
+  SearchResponseMetadataSchema,
+  SearchISBNSuccessResponseSchema,
+  SearchTitleSuccessResponseSchema,
+  SearchISBNResponseSchema,
+  SearchTitleResponseSchema,
+  type SearchISBNQuery,
+  type SearchTitleQuery,
+  type SearchISBNData,
+  type SearchTitleData,
+  type SearchResponseMetadata,
+  type SearchISBNSuccessResponse,
+  type SearchTitleSuccessResponse,
+  type SearchISBNResponse,
+  type SearchTitleResponse
+} from './search.js'
+
 // Capabilities endpoint schemas (Phase 1 POC)
 export * from './capabilities.js'
+
+// Health endpoint schemas (Sprint 1, Day 5 - OpenAPI Migration)
+export {
+  HealthQuerySchema,
+  HealthDataSchema,
+  HealthResponseMetadataSchema,
+  HealthSuccessResponseSchema,
+  HealthResponseSchema,
+  type HealthQuery,
+  type HealthData,
+  type HealthResponseMetadata,
+  type HealthSuccessResponse,
+  type HealthResponse
+} from './health.js'
