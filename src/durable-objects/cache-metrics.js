@@ -1,3 +1,5 @@
+import { DurableObject } from "cloudflare:workers";
+
 /**
  * CacheMetricsDO - Durable Object for aggregating cache performance metrics
  *
@@ -15,8 +17,9 @@ const CHURN_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 const ALARM_INTERVAL_MS = 60 * 1000; // 1 minute
 const STATE_PERSIST_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
-export class CacheMetricsDO {
+export class CacheMetricsDO extends DurableObject {
   constructor(state, env) {
+    super(state, env);
     this.state = state;
     this.env = env;
     this.stats = this.initializeStats();
