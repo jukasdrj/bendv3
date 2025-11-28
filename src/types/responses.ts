@@ -217,11 +217,13 @@ export interface BookshelfScanResponse {
 
 /**
  * Bookshelf Scan Initialization Response
- * Used by: POST /api/scan-bookshelf/batch
+ * Used by: POST /api/scan-bookshelf/batch, POST /api/batch-scan
  */
 export interface BookshelfScanInitResponse {
   jobId: string;
-  token: string; // WebSocket authentication token
+  authToken: string; // SSE authentication token (canonical field)
+  sseUrl: string; // SSE endpoint for real-time progress updates
+  statusUrl: string; // HTTP polling endpoint for job status
   totalPhotos: number;
   status: "started" | "processing";
 }
@@ -272,11 +274,13 @@ export interface DetectedBookDTO {
 
 /**
  * CSV Import Initialization Response
- * Used by: POST /api/import/csv-gemini
+ * Used by: POST /api/import/csv-gemini, POST /api/v2/imports
  */
 export interface CSVImportInitResponse {
   jobId: string;
-  token: string; // WebSocket authentication token
+  authToken: string; // WebSocket/SSE authentication token (canonical field)
+  sseUrl: string; // SSE endpoint for real-time progress updates
+  statusUrl: string; // HTTP polling endpoint for job status
 }
 
 /**

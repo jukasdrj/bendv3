@@ -211,6 +211,7 @@ export async function handleBatchScan(request, env, ctx) {
     // FIX: Return the response documented in the API contract (§7.6)
     // Contract says: "Same async job format as CSV import (section 7.1)"
     // This aligns the implementation with the documentation and expected client behavior.
+    // Type annotation ensures compile-time verification of response structure
     const initResponse: BookshelfScanInitResponse = {
       jobId,
       authToken,

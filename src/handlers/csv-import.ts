@@ -120,7 +120,7 @@ export async function handleCSVImport(request, env, ctx) {
     // FIX: Return the response documented in the V2 API contract, which prefers SSE.
     // This aligns the implementation with the documentation and expected client behavior.
     // Contract reference: docs/API_CONTRACT.md §7.1
-    const responseData = {
+    const responseData: CSVImportInitResponse = {
       jobId,
       authToken,
       sseUrl: `/api/v2/imports/${jobId}/stream`,
