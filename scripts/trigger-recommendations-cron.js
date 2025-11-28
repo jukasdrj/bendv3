@@ -16,7 +16,7 @@ async function triggerRecommendationsCron() {
   // In production, these would be provided by Cloudflare Workers runtime
   const env = {
     DB: null, // Will use fallback if D1 not available
-    KV_CACHE: null, // Will skip caching if not available
+    CACHE: null, // Will skip caching if not available
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   }
 

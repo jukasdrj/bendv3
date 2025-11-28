@@ -18,6 +18,26 @@
 
 export class CacheKeyFactory {
   /**
+   * Normalize text for consistent cache keys
+   *
+   * Applies Unicode NFC (Canonical Composition) normalization to prevent
+   * cache key duplication for Unicode variations of the same text.
+   *
+   * Example: "café" can be represented as:
+   * - Composed: é = U+00E9
+   * - Decomposed: e + ́ = U+0065 + U+0301
+   *
+   * Without normalization, these create different cache keys but represent
+   * the same query, leading to cache inefficiency.
+   *
+   * @param {string} text - Text to normalize
+   * @returns {string} Normalized text (NFC, lowercase, trimmed)
+   */
+  static normalizeText(text) {
+    return text.toLowerCase().trim().normalize('NFC')
+  }
+
+  /**
    * Generate cache key for author search
    *
    * This matches the pattern used in author-search.js for consistency
@@ -38,8 +58,8 @@ export class CacheKeyFactory {
       sortBy = "publicationYear",
     } = params;
 
-    // Normalize query (lowercase, trim)
-    const normalizedQuery = query.toLowerCase().trim();
+    // Normalize query (lowercase, trim, Unicode NFC)
+    const normalizedQuery = this.normalizeText(query);
 
     // Base64 encode query with URL-safe characters
     const queryB64 = btoa(normalizedQuery).replace(/[/+=]/g, "_");
@@ -83,8 +103,8 @@ export class CacheKeyFactory {
    * @returns {string} Cache key in format: search:title:maxresults={n}&title={normalizedTitle}
    */
   static bookTitle(title, maxResults = 20) {
-    // Normalize title (lowercase, trim)
-    const normalizedTitle = title.toLowerCase().trim();
+    // Normalize title (lowercase, trim, Unicode NFC)
+    const normalizedTitle = this.normalizeText(title);
 
     // Use alphabetically sorted params for consistency
     return `search:title:maxresults=${maxResults}&title=${normalizedTitle}`;

@@ -303,7 +303,7 @@ export async function enrichAuthorWithWikidata(
 ): Promise<WikidataAuthorData | null> {
   // Check KV cache first (7-day TTL - author metadata is stable)
   const cacheKey = `wikidata:author:${authorName.toLowerCase()}`;
-  const cached = await env.KV_CACHE?.get(cacheKey, "json");
+  const cached = await env.CACHE?.get(cacheKey, "json");
 
   if (cached) {
     console.log(`[Wikidata] Cache HIT for "${authorName}"`);
@@ -315,7 +315,7 @@ export async function enrichAuthorWithWikidata(
   if (!entityId) {
     // Cache negative result (author not found)
     const notFoundResult: WikidataAuthorData = { gender: "Unknown" };
-    await env.KV_CACHE?.put(cacheKey, JSON.stringify(notFoundResult), {
+    await env.CACHE?.put(cacheKey, JSON.stringify(notFoundResult), {
       expirationTtl: 604800, // 7 days
     });
     return notFoundResult;
@@ -356,7 +356,7 @@ export async function enrichAuthorWithWikidata(
   console.log(`[Wikidata] Enriched "${authorName}":`, result);
 
   // Cache result for 7 days
-  await env.KV_CACHE?.put(cacheKey, JSON.stringify(result), {
+  await env.CACHE?.put(cacheKey, JSON.stringify(result), {
     expirationTtl: 604800, // 7 days
   });
 

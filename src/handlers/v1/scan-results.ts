@@ -79,7 +79,7 @@ export async function handleScanResults(
   try {
     // Retrieve from KV with metadata (to get expiration timestamp)
     const resultsKey = `scan-results:${jobId}`;
-    const kvResult = await env.KV_CACHE.getWithMetadata(resultsKey, "json");
+    const kvResult = await env.CACHE.getWithMetadata(resultsKey, "json");
 
     if (!kvResult.value) {
       return createErrorResponse(

@@ -934,7 +934,7 @@ app.get("/v1/scan/results/:jobId", async (c) => {
 
   // Retrieve from KV cache (24-hour TTL)
   const resultsKey = `scan-results:${jobId}`;
-  const results = await c.env.KV_CACHE.get(resultsKey, "json");
+  const results = await c.env.CACHE.get(resultsKey, "json");
 
   if (!results) {
     return createErrorResponse(
@@ -1021,7 +1021,7 @@ app.get("/v1/csv/results/:jobId", async (c) => {
 
   // Retrieve from KV cache (24-hour TTL)
   const resultsKey = `csv-results:${jobId}`;
-  const results = await c.env.KV_CACHE.get(resultsKey, "json");
+  const results = await c.env.CACHE.get(resultsKey, "json");
 
   if (!results) {
     return createErrorResponse(
@@ -1220,7 +1220,7 @@ app.delete("/v1/jobs/:jobId", async (c) => {
         `scan-results:${jobId}`,
         `job-results:${jobId}`,
       ];
-      await Promise.allSettled(kvKeys.map((key) => c.env.KV_CACHE.delete(key)));
+      await Promise.allSettled(kvKeys.map((key) => c.env.CACHE.delete(key)));
       kvCleared = true;
     } catch (kvError) {
       console.warn(`[Job Cancel] KV cleanup failed for job ${jobId}:`, kvError);
@@ -1281,7 +1281,7 @@ app.get("/v1/jobs/:jobId/results", async (c) => {
 
   // Try each key in parallel for fastest lookup
   const lookupPromises = resultKeys.map((key) =>
-    c.env.KV_CACHE.get(key, "json").then((result) => ({ key, result }))
+    c.env.CACHE.get(key, "json").then((result) => ({ key, result }))
   );
 
   const lookups = await Promise.all(lookupPromises);
@@ -1665,7 +1665,7 @@ app.get("/api/v2/imports/:jobId/results", async (c) => {
 
   // Try each key in parallel for fastest lookup
   const lookupPromises = resultKeys.map((key) =>
-    c.env.KV_CACHE.get(key, "json").then((result) => ({ key, result }))
+    c.env.CACHE.get(key, "json").then((result) => ({ key, result }))
   );
 
   const lookups = await Promise.all(lookupPromises);

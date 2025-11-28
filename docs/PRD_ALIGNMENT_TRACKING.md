@@ -148,7 +148,7 @@ This document tracks the journey from the original Product Requirements Document
 │  └─ CacheMetricsDO (cache performance tracking)            │
 ├─────────────────────────────────────────────────────────────┤
 │  Storage                                                     │
-│  ├─ KV_CACHE (hot cache, 2h TTL)                           │
+│  ├─ CACHE (hot cache, 2h TTL)                           │
 │  ├─ LIBRARY_DATA (R2, cold cache, 14d TTL)                 │
 │  ├─ BOOKSHELF_IMAGES (R2, AI scan uploads)                 │
 │  └─ BOOK_COVERS (R2, ISBNdb harvest)                       │

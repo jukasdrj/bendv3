@@ -89,10 +89,10 @@ try {
 ```javascript
 // Access env bindings
 const apiKey = env.GOOGLE_BOOKS_API_KEY;
-const cache = env.KV_CACHE; // KV namespace
+const cache = env.CACHE; // KV namespace
 
 // KV caching with TTL
-await env.KV_CACHE.put(cacheKey, JSON.stringify(data), {
+await env.CACHE.put(cacheKey, JSON.stringify(data), {
   expirationTtl: 86400 // 24 hours
 });
 ```

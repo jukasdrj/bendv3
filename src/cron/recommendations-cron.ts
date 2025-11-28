@@ -100,7 +100,7 @@ export async function handleRecommendationsCron(env: Env): Promise<void> {
     }
 
     // Step 4: Cache in KV for fast retrieval
-    const recommendationsCache = (env as any).RECOMMENDATIONS_CACHE || env.KV_CACHE
+    const recommendationsCache = (env as any).RECOMMENDATIONS_CACHE || env.CACHE
 
     if (recommendationsCache) {
       const cacheKey = `recommendations:weekly:${weekOf}`

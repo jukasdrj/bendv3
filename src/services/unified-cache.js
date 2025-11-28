@@ -166,11 +166,22 @@ export class UnifiedCacheService {
    * Track cache access for popularity analysis
    * Used to identify most-accessed books for proactive cache warming
    *
+   * NOTE: Uses 1% sampling to reduce KV write volume (Issue #112)
+   * - 10,000 req/hour → 100 access tracking writes (99% reduction)
+   * - Statistically representative for popularity analysis
+   * - Configurable via ACCESS_TRACKING_SAMPLE_RATE (default: 0.01)
+   *
    * @param {string} cacheKey - Cache key being accessed
    * @private
    */
   async trackAccess(cacheKey) {
     try {
+      // 1% sampling - only track 1 in 100 accesses to reduce KV writes
+      const sampleRate = this.env.ACCESS_TRACKING_SAMPLE_RATE || 0.01
+      if (Math.random() >= sampleRate) {
+        return // Skip tracking for 99% of requests
+      }
+
       const accessKey = `access:${cacheKey}`
       const current = await this.env.CACHE.get(accessKey, 'json') || { count: 0, lastAccess: 0 }
       await this.env.CACHE.put(

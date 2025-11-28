@@ -32,7 +32,7 @@ import { CacheKeyFactory } from "./cache-key-factory.js";
 export async function analyzeAuthorCacheDepth(authorName, env) {
   try {
     // List all cover keys from KV (prefix: cover:)
-    const allCovers = await env.KV_CACHE.list({ prefix: "cover:" });
+    const allCovers = await env.CACHE.list({ prefix: "cover:" });
 
     if (!allCovers || !allCovers.keys || allCovers.keys.length === 0) {
       console.log(`No covers in cache yet`);
@@ -54,7 +54,7 @@ export async function analyzeAuthorCacheDepth(authorName, env) {
 
     // Check each sampled cover for author match
     for (const key of sampleKeys) {
-      const coverData = await env.KV_CACHE.get(key.name);
+      const coverData = await env.CACHE.get(key.name);
       if (!coverData) continue;
 
       try {

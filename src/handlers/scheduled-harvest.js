@@ -364,7 +364,7 @@ async function discoverMultiEditionISBNs(seedISBNs, env, editionsPerWork = 3) {
  */
 async function isCoverHarvested(isbn, env) {
   const kvKey = CacheKeyFactory.coverImage(isbn);
-  const existing = await env.KV_CACHE.get(kvKey);
+  const existing = await env.CACHE.get(kvKey);
   return existing !== null;
 }
 
@@ -457,7 +457,7 @@ async function harvestISBN(isbn, isbndbApi, env, stats) {
 
     // Index in KV
     const kvKey = CacheKeyFactory.coverImage(isbn);
-    await env.KV_CACHE.put(
+    await env.CACHE.put(
       kvKey,
       JSON.stringify({
         r2Key,

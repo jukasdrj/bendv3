@@ -11,7 +11,7 @@
 async function getHarvestStats(env) {
   try {
     // Get all cover keys from KV (cover:* pattern)
-    const list = await env.KV_CACHE.list({ prefix: "cover:" });
+    const list = await env.CACHE.list({ prefix: "cover:" });
 
     const totalCovers = list.keys.length;
 
@@ -25,7 +25,7 @@ async function getHarvestStats(env) {
 
     // Analyze sample of covers
     for (const key of recentCovers) {
-      const data = await env.KV_CACHE.get(key.name);
+      const data = await env.CACHE.get(key.name);
       if (!data) continue;
 
       try {

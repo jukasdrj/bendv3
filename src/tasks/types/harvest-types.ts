@@ -63,7 +63,7 @@ export interface HarvestReport {
  */
 export interface Env {
   LIBRARY_DATA: R2Bucket;
-  KV_CACHE: KVNamespace;
+  CACHE: KVNamespace;
   ISBNDB_API_KEY: string;
   GOOGLE_BOOKS_API_KEY?: string;
 }

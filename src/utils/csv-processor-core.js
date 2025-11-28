@@ -37,7 +37,7 @@ import { parseCSVWithGemini } from "../providers/gemini-csv-provider.js";
  * @param {Function} progressReporter.updateProgress - Update progress (pipeline: string, payload: object) => Promise<void>
  * @param {Function} progressReporter.complete - Mark job complete (pipeline: string, payload: object) => Promise<void>
  * @param {Function} progressReporter.sendError - Send error (pipeline: string, payload: object) => Promise<void>
- * @param {Object} env - Worker environment bindings (KV_CACHE, GEMINI_API_KEY)
+ * @param {Object} env - Worker environment bindings (CACHE, GEMINI_API_KEY)
  * @param {Object} options - Configuration options
  * @param {number} options.resultsTTL - TTL for KV storage in seconds (default: 3600 = 1 hour)
  * @param {string} options.resultsKeyPrefix - KV key prefix (default: "job-results")
@@ -101,7 +101,7 @@ export async function processCSVCore(
     });
 
     const cacheKey = await generateCSVCacheKey(csvText, PROMPT_VERSION);
-    let parsedBooks = await env.KV_CACHE.get(cacheKey, "json");
+    let parsedBooks = await env.CACHE.get(cacheKey, "json");
 
     // Issue #101: Cache hit telemetry for monitoring effectiveness
     const cacheHit = !!parsedBooks;
@@ -126,7 +126,7 @@ export async function processCSVCore(
       }
 
       // Cache for 7 days
-      await env.KV_CACHE.put(cacheKey, JSON.stringify(parsedBooks), {
+      await env.CACHE.put(cacheKey, JSON.stringify(parsedBooks), {
         expirationTtl: 604800,
       });
     }
@@ -199,7 +199,7 @@ export async function processCSVCore(
       errors: [], // TODO: Store validation errors with row numbers
       books: validatedBooks // Include full book data for compatibility
     };
-    await env.KV_CACHE.put(
+    await env.CACHE.put(
       resourceId,
       JSON.stringify(apiContractResults),
       { expirationTtl: resultsTTL },

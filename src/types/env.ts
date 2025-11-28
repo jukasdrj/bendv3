@@ -80,7 +80,6 @@ export interface Env {
 
   // KV Namespaces
   CACHE: KVNamespace;
-  KV_CACHE: KVNamespace;
   RECOMMENDATIONS_CACHE?: KVNamespace;  // Sprint 3: Weekly recommendations
 
   // Secrets (from Secrets Store)

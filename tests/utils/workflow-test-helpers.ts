@@ -24,7 +24,7 @@ export interface MockWorkflowStep {
 export interface MockEnv {
   AI: { run: Mock }
   DB: { prepare: Mock }
-  KV_CACHE: { get: Mock; put: Mock; delete: Mock }
+  CACHE: { get: Mock; put: Mock; delete: Mock }
   BOOK_COVERS: { put: Mock; get: Mock }
   BOOK_VECTORS: { insert: Mock; query: Mock; getByIds: Mock }
   WEBSOCKET_CONNECTION_DO: { idFromName: Mock; get: Mock }
@@ -85,7 +85,7 @@ export function createMockEnv(overrides?: Partial<MockEnv>): MockEnv {
         all: vi.fn().mockResolvedValue({ results: [] }),
       }),
     },
-    KV_CACHE: {
+    CACHE: {
       get: vi.fn().mockResolvedValue(null),
       put: vi.fn().mockResolvedValue(undefined),
       delete: vi.fn().mockResolvedValue(undefined),

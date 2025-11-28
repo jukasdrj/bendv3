@@ -272,14 +272,14 @@ describe('BookImportWorkflow - Database Storage', () => {
       await mockEnv.DB.prepare('INSERT INTO books...').bind(book.isbn).run()
     } catch {
       // Fallback to KV
-      await mockEnv.KV_CACHE.put(
+      await mockEnv.CACHE.put(
         `book:isbn:${book.isbn}`,
         JSON.stringify(book),
         { expirationTtl: 86400 * 30 }
       )
     }
 
-    expect(mockEnv.KV_CACHE.put).toHaveBeenCalledWith(
+    expect(mockEnv.CACHE.put).toHaveBeenCalledWith(
       `book:isbn:${book.isbn}`,
       expect.any(String),
       expect.objectContaining({ expirationTtl: 86400 * 30 })

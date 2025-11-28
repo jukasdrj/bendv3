@@ -16,7 +16,7 @@ describe("GET /v1/editions/search", () => {
         get: async () => null,
         put: async () => {},
       },
-      KV_CACHE: {
+      CACHE: {
         get: async () => null,
         put: async () => {},
       },
@@ -121,7 +121,7 @@ describe("GET /v1/editions/search", () => {
         get: async () => null,
         put: async () => {},
       },
-      KV_CACHE: {
+      CACHE: {
         get: async () => null,
         put: async () => {},
       },
@@ -156,7 +156,7 @@ describe("GET /v1/editions/search", () => {
         get: async () => null,
         put: async () => {},
       },
-      KV_CACHE: {
+      CACHE: {
         get: async () => null,
         put: async () => {},
       },
@@ -190,7 +190,7 @@ describe("GET /v1/editions/search", () => {
         get: async () => null,
         put: async () => {},
       },
-      KV_CACHE: {
+      CACHE: {
         get: async () => null,
         put: async () => {},
       },
@@ -222,7 +222,7 @@ describe("GET /v1/editions/search", () => {
         get: async () => null,
         put: async () => {},
       },
-      KV_CACHE: {
+      CACHE: {
         get: async () => null,
         put: async () => {},
       },

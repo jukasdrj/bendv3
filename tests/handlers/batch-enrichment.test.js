@@ -28,7 +28,7 @@ const createMockEnv = () => ({
     idFromName: vi.fn((name) => `mock-id-${name}`),
     get: vi.fn(() => mockDOStubInstance) // Returns the globally defined instance
   },
-  KV_CACHE: {
+  CACHE: {
     put: vi.fn().mockResolvedValue(undefined),
     get: vi.fn().mockResolvedValue(null),
   }

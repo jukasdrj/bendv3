@@ -55,7 +55,7 @@ describe("CSV Processor Service", () => {
 
     // Mock environment
     mockEnv = {
-      KV_CACHE: {
+      CACHE: {
         get: vi.fn(async () => null), // Cache miss by default
         put: vi.fn(async () => {}),
       },
@@ -210,11 +210,11 @@ describe("CSV Processor Service", () => {
       const csvText = "title,author\nTest Book,Test Author";
       const cachedBooks = [{ title: "Cached Book", author: "Cached Author" }];
 
-      mockEnv.KV_CACHE.get.mockResolvedValue(cachedBooks);
+      mockEnv.CACHE.get.mockResolvedValue(cachedBooks);
 
       await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
-      expect(mockEnv.KV_CACHE.get).toHaveBeenCalled();
+      expect(mockEnv.CACHE.get).toHaveBeenCalled();
       // ISSUE #133: Summary-only completion (booksCount instead of books array)
       expect(mockProgressReporter.complete).toHaveBeenCalledWith(
         "csv_import",
@@ -228,11 +228,11 @@ describe("CSV Processor Service", () => {
     it("should cache Gemini results", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockEnv.KV_CACHE.get.mockResolvedValue(null); // Cache miss
+      mockEnv.CACHE.get.mockResolvedValue(null); // Cache miss
 
       await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
-      expect(mockEnv.KV_CACHE.put).toHaveBeenCalledWith(
+      expect(mockEnv.CACHE.put).toHaveBeenCalledWith(
         expect.any(String),
         expect.stringContaining("Test Book"),
         expect.objectContaining({
@@ -264,7 +264,7 @@ describe("CSV Processor Service", () => {
       );
 
       // Verify full results stored in KV
-      const kvPutCall = mockEnv.KV_CACHE.put.mock.calls.find((call) =>
+      const kvPutCall = mockEnv.CACHE.put.mock.calls.find((call) =>
         call[0].startsWith("csv-results:"),
       );
       expect(kvPutCall).toBeDefined();
@@ -291,7 +291,7 @@ describe("CSV Processor Service", () => {
       );
 
       // Verify full results in KV
-      const kvPutCall = mockEnv.KV_CACHE.put.mock.calls.find((call) =>
+      const kvPutCall = mockEnv.CACHE.put.mock.calls.find((call) =>
         call[0].startsWith("csv-results:"),
       );
       const storedResults = JSON.parse(kvPutCall[1]);
@@ -321,7 +321,7 @@ describe("CSV Processor Service", () => {
       );
 
       // Verify trimmed data in KV storage
-      const kvPutCall = mockEnv.KV_CACHE.put.mock.calls.find((call) =>
+      const kvPutCall = mockEnv.CACHE.put.mock.calls.find((call) =>
         call[0].startsWith("csv-results:"),
       );
       const storedResults = JSON.parse(kvPutCall[1]);
@@ -343,7 +343,7 @@ describe("CSV Processor Service", () => {
       await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
 
       // ISSUE #133: Verify ISBN handling in KV storage
-      const kvPutCall = mockEnv.KV_CACHE.put.mock.calls.find((call) =>
+      const kvPutCall = mockEnv.CACHE.put.mock.calls.find((call) =>
         call[0].startsWith("csv-results:"),
       );
       const storedResults = JSON.parse(kvPutCall[1]);
@@ -375,7 +375,7 @@ describe("CSV Processor Service", () => {
       );
 
       // Verify full results stored in KV
-      const kvPutCall = mockEnv.KV_CACHE.put.mock.calls.find((call) =>
+      const kvPutCall = mockEnv.CACHE.put.mock.calls.find((call) =>
         call[0].startsWith("csv-results:"),
       );
       const storedResults = JSON.parse(kvPutCall[1]);

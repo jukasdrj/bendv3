@@ -65,7 +65,7 @@ describe("E2E: CSV Import Workflow", () => {
 
     // Mock environment
     mockEnv = {
-      KV_CACHE: {
+      CACHE: {
         get: vi.fn(async () => null), // Cache miss by default
         put: vi.fn(async () => {}),
       },
@@ -135,7 +135,7 @@ describe("E2E: CSV Import Workflow", () => {
       await processCSVImportCore(csvText, testJobId, mockDoStub, mockEnv);
 
       // Verify KV storage was called with results
-      const kvPutCall = mockEnv.KV_CACHE.put.mock.calls.find((call) =>
+      const kvPutCall = mockEnv.CACHE.put.mock.calls.find((call) =>
         call[0].startsWith("csv-results:"),
       );
 
@@ -392,7 +392,7 @@ describe("E2E: CSV Import Workflow", () => {
 
       const cachedBooks = [{ title: "Cached Book", author: "Cached Author" }];
 
-      mockEnv.KV_CACHE.get.mockResolvedValue(cachedBooks);
+      mockEnv.CACHE.get.mockResolvedValue(cachedBooks);
 
       await processCSVImportCore(csvText, testJobId, mockDoStub, mockEnv);
 
@@ -413,12 +413,12 @@ describe("E2E: CSV Import Workflow", () => {
     it("should cache Gemini results for future use", async () => {
       const csvText = "title,author\nBook 1,Author 1";
 
-      mockEnv.KV_CACHE.get.mockResolvedValue(null); // Cache miss
+      mockEnv.CACHE.get.mockResolvedValue(null); // Cache miss
 
       await processCSVImportCore(csvText, testJobId, mockDoStub, mockEnv);
 
       // Verify results were cached (7-day TTL)
-      const cachePutCall = mockEnv.KV_CACHE.put.mock.calls.find(
+      const cachePutCall = mockEnv.CACHE.put.mock.calls.find(
         (call) => call[0] === "mock-cache-key",
       );
 

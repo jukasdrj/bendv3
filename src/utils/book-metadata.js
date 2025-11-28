@@ -43,7 +43,7 @@ export async function detectImageQuality(coverUrl, env) {
 
   // Check KV cache first (24h TTL)
   try {
-    const cached = await env.KV_CACHE.get(cacheKey, "json");
+    const cached = await env.CACHE.get(cacheKey, "json");
     if (cached && cached.width && cached.height) {
       return {
         quality: classifyQuality(cached.width),
@@ -84,7 +84,7 @@ export async function detectImageQuality(coverUrl, env) {
     // Cache the result (24h TTL)
     if (dimensions.width > 0) {
       try {
-        await env.KV_CACHE.put(cacheKey, JSON.stringify(dimensions), {
+        await env.CACHE.put(cacheKey, JSON.stringify(dimensions), {
           expirationTtl: 86400, // 24 hours
         });
       } catch (error) {

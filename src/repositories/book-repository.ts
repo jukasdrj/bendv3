@@ -209,7 +209,7 @@ export class BookRepository {
    */
   private async findInKV(isbn: string): Promise<BookRecord | null> {
     const cacheKey = `book:isbn:${isbn}`
-    const cached = await this.env.KV_CACHE.get(cacheKey, 'json')
+    const cached = await this.env.CACHE.get(cacheKey, 'json')
 
     if (!cached) return null
 
@@ -281,7 +281,7 @@ export class BookRepository {
     const cacheKey = `book:isbn:${book.isbn}`
 
     // Store full canonical metadata in KV (backward compatible)
-    await this.env.KV_CACHE.put(
+    await this.env.CACHE.put(
       cacheKey,
       JSON.stringify(book.canonicalMetadata),
       { expirationTtl: this.kvCacheTTL }
