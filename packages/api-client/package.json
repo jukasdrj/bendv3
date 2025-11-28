@@ -20,7 +20,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/bendv3.git",
+    "url": "https://github.com/jukasdrj/bendv3.git",
     "directory": "packages/api-client"
   },
   "files": [
