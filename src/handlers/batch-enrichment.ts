@@ -170,7 +170,8 @@ export async function handleBatchEnrichment(request, env, ctx) {
     // - success: true (job accepted and started)
     // - processedCount: 0 (no books processed yet)
     // - totalCount: books.length (total books queued)
-    // - authToken: WebSocket authentication token (full name, not "token")
+    // - authToken: WebSocket authentication token (canonical field)
+    // - token: DEPRECATED backward compatibility field (removal: March 1, 2026)
     // - message: Human-readable status message
     // - websocketUrl: Full WebSocket URL with jobId and token
     // Actual enrichment results come via WebSocket
@@ -179,7 +180,8 @@ export async function handleBatchEnrichment(request, env, ctx) {
       success: true,
       processedCount: 0,
       totalCount: books.length,
-      authToken, // WebSocket authentication token (renamed from "token")
+      authToken, // WebSocket authentication token (canonical field)
+      token: authToken, // DEPRECATED: Backward compatibility for existing iOS clients (Issue #119)
       message: "Batch enrichment initiated",
       websocketUrl: `/ws/progress?jobId=${jobId}&token=${authToken}`,
     };
