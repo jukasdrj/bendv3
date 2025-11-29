@@ -156,7 +156,41 @@ export async function enrichMultipleBooks(
 
   // ISBN search returns single result (ISBNs are unique)
   if (isbn) {
-    // Try Google Books ISBN search first (with isolated error handling)
+    // Try Alexandria first (local, free, fast)
+    try {
+      console.log(
+        `enrichMultipleBooks: Searching Alexandria by ISBN "${isbn}"`,
+      );
+      const alexandriaResult = await externalApis.searchAlexandriaByISBN(
+        isbn,
+        env,
+        ctx, // Pass ExecutionContext for caching
+      );
+
+      if (alexandriaResult && alexandriaResult.works && alexandriaResult.works.length > 0) {
+        // Add provenance fields to all works
+        return {
+          works: alexandriaResult.works.map((work: WorkDTO) =>
+            addProvenanceFields(work, "alexandria"),
+          ),
+          editions: alexandriaResult.editions || [],
+          authors: alexandriaResult.authors || [],
+        };
+      }
+      // No results from Alexandria, proceed to Google Books
+      console.log(
+        `enrichMultipleBooks: Alexandria returned no results, trying Google Books`,
+      );
+    } catch (error) {
+      // Alexandria failed (network error, 500, etc.), proceed to Google Books
+      console.error(
+        `enrichMultipleBooks: Alexandria error for ISBN "${isbn}":`,
+        error,
+      );
+      console.log(`enrichMultipleBooks: Trying Google Books fallback`);
+    }
+
+    // Fallback to Google Books ISBN search (with isolated error handling)
     try {
       console.log(
         `enrichMultipleBooks: Searching Google Books by ISBN "${isbn}"`,
@@ -177,7 +211,7 @@ export async function enrichMultipleBooks(
           authors: googleResult.authors || [],
         };
       }
-      // No results from Google Books, proceed to fallback
+      // No results from Google Books, proceed to OpenLibrary
       console.log(
         `enrichMultipleBooks: Google Books returned no results, trying OpenLibrary`,
       );
@@ -593,7 +627,23 @@ async function searchByISBN(
   isbn: string,
   env: WorkerEnv,
 ): Promise<SingleEnrichmentResult | null> {
-  // Try Google Books ISBN search first
+  // Try Alexandria first (local, free, fast)
+  try {
+    const alexandriaResult = await externalApis.searchAlexandriaByISBN(isbn, env);
+    if (alexandriaResult?.works?.length) {
+      return {
+        success: true,
+        work: alexandriaResult.works[0],
+        edition: alexandriaResult.editions?.[0] || null,
+        authors: alexandriaResult.authors || [],
+      };
+    }
+  } catch (error) {
+    console.error(`searchByISBN: Alexandria error for ISBN "${isbn}":`, error);
+    // Fall through to Google Books
+  }
+
+  // Fallback to Google Books ISBN search
   const googleResult = await searchGoogleBooks({ isbn }, env);
   if (
     googleResult &&
