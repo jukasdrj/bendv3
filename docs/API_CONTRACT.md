@@ -15,6 +15,8 @@
 - **NEW:** V2 job responses include `sseUrl` and `statusUrl` for SSE/polling
 - **NEW:** SSE client implementation examples added (§7.2)
 - **NEW:** WebSocket migration guide with troubleshooting (§8)
+- **NEW:** Implementation Notes section (§14) documenting Hono router and Swagger UI
+- **NEW:** Technical Stack overview in §1 (router, runtime, state management)
 - **FIX:** TypeScript response types updated for async job endpoints (Issues #118, #119)
 
 ### v3.2 (November 27, 2025)
@@ -42,6 +44,13 @@ BooksTrack is a Cloudflare Workers API providing book search, enrichment, and AI
 - Bookshelf photo scanning with Gemini Vision
 - Semantic search using vector embeddings (Vectorize)
 - Real-time progress via WebSocket or SSE
+
+**Technical Stack:**
+- **Router:** Hono (TypeScript-based, OpenAPI-ready)
+- **Runtime:** Cloudflare Workers (V8 isolates, edge compute)
+- **State Management:** Durable Objects for WebSocket connections and job state
+- **Caching:** KV (distributed key-value store) with 24-hour TTL
+- **Storage:** R2 (object storage for bookshelf scan images)
 
 ---
 
@@ -950,7 +959,40 @@ GET /api/v2/capabilities
 
 ---
 
-## 14. Support
+## 14. Implementation Notes
+
+### 14.1 Router Architecture
+
+**Current Implementation (Nov 2025):** Hono TypeScript Router
+
+BooksTrack uses [Hono](https://hono.dev/) as its single HTTP router, providing:
+- **Type safety:** Full TypeScript support with request/response validation
+- **OpenAPI support:** Automatic OpenAPI spec generation via `@hono/zod-openapi`
+- **Performance:** Optimized for Cloudflare Workers runtime
+- **Middleware:** Built-in CORS, rate limiting, analytics tracking
+
+**Frontend Integration:**
+- All requests return the `X-Router: hono` header for observability
+- No client-side changes needed - API contract remains stable
+- Response format follows canonical ResponseEnvelope (§3.1, §3.2)
+
+**Historical Note:**
+- Manual router deprecated and removed Nov 21, 2025 (Issue #243)
+- Archived: `docs/archive/manual-router-legacy-2025-11-21.js`
+
+### 14.2 Swagger Documentation
+
+**Interactive API Docs:** https://api.oooefam.net/doc
+
+The API includes auto-generated Swagger UI for testing endpoints:
+- Browse all available endpoints
+- Test requests directly from browser
+- View request/response schemas
+- Download OpenAPI spec: https://api.oooefam.net/doc/openapi.json
+
+---
+
+## 15. Support
 
 **API Issues:** https://github.com/yourusername/bookstrack/issues
 **Status Page:** https://status.oooefam.net
@@ -967,8 +1009,8 @@ GET /api/v2/capabilities
 ### Standard Response Headers
 - `Content-Type`: `application/json` or `text/event-stream`
 - `X-Response-Format`: `v2.0` (canonical format version)
-- `X-Router`: `hono` (router used)
-- `X-Response-Time`: `45ms` (processing time)
+- `X-Router`: `hono` (always "hono" - single router implementation as of Nov 2025)
+- `X-Response-Time`: `45ms` (processing time in milliseconds)
 - `Cache-Control`: Varies by endpoint
 
 ### CORS Headers
