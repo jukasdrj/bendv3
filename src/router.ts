@@ -811,6 +811,47 @@ app.get("/admin/harvest-dashboard", async (c) => {
   return await handleHarvestDashboard(c.req.raw, c.env);
 });
 
+// POST /admin/trigger-harvest - Manually trigger author expansion harvest (for testing)
+app.post("/admin/trigger-harvest", async (c) => {
+  try {
+    console.log("[Admin] Manual harvest trigger requested");
+    const { executeAuthorExpansionHarvest } = await import('./handlers/author-expansion-harvest.js');
+
+    // Get parameters from query string or use defaults
+    const authorCount = parseInt(c.req.query("authors") || "10");
+    const booksPerAuthor = parseInt(c.req.query("books") || "50");
+
+    console.log(`[Admin] Starting harvest: ${authorCount} authors, ${booksPerAuthor} books each`);
+
+    // Execute harvest (async - don't wait for completion)
+    c.executionCtx.waitUntil(
+      executeAuthorExpansionHarvest(c.env, authorCount, booksPerAuthor)
+        .then(result => {
+          console.log("[Admin] Harvest completed:", result);
+        })
+        .catch(error => {
+          console.error("[Admin] Harvest failed:", error);
+        })
+    );
+
+    return createSuccessResponse(
+      { message: "Harvest started in background", authorCount, booksPerAuthor },
+      { source: "admin-trigger" },
+      202,
+      c.req.raw
+    );
+  } catch (error) {
+    console.error("[Admin] Harvest trigger failed:", error);
+    return createErrorResponse(
+      "Failed to trigger harvest",
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      { details: (error as Error).message },
+      c.req.raw
+    );
+  }
+});
+
 // GET /api/cache/stats - Real-time cache performance statistics from CacheMetricsDO
 app.get("/api/cache/stats", async (c) => {
   try {
