@@ -20,6 +20,7 @@
 
 import { ISBNdbAPI } from '../services/isbndb-api.js'
 import { getTopAuthors } from '../config/popular-authors.js'
+import { writeISBNdbBooksToCache } from '../services/cache-direct-write.ts'
 
 /**
  * Execute author expansion harvest
@@ -94,41 +95,22 @@ export async function executeAuthorExpansionHarvest(env, authorCount = 25, books
         console.log(`   ✓ Extracted ${isbns.length} ISBNs`)
         stats.totalISBNsHarvested += isbns.length
 
-        // Step 3c: ISBNdb provides full metadata in search results, no need for batch call
-        // Books already have covers, titles, authors from the search
-        // We can directly warm the cache
+        // Step 3c: Write ISBNdb metadata directly to cache (Issue #140)
+        // No need to call Google Books/OpenLibrary - ISBNdb provides full metadata
+        console.log(`   📝 Writing ISBNdb metadata directly to cache...`)
 
-        // Step 3d: Warm production cache (batch of 50 at a time to avoid overload)
-        const CACHE_BATCH_SIZE = 50
-        let authorNewlyCached = 0
-        let authorAlreadyCached = 0
+        const writeResults = await writeISBNdbBooksToCache(searchResult.books, env)
 
-        for (let j = 0; j < isbns.length; j += CACHE_BATCH_SIZE) {
-          const batch = isbns.slice(j, j + CACHE_BATCH_SIZE)
+        const authorNewlyCached = writeResults.filter(r => r.success && !r.cached).length
+        const authorAlreadyCached = writeResults.filter(r => r.success && r.cached).length
+        const authorFailed = writeResults.filter(r => !r.success).length
 
-          for (const isbn of batch) {
-            try {
-              const cacheResult = await warmCacheSingle(isbn, env)
-              stats.cacheWarmingCalls++
+        stats.newlyCached += authorNewlyCached
+        stats.alreadyCached += authorAlreadyCached
+        stats.cacheWarmingCalls += writeResults.length
 
-              if (cacheResult.cached) {
-                authorAlreadyCached++
-                stats.alreadyCached++
-              } else {
-                authorNewlyCached++
-                stats.newlyCached++
-              }
-
-              // Rate limiting: 3 req/sec (Premium plan)
-              await new Promise(resolve => setTimeout(resolve, 333))
-            } catch (error) {
-              console.warn(`   ⚠️  Cache warming failed for ${isbn}:`, error.message)
-            }
-          }
-
-          // Progress update every batch
-          const processed = Math.min(j + CACHE_BATCH_SIZE, isbns.length)
-          console.log(`   📦 Cache warming: ${processed}/${isbns.length} (${authorNewlyCached} new, ${authorAlreadyCached} cached)`)
+        if (authorFailed > 0) {
+          console.warn(`   ⚠️  ${authorFailed} books failed to cache`)
         }
 
         console.log(`   ✅ ${authorName}: ${authorNewlyCached} newly cached, ${authorAlreadyCached} already cached`)
@@ -188,42 +170,6 @@ export async function executeAuthorExpansionHarvest(env, authorCount = 25, books
       error: error.message,
       stats
     }
-  }
-}
-
-/**
- * Warm cache for a single ISBN via production API
- * @param {string} isbn - ISBN to warm
- * @param {Object} env - Cloudflare environment bindings
- * @returns {Promise<{success: boolean, cached: boolean}>}
- */
-async function warmCacheSingle(isbn, env) {
-  // Use internal handler directly to avoid HTTP overhead
-  const { handleSearchISBN } = await import('./v1/search-isbn.ts')
-
-  try {
-    // Create minimal request object for strict ISBN validation (Issue #139)
-    const mockRequest = {
-      url: `https://api.oooefam.net/v1/search/isbn?isbn=${isbn}`
-    }
-
-    const response = await handleSearchISBN(isbn, env, mockRequest)
-    const data = await response.json()
-
-    // Log invalid ISBNs for monitoring (Issue #139)
-    if (response.status === 400 && data.error?.code === 'INVALID_ISBN') {
-      console.warn(`[ISBN Validation] Invalid ISBN rejected: ${isbn} (checksum failed)`)
-      stats.errors.push({ isbn, error: 'Invalid ISBN checksum' })
-      return { success: false, cached: false, invalidISBN: true }
-    }
-
-    return {
-      success: response.status === 200 && data.data,
-      cached: data.metadata?.cached || false
-    }
-  } catch (error) {
-    console.error(`warmCacheSingle failed for ${isbn}:`, error.message)
-    return { success: false, cached: false }
   }
 }
 
