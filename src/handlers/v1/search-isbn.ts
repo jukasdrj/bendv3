@@ -41,7 +41,13 @@ export async function handleSearchISBN(
     );
   }
 
-  if (!isValidISBN(isbn)) {
+  // Check for lenient mode (skip checksum validation for cache warming with dirty CSV data)
+  const url = request ? new URL(request.url) : null;
+  const lenient = url?.searchParams.get('lenient') === 'true';
+
+  // Lenient mode: Only check basic format (10 or 13 digits), skip checksum
+  // Strict mode (default): Full ISBN validation with checksum
+  if (!lenient && !isValidISBN(isbn)) {
     return createErrorResponse(
       "Invalid ISBN format. Must be valid ISBN-10 or ISBN-13",
       400,
@@ -49,6 +55,20 @@ export async function handleSearchISBN(
       { isbn },
       request,
     );
+  }
+
+  // Lenient mode basic validation
+  if (lenient) {
+    const cleaned = isbn.replace(/[-\s]/g, '');
+    if (!/^\d{10,13}$/.test(cleaned)) {
+      return createErrorResponse(
+        "Invalid ISBN format. Must be 10-13 digits",
+        400,
+        ErrorCodes.INVALID_ISBN,
+        { isbn },
+        request,
+      );
+    }
   }
 
   try {

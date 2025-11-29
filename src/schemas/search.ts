@@ -27,7 +27,10 @@ export const SearchISBNQuerySchema = z.object({
     .min(10, 'ISBN must be at least 10 characters')
     .max(13, 'ISBN must be at most 13 characters')
     .regex(/^\d{10}$|^\d{13}$/, 'ISBN must be 10 or 13 digits (no hyphens)')
-    .describe('ISBN-10 or ISBN-13 (digits only, no hyphens)')
+    .describe('ISBN-10 or ISBN-13 (digits only, no hyphens)'),
+  lenient: z.string()
+    .optional()
+    .describe('Skip ISBN checksum validation (for cache warming with dirty CSV data)')
 }).strict()
 
 /**
