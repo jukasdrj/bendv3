@@ -70,8 +70,10 @@ export default {
           break;
 
         case "0 3 * * *": // Daily at 3 AM UTC
-          console.log("[Cron] Running daily cover harvest job");
-          await handleScheduledHarvest(env, ctx);
+          console.log("[Cron] Running daily author expansion + cover harvest job");
+          // Import author expansion harvest
+          const { executeAuthorExpansionHarvest } = await import('./handlers/author-expansion-harvest.js');
+          await executeAuthorExpansionHarvest(env, 10, 200); // Reduced to 10 authors for limited scale test (Issue #137)
           break;
 
         case "0 0 * * 0": // Sunday at midnight UTC
