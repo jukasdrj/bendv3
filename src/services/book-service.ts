@@ -18,6 +18,7 @@
 
 import { BookRepository } from '../repositories/book-repository'
 import { enrichMultipleBooks } from './enrichment'
+import { processBookCover } from './alexandria-cover-service'
 import type { BookRecord } from '../types/database'
 import type { WorkDTO, EditionDTO, AuthorDTO } from '../types/canonical'
 
@@ -94,6 +95,42 @@ export async function findBookByISBN(
       const work = externalResult.works[0]
       const edition = externalResult.editions?.[0]
 
+      // Process cover via Alexandria if we have a work key and cover URL
+      let coverURLs = {
+        small: work.coverImageURL || edition?.coverImageURL || null,
+        medium: work.coverImageURL || edition?.coverImageURL || null,
+        large: work.coverImageURL || edition?.coverImageURL || null,
+      }
+
+      const providerCoverURL = work.coverImageURL || edition?.coverImageURL
+      const workKey = work.openLibraryWorkID || work.openLibraryID
+      if (workKey && providerCoverURL) {
+        try {
+          const alexandriaResult = await processBookCover(
+            {
+              work_key: workKey,
+              provider_url: providerCoverURL,
+              isbn: isbn,
+            },
+            env as any,
+          )
+
+          if (alexandriaResult.success) {
+            coverURLs = {
+              small: alexandriaResult.urls.small,
+              medium: alexandriaResult.urls.medium,
+              large: alexandriaResult.urls.large,
+            }
+            console.log(`[BookService] ✅ Cover processed via Alexandria for ${isbn}`)
+          } else {
+            console.warn(`[BookService] ⚠️ Alexandria cover processing failed, using provider URL`)
+          }
+        } catch (coverError) {
+          console.error(`[BookService] Error processing cover via Alexandria:`, coverError)
+          // Fall back to provider URLs (already set in coverURLs)
+        }
+      }
+
       const bookRecord: BookRecord = {
         isbn: isbn,
         title: work.title || 'Unknown',
@@ -103,9 +140,9 @@ export async function findBookByISBN(
         publicationDate: edition?.publicationDate || null,
         language: edition?.language || 'en',
         pageCount: edition?.pageCount || null,
-        coverSmallUrl: work.coverImageURL || edition?.coverImageURL || null,
-        coverMediumUrl: work.coverImageURL || edition?.coverImageURL || null,
-        coverLargeUrl: work.coverImageURL || edition?.coverImageURL || null,
+        coverSmallUrl: coverURLs.small,
+        coverMediumUrl: coverURLs.medium,
+        coverLargeUrl: coverURLs.large,
         canonicalMetadata: {
           works: externalResult.works,
           editions: externalResult.editions,
@@ -242,6 +279,39 @@ export async function batchEnrichBooks(
         const work = externalResult.works[0]
         const edition = externalResult.editions?.[0]
 
+        // Process cover via Alexandria if we have a work key and cover URL
+        let coverURLs = {
+          small: work.coverImageURL || edition?.coverImageURL || null,
+          medium: work.coverImageURL || edition?.coverImageURL || null,
+          large: work.coverImageURL || edition?.coverImageURL || null,
+        }
+
+        const providerCoverURL = work.coverImageURL || edition?.coverImageURL
+        const workKey = work.openLibraryWorkID || work.openLibraryID
+        if (workKey && providerCoverURL) {
+          try {
+            const alexandriaResult = await processBookCover(
+              {
+                work_key: workKey,
+                provider_url: providerCoverURL,
+                isbn: isbn,
+              },
+              env as any,
+            )
+
+            if (alexandriaResult.success) {
+              coverURLs = {
+                small: alexandriaResult.urls.small,
+                medium: alexandriaResult.urls.medium,
+                large: alexandriaResult.urls.large,
+              }
+            }
+          } catch (coverError) {
+            console.error(`[BookService] Error processing cover via Alexandria:`, coverError)
+            // Fall back to provider URLs (already set in coverURLs)
+          }
+        }
+
         const bookRecord: BookRecord = {
           isbn: isbn,
           title: work.title || 'Unknown',
@@ -251,9 +321,9 @@ export async function batchEnrichBooks(
           publicationDate: edition?.publicationDate || null,
           language: edition?.language || 'en',
           pageCount: edition?.pageCount || null,
-          coverSmallUrl: work.coverImageURL || edition?.coverImageURL || null,
-          coverMediumUrl: work.coverImageURL || edition?.coverImageURL || null,
-          coverLargeUrl: work.coverImageURL || edition?.coverImageURL || null,
+          coverSmallUrl: coverURLs.small,
+          coverMediumUrl: coverURLs.medium,
+          coverLargeUrl: coverURLs.large,
           canonicalMetadata: {
             works: externalResult.works,
             editions: externalResult.editions,
