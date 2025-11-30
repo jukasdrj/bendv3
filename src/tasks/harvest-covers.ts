@@ -241,26 +241,32 @@ async function downloadAndStoreImage(
   isbn: string,
   env: Env,
 ): Promise<void> {
-  // Download image
-  const response = await fetch(coverUrl);
+  try {
+    // Download image
+    const response = await fetch(coverUrl);
 
-  if (!response.ok) {
-    throw new Error(`Failed to download cover: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Failed to download cover: ${response.status}`);
+    }
+
+    const imageBlob = await response.blob();
+
+    // Generate R2 key (matches scheduled-harvest.js format)
+    const r2Key = `covers/${isbn}`;
+
+    // Upload to R2 (use BOOK_COVERS bucket, not LIBRARY_DATA)
+    await env.BOOK_COVERS.put(r2Key, imageBlob, {
+      httpMetadata: {
+        contentType: response.headers.get("Content-Type") || "image/jpeg",
+      },
+    });
+
+    console.log(`  📦 Uploaded to R2: ${r2Key}`);
+  } catch (error) {
+    throw new Error(
+      `Failed to download/store image for ${isbn}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
-
-  const imageBlob = await response.blob();
-
-  // Generate R2 key
-  const r2Key = `covers/isbn/${isbn}.jpg`;
-
-  // Upload to R2
-  await env.LIBRARY_DATA.put(r2Key, imageBlob, {
-    httpMetadata: {
-      contentType: response.headers.get("Content-Type") || "image/jpeg",
-    },
-  });
-
-  console.log(`  📦 Uploaded to R2: ${r2Key}`);
 }
 
 /**
@@ -272,8 +278,16 @@ async function storeMetadata(
   env: Env,
 ): Promise<void> {
   const kvKey = CacheKeyFactory.coverImage(isbn);
-  await env.CACHE.put(kvKey, JSON.stringify(metadata));
-  console.log(`  💾 Stored KV metadata: ${kvKey}`);
+  try {
+    await env.CACHE.put(kvKey, JSON.stringify(metadata));
+    console.log(`  💾 Stored KV metadata: ${kvKey}`);
+  } catch (error) {
+    console.error(
+      `Failed to store KV metadata for ${isbn}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    // Don't throw - continue processing other covers
+    // KV is index-only, R2 has the actual cover image
+  }
 }
 
 /**
@@ -336,7 +350,7 @@ async function harvestSingleBook(
     const metadata: CoverMetadata = {
       isbn,
       source: coverData.source,
-      r2Key: `covers/isbn/${isbn}.jpg`,
+      r2Key: `covers/${isbn}`,
       harvestedAt: new Date().toISOString(),
       fallback: usedFallback,
       originalUrl: coverData.url,
@@ -404,10 +418,10 @@ export async function harvestCovers(env: Env): Promise<HarvestReport> {
     await getApiKey(env);
     console.log("  ✓ ISBNDB_API_KEY accessible");
 
-    // Test R2 write
-    await env.LIBRARY_DATA.put("test_harvest_write", "test");
-    await env.LIBRARY_DATA.delete("test_harvest_write");
-    console.log("  ✓ R2 write permissions OK");
+    // Test R2 write (BOOK_COVERS bucket)
+    await env.BOOK_COVERS.put("test_harvest_write", "test");
+    await env.BOOK_COVERS.delete("test_harvest_write");
+    console.log("  ✓ R2 write permissions OK (BOOK_COVERS)");
 
     // Test KV write
     await env.CACHE.put("test_harvest_kv", "test", { expirationTtl: 60 });
