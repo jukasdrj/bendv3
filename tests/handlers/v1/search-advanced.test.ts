@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { handleSearchAdvanced } from '../../../src/handlers/v1/search-advanced.js';
 
+// Helper to parse Response object to JSON
+async function parseResponse(response: Response) {
+  return await response.json();
+}
+
 // Mock ExecutionContext
 const createMockContext = () => ({
   waitUntil: () => {},
@@ -18,7 +23,8 @@ describe('GET /v1/search/advanced', () => {
     };
     const mockCtx = createMockContext();
 
-    const response = await handleSearchAdvanced('1984', 'George Orwell', mockEnv, mockCtx);
+    const httpResponse = await handleSearchAdvanced('1984', 'George Orwell', mockEnv, mockCtx);
+    const response = await parseResponse(httpResponse);
 
     // Should return proper envelope structure
     expect(response).toBeDefined();
@@ -32,7 +38,8 @@ describe('GET /v1/search/advanced', () => {
     const mockEnv = {};
     const mockCtx = createMockContext();
 
-    const response = await handleSearchAdvanced('', '', mockEnv, mockCtx);
+    const httpResponse = await handleSearchAdvanced('', '', mockEnv, mockCtx);
+    const response = await parseResponse(httpResponse);
 
     expect(response.error).toBeDefined();
     if (response.error) {
@@ -52,7 +59,8 @@ describe('GET /v1/search/advanced', () => {
     };
     const mockCtx = createMockContext();
 
-    const response = await handleSearchAdvanced('1984', '', mockEnv, mockCtx);
+    const httpResponse = await handleSearchAdvanced('1984', '', mockEnv, mockCtx);
+    const response = await parseResponse(httpResponse);
 
     expect(response).toBeDefined();
     expect(response.data).toBeDefined();
@@ -69,7 +77,8 @@ describe('GET /v1/search/advanced', () => {
     };
     const mockCtx = createMockContext();
 
-    const response = await handleSearchAdvanced('', 'George Orwell', mockEnv, mockCtx);
+    const httpResponse = await handleSearchAdvanced('', 'George Orwell', mockEnv, mockCtx);
+    const response = await parseResponse(httpResponse);
 
     expect(response).toBeDefined();
     expect(response.data).toBeDefined();

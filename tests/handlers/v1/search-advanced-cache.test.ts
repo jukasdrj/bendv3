@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { handleSearchAdvanced } from '../../../src/handlers/v1/search-advanced.js';
 
+// Helper to parse Response object to JSON
+async function parseResponse(response: Response) {
+  return await response.json();
+}
+
 // Mock ExecutionContext
 const createMockContext = () => {
   const waitUntilPromises: Promise<any>[] = [];
@@ -51,7 +56,8 @@ describe('GET /v1/search/advanced - Cache Behavior', () => {
     };
 
     const mockCtx = createMockContext();
-    const response = await handleSearchAdvanced('1984', 'George Orwell', mockEnv, mockCtx);
+    const httpResponse = await handleSearchAdvanced('1984', 'George Orwell', mockEnv, mockCtx);
+    const response = await parseResponse(httpResponse);
 
     expect(response.data).toBeDefined();
     if (response.data !== null) {
@@ -80,7 +86,8 @@ describe('GET /v1/search/advanced - Cache Behavior', () => {
     };
 
     const mockCtx = createMockContext();
-    const response = await handleSearchAdvanced('The Great Gatsby', 'F. Scott Fitzgerald', mockEnv, mockCtx);
+    const httpResponse = await handleSearchAdvanced('The Great Gatsby', 'F. Scott Fitzgerald', mockEnv, mockCtx);
+    const response = await parseResponse(httpResponse);
 
     // Wait for waitUntil promises to complete
     await Promise.all(mockCtx.getWaitUntilPromises());
@@ -139,7 +146,8 @@ describe('GET /v1/search/advanced - Cache Behavior', () => {
     };
 
     const mockCtx = createMockContext();
-    await handleSearchAdvanced('1984', 'George Orwell', mockEnv, mockCtx);
+    const httpResponse = await handleSearchAdvanced('1984', 'George Orwell', mockEnv, mockCtx);
+    const response = await parseResponse(httpResponse);
 
     // Wait for waitUntil promises
     await Promise.all(mockCtx.getWaitUntilPromises());
@@ -162,7 +170,8 @@ describe('GET /v1/search/advanced - Cache Behavior', () => {
     };
 
     const mockCtx = createMockContext();
-    await handleSearchAdvanced('1984', '', mockEnv, mockCtx);
+    const httpResponse = await handleSearchAdvanced('1984', '', mockEnv, mockCtx);
+    const response = await parseResponse(httpResponse);
 
     expect(cacheKey).toContain('v1:advanced');
     expect(cacheKey).toContain('1984');
@@ -185,7 +194,8 @@ describe('GET /v1/search/advanced - Cache Behavior', () => {
     };
 
     const mockCtx = createMockContext();
-    await handleSearchAdvanced('', 'George Orwell', mockEnv, mockCtx);
+    const httpResponse = await handleSearchAdvanced('', 'George Orwell', mockEnv, mockCtx);
+    const response = await parseResponse(httpResponse);
 
     expect(cacheKey).toContain('v1:advanced');
     expect(cacheKey).toContain('george orwell');
@@ -209,10 +219,11 @@ describe('GET /v1/search/advanced - ISBNdb Fallback', () => {
     };
 
     const mockCtx = createMockContext();
-    
+
     // Use a book that's unlikely to be in Google Books or OpenLibrary
     // The enrichment service will attempt ISBNdb as the third fallback
-    const response = await handleSearchAdvanced('Obscure Test Book', 'Unknown Author', mockEnv, mockCtx);
+    const httpResponse = await handleSearchAdvanced('Obscure Test Book', 'Unknown Author', mockEnv, mockCtx);
+    const response = await parseResponse(httpResponse);
 
     expect(response).toBeDefined();
     expect(response.data).toBeDefined();

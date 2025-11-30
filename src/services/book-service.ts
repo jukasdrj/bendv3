@@ -63,13 +63,19 @@ export async function findBookByISBN(
     // Return cached canonical metadata
     const canonicalData = cachedBook.canonicalMetadata
 
-    return {
-      works: canonicalData.works || [],
-      editions: canonicalData.editions || [],
-      authors: canonicalData.authors || [],
-      cached: true,
-      source: 'd1', // Note: Could be from KV or D1 depending on routing
+    // Only return cached data if it has actual works
+    // Otherwise, fall through to enrichment (book may have been cached before enrichment was added)
+    if (canonicalData && canonicalData.works && canonicalData.works.length > 0) {
+      return {
+        works: canonicalData.works,
+        editions: canonicalData.editions || [],
+        authors: canonicalData.authors || [],
+        cached: true,
+        source: 'd1', // Note: Could be from KV or D1 depending on routing
+      }
     }
+
+    console.log(`[BookService] D1 cache has no works metadata, falling through to enrichment`)
   }
 
   // 2. Repository miss: Fetch from external APIs
