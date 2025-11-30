@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { handleSearchTitle } from '../../../src/handlers/v1/search-title.js';
 
+// Helper to parse Response object to JSON
+async function parseResponse(response: Response) {
+  return await response.json();
+}
+
 describe('GET /v1/search/title', () => {
   it('should return canonical response structure', async () => {
     // Note: This test uses a fake API key, so we expect an error response
@@ -9,7 +14,8 @@ describe('GET /v1/search/title', () => {
       GOOGLE_BOOKS_API_KEY: 'test-key',
     };
 
-    const response = await handleSearchTitle('1984', mockEnv);
+    const httpResponse = await handleSearchTitle('1984', mockEnv);
+    const response = await parseResponse(httpResponse);
 
     // Should return proper envelope structure even on error
     expect(response).toBeDefined();
@@ -29,7 +35,8 @@ describe('GET /v1/search/title', () => {
   it('should return error response for invalid query', async () => {
     const mockEnv = {};
 
-    const response = await handleSearchTitle('', mockEnv);
+    const httpResponse = await handleSearchTitle('', mockEnv);
+    const response = await parseResponse(httpResponse);
 
     expect(response.error).toBeDefined();
     if (response.error) {
@@ -45,7 +52,8 @@ describe('GET /v1/search/title', () => {
     };
 
     // This will fail because we don't have a real API key
-    const response = await handleSearchTitle('test query', mockEnv);
+    const httpResponse = await handleSearchTitle('test query', mockEnv);
+    const response = await parseResponse(httpResponse);
 
     // Should still return proper error envelope
     expect(response.data).toBeDefined();

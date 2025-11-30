@@ -92,6 +92,7 @@ export interface ResponseMetadata {
 export interface ApiError {
   message: string; // Human-readable error description
   code?: string; // Machine-readable error code for programmatic handling
+  retryable: boolean; // P1: Whether the client should retry this request
   details?: any; // Optional additional context about the error
 }
 
@@ -99,16 +100,17 @@ export interface ApiError {
  * Universal Response Envelope (Current Standard)
  *
  * All /v1/* endpoints use this format for consistent client-side handling.
- * The envelope always includes `data` and `metadata` fields.
+ * The envelope always includes `success`, `data`, and `metadata` fields.
  *
- * - Success: `data` contains the payload, `error` is undefined
- * - Error: `data` is null, `error` contains error details
+ * - Success: `success: true`, `data` contains the payload, `error` is undefined
+ * - Error: `success: false`, `data` is null, `error` contains error details
  *
  * @template T - The type of the success response payload
  *
  * @example Success response
  * ```typescript
  * const response: ResponseEnvelope<BookSearchResponse> = {
+ *   success: true,
  *   data: { works: [...], editions: [...], authors: [...] },
  *   metadata: { timestamp: "2025-11-14T23:00:00.000Z", provider: "google-books" }
  * };
@@ -117,13 +119,15 @@ export interface ApiError {
  * @example Error response
  * ```typescript
  * const response: ResponseEnvelope<null> = {
+ *   success: false,
  *   data: null,
  *   metadata: { timestamp: "2025-11-14T23:00:00.000Z" },
- *   error: { message: "Book not found", code: "NOT_FOUND" }
+ *   error: { message: "Book not found", code: "NOT_FOUND", retryable: false }
  * };
  * ```
  */
 export interface ResponseEnvelope<T> {
+  success: boolean; // P0: Success discriminator for iOS client compatibility
   data: T | null;
   metadata: ResponseMetadata;
   error?: ApiError;

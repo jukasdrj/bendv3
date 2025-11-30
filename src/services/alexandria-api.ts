@@ -67,7 +67,7 @@ export async function searchAlexandriaByISBN(
   // If no KV cache or ExecutionContext, skip caching (fallback to direct API call)
   if (!kvNamespace || !ctx) {
     console.warn(`⚠️ Alexandria ISBN search without cache (missing ${!kvNamespace ? 'KV namespace' : 'ExecutionContext'})`)
-    return withCircuitBreaker('alexandria', env, () => searchAlexandriaByISBN_Uncached(isbn))
+    return withCircuitBreaker('alexandria', env, () => searchAlexandriaByISBN_Uncached(isbn, env))
   }
 
   // Create cache service with 'alex' prefix
@@ -89,7 +89,7 @@ export async function searchAlexandriaByISBN(
 
   // Cache MISS - fetch from API with circuit breaker
   console.log(`🌐 Cache MISS: Fetching ISBN ${isbn} from Alexandria`)
-  const result = await withCircuitBreaker('alexandria', env, () => searchAlexandriaByISBN_Uncached(isbn))
+  const result = await withCircuitBreaker('alexandria', env, () => searchAlexandriaByISBN_Uncached(isbn, env))
 
   // Write successful results to cache
   if (result && result.works && result.works.length > 0) {
@@ -118,20 +118,32 @@ export async function searchAlexandriaByISBN(
  */
 async function searchAlexandriaByISBN_Uncached(
   isbn: string,
+  env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
     "Alexandria",
     async () => {
       console.log(`Alexandria ISBN search for "${isbn}"`)
 
-      const searchUrl = `${ALEXANDRIA_BASE_URL}/api/isbn?isbn=${encodeURIComponent(isbn)}`
+      const searchUrl = `${ALEXANDRIA_BASE_URL}/api/search?isbn=${encodeURIComponent(isbn)}`
 
-      const response = await fetch(searchUrl, {
-        headers: {
-          "User-Agent": ALEXANDRIA_USER_AGENT,
-          Accept: "application/json",
-        },
-      })
+      // Get service token credentials for Cloudflare Access bypass
+      // These are Worker secrets (not Secrets Store), so they're plain strings
+      const clientId = env.ALEXANDRIA_CLIENT_ID;
+      const clientSecret = env.ALEXANDRIA_CLIENT_SECRET;
+
+      const headers: Record<string, string> = {
+        "User-Agent": ALEXANDRIA_USER_AGENT,
+        Accept: "application/json",
+      };
+
+      // Add Cloudflare Access service token headers if available
+      if (clientId && clientSecret) {
+        headers["CF-Access-Client-Id"] = clientId;
+        headers["CF-Access-Client-Secret"] = clientSecret;
+      }
+
+      const response = await fetch(searchUrl, { headers })
 
       if (response.status === 404) {
         console.log(`📭 Alexandria: ISBN ${isbn} not found (404)`)
@@ -161,7 +173,7 @@ async function searchAlexandriaByISBN_Uncached(
       return normalizedData
     },
     { isbn },
-    {} as ExternalAPIEnv, // Alexandria doesn't need env for logging
+    env, // Pass env for potential analytics logging
   )
 }
 

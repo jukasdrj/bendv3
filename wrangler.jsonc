@@ -334,5 +334,10 @@
       "store_id": "b0562ac16fde468c8af12717a6c88400",
       "secret_name": "ISBNDB_API_KEY"
     }
-  ]
+  ],
+  "//": "========================================================================",
+  "//": "Alexandria Authentication (Worker Secrets - not Secrets Store)",
+  "//": "ALEXANDRIA_CLIENT_ID and ALEXANDRIA_CLIENT_SECRET are Worker secrets",
+  "//": "Added via: npx wrangler secret put ALEXANDRIA_CLIENT_ID",
+  "//": "========================================================================"
 }

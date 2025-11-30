@@ -48,6 +48,8 @@ import { getCacheTTL } from "../config/cache-ttl.js";
 export interface ExternalAPIEnv {
   GOOGLE_BOOKS_API_KEY?: any; // Can be string or SecretBinding
   ISBNDB_API_KEY?: any; // Can be string or SecretBinding
+  ALEXANDRIA_CLIENT_ID?: string; // Worker secret (plain string)
+  ALEXANDRIA_CLIENT_SECRET?: string; // Worker secret (plain string)
   GOOGLE_BOOKS_ANALYTICS?: AnalyticsEngineDataset;
   CACHE?: KVNamespace;
   CACHE_HOT_TTL?: string; // Hot TTL in seconds (default: 7200 = 2h)

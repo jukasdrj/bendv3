@@ -28,6 +28,7 @@ export function createUnifiedSuccessResponse<T>(
   },
 ): ResponseEnvelope<T> {
   return {
+    success: true, // P0: Add success discriminator for iOS client compatibility
     data,
     metadata: {
       timestamp: meta.timestamp,
@@ -49,7 +50,20 @@ export function createUnifiedErrorResponse(
   code?: string,
   details?: any,
 ): ResponseEnvelope<null> {
+  // P1: Determine if error is retryable based on error code
+  const retryableErrors = new Set([
+    'RATE_LIMIT_EXCEEDED',
+    'PROVIDER_ERROR',
+    'PROVIDER_TIMEOUT',
+    'CACHE_ERROR',
+    'INTERNAL_ERROR',
+    'CIRCUIT_OPEN',
+    'NETWORK_ERROR',
+  ]);
+  const retryable = code ? retryableErrors.has(code) : false;
+
   return {
+    success: false, // P0: Add success discriminator for iOS client compatibility
     data: null,
     metadata: {
       timestamp: new Date().toISOString(),
@@ -57,6 +71,7 @@ export function createUnifiedErrorResponse(
     error: {
       message,
       code,
+      retryable, // P1: Add retryable field for intelligent retry logic
       details,
     },
   };

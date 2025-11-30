@@ -103,6 +103,7 @@ export function createSuccessResponse<T>(
   corsRequest: Request | null = null,
 ): Response {
   const envelope: ResponseEnvelope<T> = {
+    success: true, // P0: Add success discriminator for iOS client compatibility
     data,
     metadata: {
       timestamp: new Date().toISOString(),
@@ -145,7 +146,18 @@ export function createErrorResponse(
 ): Response {
   console.error(`Error [${code || "UNKNOWN"}]:`, message);
 
+  // P1: Determine if error is retryable based on error code
+  const retryableErrors = new Set([
+    ErrorCodes.RATE_LIMIT_EXCEEDED,
+    ErrorCodes.PROVIDER_ERROR,
+    ErrorCodes.PROVIDER_TIMEOUT,
+    ErrorCodes.CACHE_ERROR,
+    ErrorCodes.INTERNAL_ERROR,
+  ]);
+  const retryable = code ? retryableErrors.has(code) : false;
+
   const envelope: ResponseEnvelope<null> = {
+    success: false, // P0: Add success discriminator for iOS client compatibility
     data: null,
     metadata: {
       timestamp: new Date().toISOString(),
@@ -153,6 +165,7 @@ export function createErrorResponse(
     error: {
       message,
       code,
+      retryable, // P1: Add retryable field for intelligent retry logic
       details,
     },
   };
