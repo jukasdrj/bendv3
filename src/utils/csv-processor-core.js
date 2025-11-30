@@ -188,6 +188,53 @@ export async function processCSVCore(
         (failedCount > 0 ? ` (${failedCount} failed)` : ''),
     );
 
+    // Queue successfully saved ISBNs for Alexandria enrichment (non-blocking)
+    // This ensures Alexandria learns from CSV imports without slowing down the import
+    if (env.ENRICHMENT_QUEUE) {
+      const successfulISBNs = results
+        .filter((r) => r.status === 'fulfilled' && r.value?.isbn)
+        .map((r) => r.value.isbn);
+
+      if (successfulISBNs.length > 0) {
+        console.log(
+          `[CSV Processor Core] 📤 Queueing ${successfulISBNs.length} ISBNs for Alexandria enrichment`,
+        );
+
+        // Batch queue sends for efficiency (10 ISBNs per message)
+        const batchSize = 10;
+        const queuePromises = [];
+
+        for (let i = 0; i < successfulISBNs.length; i += batchSize) {
+          const batch = successfulISBNs.slice(i, i + batchSize);
+          for (const isbn of batch) {
+            queuePromises.push(
+              env.ENRICHMENT_QUEUE.send({
+                entity_type: 'edition',
+                isbn,
+                source: 'csv_import',
+                priority: 8, // High priority - user data
+                timestamp: new Date().toISOString(),
+              }).catch((err) => {
+                // Non-blocking: log but don't fail the import
+                console.warn(`[CSV Processor Core] ⚠️ Failed to queue ISBN ${isbn}:`, err.message);
+              }),
+            );
+          }
+        }
+
+        // Fire and forget - don't await queue sends to avoid blocking CSV completion
+        Promise.all(queuePromises).then(() => {
+          console.log(
+            `[CSV Processor Core] ✅ Queued ${successfulISBNs.length} ISBNs for background enrichment`,
+          );
+        });
+      }
+    } else {
+      console.log(
+        `[CSV Processor Core] ⚠️ ENRICHMENT_QUEUE not configured, skipping Alexandria enrichment`,
+      );
+    }
+
     // Store full results in KV for HTTP retrieval (API Contract format)
     const resourceId = `${resultsKeyPrefix}:${jobId}`;
     const apiContractResults = {
