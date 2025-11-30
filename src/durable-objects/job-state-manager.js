@@ -66,6 +66,10 @@ export class JobStateManagerDO extends DurableObject {
     await this.storage.put("jobState", jobState);
     console.log(`[JobStateManager] Job ${jobId} initialized`);
 
+    // Initialize SSE client list and updates queue
+    await this.storage.put(`sse-clients:${jobId}`, []);
+    await this.storage.put(`updates:${jobId}`, []);
+
     return { success: true };
   }
 
@@ -137,6 +141,15 @@ export class JobStateManagerDO extends DurableObject {
       },
     });
 
+    // Broadcast to SSE clients
+    await this.broadcastSSEUpdate('progress', {
+      jobId: this.jobState.jobId,
+      status: payload.status || 'processing',
+      progress: payload.progress,
+      processedCount: payload.processedCount,
+      totalCount: this.jobState.totalCount,
+    });
+
     return { success: true };
   }
 
@@ -186,6 +199,16 @@ export class JobStateManagerDO extends DurableObject {
         ...payload,
         expiresAt, // Add expiry timestamp to payload
       },
+    });
+
+    // Broadcast to SSE clients
+    await this.broadcastSSEUpdate('completed', {
+      jobId: jobState.jobId,
+      status: 'completed',
+      progress: 100,
+      processedCount: jobState.processedCount || completedState.totalCount,
+      totalCount: completedState.totalCount,
+      completedAt: new Date(completedState.completedTime).toISOString(),
     });
 
     // Fix Issue #108: Delete existing alarm to prevent race condition
@@ -262,6 +285,16 @@ export class JobStateManagerDO extends DurableObject {
           details: payload.details,
         },
         retryable: payload.retryable,
+      },
+    });
+
+    // Broadcast to SSE clients
+    await this.broadcastSSEUpdate('failed', {
+      jobId: jobState.jobId,
+      status: 'failed',
+      error: {
+        code: payload.code,
+        message: payload.message,
       },
     });
 
@@ -371,6 +404,85 @@ export class JobStateManagerDO extends DurableObject {
     await this.storage.setAlarm(Date.now()); // Trigger immediately
     console.log(`[JobStateManager] Scheduled bookshelf scan for job ${jobId}`);
     return { success: true };
+  }
+
+  /**
+   * RPC Method: Register SSE client for updates
+   *
+   * @param {string} clientId - Unique client identifier
+   * @returns {Promise<{success: boolean}>}
+   */
+  async registerSSEClient(clientId) {
+    const jobState = await this.storage.get('jobState');
+    if (!jobState) return { success: false };
+
+    const clients = await this.storage.get(`sse-clients:${jobState.jobId}`) || [];
+    if (!clients.includes(clientId)) {
+      clients.push(clientId);
+      await this.storage.put(`sse-clients:${jobState.jobId}`, clients);
+      console.log(`[JobStateManager] Registered SSE client ${clientId} for job ${jobState.jobId}`);
+    }
+    return { success: true };
+  }
+
+  /**
+   * RPC Method: Unregister SSE client
+   *
+   * @param {string} clientId - Unique client identifier
+   * @returns {Promise<{success: boolean}>}
+   */
+  async unregisterSSEClient(clientId) {
+    const jobState = await this.storage.get('jobState');
+    if (!jobState) return { success: false };
+
+    const clients = await this.storage.get(`sse-clients:${jobState.jobId}`) || [];
+    const filtered = clients.filter(id => id !== clientId);
+    await this.storage.put(`sse-clients:${jobState.jobId}`, filtered);
+    console.log(`[JobStateManager] Unregistered SSE client ${clientId} for job ${jobState.jobId}`);
+    return { success: true };
+  }
+
+  /**
+   * RPC Method: Get SSE updates from a given index
+   *
+   * @param {number} fromIndex - Starting index (default: 0)
+   * @returns {Promise<Array>} Array of updates
+   */
+  async getUpdates(fromIndex = 0) {
+    const jobState = await this.storage.get('jobState');
+    if (!jobState) return [];
+
+    const updates = await this.storage.get(`updates:${jobState.jobId}`) || [];
+    return updates.slice(fromIndex);
+  }
+
+  /**
+   * Internal: Broadcast update to SSE update queue
+   *
+   * @param {string} eventType - Type of event (progress, completed, failed)
+   * @param {Object} data - Event data
+   * @returns {Promise<void>}
+   */
+  async broadcastSSEUpdate(eventType, data) {
+    const jobState = this.jobState || await this.storage.get('jobState');
+    if (!jobState) return;
+
+    const updates = await this.storage.get(`updates:${jobState.jobId}`) || [];
+    updates.push({
+      timestamp: Date.now(),
+      eventType,
+      data,
+    });
+
+    // Keep only last 100 updates
+    if (updates.length > 100) {
+      updates.shift();
+    }
+
+    await this.storage.put(`updates:${jobState.jobId}`, updates);
+
+    const clients = await this.storage.get(`sse-clients:${jobState.jobId}`) || [];
+    console.log(`[JobStateManager] Broadcast ${eventType} to queue (${clients.length} SSE clients) for job ${jobState.jobId}`);
   }
 
   /**

@@ -136,6 +136,33 @@ export async function handleSSEStream(
     await writer.write(encoder.encode(formatted))
   }
 
+  // Get JobStateManagerDO stub for this job
+  // Type cast to access RPC methods (same pattern as router.ts)
+  const doId = env.JOB_STATE_MANAGER_DO.idFromName(jobId)
+  const doStub = env.JOB_STATE_MANAGER_DO.get(doId) as unknown as {
+    getJobState(): Promise<JobState | null>
+    registerSSEClient(clientId: string): Promise<{ success: boolean }>
+    unregisterSSEClient(clientId: string): Promise<{ success: boolean }>
+    getUpdates(fromIndex: number): Promise<Array<{
+      timestamp: number
+      eventType: string
+      data: any
+    }>>
+  }
+
+  // Generate unique client ID for registration
+  const clientId = crypto.randomUUID()
+
+  // Cleanup function for unregistering client (defined outside IIFE for access in catch)
+  const cleanup = async () => {
+    try {
+      await doStub.unregisterSSEClient(clientId)
+      console.log(`[SSE] Unregistered client ${clientId}`)
+    } catch (error) {
+      console.error('[SSE] Cleanup error:', error)
+    }
+  }
+
   // Start the SSE stream in background
   // eslint-disable-next-line @typescript-eslint/no-floating-promises
   (async () => {
@@ -148,12 +175,9 @@ export async function handleSSEStream(
       }
       await writer.write(encoder.encode('retry: 5000\n\n'))
 
-      // Get JobStateManagerDO stub for this job
-      // Type cast to access RPC methods (same pattern as router.ts)
-      const doId = env.JOB_STATE_MANAGER_DO.idFromName(jobId)
-      const doStub = env.JOB_STATE_MANAGER_DO.get(doId) as unknown as {
-        getJobState(): Promise<JobState | null>
-      }
+      // Register client with DO
+      await doStub.registerSSEClient(clientId)
+      console.log(`[SSE] Registered client ${clientId} for job ${jobId}`)
 
       // Initial state fetch
       let state: JobState | null = await doStub.getJobState()
@@ -167,6 +191,7 @@ export async function handleSSEStream(
             jobId
           })
         })
+        await cleanup()
         await writer.close()
         return
       }
@@ -216,76 +241,60 @@ export async function handleSSEStream(
             ...(state.status !== 'failed' && state.error && { error: state.error })
           })
         })
+        await cleanup()
         await writer.close()
         return
       }
 
-      // Poll for updates (Durable Object doesn't support push to external SSE)
-      // In a full implementation, the DO would have a list of connected clients
-      // For now, we poll every 2 seconds
-      let lastProgress = state.progress
+      // Push-based updates - check for new events from DO every 500ms
+      let lastUpdateIndex = 0
+      let lastHeartbeat = Date.now()
       let consecutiveNoChange = 0
-      const maxNoChange = 150 // 5 minutes of no change = timeout
 
       while (state && state.status !== 'completed' && state.status !== 'failed' && state.status !== 'canceled') {
-        // Wait before next poll
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        // Wait 500ms between checks (faster than 2s polling)
+        await new Promise(resolve => setTimeout(resolve, 500))
 
-        // Fetch updated state
-        state = await doStub.getJobState()
+        // Check for new updates from DO
+        const updates = await doStub.getUpdates(lastUpdateIndex)
 
-        if (!state) {
+        if (updates && updates.length > 0) {
+          for (const update of updates) {
+            await writeEvent({
+              id: `${update.timestamp}-${update.eventType}`,
+              event: update.eventType,
+              data: JSON.stringify(update.data),
+            })
+            lastUpdateIndex++
+          }
+          // Reset no-change counter since we got updates
+          consecutiveNoChange = 0
+        } else {
+          consecutiveNoChange++
+        }
+
+        // Send heartbeat every 30 seconds
+        if (Date.now() - lastHeartbeat > 30000) {
+          await writer.write(encoder.encode(': heartbeat\n\n'))
+          lastHeartbeat = Date.now()
+        }
+
+        // Timeout after 5 minutes of no updates
+        if (consecutiveNoChange >= 600) { // 600 * 500ms = 5 minutes
           await writeEvent({
-            event: 'error',
+            event: 'timeout',
             data: JSON.stringify({
-              error: 'job_state_lost',
-              message: 'Job state was lost unexpectedly',
-              jobId
+              error: 'stream_timeout',
+              message: 'No progress for 5 minutes. Use polling endpoint to check status.',
+              jobId,
             })
           })
           break
         }
 
-        // Check if progress changed
-        if (state.progress !== lastProgress) {
-          consecutiveNoChange = 0
-          lastProgress = state.progress
-
-          // Send progress event
-          await writeEvent({
-            id: `${Date.now()}-progress`,
-            event: state.status === 'processing' ? 'progress' : state.status,
-            data: JSON.stringify({
-              jobId: state.jobId,
-              status: state.status,
-              progress: state.progress,
-              processedCount: state.processedCount,
-              totalCount: state.totalCount,
-              ...(state.error && { error: state.error })
-            })
-          })
-        } else {
-          consecutiveNoChange++
-
-          // Send heartbeat every 30 seconds even if no progress
-          if (consecutiveNoChange % 15 === 0) {
-            await writer.write(encoder.encode(': heartbeat\n\n'))
-          }
-
-          // Timeout after 5 minutes of no progress change
-          if (consecutiveNoChange >= maxNoChange) {
-            await writeEvent({
-              event: 'timeout',
-              data: JSON.stringify({
-                error: 'stream_timeout',
-                message: 'No progress for 5 minutes. Use polling endpoint to check status.',
-                jobId,
-                lastStatus: state.status,
-                lastProgress: state.progress
-              })
-            })
-            break
-          }
+        // Refresh state periodically (every 10 checks = 5 seconds)
+        if (consecutiveNoChange % 10 === 0) {
+          state = await doStub.getJobState()
         }
       }
 
@@ -306,6 +315,9 @@ export async function handleSSEStream(
         })
       }
 
+      // Cleanup on normal completion
+      await cleanup()
+
     } catch (error) {
       console.error('[SSE Stream] Error:', error)
       try {
@@ -320,6 +332,7 @@ export async function handleSSEStream(
       } catch {
         // Writer may already be closed
       }
+      await cleanup()
     } finally {
       try {
         await writer.close()
