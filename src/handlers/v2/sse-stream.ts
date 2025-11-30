@@ -143,7 +143,7 @@ export async function handleSSEStream(
     getJobState(): Promise<JobState | null>
     registerSSEClient(clientId: string): Promise<{ success: boolean }>
     unregisterSSEClient(clientId: string): Promise<{ success: boolean }>
-    getUpdates(fromIndex: number): Promise<Array<{
+    getUpdates(afterTimestamp: number): Promise<Array<{
       timestamp: number
       eventType: string
       data: any
@@ -247,7 +247,8 @@ export async function handleSSEStream(
       }
 
       // Push-based updates - check for new events from DO every 500ms
-      let lastUpdateIndex = 0
+      // Uses timestamp-based retrieval to prevent event loss (Issue #156)
+      let lastTimestamp = 0
       let lastHeartbeat = Date.now()
       let consecutiveNoChange = 0
 
@@ -255,8 +256,8 @@ export async function handleSSEStream(
         // Wait 500ms between checks (faster than 2s polling)
         await new Promise(resolve => setTimeout(resolve, 500))
 
-        // Check for new updates from DO
-        const updates = await doStub.getUpdates(lastUpdateIndex)
+        // Check for new updates from DO (timestamp-based, immune to queue shifts)
+        const updates = await doStub.getUpdates(lastTimestamp)
 
         if (updates && updates.length > 0) {
           for (const update of updates) {
@@ -265,7 +266,8 @@ export async function handleSSEStream(
               event: update.eventType,
               data: JSON.stringify(update.data),
             })
-            lastUpdateIndex++
+            // Track the highest timestamp we've seen
+            lastTimestamp = Math.max(lastTimestamp, update.timestamp)
           }
           // Reset no-change counter since we got updates
           consecutiveNoChange = 0

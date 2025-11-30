@@ -443,17 +443,20 @@ export class JobStateManagerDO extends DurableObject {
   }
 
   /**
-   * RPC Method: Get SSE updates from a given index
+   * RPC Method: Get SSE updates after a given timestamp
    *
-   * @param {number} fromIndex - Starting index (default: 0)
+   * Uses timestamp-based filtering to prevent event loss when queue is capped.
+   * See Issue #156: Index-based retrieval loses events when queue shifts.
+   *
+   * @param {number} afterTimestamp - Return events after this timestamp (0 for all)
    * @returns {Promise<Array>} Array of updates
    */
-  async getUpdates(fromIndex = 0) {
+  async getUpdates(afterTimestamp = 0) {
     const jobState = await this.storage.get('jobState');
     if (!jobState) return [];
 
     const updates = await this.storage.get(`updates:${jobState.jobId}`) || [];
-    return updates.slice(fromIndex);
+    return updates.filter(u => u.timestamp > afterTimestamp);
   }
 
   /**
