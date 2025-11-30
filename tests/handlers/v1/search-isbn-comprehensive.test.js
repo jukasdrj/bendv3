@@ -47,7 +47,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
     mockEnv = {
       GOOGLE_BOOKS_API_KEY: "test-google-key",
       OPENLIBRARY_API_KEY: "test-ol-key",
-      BOOK_CACHE: createMockKV(),
+      CACHE: createMockKV(),
     };
 
     // Save original fetch
@@ -329,7 +329,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
       expect(global.fetch).toHaveBeenCalledTimes(1);
 
       // Check if cache was used (depends on implementation)
-      const cached = await mockEnv.BOOK_CACHE.get(`isbn:${isbn}`, "json");
+      const cached = await mockEnv.CACHE.get(`isbn:${isbn}`, "json");
       expect(cached).toBeDefined();
     });
 
@@ -346,7 +346,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       // Verify cache was populated
       const cacheKey = `isbn:${isbn}`;
-      const cached = await mockEnv.BOOK_CACHE.get(cacheKey, "json");
+      const cached = await mockEnv.CACHE.get(cacheKey, "json");
 
       // Cache implementation may vary
       expect(cached !== null || cached !== undefined);
@@ -362,7 +362,7 @@ describe("GET /v1/search/isbn - Comprehensive", () => {
 
       // Verify error was not cached
       const cacheKey = `isbn:${isbn}`;
-      const cached = await mockEnv.BOOK_CACHE.get(cacheKey, "json");
+      const cached = await mockEnv.CACHE.get(cacheKey, "json");
       expect(cached).toBeNull();
     });
   });

@@ -44,7 +44,7 @@ describe("GET /v1/search/title - Comprehensive", () => {
   beforeEach(() => {
     mockEnv = {
       GOOGLE_BOOKS_API_KEY: "test-google-key",
-      BOOK_CACHE: createMockKV(),
+      CACHE: createMockKV(),
     };
 
     originalFetch = global.fetch;
@@ -327,7 +327,7 @@ describe("GET /v1/search/title - Comprehensive", () => {
 
       // Verify cache was accessed (implementation may vary)
       const cacheKey = `title:${title.toLowerCase()}`;
-      const cached = await mockEnv.BOOK_CACHE.get(cacheKey, "json");
+      const cached = await mockEnv.CACHE.get(cacheKey, "json");
 
       // Cache behavior depends on implementation
       expect(cached === null || typeof cached === "object").toBe(true);
