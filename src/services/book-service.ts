@@ -121,6 +121,16 @@ export async function findBookByISBN(
               medium: alexandriaResult.urls.medium,
               large: alexandriaResult.urls.large,
             }
+            
+            // 🏈 THE TOUCHDOWN PLAY - Update externalResult with Alexandria URLs!
+            // This ensures the client receives Alexandria-hosted cover URLs instead of provider URLs
+            if (externalResult.works[0]) {
+              externalResult.works[0].coverImageURL = alexandriaResult.urls.large
+            }
+            if (externalResult.editions?.[0]) {
+              externalResult.editions[0].coverImageURL = alexandriaResult.urls.large
+            }
+            
             console.log(`[BookService] ✅ Cover processed via Alexandria for ${isbn}`)
           } else {
             console.warn(`[BookService] ⚠️ Alexandria cover processing failed, using provider URL`)
@@ -304,6 +314,15 @@ export async function batchEnrichBooks(
                 small: alexandriaResult.urls.small,
                 medium: alexandriaResult.urls.medium,
                 large: alexandriaResult.urls.large,
+              }
+              
+              // 🏈 THE TOUCHDOWN PLAY #2 - Update externalResult with Alexandria URLs!
+              // Same fix as findBookByISBN - ensures batch operations also return Alexandria URLs
+              if (externalResult.works[0]) {
+                externalResult.works[0].coverImageURL = alexandriaResult.urls.large
+              }
+              if (externalResult.editions?.[0]) {
+                externalResult.editions[0].coverImageURL = alexandriaResult.urls.large
               }
             }
           } catch (coverError) {
