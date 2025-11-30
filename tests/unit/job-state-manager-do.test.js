@@ -179,26 +179,37 @@ describe('JobStateManagerDO', () => {
     it('should throttle storage writes based on pipeline config', async () => {
       // Clear mock calls from beforeEach
       mockState.storage.put.mockClear();
-      
+
       // CSV import throttles: 20 updates or 30 seconds
       // First update will trigger persist (timeSinceLastPersist is large)
       await doInstance.updateProgress('csv_import', { progress: 0.01 });
-      expect(mockState.storage.put).toHaveBeenCalledTimes(1);
-      
+
+      // Filter for jobState writes only (not SSE updates)
+      let jobStatePuts = mockState.storage.put.mock.calls.filter(
+        call => call[0] === 'jobState'
+      );
+      expect(jobStatePuts.length).toBe(1);
+
       mockState.storage.put.mockClear();
-      
+
       // Next 19 updates should not persist (within threshold)
       for (let i = 0; i < 19; i++) {
         await doInstance.updateProgress('csv_import', { progress: (i + 2) / 100 });
       }
 
-      // Should not persist until threshold reached
-      expect(mockState.storage.put).toHaveBeenCalledTimes(0);
+      // Should not persist jobState until threshold reached
+      jobStatePuts = mockState.storage.put.mock.calls.filter(
+        call => call[0] === 'jobState'
+      );
+      expect(jobStatePuts.length).toBe(0);
 
       // 20th update should trigger persist
       await doInstance.updateProgress('csv_import', { progress: 0.22 });
-      
-      expect(mockState.storage.put).toHaveBeenCalledTimes(1);
+
+      jobStatePuts = mockState.storage.put.mock.calls.filter(
+        call => call[0] === 'jobState'
+      );
+      expect(jobStatePuts.length).toBe(1);
     });
 
     it('should update lastUpdateTime on each progress update', async () => {
@@ -487,6 +498,237 @@ describe('JobStateManagerDO', () => {
       await doInstance.alarm();
 
       expect(mockState.storage.delete).toHaveBeenCalledWith('jobState');
+    });
+  });
+
+  describe('SSE Update Batching (Issue #157)', () => {
+    beforeEach(async () => {
+      // Initialize SSE clients and updates storage
+      await mockState.storage.put('jobState', {
+        jobId: 'job-123',
+        pipeline: 'csv_import',
+        totalCount: 100,
+        processedCount: 0,
+        progress: 0,
+        status: 'initialized',
+        startTime: Date.now(),
+        lastUpdateTime: Date.now(),
+        canceled: false
+      });
+      await mockState.storage.put('sse-clients:job-123', []);
+      await mockState.storage.put('updates:job-123', []);
+    });
+
+    it('should buffer updates in memory instead of writing immediately', async () => {
+      // Set jobState in memory
+      doInstance.jobState = await mockState.storage.get('jobState');
+
+      // Clear mock calls
+      mockState.storage.put.mockClear();
+      mockState.storage.get.mockClear();
+
+      // First 4 updates should not trigger storage writes
+      for (let i = 0; i < 4; i++) {
+        await doInstance.broadcastSSEUpdate('progress', {
+          progress: (i + 1) / 10,
+          processedCount: i + 1
+        });
+      }
+
+      // Should have read sse-clients but not written to updates
+      const putCalls = mockState.storage.put.mock.calls.filter(
+        call => call[0] === 'updates:job-123'
+      );
+      expect(putCalls.length).toBe(0);
+
+      // Verify updates are buffered in memory
+      expect(doInstance.pendingUpdates.length).toBe(4);
+    });
+
+    it('should flush to storage after 5 updates', async () => {
+      doInstance.jobState = await mockState.storage.get('jobState');
+      mockState.storage.put.mockClear();
+
+      // Send 5 updates
+      for (let i = 0; i < 5; i++) {
+        await doInstance.broadcastSSEUpdate('progress', {
+          progress: (i + 1) / 10,
+          processedCount: i + 1
+        });
+      }
+
+      // Should have flushed to storage
+      const putCalls = mockState.storage.put.mock.calls.filter(
+        call => call[0] === 'updates:job-123'
+      );
+      expect(putCalls.length).toBeGreaterThanOrEqual(1);
+
+      // Buffer should be cleared
+      expect(doInstance.pendingUpdates.length).toBe(0);
+    });
+
+    it('should flush to storage after 1 second', async () => {
+      vi.useFakeTimers();
+      doInstance.jobState = await mockState.storage.get('jobState');
+      mockState.storage.put.mockClear();
+
+      // Send 1 update
+      await doInstance.broadcastSSEUpdate('progress', { progress: 0.1 });
+
+      // Should be buffered
+      expect(doInstance.pendingUpdates.length).toBe(1);
+
+      // Advance time by 1.1 seconds
+      vi.advanceTimersByTime(1100);
+
+      // Send another update - should trigger flush due to time
+      await doInstance.broadcastSSEUpdate('progress', { progress: 0.2 });
+
+      const putCalls = mockState.storage.put.mock.calls.filter(
+        call => call[0] === 'updates:job-123'
+      );
+      expect(putCalls.length).toBeGreaterThanOrEqual(1);
+
+      vi.useRealTimers();
+    });
+
+    it('should include pending updates in getUpdates', async () => {
+      doInstance.jobState = await mockState.storage.get('jobState');
+
+      // Add some persisted updates
+      await mockState.storage.put('updates:job-123', [
+        { timestamp: 1000, eventType: 'progress', data: { progress: 0.1 } }
+      ]);
+
+      // Add buffered updates
+      await doInstance.broadcastSSEUpdate('progress', { progress: 0.2 });
+      await doInstance.broadcastSSEUpdate('progress', { progress: 0.3 });
+
+      // Get all updates
+      const updates = await doInstance.getUpdates(0);
+
+      // Should return both persisted and pending
+      expect(updates.length).toBe(3);
+      expect(updates[0].data.progress).toBe(0.1);
+      expect(updates[1].data.progress).toBe(0.2);
+      expect(updates[2].data.progress).toBe(0.3);
+    });
+
+    it('should flush pending updates on job completion', async () => {
+      doInstance.jobState = await mockState.storage.get('jobState');
+      vi.useFakeTimers();
+
+      // Add some buffered updates
+      await doInstance.broadcastSSEUpdate('progress', { progress: 0.5 });
+      await doInstance.broadcastSSEUpdate('progress', { progress: 0.8 });
+
+      expect(doInstance.pendingUpdates.length).toBe(2);
+
+      mockState.storage.put.mockClear();
+
+      // Complete the job
+      await doInstance.complete('csv_import', { books: [] });
+
+      // Should have flushed pending updates
+      expect(doInstance.pendingUpdates.length).toBe(0);
+
+      const putCalls = mockState.storage.put.mock.calls.filter(
+        call => call[0] === 'updates:job-123'
+      );
+      expect(putCalls.length).toBeGreaterThanOrEqual(1);
+
+      vi.useRealTimers();
+    });
+
+    it('should flush pending updates on job failure', async () => {
+      doInstance.jobState = await mockState.storage.get('jobState');
+      vi.useFakeTimers();
+
+      // Add some buffered updates
+      await doInstance.broadcastSSEUpdate('progress', { progress: 0.3 });
+
+      expect(doInstance.pendingUpdates.length).toBe(1);
+
+      mockState.storage.put.mockClear();
+
+      // Fail the job
+      await doInstance.sendError('csv_import', {
+        code: 'E_TEST',
+        message: 'Test error'
+      });
+
+      // Should have flushed pending updates
+      expect(doInstance.pendingUpdates.length).toBe(0);
+
+      const putCalls = mockState.storage.put.mock.calls.filter(
+        call => call[0] === 'updates:job-123'
+      );
+      expect(putCalls.length).toBeGreaterThanOrEqual(1);
+
+      vi.useRealTimers();
+    });
+
+    it('should cap updates at 100 events when flushing', async () => {
+      doInstance.jobState = await mockState.storage.get('jobState');
+
+      // Create 95 persisted updates
+      const persistedUpdates = Array.from({ length: 95 }, (_, i) => ({
+        timestamp: 1000 + i,
+        eventType: 'progress',
+        data: { progress: i / 100 }
+      }));
+      await mockState.storage.put('updates:job-123', persistedUpdates);
+
+      // Add 10 more buffered updates (total 105)
+      for (let i = 0; i < 10; i++) {
+        doInstance.pendingUpdates.push({
+          timestamp: 2000 + i,
+          eventType: 'progress',
+          data: { progress: (95 + i) / 100 }
+        });
+      }
+
+      // Flush
+      await doInstance.flushPendingUpdates('job-123');
+
+      // Get the flushed updates
+      const flushedUpdates = await mockState.storage.get('updates:job-123');
+
+      // Should have only 100 updates (oldest 5 trimmed)
+      expect(flushedUpdates.length).toBe(100);
+
+      // First update should be from index 5 (trimmed 0-4)
+      expect(flushedUpdates[0].timestamp).toBe(1005);
+
+      // Last update should be the newest buffered one
+      expect(flushedUpdates[99].timestamp).toBe(2009);
+    });
+
+    it('should reduce I/O operations for high-frequency updates', async () => {
+      doInstance.jobState = await mockState.storage.get('jobState');
+      mockState.storage.put.mockClear();
+      mockState.storage.get.mockClear();
+
+      // Simulate 1000 progress updates (common for large CSV imports)
+      for (let i = 0; i < 1000; i++) {
+        await doInstance.broadcastSSEUpdate('progress', {
+          progress: i / 1000,
+          processedCount: i
+        });
+      }
+
+      // Count how many times we wrote to storage
+      const putCalls = mockState.storage.put.mock.calls.filter(
+        call => call[0] === 'updates:job-123'
+      );
+
+      // Should have written ~200 times (1000 / 5 = 200) instead of 1000
+      expect(putCalls.length).toBeLessThan(250); // Allow some margin
+      expect(putCalls.length).toBeGreaterThan(150); // At least 150 flushes
+
+      // This is an 80%+ reduction in I/O operations
+      const ioReduction = ((1000 - putCalls.length) / 1000) * 100;
+      expect(ioReduction).toBeGreaterThan(75);
     });
   });
 });
