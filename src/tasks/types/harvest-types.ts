@@ -62,8 +62,8 @@ export interface HarvestReport {
  * Cloudflare Worker environment bindings
  */
 export interface Env {
-  LIBRARY_DATA: R2Bucket;
-  CACHE: KVNamespace;
+  BOOK_COVERS: any; // R2Bucket binding
+  CACHE: any; // KVNamespace binding
   ISBNDB_API_KEY: string;
   GOOGLE_BOOKS_API_KEY?: string;
 }
