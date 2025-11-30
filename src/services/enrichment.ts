@@ -11,7 +11,8 @@
  * - /v1/search/* endpoints (title, ISBN, advanced search)
  */
 
-import * as externalApis from "./external-apis.ts";
+import * as externalApis from "./external-apis.js";
+import { storeEnrichmentInAlexandria } from "./alexandria-write.js";
 import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js";
 import type { DataProvider } from "../types/enums.js";
 import { CircuitBreakerOpenError, ExternalAPIError, RateLimitError } from "../types/errors";
@@ -33,6 +34,8 @@ interface WorkerEnv {
   GOOGLE_BOOKS_API_KEY: string;
   ISBNDB_API_KEY: string;
   GEMINI_API_KEY: string;
+  ALEXANDRIA_CLIENT_ID?: string; // Cloudflare Access service token
+  ALEXANDRIA_CLIENT_SECRET?: string; // Cloudflare Access service token
 
   // R2 Buckets
   API_CACHE_COLD: R2Bucket;
@@ -202,6 +205,9 @@ export async function enrichMultipleBooks(
       );
 
       if (googleResult && googleResult.works && googleResult.works.length > 0) {
+        // Store in Alexandria for future lookups (fire-and-forget)
+        storeEnrichmentInAlexandria(googleResult, "google-books", env, ctx);
+
         // Add provenance fields to all works
         return {
           works: googleResult.works.map((work: WorkDTO) =>
@@ -234,6 +240,9 @@ export async function enrichMultipleBooks(
       );
 
       if (olResult && olResult.works && olResult.works.length > 0) {
+        // Store in Alexandria for future lookups (fire-and-forget)
+        storeEnrichmentInAlexandria(olResult, "openlibrary", env, ctx);
+
         // Add provenance fields to all works
         return {
           works: olResult.works.map((work: WorkDTO) =>
@@ -261,6 +270,14 @@ export async function enrichMultipleBooks(
       const isbndbResult = await externalApis.getISBNdbBookByISBN(isbn, env, ctx);
 
       if (isbndbResult && isbndbResult.work) {
+        // Store in Alexandria for future lookups (fire-and-forget)
+        const enrichmentResult = {
+          works: [isbndbResult.work],
+          editions: isbndbResult.edition ? [isbndbResult.edition] : [],
+          authors: isbndbResult.authors || [],
+        };
+        storeEnrichmentInAlexandria(enrichmentResult, "isbndb", env, ctx);
+
         // Add provenance fields to work
         return {
           works: [addProvenanceFields(isbndbResult.work, "isbndb")],
@@ -306,6 +323,9 @@ export async function enrichMultipleBooks(
     );
 
     if (googleResult && googleResult.works && googleResult.works.length > 0) {
+      // Store in Alexandria for future lookups (fire-and-forget)
+      storeEnrichmentInAlexandria(googleResult, "google-books", env, ctx);
+
       // Add provenance fields to all works
       return {
         works: googleResult.works.map((work: WorkDTO) =>
@@ -328,6 +348,9 @@ export async function enrichMultipleBooks(
     );
 
     if (olResult && olResult.works && olResult.works.length > 0) {
+      // Store in Alexandria for future lookups (fire-and-forget)
+      storeEnrichmentInAlexandria(olResult, "openlibrary", env, ctx);
+
       // Add provenance fields to all works
       return {
         works: olResult.works.map((work: WorkDTO) =>
@@ -349,6 +372,9 @@ export async function enrichMultipleBooks(
         console.log(
           `✅ ISBNdb SUCCESS: Found ${isbndbResult.works.length} works`,
         );
+        // Store in Alexandria for future lookups (fire-and-forget)
+        storeEnrichmentInAlexandria(isbndbResult, "isbndb", env, ctx);
+
         return {
           works: isbndbResult.works.map((work: WorkDTO) =>
             addProvenanceFields(work, "isbndb"),
