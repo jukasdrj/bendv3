@@ -1,3 +1,32 @@
+/**
+ * @deprecated Cover harvesting logic replaced by Alexandria integration (2025-11-30)
+ * 
+ * DEPRECATED - DO NOT USE
+ * ======================
+ * This file contains the old cover harvesting system that has been replaced by
+ * Alexandria integration. The code is preserved temporarily for reference but
+ * should NOT be called or modified.
+ * 
+ * Why deprecated:
+ * - Created duplicate processing with Alexandria integration
+ * - Direct R2 uploads bypassed centralized cover processing
+ * - Caused confusion between BOOK_COVERS R2 and Alexandria R2
+ * - Wasted API calls and storage with redundant processing
+ * 
+ * Migration path:
+ * - Phase 1 (Week 1-2): Disabled via scheduled-harvest.js stub
+ * - Phase 2 (Week 3-4): Refactor useful parts to Alexandria-powered bulk warming
+ * - Phase 3 (Week 5+): Remove this file entirely
+ * 
+ * Useful components to preserve:
+ * - loadISBNsFromCSVs() - CSV parsing logic
+ * - Multi-edition discovery - Expansion logic for finding alternate editions
+ * - Rate limiting utilities - ISBNdb API protection
+ * 
+ * Replace with: src/services/alexandria-cover-service.ts
+ * Documentation: ALEXANDRIA_DECOMMISSION_PLAN.md
+ */
+
 import type {
   BookEntry,
   CoverData,
