@@ -128,8 +128,21 @@ export function storeEditionInAlexandria(
   if (ctx) {
     // Fire-and-forget: don't block the response
     ctx.waitUntil(postToAlexandria("/api/enrich/edition", payload, env));
+  } else if ((env as unknown as { ENRICHMENT_QUEUE?: Queue }).ENRICHMENT_QUEUE) {
+    // No ExecutionContext (e.g., alarm context), queue for later processing
+    const queue = (env as unknown as { ENRICHMENT_QUEUE: Queue }).ENRICHMENT_QUEUE;
+    console.log(`📤 Alexandria write queued (alarm context): edition ${payload.isbn}`);
+    queue.send({
+      entity_type: 'edition',
+      isbn: payload.isbn,
+      source: 'alarm_fallback',
+      priority: 5, // Medium priority for fallback
+      timestamp: new Date().toISOString(),
+    }).catch((err: Error) => {
+      console.warn(`⚠️ Failed to queue Alexandria write for ${payload.isbn}:`, err.message);
+    });
   } else {
-    // No context available, log warning and skip
+    // No context and no queue available, log warning and skip
     console.warn(`⚠️ Alexandria write skipped: No ExecutionContext for edition ${payload.isbn}`);
   }
 }

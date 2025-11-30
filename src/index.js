@@ -102,15 +102,38 @@ export default {
   },
 
   /**
-   * Queue consumer handler - processes author warming queue messages
+   * Queue consumer handler - routes messages to appropriate processors
+   *
+   * Supports multiple queues:
+   * - author-warming-queue: Author cache warming
+   * - enrichment-queue: Alexandria enrichment for CSV imports
    */
   async queue(batch, env, ctx) {
-    console.log(`[Queue] Processing ${batch.messages.length} author warming messages`);
+    const queueName = batch.queue;
+    console.log(`[Queue] Processing ${batch.messages.length} messages from ${queueName}`);
 
     try {
-      await processAuthorBatch(batch, env, ctx);
+      switch (queueName) {
+        case "author-warming-queue":
+          await processAuthorBatch(batch, env, ctx);
+          break;
+
+        case "enrichment-queue": {
+          // Dynamic import to avoid loading enrichment code when not needed
+          const { processEnrichmentBatch } = await import("./handlers/enrichment-queue-consumer.js");
+          await processEnrichmentBatch(batch, env, ctx);
+          break;
+        }
+
+        default:
+          console.warn(`[Queue] Unknown queue: ${queueName}, acknowledging messages`);
+          // Acknowledge unknown messages to prevent infinite retries
+          for (const message of batch.messages) {
+            message.ack();
+          }
+      }
     } catch (error) {
-      console.error("[Queue] Error processing author warming batch:", error);
+      console.error(`[Queue] Error processing ${queueName} batch:`, error);
       // Queue consumer errors are logged
       // Workers will retry failed messages per queue configuration
     }
