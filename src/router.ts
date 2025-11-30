@@ -36,6 +36,7 @@ import * as authorSearch from "./handlers/author-search.js";
 import { triggerBookImportWorkflow, getWorkflowStatus } from "./handlers/workflow-trigger-handler";
 import { handleSimilarBooks, handleSemanticSearch } from "./handlers/semantic-search-handler";
 import { handleV2Search, handleWeeklyRecommendations, handleCapabilities, handleEnrichBook, handleSSEStream } from "./handlers/v2";
+import { handleEnrichBookDetailed } from "./handlers/v2/enrich-detailed";
 import { getProgressDOStub } from "./utils/durable-object-helpers";
 import { analyticsMiddleware } from "./middleware/hono-analytics";
 import { capabilitiesRoute } from "./openapi/routes/capabilities";
@@ -1573,9 +1574,15 @@ app.openapi(capabilitiesRoute, async (c) => {
   return await handleCapabilities(c.req.raw, c.env);
 });
 
-// POST /api/v2/books/enrich - Barcode enrichment with optional vectorization
+// POST /api/v2/books/enrich - Barcode enrichment with optional vectorization (flat response)
 app.post("/api/v2/books/enrich", rateLimitMiddleware, async (c) => {
   return await handleEnrichBook(c.req.raw, c.env, getCtx(c));
+});
+
+// POST /api/v2/books/enrich/detailed - Barcode enrichment with nested canonical DTOs (detailed response)
+// Issue #150: Provides full WorkDTO, EditionDTO, and AuthorDTO objects for clients that need comprehensive metadata
+app.post("/api/v2/books/enrich/detailed", rateLimitMiddleware, async (c) => {
+  return await handleEnrichBookDetailed(c.req.raw, c.env, getCtx(c));
 });
 
 // POST /api/v2/imports - CSV import initiation (OpenAPI with rate limiting)

@@ -276,7 +276,70 @@ export async function batchEnrichBooks(
     )
   )
 
-  // Step 3: Save to repository and add to results
+  // Step 3: Process covers in parallel with concurrency control
+  // Prepare cover processing tasks for books with valid work keys
+  const COVER_BATCH_SIZE = 10 // Process 10 covers at a time to avoid overwhelming Alexandria
+  const coverProcessingTasks: Array<{
+    isbn: string
+    workKey: string
+    providerCoverURL: string
+    resultIndex: number
+  }> = []
+
+  // Collect all cover processing tasks
+  for (let i = 0; i < missingISBNs.length; i++) {
+    const isbn = missingISBNs[i]
+    const result = externalResults[i]
+
+    if (result.status === 'fulfilled' && result.value.works.length > 0) {
+      const work = result.value.works[0]
+      const edition = result.value.editions?.[0]
+      const providerCoverURL = work.coverImageURL || edition?.coverImageURL
+      const workKey = work.openLibraryWorkID || work.openLibraryID
+
+      if (workKey && providerCoverURL) {
+        coverProcessingTasks.push({
+          isbn,
+          workKey,
+          providerCoverURL,
+          resultIndex: i,
+        })
+      }
+    }
+  }
+
+  console.log(
+    `[BookService] Processing ${coverProcessingTasks.length} covers in batches of ${COVER_BATCH_SIZE}`
+  )
+
+  // Process covers in batches for controlled parallelism
+  const coverResultsMap = new Map<string, any>()
+  for (let i = 0; i < coverProcessingTasks.length; i += COVER_BATCH_SIZE) {
+    const batch = coverProcessingTasks.slice(i, i + COVER_BATCH_SIZE)
+
+    const batchResults = await Promise.allSettled(
+      batch.map((task) =>
+        processBookCover(
+          {
+            work_key: task.workKey,
+            provider_url: task.providerCoverURL,
+            isbn: task.isbn,
+          },
+          env as any
+        )
+      )
+    )
+
+    // Store results in map for later use
+    batch.forEach((task, index) => {
+      const result = batchResults[index]
+      if (result.status === 'fulfilled') {
+        coverResultsMap.set(task.isbn, result.value)
+      }
+    })
+  }
+
+  // Step 4: Save to repository and add to results
   for (let i = 0; i < missingISBNs.length; i++) {
     const isbn = missingISBNs[i]
     const result = externalResults[i]
@@ -289,45 +352,28 @@ export async function batchEnrichBooks(
         const work = externalResult.works[0]
         const edition = externalResult.editions?.[0]
 
-        // Process cover via Alexandria if we have a work key and cover URL
+        // Use pre-processed cover URLs from parallel batch
         let coverURLs = {
           small: work.coverImageURL || edition?.coverImageURL || null,
           medium: work.coverImageURL || edition?.coverImageURL || null,
           large: work.coverImageURL || edition?.coverImageURL || null,
         }
 
-        const providerCoverURL = work.coverImageURL || edition?.coverImageURL
-        const workKey = work.openLibraryWorkID || work.openLibraryID
-        if (workKey && providerCoverURL) {
-          try {
-            const alexandriaResult = await processBookCover(
-              {
-                work_key: workKey,
-                provider_url: providerCoverURL,
-                isbn: isbn,
-              },
-              env as any,
-            )
+        const alexandriaResult = coverResultsMap.get(isbn)
+        if (alexandriaResult?.success) {
+          coverURLs = {
+            small: alexandriaResult.urls.small,
+            medium: alexandriaResult.urls.medium,
+            large: alexandriaResult.urls.large,
+          }
 
-            if (alexandriaResult.success) {
-              coverURLs = {
-                small: alexandriaResult.urls.small,
-                medium: alexandriaResult.urls.medium,
-                large: alexandriaResult.urls.large,
-              }
-              
-              // 🏈 THE TOUCHDOWN PLAY #2 - Update externalResult with Alexandria URLs!
-              // Same fix as findBookByISBN - ensures batch operations also return Alexandria URLs
-              if (externalResult.works[0]) {
-                externalResult.works[0].coverImageURL = alexandriaResult.urls.large
-              }
-              if (externalResult.editions?.[0]) {
-                externalResult.editions[0].coverImageURL = alexandriaResult.urls.large
-              }
-            }
-          } catch (coverError) {
-            console.error(`[BookService] Error processing cover via Alexandria:`, coverError)
-            // Fall back to provider URLs (already set in coverURLs)
+          // 🏈 THE TOUCHDOWN PLAY #2 - Update externalResult with Alexandria URLs!
+          // Same fix as findBookByISBN - ensures batch operations also return Alexandria URLs
+          if (externalResult.works[0]) {
+            externalResult.works[0].coverImageURL = alexandriaResult.urls.large
+          }
+          if (externalResult.editions?.[0]) {
+            externalResult.editions[0].coverImageURL = alexandriaResult.urls.large
           }
         }
 
