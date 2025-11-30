@@ -34,6 +34,9 @@ export class JobStateManagerDO extends DurableObject {
     this.lastPersistTime = 0;
     this.currentPipeline = null;
     this.jobState = null; // Fix Issue #107: Cache jobState to prevent state loss
+    // Fix Issue #157: Batch SSE update storage writes
+    this.pendingUpdates = [];
+    this.lastUpdatePersist = Date.now(); // Initialize to now to prevent immediate flush
   }
 
   /**
@@ -211,6 +214,9 @@ export class JobStateManagerDO extends DurableObject {
       completedAt: new Date(completedState.completedTime).toISOString(),
     });
 
+    // Fix Issue #157: Flush pending updates before job completes
+    await this.flushPendingUpdates(jobState.jobId);
+
     // Fix Issue #108: Delete existing alarm to prevent race condition
     await this.storage.deleteAlarm();
     // Schedule cleanup after 24 hours
@@ -297,6 +303,9 @@ export class JobStateManagerDO extends DurableObject {
         message: payload.message,
       },
     });
+
+    // Fix Issue #157: Flush pending updates before job fails
+    await this.flushPendingUpdates(jobState.jobId);
 
     // Fix Issue #108: Delete existing alarm to prevent race condition
     await this.storage.deleteAlarm();
@@ -455,12 +464,17 @@ export class JobStateManagerDO extends DurableObject {
     const jobState = await this.storage.get('jobState');
     if (!jobState) return [];
 
-    const updates = await this.storage.get(`updates:${jobState.jobId}`) || [];
-    return updates.filter(u => u.timestamp > afterTimestamp);
+    const persistedUpdates = await this.storage.get(`updates:${jobState.jobId}`) || [];
+    // Fix Issue #157: Include pending updates that haven't been persisted yet
+    const allUpdates = [...persistedUpdates, ...this.pendingUpdates];
+    return allUpdates.filter(u => u.timestamp > afterTimestamp);
   }
 
   /**
    * Internal: Broadcast update to SSE update queue
+   *
+   * Fix Issue #157: Batch storage writes using in-memory buffering.
+   * Persists every 5 updates OR every 1 second (whichever comes first).
    *
    * @param {string} eventType - Type of event (progress, completed, failed)
    * @param {Object} data - Event data
@@ -470,22 +484,54 @@ export class JobStateManagerDO extends DurableObject {
     const jobState = this.jobState || await this.storage.get('jobState');
     if (!jobState) return;
 
-    const updates = await this.storage.get(`updates:${jobState.jobId}`) || [];
-    updates.push({
+    // Add update to in-memory buffer
+    this.pendingUpdates.push({
       timestamp: Date.now(),
       eventType,
       data,
     });
 
-    // Keep only last 100 updates
-    if (updates.length > 100) {
-      updates.shift();
+    // Determine if we should persist now
+    const timeSinceLastPersist = (Date.now() - this.lastUpdatePersist) / 1000;
+    const shouldPersist = this.pendingUpdates.length >= 5 || timeSinceLastPersist >= 1;
+
+    if (shouldPersist) {
+      await this.flushPendingUpdates(jobState.jobId);
     }
 
-    await this.storage.put(`updates:${jobState.jobId}`, updates);
-
     const clients = await this.storage.get(`sse-clients:${jobState.jobId}`) || [];
-    console.log(`[JobStateManager] Broadcast ${eventType} to queue (${clients.length} SSE clients) for job ${jobState.jobId}`);
+    console.log(`[JobStateManager] Broadcast ${eventType} to queue (${clients.length} SSE clients, ${this.pendingUpdates.length} pending) for job ${jobState.jobId}`);
+  }
+
+  /**
+   * Internal: Flush pending updates to storage
+   *
+   * Fix Issue #157: Combine pending updates with persisted updates,
+   * then keep only the last 100 events.
+   *
+   * @param {string} jobId - Job identifier
+   * @returns {Promise<void>}
+   */
+  async flushPendingUpdates(jobId) {
+    if (this.pendingUpdates.length === 0) return;
+
+    // Read existing updates from storage
+    const persistedUpdates = await this.storage.get(`updates:${jobId}`) || [];
+
+    // Combine with pending updates
+    const allUpdates = [...persistedUpdates, ...this.pendingUpdates];
+
+    // Keep only last 100 updates
+    const trimmedUpdates = allUpdates.slice(-100);
+
+    // Write back to storage
+    await this.storage.put(`updates:${jobId}`, trimmedUpdates);
+
+    // Clear in-memory buffer
+    this.pendingUpdates = [];
+    this.lastUpdatePersist = Date.now();
+
+    console.log(`[JobStateManager] Flushed ${allUpdates.length - persistedUpdates.length} pending updates for job ${jobId}`);
   }
 
   /**

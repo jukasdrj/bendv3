@@ -246,15 +246,21 @@ export async function handleSSEStream(
         return
       }
 
-      // Push-based updates - check for new events from DO every 500ms
+      // Push-based updates with adaptive backoff (Issue #158)
       // Uses timestamp-based retrieval to prevent event loss (Issue #156)
       let lastTimestamp = 0
       let lastHeartbeat = Date.now()
-      let consecutiveNoChange = 0
+      let lastUpdateTime = Date.now() // Track last successful update for timeout
+
+      // Adaptive polling backoff to reduce DO contention
+      const MIN_POLL_INTERVAL = 500  // Start fast for responsive updates
+      const MAX_POLL_INTERVAL = 3000 // Cap at 3s to prevent staleness
+      const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+      let pollInterval = MIN_POLL_INTERVAL
 
       while (state && state.status !== 'completed' && state.status !== 'failed' && state.status !== 'canceled') {
-        // Wait 500ms between checks (faster than 2s polling)
-        await new Promise(resolve => setTimeout(resolve, 500))
+        // Wait with adaptive interval (reduces DO load when idle)
+        await new Promise(resolve => setTimeout(resolve, pollInterval))
 
         // Check for new updates from DO (timestamp-based, immune to queue shifts)
         const updates = await doStub.getUpdates(lastTimestamp)
@@ -269,10 +275,12 @@ export async function handleSSEStream(
             // Track the highest timestamp we've seen
             lastTimestamp = Math.max(lastTimestamp, update.timestamp)
           }
-          // Reset no-change counter since we got updates
-          consecutiveNoChange = 0
+          // Reset to fast polling when updates arrive
+          lastUpdateTime = Date.now()
+          pollInterval = MIN_POLL_INTERVAL
         } else {
-          consecutiveNoChange++
+          // No updates - back off gradually to reduce DO contention
+          pollInterval = Math.min(pollInterval * 1.5, MAX_POLL_INTERVAL)
         }
 
         // Send heartbeat every 30 seconds
@@ -281,8 +289,8 @@ export async function handleSSEStream(
           lastHeartbeat = Date.now()
         }
 
-        // Timeout after 5 minutes of no updates
-        if (consecutiveNoChange >= 600) { // 600 * 500ms = 5 minutes
+        // Timeout after 5 minutes of no updates (time-based, not iteration-based)
+        if (Date.now() - lastUpdateTime > TIMEOUT_MS) {
           await writeEvent({
             event: 'timeout',
             data: JSON.stringify({
@@ -294,8 +302,8 @@ export async function handleSSEStream(
           break
         }
 
-        // Refresh state periodically (every 10 checks = 5 seconds)
-        if (consecutiveNoChange % 10 === 0) {
+        // Refresh state periodically (every 10 seconds)
+        if (Date.now() - lastUpdateTime > 10000 && Date.now() % 10000 < pollInterval) {
           state = await doStub.getJobState()
         }
       }
