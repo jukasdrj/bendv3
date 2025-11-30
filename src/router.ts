@@ -1575,7 +1575,7 @@ app.openapi(capabilitiesRoute, async (c) => {
 
 // POST /api/v2/books/enrich - Barcode enrichment with optional vectorization
 app.post("/api/v2/books/enrich", rateLimitMiddleware, async (c) => {
-  return await handleEnrichBook(c.req.raw, c.env);
+  return await handleEnrichBook(c.req.raw, c.env, getCtx(c));
 });
 
 // POST /api/v2/imports - CSV import initiation (OpenAPI with rate limiting)
