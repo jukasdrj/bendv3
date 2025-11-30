@@ -17,13 +17,15 @@ import {
   ErrorCodes,
 } from '../../utils/response-builder'
 import { generateBookEmbedding, storeEmbedding } from '../../services/embedding-service'
+import { enrichMultipleBooks } from '../../services/enrichment'
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export interface EnrichRequest {
-  isbn: string
+  barcode?: string // P0: Contract-compliant parameter name (preferred)
+  isbn?: string // P0: Backward compatibility (deprecated)
   title?: string
   author?: string
   includeEmbedding?: boolean
@@ -60,7 +62,8 @@ export interface EnrichResponse {
  */
 export async function handleEnrichBook(
   request: Request,
-  env: Env
+  env: Env,
+  ctx?: ExecutionContext
 ): Promise<Response> {
   // Parse request body
   let body: EnrichRequest
@@ -77,15 +80,16 @@ export async function handleEnrichBook(
     )
   }
 
-  // Validate ISBN
-  const isbn = body.isbn?.replace(/[-\s]/g, '')
+  // P0: Accept both barcode (contract-compliant) and isbn (backward compatibility)
+  const isbnRaw = body.barcode || body.isbn
+  const isbn = isbnRaw?.replace(/[-\s]/g, '')
 
   if (!isbn || !/^\d{10}$|^\d{13}$/.test(isbn)) {
     return createErrorResponse(
-      'Invalid or missing ISBN. Must be ISBN-10 or ISBN-13.',
+      'Invalid or missing barcode. Must be ISBN-10 or ISBN-13.',
       400,
       ErrorCodes.INVALID_REQUEST,
-      { field: 'isbn' },
+      { field: 'barcode' }, // P0: Use contract-compliant field name in error
       request
     )
   }
@@ -122,7 +126,7 @@ export async function handleEnrichBook(
     }
 
     // Fetch from external APIs (orchestrated search)
-    const bookData = await fetchBookData(isbn, env)
+    const bookData = await fetchBookData(isbn, env, ctx)
 
     if (!bookData) {
       return createErrorResponse(
@@ -206,11 +210,18 @@ export async function handleEnrichBook(
 // ============================================================================
 
 /**
- * Fetch book data from external providers (simplified version)
+ * Fetch book data from external providers using enrichment service
+ *
+ * Uses enrichMultipleBooks which orchestrates:
+ * 1. Alexandria (local, free, fast)
+ * 2. Google Books (comprehensive metadata)
+ * 3. OpenLibrary (free fallback)
+ * 4. ISBNdb (cover images)
  */
 async function fetchBookData(
   isbn: string,
-  env: Env
+  env: Env,
+  ctx?: ExecutionContext
 ): Promise<{
   title: string
   authors?: string[]
@@ -222,65 +233,39 @@ async function fetchBookData(
   coverUrl?: string
   provider?: string
 } | null> {
-  // Try Google Books API first
-  if (env.GOOGLE_BOOKS_API_KEY) {
-    try {
-      const googleUrl = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&key=${env.GOOGLE_BOOKS_API_KEY}`
-      const response = await fetch(googleUrl)
-
-      if (response.ok) {
-        const data = await response.json() as any
-
-        if (data.totalItems > 0 && data.items?.[0]?.volumeInfo) {
-          const info = data.items[0].volumeInfo
-          return {
-            title: info.title,
-            authors: info.authors,
-            publisher: info.publisher,
-            publishedDate: info.publishedDate,
-            description: info.description,
-            pageCount: info.pageCount,
-            categories: info.categories,
-            coverUrl: info.imageLinks?.thumbnail?.replace('http:', 'https:'),
-            provider: 'google_books',
-          }
-        }
-      }
-    } catch (error) {
-      console.error('[V2Enrich] Google Books API error:', error)
-    }
-  }
-
-  // Fallback to OpenLibrary
   try {
-    const olUrl = `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`
-    const response = await fetch(olUrl, {
-      headers: { 'User-Agent': env.USER_AGENT || 'BooksTrack/1.0' },
-    })
+    // Use enrichMultipleBooks which includes Alexandria in the pipeline
+    const result = await enrichMultipleBooks(
+      { isbn },
+      env,
+      { maxResults: 1 },
+      ctx
+    )
 
-    if (response.ok) {
-      const data = await response.json() as any
-      const bookData = data[`ISBN:${isbn}`]
+    // If no results found, return null
+    if (!result || !result.works || result.works.length === 0) {
+      return null
+    }
 
-      if (bookData) {
-        return {
-          title: bookData.title,
-          authors: bookData.authors?.map((a: any) => a.name),
-          publisher: bookData.publishers?.[0]?.name,
-          publishedDate: bookData.publish_date,
-          description: bookData.notes,
-          pageCount: bookData.number_of_pages,
-          categories: bookData.subjects?.map((s: any) => s.name),
-          coverUrl: bookData.cover?.medium,
-          provider: 'openlibrary',
-        }
-      }
+    // Map canonical response to V2 response format
+    const work = result.works[0]
+    const edition = result.editions?.[0]
+
+    return {
+      title: work.title,
+      authors: result.authors?.map(a => a.name) || [],
+      publisher: edition?.publisher,
+      publishedDate: edition?.publicationDate,
+      description: work.description,
+      pageCount: edition?.pageCount,
+      categories: work.subjectTags,
+      coverUrl: work.coverImageURL || edition?.coverImageURL,
+      provider: work.primaryProvider,
     }
   } catch (error) {
-    console.error('[V2Enrich] OpenLibrary API error:', error)
+    console.error('[V2Enrich] enrichMultipleBooks error:', error)
+    return null
   }
-
-  return null
 }
 
 /**
