@@ -28,12 +28,12 @@ describe('Health Check Smoke Tests', () => {
   it('should validate environment structure', () => {
     // Minimal validation that doesn't require actual env bindings
     const mockEnv = {
-      BOOK_CACHE: null,
+      CACHE: null,
       PROGRESS_WEBSOCKET_DO: null,
       GOOGLE_BOOKS_API_KEY: 'test-key'
     }
 
-    expect(mockEnv).toHaveProperty('BOOK_CACHE')
+    expect(mockEnv).toHaveProperty('CACHE')
     expect(mockEnv).toHaveProperty('PROGRESS_WEBSOCKET_DO')
     expect(mockEnv).toHaveProperty('GOOGLE_BOOKS_API_KEY')
   })

@@ -37,7 +37,7 @@ export type ReviewStatus = "verified" | "needsReview" | "userEdited";
 /**
  * Provider identifiers for attribution
  */
-export type DataProvider = "google-books" | "openlibrary" | "isbndb" | "gemini";
+export type DataProvider = "alexandria" | "google-books" | "openlibrary" | "isbndb" | "gemini";
 
 /**
  * Error codes for structured error handling

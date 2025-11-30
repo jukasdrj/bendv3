@@ -25,7 +25,6 @@ describe('Book Search Handler - searchByISBN', () => {
     // Reset mocks before each test
     // UnifiedCacheService requires multiple KV bindings
     mockEnv = {
-      BOOK_CACHE: createMockKV(),         // Legacy KV cache
       CACHE: createMockKV(),               // UnifiedCache KV tier
       GOOGLE_BOOKS_API_KEY: 'test-key-12345',
       ANALYTICS: {                         // Analytics Engine binding
@@ -147,7 +146,6 @@ describe('Book Search Handler - searchByTitle', () => {
   beforeEach(() => {
     // UnifiedCacheService requires multiple KV bindings
     mockEnv = {
-      BOOK_CACHE: createMockKV(),
       CACHE: createMockKV(),
       GOOGLE_BOOKS_API_KEY: 'test-key-12345',
       ANALYTICS: {

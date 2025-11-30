@@ -1,14 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { handleSearchISBN } from '../../../src/handlers/v1/search-isbn.js';
 
+// Helper to parse Response object to JSON
+async function parseResponse(response: Response) {
+  return await response.json();
+}
+
 describe('GET /v1/search/isbn', () => {
   it('should return canonical response structure', async () => {
     // Note: Using fake API key, so we expect error response
     const mockEnv = {
       GOOGLE_BOOKS_API_KEY: 'test-key',
+      CACHE: {
+        get: async () => null,
+        put: async () => {}
+      }
     };
 
-    const response = await handleSearchISBN('9780451524935', mockEnv);
+    const httpResponse = await handleSearchISBN('9780451524935', mockEnv);
+    const response = await parseResponse(httpResponse);
 
     // Should return proper envelope structure even on error
     expect(response).toBeDefined();
@@ -35,9 +45,14 @@ describe('GET /v1/search/isbn', () => {
     // Test with fake key - will return empty results but correct structure
     const mockEnv = {
       GOOGLE_BOOKS_API_KEY: 'test-key',
+      CACHE: {
+        get: async () => null,
+        put: async () => {}
+      }
     };
 
-    const response = await handleSearchISBN('9780451524935', mockEnv);
+    const httpResponse = await handleSearchISBN('9780451524935', mockEnv);
+    const response = await parseResponse(httpResponse);
 
     // Even with errors, successful fallback should have correct structure
     if (response.data !== null) {
@@ -49,7 +64,8 @@ describe('GET /v1/search/isbn', () => {
   it('should return error for invalid ISBN', async () => {
     const mockEnv = {};
 
-    const response = await handleSearchISBN('invalid-isbn', mockEnv);
+    const httpResponse = await handleSearchISBN('invalid-isbn', mockEnv);
+    const response = await parseResponse(httpResponse);
 
     expect(response.error).toBeDefined();
     if (response.error) {
@@ -62,7 +78,8 @@ describe('GET /v1/search/isbn', () => {
   it('should return error for empty ISBN', async () => {
     const mockEnv = {};
 
-    const response = await handleSearchISBN('', mockEnv);
+    const httpResponse = await handleSearchISBN('', mockEnv);
+    const response = await parseResponse(httpResponse);
 
     expect(response.error).toBeDefined();
     if (response.error) {

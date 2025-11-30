@@ -1,5 +1,5 @@
 /**
- * External API integrations (Google Books, OpenLibrary, ISBNdb)
+ * External API integrations (Alexandria, Google Books, OpenLibrary, ISBNdb)
  * Migrated from external-apis-worker
  *
  * This service provides functions for searching and enriching book data
@@ -26,6 +26,9 @@ import {
   normalizeISBNdbToEdition,
   normalizeISBNdbToAuthor,
 } from "./normalizers/isbndb.js";
+
+// Re-export Alexandria API functions
+export { searchAlexandriaByISBN, searchAlexandria } from "./alexandria-api";
 
 import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js";
 import type { DataProvider } from "../types/enums.js";

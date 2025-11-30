@@ -107,7 +107,6 @@ globalThis.caches = {
 const env = {
   // KV Namespaces
   CACHE: mockKV,
-  CACHE: mockKV,
 
   // R2 Buckets
   API_CACHE_COLD: mockR2,
