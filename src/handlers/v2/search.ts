@@ -185,7 +185,7 @@ interface V1ResponseData {
   }
 }
 
-// V1 canonical WorkDTO shape
+// V1 canonical WorkDTO shape (with authors attached by enrichment service)
 interface V1Work {
   title: string
   subjectTags?: string[]
@@ -194,6 +194,8 @@ interface V1Work {
   firstPublicationYear?: number
   primaryProvider?: string
   openLibraryWorkID?: string
+  // Authors are attached to each work by the enrichment service (see external-apis.ts)
+  authors?: V1Author[]
   [key: string]: unknown
 }
 
@@ -236,14 +238,15 @@ interface V2BookDTO {
  *
  * V1 returns:
  *   { works: WorkDTO[], editions: EditionDTO[], authors: AuthorDTO[] }
+ *   Note: Each work has `authors` attached by the enrichment service
  *
  * V2 expects:
  *   { results: BookDTO[] } where BookDTO is a flat structure
  *
  * Mapping:
  *   - Each work becomes one BookDTO
- *   - Edition data is merged by matching ISBN or index
- *   - Author names are flattened into string array
+ *   - Edition data is merged by index (V1 creates parallel arrays)
+ *   - Author names come from work.authors (per-work) with fallback to global authors
  *   - coverImageURL → coverUrl
  */
 function transformV1ToV2Books(
@@ -251,17 +254,22 @@ function transformV1ToV2Books(
   editions: V1Edition[] = [],
   authors: V1Author[] = []
 ): V2BookDTO[] {
-  // Create author name lookup
-  const authorNames = authors.map(a => a.name)
+  // Global authors as fallback (deduplicated list from all works)
+  const globalAuthorNames = authors.map(a => a.name)
 
   return works.map((work, index) => {
-    // Find matching edition (by index fallback - V1 returns parallel arrays)
+    // Find matching edition (V1 normalizers create parallel arrays)
     const edition = editions[index]
+
+    // Use work's attached authors (preferred) or fallback to global authors
+    // The enrichment service attaches authors to each work (external-apis.ts line 559)
+    const workAuthorNames = work.authors?.map(a => a.name) ?? []
+    const authorList = workAuthorNames.length > 0 ? workAuthorNames : globalAuthorNames
 
     return {
       isbn: edition?.isbn,
       title: work.title,
-      authors: authorNames.length > 0 ? authorNames : [],
+      authors: authorList,
       publisher: edition?.publisher,
       publishedDate: edition?.publicationDate,
       description: work.description,

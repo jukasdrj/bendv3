@@ -158,7 +158,7 @@ Cover image URLs are correctly returned in all V2 endpoints.
 
 | Endpoint | Field | Transformation | Status |
 |----------|-------|----------------|--------|
-| `/api/v2/search` | `coverUrl` | Via V1→V2 passthrough (canonical DTOs) | ✅ |
+| `/api/v2/search` | `coverUrl` | `transformV1ToV2Books()` converts `coverImageURL` → `coverUrl` | ✅ |
 | `/api/v2/books/enrich` | `coverUrl` | `coverImageURL` → `coverUrl` (line 287) | ✅ |
 | SSE `complete` event | `books[].coverUrl` | `coverImageURL` → `coverUrl` | ✅ |
 | AI Scanner | `books[].coverUrl` | `work.coverImageURL` → `coverUrl` (line 239) | ✅ |
