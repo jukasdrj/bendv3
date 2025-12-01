@@ -38,12 +38,27 @@ import { ProgressReporter } from "../utils/progress-reporter.js";
  */
 export async function handleBatchEnrichment(request, env, ctx) {
   try {
-    const { books, jobId } = await request.json();
+    const requestBody = await request.json();
+    let books = requestBody.books;
+    const jobId = requestBody.jobId;
+
+    // iOS COMPATIBILITY: Accept both formats
+    // Format 1: {"books": [{"title": "...", "author": "...", "isbn": "..."}]}
+    // Format 2: {"barcodes": ["9780439064873", ...]} (iOS app format)
+    if (!books && requestBody.barcodes && Array.isArray(requestBody.barcodes)) {
+      // Convert barcodes to books format
+      books = requestBody.barcodes.map(barcode => ({
+        isbn: barcode,
+        title: barcode, // Use ISBN as title for progress messages
+        author: "", // Empty author
+      }));
+      console.log(`[Batch Enrichment] Converted ${books.length} barcodes to books format`);
+    }
 
     // Validate request structure
     if (!books || !Array.isArray(books)) {
       return createErrorResponse(
-        "Invalid books array",
+        "Invalid request: must include either 'books' array or 'barcodes' array",
         400,
         ErrorCodes.INVALID_REQUEST,
       );
@@ -72,6 +87,11 @@ export async function handleBatchEnrichment(request, env, ctx) {
         400,
         ErrorCodes.BATCH_TOO_LARGE,
       );
+    }
+
+    // DEBUG: Log first book to see what iOS is actually sending
+    if (books.length > 0) {
+      console.log(`[Batch Enrichment] First book received:`, JSON.stringify(books[0]));
     }
 
     // Validate and sanitize each book
