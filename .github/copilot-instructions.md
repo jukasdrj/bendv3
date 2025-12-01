@@ -446,9 +446,9 @@ type ReviewStatus = 'verified' | 'needsReview' | 'userEdited'
 ## Documentation References
 
 **Primary Sources:**
-- **API Contract (Source of Truth):** `/Users/justingardner/Downloads/xcode/bookstrack-backend/docs/API_CONTRACT.md`
-- **Claude Code Guide:** `/Users/justingardner/Downloads/xcode/bookstrack-backend/.claude/CLAUDE.md`
-- **Architecture:** `/Users/justingardner/Downloads/xcode/bookstrack-backend/ARCHITECTURE_OVERVIEW.md`
+- **API Contract (Source of Truth):** `docs/openapi.yaml` (OpenAPI 3.1 specification)
+- **Claude Code Guide:** `.claude/CLAUDE.md`
+- **Architecture:** `ARCHITECTURE_OVERVIEW.md`
 
 **Key Files:**
 - Router: `src/router.ts` (ALL routes here)

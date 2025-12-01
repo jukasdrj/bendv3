@@ -262,7 +262,7 @@ npx wrangler tail --remote --format pretty
 
 ### Quick Links (Start Here)
 - **[Documentation Index](DOCS_INDEX.md)** - 📚 **NEW** - Complete documentation navigation and index
-- **[API Reference](docs/API_CONTRACT.md)** - Canonical contracts, endpoints, and integration patterns (source of truth)
+- **[API Reference](docs/openapi.yaml)** - OpenAPI 3.1 spec (source of truth for all API endpoints)
 - **[Architecture Overview](ARCHITECTURE_OVERVIEW.md)** - Backend architecture and design principles
 - **[Claude Code Guide](.claude/CLAUDE.md)** - Comprehensive AI development guidelines
 

@@ -937,7 +937,7 @@ app.get("/ws/progress", async (c) => {
   // - Router: validates required params and routes to correct DO
   // - DO: handles authentication, session management, and business logic
   //
-  // See API_CONTRACT.md § 7.5 for complete WebSocket authentication flow
+  // See docs/openapi.yaml for WebSocket authentication specifications
 
   // Feature flag: Use refactored architecture or legacy monolithic DO
   const useRefactoredDOs = c.env.ENABLE_REFACTORED_DOS === "true";

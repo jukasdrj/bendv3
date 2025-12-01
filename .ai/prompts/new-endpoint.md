@@ -48,10 +48,11 @@ Create a new v1 API endpoint: `{METHOD} /v1/{path}`
 - [ ] Set `cached: true` in metadata for cached responses
 
 ### 6. Documentation
-- [ ] Add endpoint to `docs/API_CONTRACT.md`
+- [ ] Add endpoint to `docs/openapi.yaml`
 - [ ] Include request/response examples
 - [ ] Document query parameters
 - [ ] Document error scenarios
+- [ ] Regenerate SDK: `cd packages/api-client && npm run generate`
 
 ---
 
@@ -151,19 +152,15 @@ if (url.pathname === "/v1/{path}" && request.method === "{METHOD}") {
 - [ ] Test with not found scenario (200 with empty data)
 - [ ] Test caching (if applicable)
 - [ ] Test rate limiting (429 after burst)
-- [ ] Verify response matches `API_CONTRACT.md` format
+- [ ] Verify response matches `openapi.yaml` format
 
 ---
 
 ## Contract Compliance
 
 **Before merging:**
-- [ ] Endpoint documented in `docs/API_CONTRACT.md`
+- [ ] Endpoint documented in `docs/openapi.yaml`
 - [ ] Response format matches `ResponseEnvelope<T>`
 - [ ] Error codes from approved list (`ErrorCodes`)
+- [ ] SDK regenerated: `cd packages/api-client && npm run generate`
 - [ ] cf-code-reviewer approved changes
-- [ ] Contract tests pass (if available)
-
----
-
-**Related Issues:** #138 (OpenAPI), #140 (Contract Testing)

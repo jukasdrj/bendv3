@@ -1,8 +1,8 @@
 # API Contract Quick Reference
 
-**Full Contract:** `../docs/API_CONTRACT.md`
+**Full Contract:** `../docs/openapi.yaml` (OpenAPI 3.1 specification)
 
-This is a quick reference for AI code generation. Always validate against the full contract.
+This is a quick reference for AI code generation. Always validate against the OpenAPI spec.
 
 ---
 
@@ -191,4 +191,4 @@ X-RateLimit-Reset: 1700000000
 
 ---
 
-**For complete specifications:** See `../docs/API_CONTRACT.md`
+**For complete specifications:** See `../docs/openapi.yaml`

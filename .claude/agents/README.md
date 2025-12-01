@@ -266,12 +266,14 @@ fi
 ## API Contract Compliance
 
 ### Authoritative Documentation
-**ALL AGENTS MUST REFERENCE:** `docs/API_CONTRACT.md`
+**ALL AGENTS MUST REFERENCE:** `docs/openapi.yaml` (OpenAPI 3.1 specification)
 
 This is the legal contract with frontend teams. Any API changes must honor this contract.
 
+**TypeScript SDK:** `packages/api-client/` - Auto-generated from OpenAPI spec
+
 **cf-code-reviewer responsibilities:**
-- ✅ Verify new endpoints match `API_CONTRACT.md` response format
+- ✅ Verify new endpoints match `openapi.yaml` response format
 - ✅ Ensure DTOs (WorkDTO, EditionDTO, AuthorDTO) match documented schemas
 - ✅ Check error codes are from the approved list
 - ✅ Validate rate limiting behavior
@@ -281,11 +283,6 @@ This is the legal contract with frontend teams. Any API changes must honor this 
 - ✅ Monitor SLA compliance (99.9% uptime, <500ms P95 latency)
 - ✅ Track data quality metrics (ISBN match rate, cover availability)
 - ✅ Alert on contract violations (wrong response format, missing fields)
-
-**Related Issues:**
-- #138: OpenAPI spec generation
-- #139: Postman collection
-- #140: Contract testing (Pact)
 
 ---
 
@@ -298,7 +295,7 @@ This is the legal contract with frontend teams. Any API changes must honor this 
 
 ### When NOT to Use Agents
 - ❌ Simple one-line changes (use Claude Code directly)
-- ❌ Documentation updates (unless API changes - then update `API_CONTRACT.md` first!)
+- ❌ Documentation updates (unless API changes - then update `openapi.yaml` first!)
 - ❌ Non-Workers specific code (generic Node.js patterns)
 
 ### Agent Response Time

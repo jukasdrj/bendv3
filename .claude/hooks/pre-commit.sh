@@ -126,7 +126,7 @@ if [ -n "$STAGED_JS" ]; then
 fi
 
 # 6. Check API documentation sync (CRITICAL)
-STAGED_API_FILES=$(git diff --cached --name-only | grep -E "docs/API_CONTRACT.md|docs/openapi.yaml|src/types/websocket-messages.ts|src/types/responses.ts" || true)
+STAGED_API_FILES=$(git diff --cached --name-only | grep -E "docs/openapi.yaml|src/types/websocket-messages.ts|src/types/responses.ts|packages/api-client/src/schema.ts" || true)
 
 if [ -n "$STAGED_API_FILES" ]; then
   echo "🔄 Checking API documentation sync..."

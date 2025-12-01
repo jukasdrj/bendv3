@@ -77,7 +77,7 @@ jobs:
             - Renaming a field without aliasing
             - Removing an enum value
             
-            See the [API Contract Guide](docs/API_CONTRACT.md) for more details.
+            See [docs/openapi.yaml](docs/openapi.yaml) for the API contract.
             `
             })
 
