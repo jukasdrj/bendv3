@@ -159,8 +159,23 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
       throw new Error("Schema violation: Expected array, got " + typeof parsed);
     }
 
-    // Schema guarantees all books have title+author, no manual filtering needed
-    return parsed;
+    // Issue #160: Post-parse validation for empty/whitespace-only authors
+    // Schema minLength prevents empty strings, but whitespace-only may slip through
+    const validBooks = parsed.filter(book => {
+      const hasValidAuthor = book.author && book.author.trim().length > 0;
+      if (!hasValidAuthor) {
+        console.warn(`[GeminiCSVProvider] Skipping book "${book.title}" - missing or empty author`);
+      }
+      return hasValidAuthor;
+    });
+
+    if (validBooks.length < parsed.length) {
+      console.warn(
+        `[GeminiCSVProvider] Filtered ${parsed.length - validBooks.length} of ${parsed.length} books due to missing author`
+      );
+    }
+
+    return validBooks;
   } catch (error) {
     throw new Error(`Invalid JSON from Gemini: ${error.message}`);
   }

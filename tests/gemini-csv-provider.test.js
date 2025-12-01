@@ -195,4 +195,147 @@ describe("Gemini CSV Provider", () => {
       ).rejects.toThrow("CSV too large for processing");
     });
   });
+
+  describe("Issue #160: Author Extraction Edge Cases", () => {
+    test("filters out books with empty author strings", async () => {
+      const mockFetch = vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      {
+                        text: JSON.stringify([
+                          { title: "Valid Book", author: "Real Author" },
+                          { title: "Missing Author", author: "" },
+                          { title: "Whitespace Author", author: "   " },
+                        ]),
+                      },
+                    ],
+                  },
+                },
+              ],
+              usageMetadata: {},
+            }),
+        }),
+      );
+
+      global.fetch = mockFetch;
+
+      const result = await parseCSVWithGemini("csv", "prompt", "key");
+
+      expect(result).toHaveLength(1);
+      expect(result[0].title).toBe("Valid Book");
+      expect(result[0].author).toBe("Real Author");
+    });
+
+    test("preserves multiple authors as comma-separated string", async () => {
+      const mockFetch = vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      {
+                        text: JSON.stringify([
+                          { title: "Good Omens", author: "Neil Gaiman, Terry Pratchett" },
+                        ]),
+                      },
+                    ],
+                  },
+                },
+              ],
+              usageMetadata: {},
+            }),
+        }),
+      );
+
+      global.fetch = mockFetch;
+
+      const result = await parseCSVWithGemini("csv", "prompt", "key");
+
+      expect(result).toHaveLength(1);
+      expect(result[0].author).toBe("Neil Gaiman, Terry Pratchett");
+    });
+
+    test("handles null author by filtering out", async () => {
+      const mockFetch = vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      {
+                        text: JSON.stringify([
+                          { title: "Valid Book", author: "Real Author" },
+                          { title: "Null Author", author: null },
+                        ]),
+                      },
+                    ],
+                  },
+                },
+              ],
+              usageMetadata: {},
+            }),
+        }),
+      );
+
+      global.fetch = mockFetch;
+
+      const result = await parseCSVWithGemini("csv", "prompt", "key");
+
+      expect(result).toHaveLength(1);
+      expect(result[0].title).toBe("Valid Book");
+    });
+
+    test("logs warning when books are filtered due to missing author", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const mockFetch = vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      {
+                        text: JSON.stringify([
+                          { title: "Valid Book", author: "Real Author" },
+                          { title: "No Author Book", author: "" },
+                        ]),
+                      },
+                    ],
+                  },
+                },
+              ],
+              usageMetadata: {},
+            }),
+        }),
+      );
+
+      global.fetch = mockFetch;
+
+      await parseCSVWithGemini("csv", "prompt", "key");
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Skipping book"),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Filtered 1 of 2 books"),
+      );
+
+      warnSpy.mockRestore();
+    });
+  });
 });

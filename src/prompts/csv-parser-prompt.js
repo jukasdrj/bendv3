@@ -11,7 +11,7 @@ Some CSVs might contain columns with external identifiers like 'Book Id' (Goodre
 
 Map common header variations:
 - "Book Title" OR "Title" → "title"
-- "Author Name" OR "Author" → "author"
+- "Author Name" OR "Author" OR "Authors" OR "Writer" OR "Written By" OR "By" OR "Creator" → "author"
 - "ISBN" OR "ISBN13" → "isbn"
 - "My Rating" OR "Rating" → "userRating"
 - "Exclusive Shelf" OR "Read Status" → "readingStatus"
@@ -72,6 +72,38 @@ JSON Output:
   "languageCode": "en"
 }
 
+Example 4 (Multiple authors):
+CSV Row: Title,Authors,ISBN13,Rating
+         Good Omens,"Neil Gaiman, Terry Pratchett",9780060853983,5
+
+JSON Output:
+{
+  "title": "Good Omens",
+  "author": "Neil Gaiman, Terry Pratchett",
+  "isbn": "9780060853983",
+  "userRating": 5,
+  "authorGender": "male",
+  "authorCulturalRegion": "europe",
+  "genre": "fantasy",
+  "languageCode": "en"
+}
+
+Example 5 (Author in "Writer" column, embedded in title):
+CSV Row: Writer,Book,Year
+         ,"1984 by George Orwell",1949
+
+JSON Output:
+{
+  "title": "1984",
+  "author": "George Orwell",
+  "isbn": null,
+  "publishedYear": 1949,
+  "authorGender": "male",
+  "authorCulturalRegion": "europe",
+  "genre": "fiction",
+  "languageCode": "en"
+}
+
 OUTPUT SCHEMA: Return ONLY a valid JSON array with this structure:
 [
   {
@@ -97,6 +129,7 @@ OUTPUT SCHEMA: Return ONLY a valid JSON array with this structure:
 
 RULES:
 1.  PRIORITIZE ISBN: If ISBN13 exists, use it for the 'isbn' field. If not, use ISBN10.
+1a. AUTHOR EXTRACTION IS CRITICAL: If the author column is empty but the title contains "by [Author Name]", extract the author from the title. Multiple authors should be preserved as a comma-separated string.
 2.  ALTERNATIVE IDs: If no ISBN is present, look for other identifiers:
     -   Look for Goodreads Book Ids in a "Book Id" column and map to "goodreadsId".
     -   Look for OpenLibrary work IDs (e.g., 'OL...W') in any column, often in URLs, and map to "openLibraryId".
