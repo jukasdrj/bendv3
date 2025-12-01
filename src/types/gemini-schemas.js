@@ -88,6 +88,7 @@ export const CSV_BOOK_SCHEMA = {
       author: {
         type: "string",
         description: "Author name (required)",
+        minLength: 1, // Issue #160: Prevent empty strings from bypassing validation
       },
       isbn: {
         type: "string",
