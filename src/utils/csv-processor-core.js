@@ -236,15 +236,43 @@ export async function processCSVCore(
     }
 
     // Store full results in KV for HTTP retrieval (API Contract format)
+    // Transform validatedBooks to canonical BookSchema format
+    // BookSchema requires: isbn, title, authors (array), plus optional fields
+    const canonicalBooks = parsedBooks
+      .filter((book) => book.title && book.author)
+      .map((book) => {
+        // Parse author string into array (comma-separated authors)
+        const authorString = String(book.author).trim()
+        const authors = authorString
+          .split(/,\s*(?:and\s+)?|(?:\s+and\s+)/i)  // Split on ", " or " and "
+          .map((a) => a.trim())
+          .filter((a) => a.length > 0)
+
+        return {
+          // Required fields
+          isbn: book.isbn ? String(book.isbn).trim() : '',
+          title: String(book.title).trim(),
+          authors: authors,
+          // Optional fields from Gemini parser
+          publisher: book.publisher ? String(book.publisher).trim() : undefined,
+          publishedDate: book.publicationYear ? `${book.publicationYear}-01-01` : undefined,
+          description: book.notes ? String(book.notes).trim() : undefined,
+          pageCount: book.pageCount ? Number(book.pageCount) : undefined,
+          categories: book.genre ? [String(book.genre).trim()] : undefined,
+          language: book.languageCode || 'en',
+          coverUrl: undefined, // Not available from CSV import
+        }
+      })
+
     const resourceId = `${resultsKeyPrefix}:${jobId}`;
     const apiContractResults = {
-      booksCreated: validatedBooks.length,
+      booksCreated: canonicalBooks.length,
       booksUpdated: 0, // CSV import always creates new books
       duplicatesSkipped: 0, // TODO: Track duplicates
-      enrichmentSucceeded: validatedBooks.length, // All validated books are enriched
+      enrichmentSucceeded: 0, // CSV import doesn't enrich - set to 0 to be accurate
       enrichmentFailed: 0, // TODO: Track enrichment failures
       errors: [], // TODO: Store validation errors with row numbers
-      books: validatedBooks // Include full book data for compatibility
+      books: canonicalBooks // Canonical BookSchema format for iOS SwiftData
     };
     await env.CACHE.put(
       resourceId,
@@ -253,7 +281,7 @@ export async function processCSVCore(
     );
 
     console.log(
-      `[CSV Processor Core] 💾 Stored results in KV: ${resourceId} (${validatedBooks.length} books, TTL: ${resultsTTL}s)`,
+      `[CSV Processor Core] 💾 Stored results in KV: ${resourceId} (${canonicalBooks.length} books, TTL: ${resultsTTL}s)`,
     );
 
     // Build completion payload (customizable per caller)

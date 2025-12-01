@@ -7,6 +7,7 @@
 
 export { handleV2Search } from './search'
 export { handleWeeklyRecommendations } from './recommendations'
+export { handleTrendingSearches, handleTrendingBooks } from './trending'
 export { handleCapabilities } from './capabilities'
 export { handleEnrichBook } from './enrich'
 export { handleSSEStream } from './sse-stream'

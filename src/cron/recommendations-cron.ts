@@ -149,6 +149,7 @@ async function fetchCandidateBooks(env: Env): Promise<Array<{
   isbn: string
   title: string
   author: string
+  coverUrl?: string
   categories?: string
   description?: string
 }>> {
@@ -157,16 +158,18 @@ async function fetchCandidateBooks(env: Env): Promise<Array<{
     return []
   }
 
-  // Get recently added/popular books with embeddings
+  // Get recently added books with good metadata (cover or vectorized)
   const result = await env.DB.prepare(`
     SELECT
       b.isbn,
       b.title,
-      json_extract(b.canonical_metadata, '$.authors[0]') as author,
-      json_extract(b.canonical_metadata, '$.categories') as categories,
-      json_extract(b.canonical_metadata, '$.description') as description
+      b.cover_medium_url,
+      json_extract(b.canonical_metadata, '$.authors[0].name') as author,
+      json_extract(b.canonical_metadata, '$.works[0].genres') as categories,
+      json_extract(b.canonical_metadata, '$.works[0].description') as description
     FROM books b
-    WHERE b.vectorized_at IS NOT NULL
+    WHERE b.cover_medium_url IS NOT NULL
+       OR b.vectorized_at IS NOT NULL
     ORDER BY b.updated_at DESC
     LIMIT 100
   `).all()
@@ -175,6 +178,7 @@ async function fetchCandidateBooks(env: Env): Promise<Array<{
     isbn: row.isbn,
     title: row.title,
     author: row.author || 'Unknown Author',
+    coverUrl: row.cover_medium_url,
     categories: row.categories,
     description: row.description,
   }))
@@ -184,7 +188,7 @@ async function fetchCandidateBooks(env: Env): Promise<Array<{
  * Generate recommendations using Gemini API
  */
 async function generateRecommendationsWithGemini(
-  candidates: Array<{ isbn: string; title: string; author: string; categories?: string; description?: string }>,
+  candidates: Array<{ isbn: string; title: string; author: string; coverUrl?: string; categories?: string; description?: string }>,
   env: Env
 ): Promise<RecommendationItem[]> {
   const geminiKey = env.GEMINI_API_KEY
@@ -196,6 +200,7 @@ async function generateRecommendationsWithGemini(
       isbn: book.isbn,
       title: book.title,
       author: book.author,
+      coverUrl: book.coverUrl,
       reason: 'Recently added to our collection',
       score: 1 - (i * 0.05),
     }))
@@ -266,6 +271,7 @@ Return ONLY the JSON array, no other text.`
         isbn: rec.isbn,
         title: book?.title || 'Unknown Title',
         author: book?.author || 'Unknown Author',
+        coverUrl: book?.coverUrl,
         reason: rec.reason,
         score: rec.score,
       }
@@ -279,6 +285,7 @@ Return ONLY the JSON array, no other text.`
       isbn: book.isbn,
       title: book.title,
       author: book.author,
+      coverUrl: book.coverUrl,
       reason: 'A great addition to any reading list',
       score: 0.8 - (i * 0.02),
     }))

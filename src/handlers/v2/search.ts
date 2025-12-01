@@ -11,7 +11,7 @@
 
 import type { Env } from '../../types/env'
 import { handleSearchTitle } from '../v1/search-title'
-import { handleSemanticSearch } from '../semantic-search-handler'
+import { handleSemanticSearch, handleSimilarBooks } from '../semantic-search-handler'
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -22,7 +22,7 @@ import {
 // Types
 // ============================================================================
 
-export type SearchMode = 'text' | 'semantic' | 'hybrid'
+export type SearchMode = 'text' | 'semantic' | 'hybrid' | 'similar'
 
 export interface V2SearchParams {
   q: string
@@ -30,6 +30,9 @@ export interface V2SearchParams {
   limit: number
   offset: number
 }
+
+// Regex to detect "similar:ISBN" pattern (Issue #002)
+const SIMILAR_ISBN_PATTERN = /^similar:(\d{10}|\d{13})$/i
 
 // ============================================================================
 // Handler
@@ -70,18 +73,28 @@ export async function handleV2Search(
     )
   }
 
-  // Validate mode
-  const validModes: SearchMode[] = ['text', 'semantic', 'hybrid']
-  const mode = modeParam as SearchMode
+  // Check for "similar:ISBN" pattern (Issue #002: iOS similar book search)
+  const similarMatch = q.match(SIMILAR_ISBN_PATTERN)
+  let mode: SearchMode = modeParam as SearchMode
+  let similarIsbn: string | null = null
 
-  if (!validModes.includes(mode)) {
-    return createErrorResponse(
-      `Invalid mode: ${modeParam}. Must be one of: ${validModes.join(', ')}`,
-      400,
-      ErrorCodes.INVALID_REQUEST,
-      { parameter: 'mode', validValues: validModes },
-      request
-    )
+  if (similarMatch) {
+    // Override mode and extract ISBN
+    mode = 'similar'
+    similarIsbn = similarMatch[1]
+  } else {
+    // Validate mode only if not using similar:ISBN pattern
+    const validModes: SearchMode[] = ['text', 'semantic', 'hybrid', 'similar']
+
+    if (!validModes.includes(mode)) {
+      return createErrorResponse(
+        `Invalid mode: ${modeParam}. Must be one of: ${validModes.join(', ')}`,
+        400,
+        ErrorCodes.INVALID_REQUEST,
+        { parameter: 'mode', validValues: validModes },
+        request
+      )
+    }
   }
 
   // Parse and validate limits
@@ -93,7 +106,23 @@ export async function handleV2Search(
 
   try {
     // Route to appropriate search handler based on mode
-    if (mode === 'semantic') {
+    if (mode === 'similar' && similarIsbn) {
+      // Issue #002: Similar books by ISBN (similar:ISBN pattern)
+      return await handleSimilarSearchV2(similarIsbn, limit, env, request)
+    } else if (mode === 'similar') {
+      // mode=similar requires isbn parameter
+      const isbnParam = url.searchParams.get('isbn')
+      if (!isbnParam) {
+        return createErrorResponse(
+          'mode=similar requires isbn parameter or use similar:ISBN query format',
+          400,
+          ErrorCodes.MISSING_PARAMETER,
+          { parameter: 'isbn', example: 'similar:9780439708180' },
+          request
+        )
+      }
+      return await handleSimilarSearchV2(isbnParam, limit, env, request)
+    } else if (mode === 'semantic') {
       return await handleSemanticSearchV2(searchQuery, limit, env, request)
     } else if (mode === 'hybrid') {
       // Hybrid mode: combine results from both text and semantic search
@@ -232,4 +261,77 @@ async function handleHybridSearch(
   console.log('[V2Search] Hybrid mode - delegating to semantic search')
 
   return await handleSemanticSearchV2(query, limit, env, request)
+}
+
+/**
+ * Similar books search by ISBN (Issue #002: V2 API similar:ISBN support)
+ *
+ * Supports two query formats:
+ * 1. `q=similar:9780439708180` - Similar books pattern
+ * 2. `mode=similar&isbn=9780439708180` - Explicit mode with isbn param
+ */
+async function handleSimilarSearchV2(
+  isbn: string,
+  limit: number,
+  env: Env,
+  request: Request
+): Promise<Response> {
+  // Clean ISBN
+  const cleanIsbn = isbn.replace(/[-\s]/g, '')
+
+  // Validate ISBN format
+  if (!/^\d{10}$|^\d{13}$/.test(cleanIsbn)) {
+    return createErrorResponse(
+      'Invalid ISBN format. Must be ISBN-10 or ISBN-13.',
+      400,
+      ErrorCodes.INVALID_REQUEST,
+      { isbn, format: 'ISBN-10 or ISBN-13' },
+      request
+    )
+  }
+
+  // Create a synthetic request for the similar books handler
+  const similarUrl = new URL(request.url)
+  similarUrl.pathname = '/v1/search/similar'
+  similarUrl.searchParams.set('isbn', cleanIsbn)
+  similarUrl.searchParams.set('limit', limit.toString())
+
+  const similarRequest = new Request(similarUrl.toString(), {
+    method: 'GET',
+    headers: request.headers,
+  })
+
+  const v1Response = await handleSimilarBooks(similarRequest, env)
+  const responseData = await v1Response.json() as V1ResponseData
+
+  // Check for feature not available
+  if (!v1Response.ok && responseData.error?.code === 'FEATURE_NOT_AVAILABLE') {
+    return createErrorResponse(
+      'Similar books search is not yet available. The Vectorize index is being populated.',
+      503,
+      'FEATURE_NOT_AVAILABLE',
+      {
+        mode: 'similar',
+        isbn: cleanIsbn,
+        fallback: 'Use mode=text for traditional search'
+      },
+      request
+    )
+  }
+
+  return createSuccessResponse(
+    {
+      query: { q: `similar:${cleanIsbn}`, mode: 'similar', isbn: cleanIsbn, limit },
+      results: responseData.data?.results || [],
+      count: (responseData.data as { count?: number })?.count || 0,
+    },
+    {
+      source: 'vectorize',
+      cached: false,
+      timestamp: new Date().toISOString(),
+      searchMode: 'similar',
+    },
+    200,
+    request
+  )
 }
