@@ -16,9 +16,8 @@
 ## 📖 Core Documentation
 
 ### API & Integration
-- **[API_CONTRACT.md](API_CONTRACT.md)** - **SOURCE OF TRUTH** - API contract for frontend integration
-- **[openapi.yaml](openapi.yaml)** - OpenAPI 3.1 specification
-- **[POC_OPENAPI_MIGRATION.md](POC_OPENAPI_MIGRATION.md)** - OpenAPI migration proof of concept
+- **[openapi.yaml](openapi.yaml)** - **SOURCE OF TRUTH** - OpenAPI 3.1 specification for frontend integration
+- **[../packages/api-client/](../packages/api-client/)** - TypeScript SDK (auto-generated from OpenAPI)
 
 ### Architecture & Design
 - **[../ARCHITECTURE_OVERVIEW.md](../ARCHITECTURE_OVERVIEW.md)** - System architecture overview
@@ -101,21 +100,22 @@ Historical documentation for reference:
 ### When to Update Docs
 
 **Always update when:**
-- Adding/changing API endpoints → Update `API_CONTRACT.md`
-- Modifying response formats → Update `API_CONTRACT.md` and `openapi.yaml`
+- Adding/changing API endpoints → Update `openapi.yaml`
+- Modifying response formats → Update `openapi.yaml`, regenerate SDK
 - Adding new features → Create feature doc in `docs/`
 - Changing configuration → Update relevant config doc
 - Adding dependencies → Update `package.json` comments
 
-**API Contract is King:**
-- `API_CONTRACT.md` is the **authoritative source of truth**
+**OpenAPI is King:**
+- `openapi.yaml` is the **authoritative source of truth**
 - All frontend integrations MUST follow this contract
+- TypeScript SDK auto-generated: `packages/api-client/`
 - Breaking changes require 90-day deprecation notice
-- Update contract BEFORE implementing changes
+- Update OpenAPI spec BEFORE implementing changes
 
 ### Documentation Hierarchy
 
-1. **API_CONTRACT.md** - Source of truth for API
+1. **openapi.yaml** - Source of truth for API
 2. **CLAUDE.md** (root) - Quick reference
 3. **.claude/CLAUDE.md** - Comprehensive guidelines
 4. **Feature docs** - Specific implementation details
@@ -129,7 +129,7 @@ Historical documentation for reference:
 
 - **Testing crashes my laptop?** → See [LAPTOP_TESTING.md](LAPTOP_TESTING.md)
 - **How to deploy?** → Run `/deploy` or see [../.claude/commands/deploy.md](../.claude/commands/deploy.md)
-- **API contract questions?** → See [API_CONTRACT.md](API_CONTRACT.md)
+- **API contract questions?** → See [openapi.yaml](openapi.yaml)
 - **Need code review?** → Run `/review` or see [AGENTS.md](../AGENTS.md)
 
 **Emergency Recovery:**

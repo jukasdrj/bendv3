@@ -50,7 +50,7 @@ This document provides a high-level overview of specialized AI agents available 
 **Key Responsibilities:**
 - Validate Workers-specific patterns (env bindings, KV cache, Durable Objects)
 - Enforce security (input validation, secrets management, CORS)
-- Check API contract compliance (`docs/API_CONTRACT.md`)
+- Check API contract compliance (`docs/openapi.yaml`)
 - Detect anti-patterns (blocking event loop, missing timeouts)
 - Verify canonical response format
 
@@ -58,7 +58,7 @@ This document provides a high-level overview of specialized AI agents available 
 
 ## API Contract Enforcement
 
-**CRITICAL:** All agents must reference `docs/API_CONTRACT.md` as the authoritative source of truth.
+**CRITICAL:** All agents must reference `docs/openapi.yaml` as the authoritative source of truth.
 
 ### cf-code-reviewer Checks:
 - ✅ New endpoints match documented response format
@@ -72,7 +72,7 @@ This document provides a high-level overview of specialized AI agents available 
 - ✅ Data quality metrics (ISBN match rate, cover availability)
 - ✅ Contract violations (wrong response format, missing fields)
 
-**Related Issues:** #138 (OpenAPI spec), #139 (Postman collection), #140 (Contract testing)
+**TypeScript SDK:** `packages/api-client/` - Auto-generated from OpenAPI spec
 
 ---
 
@@ -190,5 +190,5 @@ npm run test:safe
 
 ---
 
-**Last Updated:** November 16, 2025  
+**Last Updated:** November 30, 2025  
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer)

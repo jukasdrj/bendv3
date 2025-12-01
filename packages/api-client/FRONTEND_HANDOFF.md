@@ -71,16 +71,15 @@ if (error) {
 
 ### 3. API Contract Documentation
 
-**Location:** `docs/API_CONTRACT.md`
+**Location:** `docs/openapi.yaml` (OpenAPI 3.1 specification)
 
 **This is the SOURCE OF TRUTH** for API behavior, response formats, and error handling.
 
-**Key Sections:**
-- Response envelope format (all responses use this)
+**What it covers:**
+- All endpoint schemas and response formats
 - Error codes and retry logic
-- Circuit breaker behavior
-- WebSocket progress tracking
-- Rate limiting
+- Request/response examples
+- Authentication requirements
 
 ---
 
@@ -315,8 +314,7 @@ curl "https://api.oooefam.net/v1/search/isbn?isbn=9780439708180"
 | Document | Purpose |
 |----------|---------|
 | `packages/api-client/README.md` | SDK usage guide |
-| `docs/API_CONTRACT.md` | API contract (source of truth) |
-| `docs/openapi.yaml` | OpenAPI specification |
+| `docs/openapi.yaml` | OpenAPI specification (source of truth) |
 | `CLAUDE.md` | Backend architecture overview |
 | `README.md` | Backend project overview |
 

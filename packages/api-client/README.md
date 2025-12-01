@@ -359,7 +359,7 @@ const book = data.data
 ## Support
 
 - **Documentation:** https://github.com/yourusername/bendv3/tree/main/docs
-- **API Contract:** https://github.com/yourusername/bendv3/blob/main/docs/API_CONTRACT.md
+- **API Contract:** https://github.com/yourusername/bendv3/blob/main/docs/openapi.yaml
 - **Issues:** https://github.com/yourusername/bendv3/issues
 
 ---

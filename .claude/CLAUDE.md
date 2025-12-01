@@ -550,19 +550,19 @@ npx wrangler rollback --message "Rolling back due to error spike"
 
 ### API Contract (Source of Truth)
 
-**PRIMARY DOCUMENTATION:** `docs/API_CONTRACT.md`
+**PRIMARY DOCUMENTATION:** `docs/openapi.yaml` (OpenAPI 3.1 specification)
 
 This is the **authoritative contract** for the BooksTrack API. All frontend integrations MUST follow this contract.
 
-**When making API changes:**
-1. Update `docs/API_CONTRACT.md` first (this is the contract)
-2. Implement the changes in code
-3. Update OpenAPI spec if available (Issue #138)
-4. Notify frontend teams of breaking changes (90-day notice required)
+**TypeScript SDK:** `packages/api-client/` - Auto-generated from OpenAPI spec
+- Run `npm run generate` to regenerate types from openapi.yaml
+- Published to npm as `@jukasdrj/bookstrack-api-client`
 
-**Deprecated docs:**
-- ❌ `docs/API_CONTRACT_CURRENT.md` (superseded)
-- ❌ `docs/FRONTEND_INTEGRATION_GUIDE.md` (superseded)
+**When making API changes:**
+1. Update `docs/openapi.yaml` first (this is the contract)
+2. Implement the changes in code
+3. Regenerate SDK: `cd packages/api-client && npm run generate`
+4. Notify frontend teams of breaking changes (90-day notice required)
 
 **See also:** `docs/README.md` for documentation navigation
 
@@ -583,7 +583,7 @@ export async function findByISBN(isbn, env) {
 ```
 
 ### README Updates
-- Update `docs/API_CONTRACT.md` when adding new endpoints or changing schemas
+- Update `docs/openapi.yaml` when adding new endpoints or changing schemas
 - Document new environment variables in `SECRETS_SETUP.md`
 - Add deployment notes to `DEPLOYMENT.md`
 

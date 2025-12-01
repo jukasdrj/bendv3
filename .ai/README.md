@@ -21,7 +21,7 @@ The `.ai` directory provides:
 .ai/
 ├── README.md              # This file
 ├── context.md             # Project overview and architecture
-├── api-contract-ref.md    # Quick reference to API_CONTRACT.md
+├── api-contract-ref.md    # Quick reference to openapi.yaml
 ├── coding-standards.md    # Code style and patterns
 ├── prompts/               # Reusable prompts for common tasks
 │   ├── new-endpoint.md    # Template for creating API endpoints
@@ -35,7 +35,7 @@ The `.ai` directory provides:
 ## Quick Reference
 
 ### API Contract
-**Source of Truth:** `../docs/API_CONTRACT.md`
+**Source of Truth:** `../docs/openapi.yaml` (OpenAPI 3.1 specification)
 
 All code generation must conform to this contract:
 - Response envelope format
@@ -103,12 +103,12 @@ These tools use `.ai/context.md` for project understanding.
 
 | File | Purpose |
 |------|---------|
-| `../docs/API_CONTRACT.md` | Authoritative API contract (source of truth) |
+| `../docs/openapi.yaml` | Authoritative API contract (source of truth) |
 | `../.claude/CLAUDE.md` | Claude Code project guidelines |
 | `../.claude/agents/README.md` | Autonomous agent documentation |
 | `../docs/README.md` | Documentation navigation |
 
 ---
 
-**Last Updated:** November 15, 2025
+**Last Updated:** November 30, 2025
 **Maintained By:** Backend Team

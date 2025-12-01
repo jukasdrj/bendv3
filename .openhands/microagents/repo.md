@@ -74,7 +74,7 @@ npm run deploy     # Deploy to production
 │   ├── utils/                # Utility function tests
 │   └── assets/               # Test images and fixtures
 ├── docs/                     # Active documentation
-│   ├── API_CONTRACT.md       # **START HERE** - API contracts
+│   ├── openapi.yaml          # **SOURCE OF TRUTH** - OpenAPI 3.1 spec
 │   ├── deployment/           # Deployment guides, monitoring
 │   ├── guides/               # Feature implementation guides
 │   ├── workflows/            # Workflow diagrams

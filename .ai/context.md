@@ -35,7 +35,7 @@ src/
 
 ## API Contract
 
-**SOURCE OF TRUTH:** `docs/API_CONTRACT.md`
+**SOURCE OF TRUTH:** `docs/openapi.yaml` (OpenAPI 3.1 specification)
 
 ### Response Envelope (All /v1/* endpoints)
 ```typescript
@@ -147,8 +147,8 @@ See: `.ai/prompts/wikidata-query.md`
 - Test against local worker instance
 
 ### Contract Tests
-- Validate responses match `API_CONTRACT.md`
-- GitHub Issue: #140 (Pact setup)
+- Validate responses match `docs/openapi.yaml`
+- TypeScript SDK: `packages/api-client/`
 
 ---
 
@@ -186,5 +186,5 @@ npx wrangler rollback --message "Rolling back due to error spike"
 
 ---
 
-**Last Updated:** November 15, 2025
-**For more details:** See `docs/API_CONTRACT.md` and `.claude/CLAUDE.md`
+**Last Updated:** November 30, 2025
+**For more details:** See `docs/openapi.yaml` and `.claude/CLAUDE.md`

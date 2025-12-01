@@ -40,7 +40,7 @@ npm run deploy                 # Deploy to production
 - **[.claude/CLAUDE.md](.claude/CLAUDE.md)** - Full Claude Code guidelines (architecture, patterns, AI workflows)
 - **[AGENTS.md](AGENTS.md)** - Universal AI agent guide (all tools)
 - **[README.md](README.md)** - Project overview and setup
-- **[docs/API_CONTRACT.md](docs/API_CONTRACT.md)** - API contract (source of truth)
+- **[docs/openapi.yaml](docs/openapi.yaml)** - OpenAPI 3.1 spec (source of truth)
 
 **AI Context:**
 - `.ai/` - AI-specific prompts and templates
@@ -79,7 +79,7 @@ npm run deploy                 # Deploy to production
 - 2-space indentation
 
 **API Design:**
-- Canonical response format (see API_CONTRACT.md)
+- Canonical response format (see openapi.yaml)
 - ZERO direct client API calls
 - Multi-provider orchestration
 - Circuit breaker pattern for external APIs
