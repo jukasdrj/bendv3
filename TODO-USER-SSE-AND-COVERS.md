@@ -1,10 +1,11 @@
 # TODO: bendv3 - CSV Import SSE Refactor + Alexandria Cover Integration
 
-**Sprint Goal:** Fix CSV import SSE streaming + integrate Alexandria cover processing  
-**Owner:** Justin (User)  
-**Time Estimate:** 4-5 hours  
-**Status:** 🔴 Not Started  
+**Sprint Goal:** Fix CSV import SSE streaming + integrate Alexandria cover processing
+**Owner:** Justin (User)
+**Time Estimate:** 4-5 hours
+**Status:** ✅ COMPLETE
 **Priority:** P0 - BLOCKING iOS validation
+**Completed:** November 30, 2025
 
 ---
 
@@ -20,19 +21,20 @@ Integrate Alexandria cover processing endpoints into book-service.ts so all cove
 
 ## 📋 Current State
 
-### CSV Import SSE
+### CSV Import SSE ✅ COMPLETE
 - ✅ SSE endpoint exists at `/api/v2/imports/{jobId}/stream`
-- ⚠️ Uses 2-second polling (not ideal)
-- ⚠️ JobStateManagerDO exists but not publishing updates
-- ❌ No push-based SSE updates
-- **Impact:** iOS app can't get real-time CSV import progress
+- ✅ Uses adaptive polling (500ms-3s) with push-based updates
+- ✅ JobStateManagerDO publishes updates via `broadcastSSEUpdate()`
+- ✅ Timestamp-based retrieval prevents event loss (Issue #156)
+- ✅ Batched I/O reduces DO contention (Issue #157)
+- ✅ Last-Event-ID reconnection fixed (Gemini Pro review finding)
 
-### Alexandria Cover Integration
-- ✅ Alexandria cover endpoints ready (after alex TODO complete)
-- ✅ `TODO-ALEXANDRIA-COVER-INTEGRATION.md` documented
-- ⚠️ book-service.ts still using provider URLs directly
-- ❌ Not calling Alexandria for cover processing
-- **Impact:** Covers not optimized, external dependencies
+### Alexandria Cover Integration ✅ COMPLETE
+- ✅ Alexandria cover endpoints ready
+- ✅ `alexandria-cover-service.ts` created with retry logic
+- ✅ book-service.ts calls Alexandria for cover processing
+- ✅ Worker secrets configured (ALEXANDRIA_CLIENT_ID/SECRET)
+- ✅ Graceful fallback to provider URLs on error
 
 ---
 
