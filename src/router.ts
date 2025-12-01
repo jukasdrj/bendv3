@@ -504,6 +504,12 @@ const createRateLimitMiddleware = (maxRequests) => {
   };
 };
 
+// POST /api/batch-enrich - iOS compatibility alias for batch enrichment
+// iOS app tries this endpoint first before falling back to /v1/enrichment/batch
+app.post("/api/batch-enrich", rateLimitMiddleware, async (c) => {
+  return await handleBatchEnrichment(c.req.raw, c.env, getCtx(c));
+});
+
 // POST /v1/enrichment/batch - Canonical batch enrichment endpoint
 app.post("/v1/enrichment/batch", rateLimitMiddleware, async (c) => {
   return await handleBatchEnrichment(c.req.raw, c.env, getCtx(c));
