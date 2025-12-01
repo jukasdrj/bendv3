@@ -356,6 +356,59 @@ components:
       scheme: bearer
       description: Job auth token from job initiation response
 
+  # ===========================================================================
+  # REUSABLE RESPONSES
+  # ===========================================================================
+  responses:
+    TooManyRequests:
+      description: |
+        Rate limit exceeded or circuit breaker open.
+        Check `Retry-After` header for retry timing.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ResponseEnvelope'
+              - type: object
+                properties:
+                  data:
+                    type: 'null'
+                  error:
+                    $ref: '#/components/schemas/ApiError'
+          examples:
+            rate_limit:
+              summary: Rate limit exceeded
+              value:
+                success: false
+                data: null
+                metadata:
+                  timestamp: "2025-12-01T00:00:00Z"
+                error:
+                  code: "RATE_LIMIT_EXCEEDED"
+                  message: "Rate limit exceeded for google-books"
+                  retryable: true
+                  retryAfterMs: 60000
+            circuit_open:
+              summary: Circuit breaker open
+              value:
+                success: false
+                data: null
+                metadata:
+                  timestamp: "2025-12-01T00:00:00Z"
+                error:
+                  code: "CIRCUIT_OPEN"
+                  message: "Provider google-books temporarily unavailable"
+                  retryable: true
+                  retryAfterMs: 45000
+                  details:
+                    provider: "google-books"
+
 paths:
   # ===========================================================================
   # SEARCH ENDPOINTS
@@ -438,6 +491,8 @@ paths:
                   cached: false
                   processingTime: 127
                 error: null
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   # ===========================================================================
   # ENRICHMENT ENDPOINTS
@@ -486,6 +541,8 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/EnrichedBookDTO'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /api/v2/books/enrich/detailed:
     post:

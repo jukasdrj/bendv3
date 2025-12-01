@@ -145,20 +145,57 @@ All requests flow: iOS → bendv3 → Alexandria
 ---
 
 ### Issue #202: Cover Image URLs
-**Status:** 🟡 Verify  
+**Status:** ✅ Verified COMPLIANT
 **Priority:** P2
 
-Verify that cover image URLs returned by bendv3 are accessible from iOS.
-Alexandria serves covers at `/api/covers/{work_key}/{size}` but this needs
-to be proxied or exposed through bendv3.
+Cover image URLs are correctly returned in all V2 endpoints.
 
-**Current Flow:**
-1. bendv3 calls Alexandria for enrichment
-2. Alexandria returns cover_url pointing to Alexandria domain
-3. iOS receives cover_url in response
-4. iOS fetches cover directly from Alexandria URL
+**Field Name Convention:**
+- **Internal (canonical DTOs):** `coverImageURL` (WorkDTO, EditionDTO)
+- **External (V2 API responses):** `coverUrl` (consistent across all V2 endpoints)
 
-**Question:** Is `alexandria.ooheynerds.com` accessible from iOS?
+**Compliance Verification:**
+
+| Endpoint | Field | Transformation | Status |
+|----------|-------|----------------|--------|
+| `/api/v2/search` | `coverUrl` | `transformV1ToV2Books()` converts `coverImageURL` → `coverUrl` | ✅ |
+| `/api/v2/books/enrich` | `coverUrl` | `coverImageURL` → `coverUrl` (line 287) | ✅ |
+| SSE `complete` event | `books[].coverUrl` | `coverImageURL` → `coverUrl` | ✅ |
+| AI Scanner | `books[].coverUrl` | `work.coverImageURL` → `coverUrl` (line 239) | ✅ |
+| Batch Scan | `books[].coverUrl` | `work.coverImageURL` → `coverUrl` (line 64) | ✅ |
+| CSV Import | `books[].coverUrl` | Set to `undefined` (no covers in CSV) | ✅ |
+
+**Cover URL Sources by Provider:**
+
+| Provider | Source Field | Transformation | Example URL |
+|----------|--------------|----------------|-------------|
+| Google Books | `imageLinks.thumbnail` | HTTPS + `&zoom=3` | `https://books.google.com/...&zoom=3` |
+| OpenLibrary | `cover_i` (ID) | Format to URL | `https://covers.openlibrary.org/b/id/{id}-L.jpg` |
+| ISBNdb | `image` (full URL) | Pass-through | Direct URL |
+| Alexandria | `openlibrary_edition` | Extract OLID | `https://covers.openlibrary.org/b/olid/{OLID}-L.jpg` |
+| Fallback | None | Placeholder | `getPlaceholderCover()` |
+
+**Key Files:**
+- `src/services/normalizers/google-books.ts` (lines 17-24, 41, 77)
+- `src/services/normalizers/openlibrary.ts` (lines 23-25, 56-58)
+- `src/services/normalizers/isbndb.ts` (line 87)
+- `src/services/normalizers/alexandria.ts` (lines 46-48, 85-87)
+- `src/handlers/v2/enrich.ts` (line 287)
+- `src/services/ai-scanner.js` (line 239)
+- `src/handlers/batch-scan-handler.ts` (line 64)
+
+**iOS Accessibility:** All cover URLs are publicly accessible:
+- Google Books covers: Public CDN
+- OpenLibrary covers: Public CDN
+- ISBNdb covers: Public CDN
+- No Alexandria-specific URLs exposed (transformed to OpenLibrary URLs)
+
+**Critical Fix Applied (Dec 1, 2025):**
+The V2 text search was returning empty results because it expected `results` array
+but V1 returns `works/editions/authors` structure. Added `transformV1ToV2Books()`
+function to properly convert canonical format to flat `BookDTO[]` with `coverUrl`.
+
+**File:** `src/handlers/v2/search.ts` (lines 232-276, 278-319)
 
 ---
 
@@ -181,20 +218,67 @@ iOS decodes using `envelope.success` check.
 ---
 
 ### Issue #302: Rate Limit Headers
-**Status:** 🟡 Verify  
+**Status:** ✅ Fixed
 **Priority:** P2
 
 iOS needs to handle `429 Too Many Requests` with `Retry-After` header.
-Verify this is working end-to-end.
+
+**Resolution:**
+- Updated `createErrorResponse()` to accept `retryAfterMs` option
+- Automatically sets `Retry-After` header (in seconds) for 429 responses
+- Added `retryAfterMs` field in response body for iOS client convenience
+- Updated V2 search and enrich handlers to use new error format
+
+**Files Updated:**
+- `src/utils/response-builder.ts` (lines 127-234)
+- `src/handlers/v2/search.ts` (circuit breaker error handling)
+- `src/handlers/v2/enrich.ts` (circuit breaker error handling)
+
+**Response Format:**
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Rate limit exceeded for google-books",
+    "retryable": true,
+    "retryAfterMs": 60000
+  }
+}
+```
+**HTTP Headers:** `Retry-After: 60` (seconds)
 
 ---
 
 ### Issue #303: Circuit Breaker Error Handling
-**Status:** 🟡 Verify  
+**Status:** ✅ Fixed
 **Priority:** P2
 
 When external providers (Google Books, ISBNdb) are down, bendv3 returns
 `CIRCUIT_OPEN` error code. iOS should handle this gracefully with retry.
+
+**Resolution:**
+- Added `CIRCUIT_OPEN` to `ErrorCodes` constant
+- Added `CIRCUIT_OPEN` to retryable errors set
+- V2 handlers now catch `CircuitBreakerOpenError` and return proper 429 response
+- Response includes `retryAfterMs` for intelligent retry scheduling
+
+**Response Format:**
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "CIRCUIT_OPEN",
+    "message": "Provider google-books temporarily unavailable",
+    "retryable": true,
+    "retryAfterMs": 45000,
+    "details": { "provider": "google-books" }
+  }
+}
+```
+**HTTP Headers:** `Retry-After: 45` (seconds)
 
 ---
 
@@ -211,10 +295,10 @@ When external providers (Google Books, ISBNdb) are down, bendv3 returns
 | #103 SSE Client | 🔴 | iOS | Week 2 |
 | #104 SearchResults DTO | 🔴 | iOS | Week 1 |
 | #201 Alex Direct Calls | ✅ | By Design | - |
-| #202 Cover URLs | 🟡 | Both | Week 2 |
+| #202 Cover URLs | ✅ | Both | Done |
 | #301 Response Envelope | ✅ | Both | Done |
-| #302 Rate Limits | 🟡 | Both | Week 2 |
-| #303 Circuit Breaker | 🟡 | iOS | Week 2 |
+| #302 Rate Limits | ✅ | Backend | Done |
+| #303 Circuit Breaker | ✅ | Backend | Done |
 
 ---
 
@@ -224,15 +308,19 @@ When external providers (Google Books, ISBNdb) are down, bendv3 returns
    - [x] Add V2 cancel endpoint
    - [x] Verify/fix similar search mode
    - [x] Verify SSE complete event has books
+   - [x] Add Retry-After header support (Issue #302)
+   - [x] Add CIRCUIT_OPEN error handling (Issue #303)
 
 2. **iOS Team (Week 1):**
-   - [ ] Consolidate search methods
+   - [ ] Consolidate search methods to `/api/v2/search`
    - [ ] Add SearchResults DTO
    - [ ] Remove batch enrich fallback
+   - [ ] Handle `Retry-After` header in error responses
 
 3. **iOS Team (Week 2):**
-   - [ ] Implement SSE client
+   - [ ] Implement SSE client for `/api/v2/imports/{jobId}/stream`
    - [ ] Deprecate WebSocket code
+   - [ ] Handle `CIRCUIT_OPEN` error code with retry logic
    - [ ] End-to-end testing
 
 4. **Both Teams (Week 3):**
@@ -242,4 +330,4 @@ When external providers (Google Books, ISBNdb) are down, bendv3 returns
 
 ---
 
-**Last Updated:** December 1, 2025
+**Last Updated:** December 1, 2025 (Backend #302/#303 fixes)

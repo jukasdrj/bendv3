@@ -18,6 +18,7 @@ import {
 } from '../../utils/response-builder'
 import { generateBookEmbedding, storeEmbedding } from '../../services/embedding-service'
 import { enrichMultipleBooks } from '../../services/enrichment'
+import { CircuitBreakerOpenError, RateLimitError } from '../../types/errors'
 
 // ============================================================================
 // Types
@@ -195,6 +196,30 @@ export async function handleEnrichBook(
     )
   } catch (error) {
     console.error('[V2Enrich] Error:', error)
+
+    // Issue #302/#303: Handle circuit breaker and rate limit errors with proper headers
+    if (error instanceof CircuitBreakerOpenError) {
+      return createErrorResponse({
+        message: `Provider ${error.provider} temporarily unavailable`,
+        status: 429,
+        code: ErrorCodes.CIRCUIT_OPEN,
+        details: { isbn, provider: error.provider },
+        corsRequest: request,
+        retryAfterMs: error.retryAfterMs,
+      })
+    }
+
+    if (error instanceof RateLimitError) {
+      return createErrorResponse({
+        message: `Rate limit exceeded for ${error.provider}`,
+        status: 429,
+        code: ErrorCodes.RATE_LIMIT_EXCEEDED,
+        details: { isbn, provider: error.provider },
+        corsRequest: request,
+        retryAfterMs: error.retryAfterMs || 60000,
+      })
+    }
+
     return createErrorResponse(
       'Enrichment failed',
       500,
