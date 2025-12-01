@@ -5,8 +5,9 @@ BooksTrack Backend – Ideal State
 Status: Active
 Owner: Backend Platform
 Stakeholders: iOS App, Harvest Dashboard, Operations
-Last Updated: 2025-11-25
+Last Updated: 2025-11-28
 API Contract Version: v2.7.0
+Authoritative Contract: `docs/openapi.yaml`
 
 ## 1. Product Overview
 - Name: BooksTrack Backend (Cloudflare Workers API)
@@ -22,8 +23,8 @@ API Contract Version: v2.7.0
 - Low-latency, multi-provider book search (Google Books, OpenLibrary, ISBNdb)
 - AI-powered bookshelf scanning and CSV parsing using Gemini 2.0 Flash
 - Consistent API response envelope, strong type contracts, and progressive deprecation of legacy endpoints
-- Real-time job progress via Durable Objects and WebSockets
-- Efficient caching strategy across KV, R2; harvest and caching workflows that respect third-party quotas
+- Real-time job progress via Durable Objects, Cloudflare Workflows, and WebSockets
+- Efficient caching strategy across KV, D1, R2; harvest and caching workflows that respect third-party quotas
 - Robust observability (analytics, traces, logs); measurable SLOs
 - Feature-flagged rollouts for zero-downtime deployment and easy rollback
 
@@ -95,7 +96,7 @@ sequenceDiagram
 ```
 
 ### 5.2 AI Bookshelf Scan
-- Input: Image up to 10MB (MAX_SCAN_FILE_SIZE)
+- Input: Image up to 10MB (MAX_SCAN_FILE_SIZE) or Batch (1-5 photos)
 - Model: Gemini 2.0 Flash; defensive fallback to `"unknown"` model label when metadata missing
 - Pipeline: quality check → AI detection → parallel enrichment (≤ CONCURRENCY_LIMIT) → categorization → results
 - Progress: WebSocket DO with stages and deltas; reconnection sync via job state endpoint
@@ -108,7 +109,7 @@ sequenceDiagram
     participant WebSocket DO
     participant Gemini Vision
 
-    Client->>Backend API: POST /v1/scan (image)
+    Client->>Backend API: POST /api/scan-bookshelf/batch (images)
     activate Backend API
     Backend API-->>Client: 202 Accepted { jobId, token }
     deactivate Backend API
@@ -136,20 +137,23 @@ sequenceDiagram
 ```
 
 ### 5.3 CSV Import
-- **WebSocket Flow (v1):**
+- **WebSocket Flow (v1 - Legacy):**
   - Input: CSV (max size consistent with MAX_SCAN_FILE_SIZE)
+  - Endpoint: `/api/import/csv-gemini`
   - AI-assisted parsing (Gemini CSV) with schema inference
   - Progress: WebSocket DO with stages and deltas
-- **HTTP/SSE Flow (v2):**
+- **Cloudflare Workflows Pipeline (v2 - Recommended):**
   - Input: CSV via multipart/form-data
-  - Progress: Server-Sent Events (SSE) stream for real-time updates. Robust against network changes.
+  - Endpoint: `/api/v2/imports`
+  - Engine: **Cloudflare Workflows** (`BookImportWorkflow`) for robust, stateful execution with retries.
+  - Progress: Polling `/api/v2/imports/{jobId}` or SSE stream `/api/v2/imports/{jobId}/stream`.
 - **Common Features:**
   - Output: Parsed entries, normalization to canonical DTOs, rejected rows with reasons
 
 ```mermaid
 graph TD
     subgraph V1 WebSocket Flow
-        A[Client POST /v1/import/csv] --> B{Backend};
+        A[Client POST /api/import/csv-gemini] --> B{Backend};
         B --> C[WebSocket DO];
         C --> D[Gemini AI for parsing];
         D --> C;
@@ -157,13 +161,15 @@ graph TD
         C -- job_complete --> A;
         A --> E[Client GET /v1/csv/results/{jobId}];
     end
-    subgraph V2 HTTP/SSE Flow
+    subgraph V2 Workflows Flow
         F[Client POST /api/v2/imports] --> G{Backend};
-        G --> H[SSE Stream];
-        H -- progress --> F;
-        G -- Writes to KV --> I[KV Store];
-        F --> J[Client GET /v1/csv/results/{jobId}];
-        J -- Reads from KV --> I;
+        G --> W[Cloudflare Workflow];
+        W --> H[JobStateManager DO];
+        H -- progress --> I[SSE / Polling];
+        I --> F;
+        W -- Writes to KV/D1 --> J[Store];
+        F --> K[Client GET /api/v2/imports/{jobId}/results];
+        K -- Reads from Store --> J;
     end
 ```
 
@@ -173,15 +179,26 @@ graph TD
 - Progress: WebSocket with processedCount/total; resumable on reconnect
 - Output: `EnrichmentResult { works, editions, authors }` with provenance fields
 
-### 5.5 Cover Harvest
-- Automated cover caching via ISBNdb; respect 5000/day limit
-- Scheduler: Periodic harvest tasks; backoff on provider errors
-- Cold storage in R2 with canonical path scheme and metadata
+### 5.5 Author-Driven Cover Harvest (New)
+- **Goal**: Maximize cover availability for popular authors while respecting quotas.
+- **Strategy**:
+  - **Author Discovery**: Identifies trending authors via analytics and curated lists.
+  - **Cache Depth Analysis**: Checks existing coverage; skips authors with >50% coverage to prevent waste.
+  - **Bibliography Expansion**: Expands author to ISBN list via OpenLibrary.
+  - **Execution**: Daily cron job (`0 3 * * *`) orchestrates harvest.
+  - **Queues**: `author-warming-queue` handles async processing.
+- **Quota**: Respects ISBNdb daily limit (5000/day) with smart allocation.
+- **Storage**: Cold storage in R2 with canonical path scheme; Metadata in KV/D1.
 
 ### 5.6 Real-time Progress
 - Durable Objects for WS auth, token refresh, hibernation-based cost reduction
 - Backwards-compatible token mechanisms; strongly prefer WS subprotocol for auth
 - Job state manager DO to support reconnection and cross-request continuity
+
+### 5.7 Documentation & Discovery
+- **Capabilities**: `GET /api/v2/capabilities` exposes feature flags, limits, and active providers.
+- **Swagger UI**: `GET /doc` provides interactive API documentation.
+- **OpenAPI Spec**: `GET /doc/openapi.json` returns the generated spec for client generation.
 
 ## 6. API Requirements
 ### 6.1 Envelope (v2.0)
@@ -190,28 +207,31 @@ graph TD
 - Response headers: `Content-Type: application/json`; `X-Response-Format: v2.0`; `X-Error-Type` on errors
 
 ### 6.2 Versioning and Deprecation
-- Current: v1 routes under `/v1/search/*`
+- Current: v1 routes under `/v1/search/*`, v2 routes under `/api/v2/*`
 - Deprecated Legacy: `/search/*`; Deprecation and Sunset headers set; removal no earlier than March 1, 2026
 - Never break userspace: provide alternates and migration time; feature flags for safe rollouts
 
 ### 6.3 Endpoints (representative)
-#### 6.3.1 V1 API (WebSocket-centric)
-- `GET /v1/search/isbn?isbn=…` → 200 | 400 (INVALID_ISBN) | 404 (NOT_FOUND)
-- `GET /v1/search/title?q=…&maxResults=…` → 200 | 400
-- `GET /v1/search/advanced?title=…&author=…` → 200 | 400
-- `POST /v1/scan` (image body) → 202 accepted + WS progress; results via `/v1/scan/results/:jobId`
-- `POST /v1/import/csv` (file body) → 202 + WS; results via `/v1/csv/results/:jobId`
-- `POST /api/token/refresh` `{ jobId, oldToken }` → 200 | 401 (AUTH_ERROR)
-- `GET /api/job-state/:jobId` → 200 | 400
-- `GET /metrics` → 200 (analytics, cache metrics)
-- `GET /health` → 200
+#### 6.3.1 V1 API (Legacy & Compatibility)
+- `GET /v1/search/isbn?isbn=…` → 200 | 400 | 404
+- `GET /v1/search/title?q=…`
+- `GET /v1/search/advanced?title=…&author=…`
+- `POST /api/scan-bookshelf/batch` (Batch Image Scan)
+- `POST /api/import/csv-gemini` (Legacy CSV)
+- `POST /api/token/refresh` `{ jobId, oldToken }`
+- `GET /v1/jobs/{jobId}/status` (Unified Job Status)
+- `GET /metrics` → 200 (analytics)
+- `GET /health` → 200 (Service Health)
 
-#### 6.3.2 V2 API (HTTP/SSE & Intelligence)
-- `GET /api/v2/search?q=…&mode=semantic` → Semantic search
-- `GET /v1/search/similar?isbn=…` → Find similar books
-- `GET /api/v2/recommendations/weekly` → AI-curated weekly picks
-- `POST /api/v2/imports` (multipart/form-data) → 202 accepted + SSE progress via `/api/v2/imports/{jobId}/stream`
-- `GET /api/v2/capabilities` → Feature discovery
+#### 6.3.2 V2 API (Modern & Intelligent)
+- `GET /api/v2/search?q=…&mode=semantic`
+- `GET /api/v2/recommendations/weekly`
+- `POST /api/v2/imports` (Start Import Workflow)
+- `GET /api/v2/imports/{jobId}` (Import Status)
+- `GET /api/v2/imports/{jobId}/stream` (SSE Progress)
+- `POST /api/v2/books/enrich/detailed` (Comprehensive Metadata)
+- `GET /api/v2/capabilities` (Feature Discovery)
+- `GET /doc` (Swagger UI)
 
 ```mermaid
 sequenceDiagram
@@ -223,7 +243,7 @@ sequenceDiagram
     Client->>Backend API: GET /v1/search/isbn?isbn=...
     activate Backend API
 
-    Backend API->>Cache: Check for cached response
+    Backend API->>Cache: Check for cached response (D1/KV)
     alt Cache Hit
         Cache-->>Backend API: Cached BookSearchResponse
         Backend API-->>Client: 200 OK (from cache)
@@ -231,7 +251,7 @@ sequenceDiagram
         Backend API->>External Providers: Search by ISBN
         External Providers-->>Backend API: Provider-specific data
         Backend API->>Backend API: Normalize to DTOs
-        Backend API->>Cache: Store normalized response
+        Backend API->>Cache: Store normalized response (Dual Write D1+KV)
         Backend API-->>Client: 200 OK (from provider)
     end
 
@@ -248,18 +268,27 @@ sequenceDiagram
 - Expose analytics headers; maintain OPTIONS handling
 
 ## 7. Architecture
-- Runtime: Cloudflare Workers with Hono router (feature-flagged)
-- State: Durable Objects (WS connections, job state, rate limiter, cache metrics)
-- Storage: KV (hot cache), R2 (cold cache, images), Analytics Engine datasets
-- AI & Search:
-  - Gemini 2.0 Flash for vision and parsing
-  - Cloudflare Workers AI for embedding generation
-  - Cloudflare Vectorize for semantic search index
-- Routers:
-  - Hono (default, `ENABLE_HONO_ROUTER=true`); legacy manual router remains as rollback
-- Caching:
-  - Hot KV TTL 2h, Cold R2 TTL 14d; cache key factory deterministically maps inputs → outputs
-- Envelope/Contracts: Single response builder utility; canonical DTOs; TS-first contracts
+- **Runtime**:
+  - **Cloudflare Workers**: Hono router for high-performance API handling.
+  - **Cloudflare Workflows**: Long-running asynchronous jobs (CSV Import).
+- **State**:
+  - **Durable Objects**: WS connections, Job State Manager, Rate Limiter, Cache Metrics.
+- **Storage**:
+  - **D1 Database**: Primary relational store (Books, Authors, Relations).
+  - **KV**: Hot cache (Books, scan results) and configuration.
+  - **R2**: Cold storage (Images, backup).
+  - **Vectorize**: Semantic search index (`book-embeddings`).
+- **Queues**:
+  - `author-warming-queue`: Async author cache warming.
+  - `enrichment-queue`: Bulk enrichment processing.
+- **AI & Search**:
+  - Gemini 2.0 Flash for vision and parsing.
+  - Cloudflare Workers AI for embedding generation.
+  - Cloudflare Vectorize for semantic search.
+- **Caching**:
+  - **Dual-Write Strategy**: Writes persist to D1 (primary) and KV (cache).
+  - **Smart Routing**: Reads prioritize D1 or KV based on `D1_READ_PERCENTAGE`.
+  - Hot KV TTL 2h, Cold R2 TTL 14d.
 
 ## 8. Performance and Scalability
 ### Targets
@@ -271,12 +300,9 @@ sequenceDiagram
 ### Coalescing
 - Request coalescing for in-flight enrichments to avoid thundering herd
 
-### Edge Caching
-- Short-circuit return for cache hits; set cache control headers on responses
-
-### Stress Scenarios
-- Shelf scan bursts (10–100 scans/min): maintain WS stability and progress accuracy
-- Provider degradation: maintain availability via fallbacks and cached responses
+### Dual-Write Performance
+- D1 writes are primary for durability; KV writes follow for read performance.
+- Read path can shift traffic between D1 and KV via feature flags to manage load.
 
 ## 9. Security, Privacy, Compliance
 - WS Auth
@@ -299,6 +325,7 @@ sequenceDiagram
   - CACHE_ANALYTICS: TTL usage, warm vs cold, invalidations
   - PROVIDER/AI_ANALYTICS: provider latency, error rates, costs (approx)
   - SAMPLING_ANALYTICS: request sampling/AB data
+  - **Dual-Write Metrics**: Track D1 vs KV write latency and consistency.
 - Alerts
   - Error rate > 0.5% over 5 min
   - p99 latency > target for 10 min
@@ -331,12 +358,13 @@ sequenceDiagram
   - `ENABLE_HONO_ROUTER` default true; manual router as immediate rollback
   - `ENABLE_HIBERNATION_WEBSOCKET` for DO hibernation rollout
   - `ENABLE_REFACTORED_DOS` for progressive DO architecture refactor
+  - `ENABLE_D1_WRITES` for dual-write storage migration
 - Phased Rollout
   - 1% → 10% → 50% → 100% traffic shaping via feature flags and canary metrics
 - Deprecation Timeline
   - Legacy `/search/*` sunset March 1, 2026 (headers already set)
 - Deployment
-  - `wrangler deploy`; instant rollback via config/env flips; no DB schema migrations
+  - `wrangler deploy`; instant rollback via config/env flips
 
 ## 13. Risks and Mitigations
 - Provider Limits/Outages
@@ -345,8 +373,8 @@ sequenceDiagram
   - Mitigation: concurrency caps, budget alerts, batch modes
 - WS Scaling
   - Mitigation: hibernation DOs, shard by jobId, strict token TTLs and refresh flows
-- Cache Inconsistency
-  - Mitigation: deterministic keys, validation tests, TTL discipline, explicit invalidation hooks
+- Cache Inconsistency (D1 vs KV)
+  - Mitigation: `VALIDATE_DUAL_WRITES` in dev, D1 as source of truth, KV as cache only.
 - Breaking Changes
   - Mitigation: never break userspace; feature flags; compatibility layers; long deprecation windows
 
@@ -375,7 +403,7 @@ sequenceDiagram
 ## 16. Milestones
 - M1 (Week 1–2): Hono default, unified envelope everywhere, CI coverage gates in place, search v1 hardened
 - M2 (Week 3–4): AI scan/CSV stability, hibernation DO rollout to 50%, cache hit ratio optimization
-- M3 (Week 5–6): Batch enrichment and cover harvest maturity; alerts/dashboards; provider fallback corner cases
+- M3 (Week 5–6): Author-Driven Harvest system; alerts/dashboards; provider fallback corner cases
 - M4 (Week 7–8): Performance tuning to hit p95/p99 SLOs; finalize deprecation playbook; docs and runbooks complete
 
 ---
@@ -390,6 +418,9 @@ sequenceDiagram
 - `MAX_SCAN_FILE_SIZE`: 10485760 bytes (10MB)
 - `CONFIDENCE_THRESHOLD`: 0.7
 - `OPENLIBRARY_BASE_URL`: https://openlibrary.org
+- `ENABLE_D1_WRITES`: true
+- `D1_READ_PERCENTAGE`: 100
+- `WORKFLOW_ROLLOUT_PERCENT`: 100
 
 ### Appendix B: Provider Policies
 - Google Books: API key required; log user-agent; monitor quotas and errors
