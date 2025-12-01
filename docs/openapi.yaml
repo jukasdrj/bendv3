@@ -1,8 +1,41 @@
 openapi: 3.1.0
 info:
   title: BooksTrack API
-  version: 3.3.0
-  description: Book search, enrichment, and AI-powered scanning API
+  version: 4.0.0
+  description: |
+    Book search, enrichment, and AI-powered scanning API.
+
+    ## API Versioning
+
+    **Current Version:** V2 API (recommended for all new integrations)
+
+    **Legacy APIs:** V1 and unversioned endpoints are deprecated and will be removed March 1, 2026.
+
+    ## Migration Guide
+
+    | Legacy Endpoint | V2 Replacement | Notes |
+    |-----------------|----------------|-------|
+    | `GET /search/*` | `GET /api/v2/search` | Unified search with modes |
+    | `POST /api/import/csv-gemini` | `POST /api/v2/imports` | Unified import workflow |
+    | `GET /v1/csv/status/:id` | `GET /api/v2/imports/:id` | Job status polling |
+    | `GET /v1/csv/results/:id` | `GET /api/v2/imports/:id/results` | Job results |
+    | `POST /api/batch-enrich` | `POST /api/v2/books/enrich` | Single book enrichment |
+    | `GET /ws/progress` | `GET /api/v2/imports/:id/stream` | SSE replaces WebSocket |
+
+    ## Response Format
+
+    All V2 endpoints use the unified ResponseEnvelope format:
+    ```json
+    {
+      "data": { ... },
+      "metadata": {
+        "timestamp": "2025-12-01T00:00:00Z",
+        "source": "google_books",
+        "cached": true
+      },
+      "error": null  // or error object on failure
+    }
+    ```
   contact:
     email: api-support@oooefam.net
 servers:
@@ -11,18 +44,313 @@ servers:
   - url: http://localhost:8787
     description: Local development
 tags:
-  - name: Search
-    description: Book and author search operations
-  - name: Enrichment
-    description: Book metadata enrichment
-  - name: Import
-    description: CSV import and batch processing
-  - name: Scanning
-    description: Bookshelf photo scanning
+  - name: V2 Search
+    description: |
+      **CURRENT** - Unified search API supporting text, semantic, and hybrid modes.
+      Use these endpoints for all new integrations.
+  - name: V2 Imports
+    description: |
+      **CURRENT** - CSV import and bookshelf scanning workflow.
+      Supports SSE streaming for real-time progress updates.
+  - name: V2 Enrichment
+    description: |
+      **CURRENT** - Book metadata enrichment from multiple providers.
+      Includes optional vector embedding generation.
+  - name: V2 Discovery
+    description: |
+      **CURRENT** - Trending content and personalized recommendations.
+  - name: V1 Jobs
+    description: |
+      **LEGACY** - Job management endpoints. Use V2 Imports endpoints instead.
+      Sunset: March 1, 2026
+  - name: V1 Search
+    description: |
+      **DEPRECATED** - Legacy search endpoints. Use `/api/v2/search` instead.
+      Sunset: March 1, 2026
   - name: Health
     description: System health and monitoring
 components:
-  schemas: {}
+  schemas:
+    # =========================================================================
+    # RESPONSE ENVELOPE SCHEMAS
+    # =========================================================================
+
+    ResponseMetadata:
+      type: object
+      description: Standard metadata included in all responses
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of response
+        source:
+          type: string
+          enum: [google_books, open_library, isbndb, kv-cache, d1-database, vectorize, text-search, job-state-manager-do, curated, none]
+          description: Data source provider
+        cached:
+          type: boolean
+          description: Whether response was served from cache
+        processingTime:
+          type: integer
+          minimum: 0
+          description: Processing time in milliseconds
+      required:
+        - timestamp
+
+    ErrorResponse:
+      type: object
+      description: Standard error response envelope
+      properties:
+        data:
+          nullable: true
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - NOT_FOUND
+                - INVALID_REQUEST
+                - INVALID_ISBN
+                - INVALID_QUERY
+                - MISSING_PARAMETER
+                - UNAUTHORIZED
+                - FORBIDDEN
+                - INTERNAL_ERROR
+                - API_ERROR
+                - NETWORK_ERROR
+                - RATE_LIMIT_EXCEEDED
+                - CIRCUIT_OPEN
+                - PROVIDER_ERROR
+                - TIMEOUT
+                - FEATURE_NOT_AVAILABLE
+                - FILE_TOO_LARGE
+            message:
+              type: string
+              description: Human-readable error message
+            details:
+              type: object
+              additionalProperties: true
+              description: Additional error context
+            retryable:
+              type: boolean
+              description: Whether the request can be retried
+            retryAfterMs:
+              type: integer
+              minimum: 0
+              description: Milliseconds to wait before retry
+            provider:
+              type: string
+              description: Provider that caused the error
+          required:
+            - code
+            - message
+      required:
+        - data
+        - error
+
+    # =========================================================================
+    # BOOK SCHEMAS
+    # =========================================================================
+
+    BookSearchResult:
+      type: object
+      description: Book result from search
+      properties:
+        isbn:
+          type: string
+          description: Primary ISBN (ISBN-13 preferred)
+        isbn13:
+          type: string
+          pattern: '^\d{13}$'
+        isbn10:
+          type: string
+          pattern: '^\d{10}$'
+        title:
+          type: string
+        authors:
+          type: array
+          items:
+            type: string
+        publisher:
+          type: string
+        publishedDate:
+          type: string
+        description:
+          type: string
+        pageCount:
+          type: integer
+          minimum: 0
+        categories:
+          type: array
+          items:
+            type: string
+        coverUrl:
+          type: string
+          format: uri
+        language:
+          type: string
+        openLibraryWorkId:
+          type: string
+          description: OpenLibrary work ID for edition grouping
+      required:
+        - title
+        - authors
+
+    EnrichedBook:
+      type: object
+      description: Fully enriched book with provider metadata
+      properties:
+        isbn:
+          type: string
+        title:
+          type: string
+        authors:
+          type: array
+          items:
+            type: string
+        publisher:
+          type: string
+        publishedDate:
+          type: string
+        description:
+          type: string
+        pageCount:
+          type: integer
+          minimum: 0
+        categories:
+          type: array
+          items:
+            type: string
+        coverUrl:
+          type: string
+          format: uri
+        provider:
+          type: string
+          enum: [google_books, open_library, isbndb, orchestrated, kv-cache]
+          description: Primary data provider
+        enrichedAt:
+          type: string
+          format: date-time
+        vectorized:
+          type: boolean
+          description: Whether embedding was generated for semantic search
+      required:
+        - isbn
+        - title
+        - authors
+        - provider
+        - enrichedAt
+        - vectorized
+
+    # =========================================================================
+    # JOB SCHEMAS
+    # =========================================================================
+
+    JobState:
+      type: object
+      description: Current state of an async job
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [initialized, processing, completed, failed, canceled]
+        progress:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Progress from 0.0 to 1.0
+        processedCount:
+          type: integer
+          minimum: 0
+        totalCount:
+          type: integer
+          minimum: 0
+        pipeline:
+          type: string
+          enum: [csv_import, batch_enrichment, ai_scan]
+        startTime:
+          type: string
+          format: date-time
+        lastUpdateTime:
+          type: string
+          format: date-time
+        completedTime:
+          type: string
+          format: date-time
+        failedTime:
+          type: string
+          format: date-time
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            retryable:
+              type: boolean
+            details:
+              type: object
+        canceled:
+          type: boolean
+        cancelReason:
+          type: string
+        canceledTime:
+          type: string
+          format: date-time
+      required:
+        - jobId
+        - status
+        - progress
+        - processedCount
+        - totalCount
+        - pipeline
+
+    JobResults:
+      type: object
+      description: Results from a completed import job
+      properties:
+        booksCreated:
+          type: integer
+          minimum: 0
+        booksUpdated:
+          type: integer
+          minimum: 0
+        duplicatesSkipped:
+          type: integer
+          minimum: 0
+        enrichmentSucceeded:
+          type: integer
+          minimum: 0
+        enrichmentFailed:
+          type: integer
+          minimum: 0
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              row:
+                type: integer
+                description: Row number in CSV (if applicable)
+              isbn:
+                type: string
+              error:
+                type: string
+        books:
+          type: array
+          description: Full canonical book objects for iOS persistence
+          items:
+            $ref: '#/components/schemas/BookSearchResult'
+      required:
+        - booksCreated
+        - books
+
   parameters: {}
 paths:
   /health:
@@ -105,9 +433,15 @@ paths:
   /v1/search/isbn:
     get:
       tags:
-        - Search
+        - V1 Search
       summary: Search for a book by ISBN
+      deprecated: true
+      x-sunset: "2026-03-01"
       description: >-
+
+        **DEPRECATED:** Use `POST /api/v2/books/enrich` instead. Sunset: March 1, 2026.
+
+        ---
 
         Search for a book by ISBN-10 or ISBN-13 (digits only, no hyphens).
 
@@ -1146,9 +1480,15 @@ paths:
   /v1/search/title:
     get:
       tags:
-        - Search
+        - V1 Search
       summary: Search for books by title
+      deprecated: true
+      x-sunset: "2026-03-01"
       description: >-
+
+        **DEPRECATED:** Use `GET /api/v2/search?mode=text` instead. Sunset: March 1, 2026.
+
+        ---
 
         Search for books by title using multi-provider orchestration.
 
@@ -2021,3 +2361,924 @@ paths:
                   - error
                 additionalProperties: false
 
+  /api/v2/trending/searches:
+    get:
+      tags:
+        - Discovery
+      summary: Get trending search queries
+      description: |-
+        Returns popular search queries based on user activity.
+        Falls back to curated list if no analytics data available.
+
+        **Query Parameters:**
+        - `limit`: Number of results (1-20, default 10)
+        - `timeRange`: Time window - 'day', 'week', or 'month' (default 'week')
+
+        **Response Format (Unified ResponseEnvelope):**
+        ```json
+        {
+          "success": true,
+          "data": {
+            "searches": [
+              { "query": "Harry Potter", "searchCount": 1250, "category": "Fantasy" }
+            ],
+            "count": 10,
+            "totalAvailable": 20,
+            "timeRange": "week"
+          },
+          "metadata": {
+            "timestamp": "2025-12-01T00:00:00Z",
+            "source": "curated",
+            "cached": false
+          }
+        }
+        ```
+      parameters:
+        - name: limit
+          in: query
+          description: Number of results to return (1-20)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+        - name: timeRange
+          in: query
+          description: Time window for trending data
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: week
+      responses:
+        '200':
+          description: Trending searches retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      searches:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            query:
+                              type: string
+                              example: "Harry Potter"
+                            searchCount:
+                              type: integer
+                              example: 1250
+                            category:
+                              type: string
+                              example: "Fantasy"
+                          required:
+                            - query
+                            - searchCount
+                      count:
+                        type: integer
+                        example: 10
+                      totalAvailable:
+                        type: integer
+                        example: 20
+                      timeRange:
+                        type: string
+                        example: "week"
+                    required:
+                      - searches
+                      - count
+                      - totalAvailable
+                      - timeRange
+                  metadata:
+                    type: object
+                    properties:
+                      timestamp:
+                        type: string
+                        format: date-time
+                      source:
+                        type: string
+                        enum: [kv-cache, curated, analytics]
+                      cached:
+                        type: boolean
+                      generatedAt:
+                        type: string
+                        format: date-time
+                required:
+                  - success
+                  - data
+                  - metadata
+
+  /api/v2/trending/books:
+    get:
+      tags:
+        - Discovery
+      summary: Get trending books
+      description: |-
+        Returns trending books based on user activity and popularity.
+        Falls back to curated list if no analytics data available.
+
+        **Query Parameters:**
+        - `limit`: Number of results (1-20, default 10)
+        - `timeRange`: Time window - 'day', 'week', or 'month' (default 'week')
+
+        **Response Format (Unified ResponseEnvelope):**
+        ```json
+        {
+          "success": true,
+          "data": {
+            "books": [
+              {
+                "isbn": "9781649374042",
+                "title": "Fourth Wing",
+                "authors": ["Rebecca Yarros"],
+                "coverUrl": "https://...",
+                "trendScore": 98,
+                "reason": "TikTok sensation"
+              }
+            ],
+            "count": 10,
+            "totalAvailable": 20,
+            "timeRange": "week"
+          },
+          "metadata": { ... }
+        }
+        ```
+      parameters:
+        - name: limit
+          in: query
+          description: Number of results to return (1-20)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+        - name: timeRange
+          in: query
+          description: Time window for trending data
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: week
+      responses:
+        '200':
+          description: Trending books retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      books:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            isbn:
+                              type: string
+                              example: "9781649374042"
+                            title:
+                              type: string
+                              example: "Fourth Wing"
+                            authors:
+                              type: array
+                              items:
+                                type: string
+                              example: ["Rebecca Yarros"]
+                            coverUrl:
+                              type: string
+                              format: uri
+                            trendScore:
+                              type: integer
+                              minimum: 0
+                              maximum: 100
+                              example: 98
+                            reason:
+                              type: string
+                              example: "TikTok sensation"
+                          required:
+                            - isbn
+                            - title
+                            - authors
+                            - trendScore
+                      count:
+                        type: integer
+                        example: 10
+                      totalAvailable:
+                        type: integer
+                        example: 20
+                      timeRange:
+                        type: string
+                        example: "week"
+                    required:
+                      - books
+                      - count
+                      - totalAvailable
+                      - timeRange
+                  metadata:
+                    type: object
+                    properties:
+                      timestamp:
+                        type: string
+                        format: date-time
+                      source:
+                        type: string
+                        enum: [kv-cache, d1-database, curated]
+                      cached:
+                        type: boolean
+                      generatedAt:
+                        type: string
+                        format: date-time
+                required:
+                  - success
+                  - data
+                  - metadata
+
+  /api/v2/recommendations/weekly:
+    get:
+      tags:
+        - Discovery
+      summary: Get weekly book recommendations
+      description: |-
+        Returns global weekly book recommendations.
+        Non-personalized curated picks generated every Sunday at midnight UTC.
+
+        **Query Parameters:**
+        - `limit`: Number of results (1-20, default 10)
+
+        **Response Format (Unified ResponseEnvelope):**
+        ```json
+        {
+          "success": true,
+          "data": {
+            "weekOf": "2025-12-01",
+            "recommendations": [
+              {
+                "isbn": "9780439708180",
+                "title": "Harry Potter and the Sorcerer's Stone",
+                "author": "J.K. Rowling",
+                "coverUrl": "https://...",
+                "reason": "Classic fantasy adventure"
+              }
+            ],
+            "count": 10,
+            "totalAvailable": 20
+          },
+          "metadata": {
+            "timestamp": "2025-12-01T00:00:00Z",
+            "source": "kv-cache",
+            "cached": true,
+            "generatedAt": "2025-11-30T00:00:00Z"
+          }
+        }
+        ```
+      parameters:
+        - name: limit
+          in: query
+          description: Number of recommendations to return (1-20)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+      responses:
+        '200':
+          description: Weekly recommendations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      weekOf:
+                        type: string
+                        format: date
+                        example: "2025-12-01"
+                      recommendations:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            isbn:
+                              type: string
+                              example: "9780439708180"
+                            title:
+                              type: string
+                              example: "Harry Potter and the Sorcerer's Stone"
+                            author:
+                              type: string
+                              example: "J.K. Rowling"
+                            coverUrl:
+                              type: string
+                              format: uri
+                            reason:
+                              type: string
+                              example: "Classic fantasy adventure"
+                            score:
+                              type: number
+                              minimum: 0
+                              maximum: 100
+                          required:
+                            - isbn
+                            - title
+                            - author
+                            - reason
+                      count:
+                        type: integer
+                        example: 10
+                      totalAvailable:
+                        type: integer
+                        example: 20
+                      message:
+                        type: string
+                        description: Info message when no recommendations available
+                    required:
+                      - weekOf
+                      - recommendations
+                      - count
+                      - totalAvailable
+                  metadata:
+                    type: object
+                    properties:
+                      timestamp:
+                        type: string
+                        format: date-time
+                      source:
+                        type: string
+                        enum: [kv-cache, d1-database, none]
+                      cached:
+                        type: boolean
+                      generatedAt:
+                        type: string
+                        format: date-time
+                      expiresAt:
+                        type: string
+                        format: date-time
+                      nextGenerationTime:
+                        type: string
+                        format: date-time
+                required:
+                  - success
+                  - data
+                  - metadata
+
+  # =============================================================================
+  # V2 SEARCH API - CURRENT
+  # =============================================================================
+
+  /api/v2/search:
+    get:
+      tags:
+        - V2 Search
+      summary: Unified search endpoint
+      operationId: searchBooks
+      description: |
+        Unified search supporting text, semantic, and hybrid modes.
+
+        **Search Modes:**
+        - `text` (default): Traditional keyword matching via OpenLibrary
+        - `semantic`: AI-powered vector search using Cloudflare Vectorize
+        - `hybrid`: Combines both (future enhancement, currently delegates to semantic)
+
+        **Examples:**
+        ```bash
+        # Text search (default)
+        curl "https://api.oooefam.net/api/v2/search?q=harry%20potter"
+
+        # Semantic search
+        curl "https://api.oooefam.net/api/v2/search?q=wizards+magic+school&mode=semantic"
+        ```
+
+        **Rate Limits:** 100 requests/minute per IP
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query (1-200 characters)
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+            example: "harry potter"
+        - name: mode
+          in: query
+          required: false
+          description: Search mode
+          schema:
+            type: string
+            enum: [text, semantic, hybrid]
+            default: text
+        - name: limit
+          in: query
+          required: false
+          description: Maximum results (1-50)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          description: Pagination offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      query:
+                        type: object
+                        properties:
+                          q:
+                            type: string
+                          mode:
+                            type: string
+                            enum: [text, semantic, hybrid]
+                          limit:
+                            type: integer
+                          offset:
+                            type: integer
+                      results:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BookSearchResult'
+                      totalCount:
+                        type: integer
+                    required:
+                      - query
+                      - results
+                      - totalCount
+                  metadata:
+                    $ref: '#/components/schemas/ResponseMetadata'
+                required:
+                  - data
+                  - metadata
+              example:
+                data:
+                  query:
+                    q: "harry potter"
+                    mode: "text"
+                    limit: 20
+                    offset: 0
+                  results:
+                    - isbn: "9780439708180"
+                      title: "Harry Potter and the Sorcerer's Stone"
+                      authors: ["J.K. Rowling"]
+                      coverUrl: "https://covers.openlibrary.org/b/isbn/9780439708180-L.jpg"
+                      publisher: "Scholastic"
+                      publishedDate: "1999-09-01"
+                  totalCount: 42
+                metadata:
+                  timestamp: "2025-12-01T12:00:00.000Z"
+                  source: "text-search"
+                  cached: false
+                  searchMode: "text"
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Semantic search unavailable (Vectorize not populated)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =============================================================================
+  # V2 IMPORTS API - CURRENT
+  # =============================================================================
+
+  /api/v2/imports:
+    post:
+      tags:
+        - V2 Imports
+      summary: Create import job
+      operationId: createImportJob
+      description: |
+        Initiate an asynchronous import job for CSV files or bookshelf photos.
+
+        **Supported File Types:**
+        - CSV files: Book metadata (Title, Author, ISBN, etc.)
+        - Image files: Bookshelf photos for AI detection (JPEG, PNG)
+
+        **File Limits:**
+        - Max size: 8MB (fits Gemini 2M token context)
+        - CSV: Up to 1000 rows recommended
+
+        **Processing Flow:**
+        1. File validation (format, size)
+        2. Generate jobId and authToken
+        3. Schedule async processing via Durable Object
+        4. Return job info with SSE stream URL
+
+        **Progress Tracking (Recommended):**
+        Use SSE stream: `GET /api/v2/imports/{jobId}/stream`
+
+        **Example:**
+        ```bash
+        curl -X POST https://api.oooefam.net/api/v2/imports \
+          -F "file=@books.csv"
+        ```
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV or image file (max 8MB)
+              required:
+                - file
+      responses:
+        '202':
+          description: Import job created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      jobId:
+                        type: string
+                        format: uuid
+                        description: Unique job identifier
+                      authToken:
+                        type: string
+                        format: uuid
+                        description: Token for SSE authentication
+                      sseUrl:
+                        type: string
+                        description: SSE stream URL for progress
+                      statusUrl:
+                        type: string
+                        description: HTTP polling URL
+                    required:
+                      - jobId
+                      - authToken
+                      - sseUrl
+                      - statusUrl
+                  metadata:
+                    $ref: '#/components/schemas/ResponseMetadata'
+              example:
+                data:
+                  jobId: "550e8400-e29b-41d4-a716-446655440000"
+                  authToken: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  sseUrl: "/api/v2/imports/550e8400-e29b-41d4-a716-446655440000/stream"
+                  statusUrl: "/api/v2/imports/550e8400-e29b-41d4-a716-446655440000"
+                metadata:
+                  timestamp: "2025-12-01T12:00:00.000Z"
+        '400':
+          description: Invalid file or missing file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: File too large (max 8MB)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded (5 req/min)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/imports/{jobId}:
+    get:
+      tags:
+        - V2 Imports
+      summary: Get import job status
+      operationId: getImportJobStatus
+      description: |
+        Poll job status for CSV/photo import.
+
+        **Prefer SSE:** Use `GET /api/v2/imports/{jobId}/stream` for real-time updates.
+
+        **Job States:**
+        - `initialized`: Job created, waiting to start
+        - `processing`: Actively processing items
+        - `completed`: Successfully finished
+        - `failed`: Error occurred
+        - `canceled`: User canceled
+
+        **Rate Limit:** 30 requests/minute per IP
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobState'
+                  metadata:
+                    $ref: '#/components/schemas/ResponseMetadata'
+              example:
+                data:
+                  jobId: "550e8400-e29b-41d4-a716-446655440000"
+                  status: "processing"
+                  progress: 0.67
+                  processedCount: 100
+                  totalCount: 150
+                  pipeline: "csv_import"
+                  startTime: "2025-12-01T10:00:00Z"
+                metadata:
+                  timestamp: "2025-12-01T10:03:00Z"
+                  source: "job-state-manager-do"
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/imports/{jobId}/stream:
+    get:
+      tags:
+        - V2 Imports
+      summary: Stream import progress (SSE)
+      operationId: streamImportProgress
+      description: |
+        Server-Sent Events stream for real-time import progress.
+
+        **Connection:**
+        ```javascript
+        const eventSource = new EventSource('/api/v2/imports/{jobId}/stream')
+
+        eventSource.addEventListener('progress', (e) => {
+          const data = JSON.parse(e.data)
+          console.log(`Progress: ${data.progress * 100}%`)
+        })
+
+        eventSource.addEventListener('completed', (e) => {
+          const data = JSON.parse(e.data)
+          console.log('Done!', data)
+          eventSource.close()
+        })
+        ```
+
+        **Event Types:**
+        - `initialized`: Job started
+        - `processing`: Progress update
+        - `completed`: Job finished successfully
+        - `failed`: Job failed with error
+        - `canceled`: Job was canceled
+
+        **Reconnection:**
+        Browser automatically reconnects. Use `Last-Event-ID` header to resume.
+
+        **Headers Required:**
+        - `Accept: text/event-stream`
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: SSE stream established
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |
+                : connection established
+                retry: 5000
+
+                id: 1701432000000-progress
+                event: processing
+                data: {"jobId":"550e8400-...","status":"processing","progress":0.5,"processedCount":75,"totalCount":150}
+
+                id: 1701432060000-completed
+                event: completed
+                data: {"jobId":"550e8400-...","status":"completed","progress":1.0,"processedCount":150,"totalCount":150}
+        '400':
+          description: Missing Accept header
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/imports/{jobId}/results:
+    get:
+      tags:
+        - V2 Imports
+      summary: Get import job results
+      operationId: getImportJobResults
+      description: |
+        Retrieve completed job results. Results stored for 1 hour after completion.
+
+        **Response includes:**
+        - Import statistics (created, updated, failed counts)
+        - Error details for failed items
+        - Full canonical book objects for SwiftData persistence
+
+        **iOS Clients (IMPORTANT):**
+        The `books` array contains complete book metadata. Parse and save to
+        local SwiftData storage for offline access.
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobResults'
+                  metadata:
+                    $ref: '#/components/schemas/ResponseMetadata'
+              example:
+                data:
+                  booksCreated: 145
+                  booksUpdated: 0
+                  duplicatesSkipped: 5
+                  enrichmentSucceeded: 140
+                  enrichmentFailed: 5
+                  errors:
+                    - row: 15
+                      isbn: "1234567890"
+                      error: "Invalid ISBN"
+                  books:
+                    - isbn: "9780439708180"
+                      title: "Harry Potter and the Sorcerer's Stone"
+                      authors: ["J.K. Rowling"]
+                      publisher: "Scholastic"
+                      coverUrl: "https://..."
+                metadata:
+                  timestamp: "2025-12-01T12:00:00Z"
+                  cached: true
+                  ttl: "1 hour"
+        '404':
+          description: Results not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =============================================================================
+  # V2 ENRICHMENT API - CURRENT
+  # =============================================================================
+
+  /api/v2/books/enrich:
+    post:
+      tags:
+        - V2 Enrichment
+      summary: Enrich book by barcode/ISBN
+      operationId: enrichBook
+      description: |
+        Synchronous book enrichment from multiple providers.
+
+        **Provider Pipeline:**
+        1. KV Cache (fastest)
+        2. D1 Database
+        3. Google Books API
+        4. OpenLibrary API
+        5. ISBNdb API (cover images)
+
+        **Optional Vectorization:**
+        Set `includeEmbedding: true` to generate and store vector embedding
+        for semantic search.
+
+        **Example:**
+        ```bash
+        curl -X POST https://api.oooefam.net/api/v2/books/enrich \
+          -H "Content-Type: application/json" \
+          -d '{"barcode": "9780439708180", "includeEmbedding": true}'
+        ```
+
+        **Rate Limit:** 50 requests/minute per IP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                barcode:
+                  type: string
+                  description: ISBN-10 or ISBN-13 (preferred parameter name)
+                  pattern: '^\d{10}$|^\d{13}$'
+                  example: "9780439708180"
+                isbn:
+                  type: string
+                  description: ISBN (deprecated, use barcode)
+                  deprecated: true
+                includeEmbedding:
+                  type: boolean
+                  default: false
+                  description: Generate vector embedding for semantic search
+              oneOf:
+                - required: [barcode]
+                - required: [isbn]
+      responses:
+        '200':
+          description: Enriched book data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/EnrichedBook'
+                  metadata:
+                    $ref: '#/components/schemas/ResponseMetadata'
+              example:
+                data:
+                  isbn: "9780439708180"
+                  title: "Harry Potter and the Sorcerer's Stone"
+                  authors: ["J.K. Rowling"]
+                  publisher: "Scholastic"
+                  publishedDate: "1998-09-01"
+                  description: "Harry Potter has never even heard of Hogwarts..."
+                  pageCount: 320
+                  categories: ["Fiction", "Fantasy"]
+                  coverUrl: "https://covers.openlibrary.org/b/isbn/9780439708180-L.jpg"
+                  provider: "google_books"
+                  enrichedAt: "2025-12-01T12:00:00Z"
+                  vectorized: true
+                metadata:
+                  timestamp: "2025-12-01T12:00:00Z"
+                  source: "google_books"
+                  cached: false
+        '400':
+          description: Invalid barcode/ISBN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Book not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Circuit breaker open
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

@@ -313,6 +313,20 @@ export async function handleSSEStream(
 
       // Send final event if job completed
       if (state && (state.status === 'completed' || state.status === 'failed' || state.status === 'canceled')) {
+        // Issue #003: Fetch results to include books array in complete event
+        let books: unknown[] = []
+        if (state.status === 'completed') {
+          try {
+            // Try to get books from stored result
+            const result = (state as unknown as { result?: { books?: unknown[] } }).result
+            if (result?.books) {
+              books = result.books
+            }
+          } catch (e) {
+            console.warn('[SSE] Could not fetch books for complete event:', e)
+          }
+        }
+
         await writeEvent({
           id: `${Date.now()}-final`,
           event: state.status,
@@ -323,7 +337,9 @@ export async function handleSSEStream(
             processedCount: state.processedCount,
             totalCount: state.totalCount,
             ...(state.completedTime && { completedAt: new Date(state.completedTime).toISOString() }),
-            ...(state.error && { error: state.error })
+            ...(state.error && { error: state.error }),
+            // Issue #003: Include books array for iOS persistence
+            ...(state.status === 'completed' && { books })
           })
         })
       }

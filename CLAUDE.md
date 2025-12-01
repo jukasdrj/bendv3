@@ -1,10 +1,35 @@
 # BooksTrack Backend - Claude Code Quick Reference
 
-**Version:** 2.3 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** November 27, 2025
+**Version:** 2.4 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** December 1, 2025
 
 > **📖 For comprehensive Claude Code guidelines, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md)**
 >
 > This file is a lightweight quick reference. For detailed patterns, architecture, and AI collaboration workflows, refer to the full documentation.
+
+---
+
+## 🚨 CRITICAL: API Sync V2 Migration
+
+**Status:** V2 Priority with Aggressive Deprecation  
+**Sunset Date:** March 1, 2026
+
+### Documentation (Read These First!)
+- **[docs/API_SYNC_V2.md](docs/API_SYNC_V2.md)** - V2 API contract and migration guide
+- **[docs/openapi-v2.yaml](docs/openapi-v2.yaml)** - V2-only OpenAPI spec
+- **[docs/API_SYNC_ISSUES.md](docs/API_SYNC_ISSUES.md)** - Issue tracking
+
+### Endpoint Status
+| Path | Status | Notes |
+|------|--------|-------|
+| `/api/v2/*` | ✅ CURRENT | Use these |
+| `/v1/*` | ⚠️ DEPRECATED | Sunset March 2026 |
+| `/search/*` | ⛔ LEGACY | Remove immediately |
+
+### Key V2 Endpoints
+- `GET /api/v2/search` - Unified search (replaces all V1 search)
+- `POST /api/v2/books/enrich` - Single book enrichment
+- `POST /api/v2/imports` - CSV import workflow
+- `GET /api/v2/imports/:id/stream` - SSE progress (replaces WebSocket)
 
 ---
 

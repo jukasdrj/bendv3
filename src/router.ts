@@ -35,7 +35,7 @@ import * as bookSearch from "./handlers/book-search.js";
 import * as authorSearch from "./handlers/author-search.js";
 import { triggerBookImportWorkflow, getWorkflowStatus } from "./handlers/workflow-trigger-handler";
 import { handleSimilarBooks, handleSemanticSearch } from "./handlers/semantic-search-handler";
-import { handleV2Search, handleWeeklyRecommendations, handleCapabilities, handleEnrichBook, handleSSEStream } from "./handlers/v2";
+import { handleV2Search, handleWeeklyRecommendations, handleTrendingSearches, handleTrendingBooks, handleCapabilities, handleEnrichBook, handleSSEStream } from "./handlers/v2";
 import { handleEnrichBookDetailed } from "./handlers/v2/enrich-detailed";
 import { getProgressDOStub } from "./utils/durable-object-helpers";
 import { analyticsMiddleware } from "./middleware/hono-analytics";
@@ -1516,20 +1516,9 @@ app.post("/test/cache-event", async (c) => {
 });
 
 // ============================================================================
-// Test Route: Trigger Recommendations Cron (DEBUG mode only)
+// Admin Route: Trigger Recommendations Cron
 // ============================================================================
-app.post("/test/trigger-recommendations-cron", async (c) => {
-  // Only available in DEBUG mode
-  if (c.env.LOG_LEVEL !== "DEBUG") {
-    return createErrorResponse(
-      "Endpoint not found: POST /test/trigger-recommendations-cron",
-      404,
-      ErrorCodes.NOT_FOUND,
-      undefined,
-      c.req.raw
-    );
-  }
-
+app.post("/admin/trigger-recommendations", async (c) => {
   try {
     const { handleRecommendationsCron } = await import("./cron/recommendations-cron");
     await handleRecommendationsCron(c.env);
@@ -1567,6 +1556,16 @@ app.get("/api/v2/search", async (c) => {
 // GET /api/v2/recommendations/weekly - Global weekly book picks
 app.get("/api/v2/recommendations/weekly", async (c) => {
   return await handleWeeklyRecommendations(c.req.raw, c.env);
+});
+
+// GET /api/v2/trending/searches - Popular search queries
+app.get("/api/v2/trending/searches", async (c) => {
+  return await handleTrendingSearches(c.req.raw, c.env);
+});
+
+// GET /api/v2/trending/books - Trending books based on popularity
+app.get("/api/v2/trending/books", async (c) => {
+  return await handleTrendingBooks(c.req.raw, c.env);
 });
 
 // ============================================================================
@@ -1661,6 +1660,136 @@ app.get("/api/v2/imports/:jobId/stream", async (c) => {
   }
 
   return await handleSSEStream(c.req.raw, c.env, jobId);
+});
+
+// DELETE /api/v2/jobs/{jobId}/cancel - Cancel job (V2 API)
+// Issue #001: iOS expects this endpoint at /api/v2/jobs/{jobId}/cancel
+// Keep V1 DELETE /v1/jobs/{jobId} as deprecated alias
+app.delete("/api/v2/jobs/:jobId/cancel", async (c) => {
+  try {
+    const jobId = c.req.param("jobId")?.substring(0, 100);
+
+    if (!jobId || jobId.trim().length === 0) {
+      return createErrorResponse(
+        "Missing jobId parameter",
+        400,
+        ErrorCodes.MISSING_PARAMETER,
+        { parameter: "jobId" },
+        c.req.raw
+      );
+    }
+
+    // Validate Bearer token (REQUIRED for auth)
+    const authHeader = c.req.header("Authorization");
+    const providedToken = authHeader?.replace("Bearer ", "");
+    if (!providedToken) {
+      return createErrorResponse(
+        "Authorization header required",
+        401,
+        ErrorCodes.UNAUTHORIZED,
+        { endpoint: "DELETE /api/v2/jobs/:jobId/cancel" },
+        c.req.raw
+      );
+    }
+
+    // Use PROGRESS_WEBSOCKET_DO (same as V1 cancel endpoint)
+    const doId = c.env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
+    const doStub = c.env.PROGRESS_WEBSOCKET_DO.get(doId);
+
+    // Validate token against DO storage
+    const authResult = await (doStub as any).getJobStateAndAuth();
+    if (!authResult) {
+      return createErrorResponse(
+        "Job not found",
+        404,
+        ErrorCodes.NOT_FOUND,
+        { jobId },
+        c.req.raw
+      );
+    }
+
+    const { authToken, authTokenExpiration } = authResult;
+    if (!authToken || providedToken !== authToken || Date.now() > authTokenExpiration) {
+      return createErrorResponse(
+        "Invalid or expired token",
+        401,
+        ErrorCodes.UNAUTHORIZED,
+        { jobId, tokenExpired: authTokenExpiration ? Date.now() > authTokenExpiration : false },
+        c.req.raw
+      );
+    }
+
+    // Cancel the job
+    const cancelResult = await doStub.cancelJob("Canceled by user request");
+
+    if (!cancelResult.success) {
+      return createErrorResponse(
+        "Job not found or already completed",
+        404,
+        ErrorCodes.NOT_FOUND,
+        { jobId },
+        c.req.raw
+      );
+    }
+
+    // Cleanup R2 objects
+    let r2CleanedCount = 0;
+    try {
+      const r2Prefix = `bookshelf-scans/${jobId}/`;
+      const r2List = await c.env.BOOKSHELF_IMAGES?.list({ prefix: r2Prefix });
+
+      if (r2List?.objects && r2List.objects.length > 0) {
+        const deletePromises = r2List.objects.map((obj) =>
+          c.env.BOOKSHELF_IMAGES.delete(obj.key)
+        );
+        await Promise.allSettled(deletePromises);
+        r2CleanedCount = r2List.objects.length;
+      }
+    } catch (r2Error) {
+      console.warn(`[V2 Cancel] R2 cleanup failed for job ${jobId}:`, r2Error);
+    }
+
+    // Clear KV cache entries
+    let kvCleared = false;
+    try {
+      const kvKeys = [
+        `csv-results:${jobId}`,
+        `scan-results:${jobId}`,
+        `job-results:${jobId}`,
+      ];
+      await Promise.allSettled(kvKeys.map((key) => c.env.CACHE.delete(key)));
+      kvCleared = true;
+    } catch (kvError) {
+      console.warn(`[V2 Cancel] KV cleanup failed for job ${jobId}:`, kvError);
+    }
+
+    return createSuccessResponse(
+      {
+        jobId,
+        status: "canceled",
+        message: "Job canceled successfully",
+        cleanup: {
+          r2ObjectsDeleted: r2CleanedCount,
+          kvCacheCleared: kvCleared,
+        },
+      },
+      {
+        source: "job-cancel",
+        timestamp: new Date().toISOString(),
+      },
+      200,
+      c.req.raw
+    );
+  } catch (error) {
+    console.error("[V2 Cancel] Error canceling job:", error);
+    return createErrorResponse(
+      `Failed to cancel job: ${(error as Error).message}`,
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      { jobId: c.req.param("jobId") },
+      c.req.raw
+    );
+  }
 });
 
 // GET /api/v2/imports/{jobId}/results - Get import job results (OpenAPI)
