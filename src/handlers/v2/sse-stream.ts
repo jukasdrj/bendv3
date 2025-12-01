@@ -143,7 +143,7 @@ export async function handleSSEStream(
     getJobState(): Promise<JobState | null>
     registerSSEClient(clientId: string): Promise<{ success: boolean }>
     unregisterSSEClient(clientId: string): Promise<{ success: boolean }>
-    getUpdates(afterTimestamp: number): Promise<Array<{
+    getUpdates(afterTimestamp?: number): Promise<Array<{
       timestamp: number
       eventType: string
       data: any
@@ -248,9 +248,11 @@ export async function handleSSEStream(
 
       // Push-based updates with adaptive backoff (Issue #158)
       // Uses timestamp-based retrieval to prevent event loss (Issue #156)
-      let lastTimestamp = 0
+      // FIX: Initialize lastTimestamp from Last-Event-ID header or initial state to prevent event duplication
+      let lastTimestamp = skipToEventId || state.lastUpdateTime || state.startTime || 0
       let lastHeartbeat = Date.now()
       let lastUpdateTime = Date.now() // Track last successful update for timeout
+      let lastStateRefresh = Date.now() // Track last state refresh for cleaner logic
 
       // Adaptive polling backoff to reduce DO contention
       const MIN_POLL_INTERVAL = 500  // Start fast for responsive updates
@@ -302,9 +304,10 @@ export async function handleSSEStream(
           break
         }
 
-        // Refresh state periodically (every 10 seconds)
-        if (Date.now() - lastUpdateTime > 10000 && Date.now() % 10000 < pollInterval) {
+        // Refresh state periodically (every 10 seconds) - simplified logic
+        if (Date.now() - lastStateRefresh > 10000) {
           state = await doStub.getJobState()
+          lastStateRefresh = Date.now()
         }
       }
 
