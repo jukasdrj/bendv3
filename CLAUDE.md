@@ -10,13 +10,11 @@
 
 ## 🚨 CRITICAL: API Sync V2 Migration
 
-**Status:** V2 Priority with Aggressive Deprecation  
+**Status:** V2 Priority with Aggressive Deprecation
 **Sunset Date:** March 1, 2026
 
-### Documentation (Read These First!)
-- **[docs/API_SYNC_V2.md](docs/API_SYNC_V2.md)** - V2 API contract and migration guide
-- **[docs/openapi-v2.yaml](docs/openapi-v2.yaml)** - V2-only OpenAPI spec
-- **[docs/API_SYNC_ISSUES.md](docs/API_SYNC_ISSUES.md)** - Issue tracking
+### Documentation
+- **[docs/openapi.yaml](docs/openapi.yaml)** - OpenAPI 3.1 spec (source of truth)
 
 ### Endpoint Status
 | Path | Status | Notes |
@@ -86,6 +84,7 @@ npm run deploy                 # Deploy to production
 - `/logs [filter]` - Stream production logs
 - `/rollback` - Rollback deployment
 - `/cache-check` - KV cache performance
+- `/rewind` - Undo last change and revert conversation
 
 **MCP Tools (Zen):**
 - `mcp__zen__debug` - Deep debugging (Grok-4)
@@ -169,6 +168,6 @@ npm run deploy                 # Deploy to production
 
 ---
 
-**Last Updated:** November 28, 2025
+**Last Updated:** December 1, 2025
 **Maintained by:** Justin Gardner (@jukasdrj)
 **Full Documentation:** [.claude/CLAUDE.md](.claude/CLAUDE.md)

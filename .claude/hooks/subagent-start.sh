@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # BooksTrack Backend Subagent Start Hook
-# Executes when subagents are launched (new in Claude Code v2.0.43)
+# Executes when subagents are launched (Claude Code v2.0.43+)
 
 set -e
 
@@ -10,8 +10,8 @@ INPUT=$(cat)
 
 # Parse subagent information using jq (if available)
 if command -v jq &> /dev/null; then
-  AGENT_TYPE=$(echo "$INPUT" | jq -r '.agent_type // "unknown"')
-  AGENT_ID=$(echo "$INPUT" | jq -r '.agent_id // "unknown"')
+  AGENT_TYPE=$(echo "$INPUT" | jq -r '.subagent_type // "unknown"')
+  AGENT_ID=$(echo "$INPUT" | jq -r '.subagent_id // "unknown"')
 else
   # Fallback if jq not available
   AGENT_TYPE="unknown"

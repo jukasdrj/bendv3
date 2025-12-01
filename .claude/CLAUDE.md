@@ -815,6 +815,7 @@ BooksTrack backend includes productivity slash commands for common operations:
 - `/logs [filter]` - Stream and analyze production logs
 - `/rollback` - Rollback to previous deployment
 - `/cache-check` - Inspect KV cache performance
+- `/rewind` - Undo last change and revert conversation context
 
 All commands are defined in `.claude/commands/` and automatically invoke the appropriate agents.
 
@@ -854,6 +855,6 @@ For historical issue tracking, see git commit history and closed GitHub issues.
 
 ---
 
-**Last Updated:** November 27, 2025
+**Last Updated:** December 1, 2025
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer, Jules, Zen MCP)
 **Human Owner:** @jukasdrj

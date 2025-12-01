@@ -313,7 +313,7 @@ async function handleTextSearchV2(
     {
       query: { q: query, mode: 'text', limit, offset },
       results: v2Books,
-      totalCount: responseData.data?.resultCount || v2Books.length,
+      total: responseData.data?.resultCount || v2Books.length,
     },
     {
       source: 'text-search',
@@ -367,7 +367,7 @@ async function handleSemanticSearchV2(
     {
       query: { q: query, mode: 'semantic', limit },
       results: responseData.data?.results || [],
-      count: (responseData.data as { count?: number })?.count || 0,
+      total: (responseData.data as { count?: number })?.count || 0,
     },
     {
       source: 'vectorize',
@@ -457,7 +457,7 @@ async function handleSimilarSearchV2(
     {
       query: { q: `similar:${cleanIsbn}`, mode: 'similar', isbn: cleanIsbn, limit },
       results: responseData.data?.results || [],
-      count: (responseData.data as { count?: number })?.count || 0,
+      total: (responseData.data as { count?: number })?.count || 0,
     },
     {
       source: 'vectorize',

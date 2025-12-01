@@ -28,7 +28,7 @@ chmod +x .claude/hooks/pre-commit.sh
 - **Debug statements:** Warns about `console.log()`, `debugger`
 
 #### ⚙️ Configuration
-- **wrangler.toml:** Validates Cloudflare Workers config
+- **wrangler.jsonc:** Validates Cloudflare Workers config
 - **API documentation:** Reminds to update `docs/API_README.md` when handlers change
 
 #### 🧪 Testing
@@ -68,7 +68,7 @@ Monitors Claude Code tool invocations and automatically launches specialized age
 |--------------|----------------|----------|-------------|
 | `wrangler deploy` | `cf-ops-monitor` | 🔴 Critical | Always (if enabled) |
 | `wrangler rollback` | `cf-ops-monitor` | 🔴 Critical | Always (if enabled) |
-| Edits to `wrangler.toml` | Both agents | 🔴 Critical | Always (if enabled) |
+| Edits to `wrangler.jsonc` | Both agents | 🔴 Critical | Always (if enabled) |
 | Code changes in `src/handlers/` | `cf-code-reviewer` | 🟡 Significant | If ≥ 10 lines changed |
 | Code changes in `src/services/` | `cf-code-reviewer` | 🟡 Significant | If ≥ 10 lines changed |
 | Code changes in `src/providers/` | `cf-code-reviewer` | 🟡 Significant | If ≥ 10 lines changed |
@@ -371,6 +371,6 @@ fi
 
 ---
 
-**Last Updated:** November 13, 2025
+**Last Updated:** December 1, 2025
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer)
 **Location:** `.claude/hooks/`

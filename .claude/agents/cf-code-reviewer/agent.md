@@ -480,7 +480,7 @@ export default {
 
 ### Handoff to cf-ops-monitor
 When code changes affect:
-- Deployment configuration (`wrangler.toml`)
+- Deployment configuration (`wrangler.jsonc`)
 - Environment variables or secrets
 - Cache TTL values
 - Rate limiting thresholds

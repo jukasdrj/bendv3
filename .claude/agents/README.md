@@ -68,7 +68,7 @@ Sonnet:
 **Automatic Triggers:**
 - When `wrangler deploy` is executed
 - When `wrangler tail` streams logs
-- When `wrangler.toml` is modified
+- When `wrangler.jsonc` is modified
 
 **Common Tasks:**
 - Deploy to production with health checks
@@ -95,7 +95,7 @@ Sonnet:
 
 **Automatic Triggers:**
 - When code in `src/handlers/` or `src/services/` is modified
-- When `wrangler.toml` is updated
+- When `wrangler.jsonc` is updated
 
 **Common Tasks:**
 - Pre-PR code reviews
@@ -110,7 +110,7 @@ Sonnet:
 ## Agent Coordination
 
 ### When Both Agents Work Together
-- **Config changes:** `wrangler.toml` modifications trigger both agents
+- **Config changes:** `wrangler.jsonc` modifications trigger both agents
 - **Major refactors:** `cf-code-reviewer` validates, then `cf-ops-monitor` deploys
 - **Incident response:** `cf-ops-monitor` detects issue, `cf-code-reviewer` validates fix
 
@@ -142,7 +142,7 @@ Location: `.claude/hooks/pre-commit.sh`
 - No sensitive files committed
 - No hardcoded secrets
 - JavaScript syntax validity
-- `wrangler.toml` configuration
+- `wrangler.jsonc` configuration
 - Test coverage for new handlers
 
 ---
@@ -346,5 +346,5 @@ echo $CLAUDE_TOOL_PATH
 
 ---
 
-**Last Updated:** November 13, 2025
+**Last Updated:** December 1, 2025
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer)

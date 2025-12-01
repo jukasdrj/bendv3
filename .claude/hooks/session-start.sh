@@ -17,7 +17,7 @@ if ! command -v wrangler &> /dev/null; then
 fi
 
 # Check for required secrets (if in project directory)
-if [ -f "wrangler.toml" ]; then
+if [ -f "wrangler.jsonc" ] || [ -f "wrangler.toml" ]; then
   echo "✅ Project configuration detected"
 
   # Check if we're in development mode
@@ -30,11 +30,12 @@ if [ -f "wrangler.toml" ]; then
   echo "   /deploy      - Deploy to production with monitoring"
   echo "   /review      - Review code for Workers best practices"
   echo "   /logs        - Stream production logs"
+  echo "   /rewind      - Undo last change and revert conversation"
   echo "   @cf-ops-monitor - Deployment & observability agent"
   echo "   @cf-code-reviewer - Code quality agent"
   echo ""
 else
-  echo "ℹ️  Not in BooksTrack project root (wrangler.toml not found)"
+  echo "ℹ️  Not in BooksTrack project root (wrangler.jsonc not found)"
   echo ""
 fi
 

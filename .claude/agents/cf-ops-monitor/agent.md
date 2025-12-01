@@ -44,7 +44,7 @@ permissionMode: ask
 ### Deployment Workflow
 ```bash
 # Pre-deployment checks
-- Validate wrangler.toml configuration
+- Validate wrangler.jsonc configuration
 - Ensure all required secrets are set
 - Run tests if available
 - Check git status (uncommitted changes warning)
@@ -180,7 +180,7 @@ cat analytics.json | jq '.data[] | {timestamp, p95: .latencyP95, p99: .latencyP9
 5. Test from different network conditions (mobile vs. desktop)
 
 ### Cache Misses
-1. Check KV namespace configuration in `wrangler.toml`
+1. Check KV namespace configuration in `wrangler.jsonc`
 2. Verify cache TTL settings (24h for books, 7d for covers)
 3. Analyze cache key patterns (typos? normalization issues?)
 4. Monitor KV write failures (quota exceeded?)
