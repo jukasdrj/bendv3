@@ -17,6 +17,7 @@ import {
   createErrorResponse,
   ErrorCodes,
 } from '../../utils/response-builder'
+import { CircuitBreakerOpenError, RateLimitError } from '../../types/errors'
 
 // ============================================================================
 // Types
@@ -133,6 +134,30 @@ export async function handleV2Search(
     }
   } catch (error) {
     console.error('[V2Search] Error:', error)
+
+    // Issue #302/#303: Handle circuit breaker and rate limit errors
+    if (error instanceof CircuitBreakerOpenError) {
+      return createErrorResponse({
+        message: `Provider ${error.provider} temporarily unavailable`,
+        status: 429,
+        code: ErrorCodes.CIRCUIT_OPEN,
+        details: { query: searchQuery, mode, provider: error.provider },
+        corsRequest: request,
+        retryAfterMs: error.retryAfterMs,
+      })
+    }
+
+    if (error instanceof RateLimitError) {
+      return createErrorResponse({
+        message: `Rate limit exceeded for ${error.provider}`,
+        status: 429,
+        code: ErrorCodes.RATE_LIMIT_EXCEEDED,
+        details: { query: searchQuery, mode, provider: error.provider },
+        corsRequest: request,
+        retryAfterMs: error.retryAfterMs || 60000,
+      })
+    }
+
     return createErrorResponse(
       'Search failed',
       500,
@@ -143,24 +168,118 @@ export async function handleV2Search(
   }
 }
 
-// Type for v1 response data
+// Type for v1 response data (canonical format with works/editions/authors)
 interface V1ResponseData {
   data?: {
-    results?: unknown[]
-    totalCount?: number
+    works?: V1Work[]
+    editions?: V1Edition[]
+    authors?: V1Author[]
+    resultCount?: number
   }
-  results?: unknown[]
-  totalCount?: number
   metadata?: {
     cached?: boolean
+    provider?: string
   }
   error?: {
     code?: string
   }
 }
 
+// V1 canonical WorkDTO shape
+interface V1Work {
+  title: string
+  subjectTags?: string[]
+  description?: string
+  coverImageURL?: string
+  firstPublicationYear?: number
+  primaryProvider?: string
+  openLibraryWorkID?: string
+  [key: string]: unknown
+}
+
+// V1 canonical EditionDTO shape
+interface V1Edition {
+  isbn?: string
+  title?: string
+  publisher?: string
+  publicationDate?: string
+  pageCount?: number
+  coverImageURL?: string
+  [key: string]: unknown
+}
+
+// V1 canonical AuthorDTO shape
+interface V1Author {
+  name: string
+  [key: string]: unknown
+}
+
+// V2 BookDTO shape (flat structure with coverUrl)
+interface V2BookDTO {
+  isbn?: string
+  title: string
+  authors: string[]
+  publisher?: string
+  publishedDate?: string
+  description?: string
+  pageCount?: number
+  categories?: string[]
+  coverUrl?: string
+  language?: string
+  openLibraryWorkId?: string
+}
+
+/**
+ * Transform V1 canonical response (works/editions/authors) to V2 BookDTO array
+ *
+ * Issue #202: Ensures coverUrl is returned (not coverImageURL)
+ *
+ * V1 returns:
+ *   { works: WorkDTO[], editions: EditionDTO[], authors: AuthorDTO[] }
+ *
+ * V2 expects:
+ *   { results: BookDTO[] } where BookDTO is a flat structure
+ *
+ * Mapping:
+ *   - Each work becomes one BookDTO
+ *   - Edition data is merged by matching ISBN or index
+ *   - Author names are flattened into string array
+ *   - coverImageURL → coverUrl
+ */
+function transformV1ToV2Books(
+  works: V1Work[] = [],
+  editions: V1Edition[] = [],
+  authors: V1Author[] = []
+): V2BookDTO[] {
+  // Create author name lookup
+  const authorNames = authors.map(a => a.name)
+
+  return works.map((work, index) => {
+    // Find matching edition (by index fallback - V1 returns parallel arrays)
+    const edition = editions[index]
+
+    return {
+      isbn: edition?.isbn,
+      title: work.title,
+      authors: authorNames.length > 0 ? authorNames : [],
+      publisher: edition?.publisher,
+      publishedDate: edition?.publicationDate,
+      description: work.description,
+      pageCount: edition?.pageCount,
+      categories: work.subjectTags,
+      // Issue #202: Transform coverImageURL to coverUrl for V2 compliance
+      coverUrl: work.coverImageURL || edition?.coverImageURL,
+      language: edition?.language as string | undefined,
+      openLibraryWorkId: work.openLibraryWorkID,
+    }
+  })
+}
+
 /**
  * Text-based search (wraps v1 handler)
+ *
+ * Transforms V1 canonical response (works/editions/authors) to V2 flat BookDTO array
+ * Issue #202: Ensures coverUrl field (not coverImageURL) for V2 compliance
  */
 async function handleTextSearchV2(
   query: string,
@@ -172,14 +291,21 @@ async function handleTextSearchV2(
   // Delegate to existing v1 handler
   const v1Response = await handleSearchTitle(query, env, request)
 
-  // Transform to V2 format if needed
+  // Transform V1 canonical format to V2 BookDTO format
   const responseData = await v1Response.json() as V1ResponseData
+
+  // Transform works/editions/authors to flat BookDTO array with coverUrl
+  const v2Books = transformV1ToV2Books(
+    responseData.data?.works,
+    responseData.data?.editions,
+    responseData.data?.authors
+  )
 
   return createSuccessResponse(
     {
       query: { q: query, mode: 'text', limit, offset },
-      results: responseData.data?.results || responseData.results || [],
-      totalCount: responseData.data?.totalCount || responseData.totalCount || 0,
+      results: v2Books,
+      totalCount: responseData.data?.resultCount || v2Books.length,
     },
     {
       source: 'text-search',
