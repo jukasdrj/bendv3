@@ -65,9 +65,10 @@ describe('Cache Key Optimization (#76)', () => {
       await searchGoogleBooks(query, { maxResults: 10 }, mockEnv, mockCtx);
 
       // Verify cache key does NOT include maxResults
-      expect(cacheGetSpy).toHaveBeenCalledWith('search:harry potter');
-      expect(cacheGetSpy).not.toHaveBeenCalledWith(expect.stringContaining(':10'));
-      expect(cacheGetSpy).not.toHaveBeenCalledWith(expect.stringContaining('max'));
+      // getCached calls getWithMetadata(key, 'json')
+      expect(cacheGetSpy).toHaveBeenCalledWith('search:harry potter', 'json');
+      expect(cacheGetSpy).not.toHaveBeenCalledWith(expect.stringContaining(':10'), expect.anything());
+      expect(cacheGetSpy).not.toHaveBeenCalledWith(expect.stringContaining('max'), expect.anything());
     });
 
     it('should fetch 40 results on cache miss regardless of requested maxResults', async () => {
@@ -90,9 +91,9 @@ describe('Cache Key Optimization (#76)', () => {
       // Verify cache.put was called
       expect(cachePutSpy).toHaveBeenCalled();
 
-      // Verify cached data has all 40 results
-      const cachedData = JSON.parse(cachePutSpy.mock.calls[0][1]);
-      expect(cachedData.works).toHaveLength(40);
+      // setCached wraps data as { data: value, cachedAt: timestamp, ttl: ttl }
+      const cachedWrapper = JSON.parse(cachePutSpy.mock.calls[0][1]);
+      expect(cachedWrapper.data.works).toHaveLength(40);
     });
 
     it('should filter results to requested maxResults before returning', async () => {
@@ -111,9 +112,10 @@ describe('Cache Key Optimization (#76)', () => {
       const result1 = await searchGoogleBooks(query, { maxResults: 10 }, mockEnv, mockCtx);
       expect(result1.works).toHaveLength(10);
 
-      // Mock cache hit for second request
-      const cachedData = cachePutSpy.mock.calls[cachePutSpy.mock.calls.length - 1][1];
-      cacheGetSpy.mockResolvedValueOnce({ value: cachedData, metadata: {} });
+      // Mock cache hit for second request - getCached expects { data, cachedAt, ttl } format
+      const cachedWrapper = cachePutSpy.mock.calls[cachePutSpy.mock.calls.length - 1][1];
+      const parsedCache = JSON.parse(cachedWrapper);
+      cacheGetSpy.mockResolvedValueOnce({ value: parsedCache, metadata: {} });
 
       // Second request: 20 results (should hit cache)
       const result2 = await searchGoogleBooks(query, { maxResults: 20 }, mockEnv, mockCtx);
@@ -132,9 +134,10 @@ describe('Cache Key Optimization (#76)', () => {
       // Simulate multiple requests with different maxResults
       await searchGoogleBooks(query, { maxResults: 5 }, mockEnv, mockCtx);
 
-      // Mock cache hit for subsequent requests
-      const cachedData = cachePutSpy.mock.calls[cachePutSpy.mock.calls.length - 1][1];
-      cacheGetSpy.mockResolvedValue({ value: cachedData, metadata: {} });
+      // Mock cache hit for subsequent requests - use new cache format
+      const cachedWrapper = cachePutSpy.mock.calls[cachePutSpy.mock.calls.length - 1][1];
+      const parsedCache = JSON.parse(cachedWrapper);
+      cacheGetSpy.mockResolvedValue({ value: parsedCache, metadata: {} });
 
       await searchGoogleBooks(query, { maxResults: 10 }, mockEnv, mockCtx);
       await searchGoogleBooks(query, { maxResults: 15 }, mockEnv, mockCtx);
@@ -171,9 +174,10 @@ describe('Cache Key Optimization (#76)', () => {
 
       await searchOpenLibrary(query, { maxResults: 10 }, mockEnv, mockCtx);
 
-      // Verify cache key does NOT include maxResults (includes 'ol:' prefix from createCacheService)
-      expect(cacheGetSpy).toHaveBeenCalledWith('ol:search:lord of the rings');
-      expect(cacheGetSpy).not.toHaveBeenCalledWith(expect.stringContaining(':10'));
+      // Verify cache key does NOT include maxResults (includes 'ol:' prefix)
+      // getCached calls getWithMetadata(key, 'json')
+      expect(cacheGetSpy).toHaveBeenCalledWith('ol:search:lord of the rings', 'json');
+      expect(cacheGetSpy).not.toHaveBeenCalledWith(expect.stringContaining(':10'), expect.anything());
     });
 
     it('should cache full 40 results for OpenLibrary', async () => {
@@ -202,9 +206,10 @@ describe('Cache Key Optimization (#76)', () => {
       );
 
       // Verify cached data has all 40 results
+      // setCached wraps data as { data: value, cachedAt: timestamp, ttl: ttl }
       expect(cachePutSpy).toHaveBeenCalled();
-      const cachedData = JSON.parse(cachePutSpy.mock.calls[0][1]);
-      expect(cachedData.works).toHaveLength(40);
+      const cachedWrapper = JSON.parse(cachePutSpy.mock.calls[0][1]);
+      expect(cachedWrapper.data.works).toHaveLength(40);
     });
   });
 

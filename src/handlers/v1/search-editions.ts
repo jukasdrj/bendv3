@@ -16,7 +16,8 @@ import {
   normalizeAuthor,
   normalizeISBN,
 } from "../../utils/normalization.js";
-import { setCached, generateCacheKey } from "../../utils/cache.js";
+import { setCached } from "../../utils/cache.js";
+import { CacheKeyFactory } from "../../services/cache-key-factory.js";
 import { UnifiedCacheService } from "../../services/unified-cache.js";
 import {
   extractUniqueAuthors,
@@ -214,7 +215,7 @@ export async function handleSearchEditions(
     const normalizedAuthor = normalizeAuthor(author);
 
     // Check cache first (7-day TTL as specified)
-    const cacheKey = generateCacheKey("v1:editions", {
+    const cacheKey = CacheKeyFactory.generic("v1:editions", {
       title: normalizedTitle,
       author: normalizedAuthor,
     });
