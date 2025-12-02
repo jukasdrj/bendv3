@@ -17,6 +17,7 @@ import {
   normalizeISBN,
 } from "../../utils/normalization.js";
 import { setCached } from "../../utils/cache.js";
+import { getCacheTTL } from "../../config/cache-ttl.js";
 import { CacheKeyFactory } from "../../services/cache-key-factory.js";
 import { UnifiedCacheService } from "../../services/unified-cache.js";
 import {
@@ -350,7 +351,7 @@ export async function handleSearchEditions(
         cached: false,
       },
     };
-    const ttl = 7 * 24 * 60 * 60; // 604800 seconds
+    const ttl = getCacheTTL('cold', env); // Use centralized TTL configuration
     ctx.waitUntil(setCached(cacheKey, legacyResponseObject, ttl, env));
     console.log(
       `💾 Cache WRITE: /v1/editions/search (${cacheKey}, TTL: ${ttl}s)`,

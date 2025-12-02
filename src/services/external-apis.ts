@@ -157,6 +157,57 @@ interface ISBNdbSearchResponse {
 }
 
 // ============================================================================
+// CACHING HELPER
+// ============================================================================
+
+/**
+ * Higher-order function to wrap API calls with KV caching and circuit breaker
+ * Reduces duplication across all external API functions
+ */
+async function withCache<T>(
+  cacheKey: string,
+  fetchFn: () => Promise<T | null>,
+  env: ExternalAPIEnv,
+  ctx?: ExecutionContext,
+  options: {
+    provider: 'google-books' | 'open-library' | 'isbndb';
+    logContext?: string;
+    validateResult?: (result: T) => boolean;
+  } = { provider: 'google-books' }
+): Promise<T | null> {
+  // If no KV cache, skip caching (direct call with circuit breaker)
+  if (!env.CACHE) {
+    console.warn(`⚠️ ${options.logContext || 'API call'} without cache (missing KV namespace)`);
+    return withCircuitBreaker(options.provider, env, fetchFn);
+  }
+
+  // Check cache first
+  const cached = await getCached(cacheKey, env, ctx);
+  if (cached) {
+    console.log(`📦 Cache HIT: ${options.logContext || cacheKey}`);
+    return cached.data as T;
+  }
+
+  // Cache MISS - fetch from API with circuit breaker
+  console.log(`🌐 Cache MISS: ${options.logContext || cacheKey}`);
+  const result = await withCircuitBreaker(options.provider, env, fetchFn);
+
+  // Write successful results to cache
+  const shouldCache = options.validateResult
+    ? options.validateResult(result as T)
+    : result && (Array.isArray(result) ? result.length > 0 : true);
+
+  if (shouldCache) {
+    const hotTtl = getCacheTTL('hot', env);
+    const coldTtl = getCacheTTL('cold', env);
+    await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl);
+    console.log(`✅ Cached ${options.logContext || cacheKey}`);
+  }
+
+  return result;
+}
+
+// ============================================================================
 // GOOGLE BOOKS API
 // ============================================================================
 
@@ -168,33 +219,14 @@ export async function searchGoogleBooksById(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  // If no KV cache, skip caching
-  if (!env.CACHE) {
-    console.warn(`⚠️ Volume ID search without cache (missing KV namespace)`);
-    return withCircuitBreaker('google-books', env, () => searchGoogleBooksById_Uncached(volumeId, env));
-  }
-
-  // Check cache
   const cacheKey = `volumeid:${volumeId}`;
-  const cached = await getCached(cacheKey, env, ctx);
-  if (cached) {
-    console.log(`📦 Cache HIT: Volume ID ${volumeId}`);
-    return cached.data as NormalizedResponse;
-  }
-
-  // Cache MISS - fetch from API with circuit breaker
-  console.log(`🌐 Cache MISS: Fetching volume ID ${volumeId} from Google Books`);
-  const result = await withCircuitBreaker('google-books', env, () => searchGoogleBooksById_Uncached(volumeId, env));
-
-  // Write successful results to cache
-  if (result && result.works && result.works.length > 0) {
-    const hotTtl = getCacheTTL('hot', env);
-    const coldTtl = getCacheTTL('cold', env);
-    await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl);
-    console.log(`✅ Cached volume ID ${volumeId}`);
-  }
-
-  return result;
+  return withCache<NormalizedResponse>(
+    cacheKey,
+    () => searchGoogleBooksById_Uncached(volumeId, env),
+    env,
+    ctx,
+    { provider: 'google-books', logContext: `Volume ID ${volumeId}` }
+  );
 }
 
 /**
@@ -259,43 +291,41 @@ export async function searchGoogleBooks(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  // If no KV cache, skip caching
-  if (!env.CACHE) {
-    console.warn(`⚠️ Title/author search without cache (missing KV namespace)`);
-    return withCircuitBreaker('google-books', env, () => searchGoogleBooks_Uncached(query, params, env));
-  }
-
-  // Generate cache key from query only (no maxResults for better hit rate)
   const maxResults = params.maxResults || 20;
   const cacheKey = `search:${query.normalize('NFC').toLowerCase().trim()}`;
-  const cached = await getCached(cacheKey, env, ctx);
 
-  if (cached) {
-    console.log(`📦 Cache HIT: Search "${query}"`);
-    const cachedResult = cached.data as NormalizedResponse;
-    // Filter cached results to requested maxResults in-memory
-    if (cachedResult.works && cachedResult.works.length > maxResults) {
-      return {
-        ...cachedResult,
-        works: cachedResult.works.slice(0, maxResults),
-      };
+  // Special case: Check cache with maxResults filtering
+  if (env.CACHE) {
+    const cached = await getCached(cacheKey, env, ctx);
+    if (cached) {
+      console.log(`📦 Cache HIT: Search "${query}"`);
+      const cachedResult = cached.data as NormalizedResponse;
+      // Filter cached results to requested maxResults in-memory
+      if (cachedResult.works && cachedResult.works.length > maxResults) {
+        return {
+          ...cachedResult,
+          works: cachedResult.works.slice(0, maxResults),
+        };
+      }
+      return cachedResult;
     }
-    return cachedResult;
   }
 
-  // Cache MISS - fetch from API with circuit breaker
-  // Always fetch max results (40) to populate cache for all future requests
+  // Cache MISS - fetch max results (40) for cache population
   const cacheParams = { ...params, maxResults: 40 };
   console.log(`🌐 Cache MISS: Searching Google Books for "${query}" (fetching 40 results for cache)`);
-  const result = await withCircuitBreaker('google-books', env, () => searchGoogleBooks_Uncached(query, cacheParams, env));
 
-  // Write successful results to cache (cache full 40 results)
-  if (result && result.works && result.works.length > 0) {
-    const hotTtl = getCacheTTL('hot', env);
-    const coldTtl = getCacheTTL('cold', env);
-    await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl);
-    console.log(`✅ Cached search "${query}" (${result.works.length} works)`);
-  }
+  const result = await withCache<NormalizedResponse>(
+    cacheKey,
+    () => searchGoogleBooks_Uncached(query, cacheParams, env),
+    env,
+    ctx,
+    {
+      provider: 'google-books',
+      logContext: `Search "${query}" (${cacheParams.maxResults} works)`,
+      validateResult: (r) => r && r.works && r.works.length > 0
+    }
+  );
 
   // Filter result to requested maxResults before returning
   if (result && result.works && result.works.length > maxResults) {
@@ -366,35 +396,15 @@ export async function searchGoogleBooksByISBN(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  // If no KV cache, skip caching (fallback to direct API call)
-  if (!env.CACHE) {
-    console.warn(`⚠️ ISBN search without cache (missing KV namespace)`);
-    return withCircuitBreaker('google-books', env, () => searchGoogleBooksByISBN_Uncached(isbn, env));
-  }
-
-  // Check cache FIRST
   const normalizedIsbn = isbn.replace(/-/g, ''); // Normalize ISBN (remove hyphens)
   const cacheKey = `isbn:${normalizedIsbn}`;
-  const cached = await getCached(cacheKey, env, ctx);
-
-  if (cached) {
-    console.log(`📦 Cache HIT: ISBN ${isbn}`);
-    return cached.data as NormalizedResponse;
-  }
-
-  // Cache MISS - fetch from API with circuit breaker
-  console.log(`🌐 Cache MISS: Fetching ISBN ${isbn} from Google Books API`);
-  const result = await withCircuitBreaker('google-books', env, () => searchGoogleBooksByISBN_Uncached(isbn, env));
-
-  // Write successful results to cache
-  if (result && result.works && result.works.length > 0) {
-    const hotTtl = getCacheTTL('hot', env);
-    const coldTtl = getCacheTTL('cold', env);
-    await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl);
-    console.log(`✅ Cached ISBN ${isbn} (hot: ${hotTtl}s, cold: ${coldTtl}s)`);
-  }
-
-  return result;
+  return withCache<NormalizedResponse>(
+    cacheKey,
+    () => searchGoogleBooksByISBN_Uncached(isbn, env),
+    env,
+    ctx,
+    { provider: 'google-books', logContext: `ISBN ${isbn}` }
+  );
 }
 
 /**
@@ -616,43 +626,41 @@ export async function searchOpenLibrary(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  // If no KV cache, skip caching
-  if (!env.CACHE) {
-    console.warn(`⚠️ OpenLibrary search without cache (missing KV namespace)`);
-    return withCircuitBreaker('open-library', env, () => searchOpenLibrary_Uncached(query, params, env));
-  }
-
-  // Generate cache key from query only (no maxResults for better hit rate)
   const maxResults = params.maxResults || 20;
   const cacheKey = `ol:search:${query.normalize('NFC').toLowerCase().trim()}`;
-  const cached = await getCached(cacheKey, env, ctx);
 
-  if (cached) {
-    console.log(`📦 Cache HIT: OpenLibrary "${query}"`);
-    const cachedResult = cached.data as NormalizedResponse;
-    // Filter cached results to requested maxResults in-memory
-    if (cachedResult.works && cachedResult.works.length > maxResults) {
-      return {
-        ...cachedResult,
-        works: cachedResult.works.slice(0, maxResults),
-      };
+  // Special case: Check cache with maxResults filtering
+  if (env.CACHE) {
+    const cached = await getCached(cacheKey, env, ctx);
+    if (cached) {
+      console.log(`📦 Cache HIT: OpenLibrary "${query}"`);
+      const cachedResult = cached.data as NormalizedResponse;
+      // Filter cached results to requested maxResults in-memory
+      if (cachedResult.works && cachedResult.works.length > maxResults) {
+        return {
+          ...cachedResult,
+          works: cachedResult.works.slice(0, maxResults),
+        };
+      }
+      return cachedResult;
     }
-    return cachedResult;
   }
 
-  // Cache MISS - fetch from API with circuit breaker
-  // Always fetch max results (40) to populate cache for all future requests
+  // Cache MISS - fetch max results (40) for cache population
   const cacheParams = { ...params, maxResults: 40 };
   console.log(`🌐 Cache MISS: Searching OpenLibrary for "${query}" (fetching 40 results for cache)`);
-  const result = await withCircuitBreaker('open-library', env, () => searchOpenLibrary_Uncached(query, cacheParams, env));
 
-  // Write successful results to cache (cache full 40 results)
-  if (result && result.works && result.works.length > 0) {
-    const hotTtl = getCacheTTL('hot', env);
-    const coldTtl = getCacheTTL('cold', env);
-    await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl);
-    console.log(`✅ Cached OpenLibrary "${query}" (${result.works.length} works)`);
-  }
+  const result = await withCache<NormalizedResponse>(
+    cacheKey,
+    () => searchOpenLibrary_Uncached(query, cacheParams, env),
+    env,
+    ctx,
+    {
+      provider: 'open-library',
+      logContext: `OpenLibrary "${query}" (${cacheParams.maxResults} works)`,
+      validateResult: (r) => r && r.works && r.works.length > 0
+    }
+  );
 
   // Filter result to requested maxResults before returning
   if (result && result.works && result.works.length > maxResults) {
@@ -836,34 +844,18 @@ export async function searchISBNdb(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  // If no KV cache, skip caching
-  if (!env.CACHE) {
-    console.warn(`⚠️ ISBNdb search without cache (missing KV namespace)`);
-    return withCircuitBreaker('isbndb', env, () => searchISBNdb_Uncached(title, authorName, env));
-  }
-
-  // Generate cache key from title + author
   const cacheKey = `isbndb:search:${title.normalize('NFC').toLowerCase().trim()}:${authorName?.normalize('NFC').toLowerCase().trim() || 'any'}`;
-  const cached = await getCached(cacheKey, env, ctx);
-
-  if (cached) {
-    console.log(`📦 Cache HIT: ISBNdb search "${title}" by "${authorName || 'any'}"`);
-    return cached.data as NormalizedResponse;
-  }
-
-  // Cache MISS - fetch from API with circuit breaker
-  console.log(`🌐 Cache MISS: Searching ISBNdb for "${title}" by "${authorName || 'any'}"`);
-  const result = await withCircuitBreaker('isbndb', env, () => searchISBNdb_Uncached(title, authorName, env));
-
-  // Write successful results to cache
-  if (result && result.works && result.works.length > 0) {
-    const hotTtl = getCacheTTL('hot', env);
-    const coldTtl = getCacheTTL('cold', env);
-    await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl);
-    console.log(`✅ Cached ISBNdb search "${title}" (${result.works.length} works)`);
-  }
-
-  return result;
+  return withCache<NormalizedResponse>(
+    cacheKey,
+    () => searchISBNdb_Uncached(title, authorName, env),
+    env,
+    ctx,
+    {
+      provider: 'isbndb',
+      logContext: `ISBNdb search "${title}" by "${authorName || 'any'}"`,
+      validateResult: (r) => r && r.works && r.works.length > 0
+    }
+  );
 }
 
 /**
@@ -938,34 +930,17 @@ export async function getISBNdbEditionsForWork(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<EditionDTO[] | null> {
-  // If no KV cache, skip caching
-  if (!env.CACHE) {
-    console.warn(`⚠️ ISBNdb editions search without cache (missing KV namespace)`);
-    return withCircuitBreaker('isbndb', env, () => getISBNdbEditionsForWork_Uncached(title, authorName, env));
-  }
-
-  // Generate cache key
   const cacheKey = `isbndb:editions:${title.normalize('NFC').toLowerCase().trim()}:${authorName.normalize('NFC').toLowerCase().trim()}`;
-  const cached = await getCached(cacheKey, env, ctx);
-
-  if (cached) {
-    console.log(`📦 Cache HIT: ISBNdb editions "${title}" by "${authorName}"`);
-    return cached.data as EditionDTO[];
-  }
-
-  // Cache MISS - fetch from API with circuit breaker
-  console.log(`🌐 Cache MISS: Fetching ISBNdb editions for "${title}" by "${authorName}"`);
-  const result = await withCircuitBreaker('isbndb', env, () => getISBNdbEditionsForWork_Uncached(title, authorName, env));
-
-  // Write successful results to cache
-  if (result && result.length > 0) {
-    const hotTtl = getCacheTTL('hot', env);
-    const coldTtl = getCacheTTL('cold', env);
-    await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl);
-    console.log(`✅ Cached ISBNdb editions "${title}" (${result.length} editions)`);
-  }
-
-  return result;
+  return withCache<EditionDTO[]>(
+    cacheKey,
+    () => getISBNdbEditionsForWork_Uncached(title, authorName, env),
+    env,
+    ctx,
+    {
+      provider: 'isbndb',
+      logContext: `ISBNdb editions "${title}" by "${authorName}"`
+    }
+  );
 }
 
 /**
@@ -1014,35 +989,15 @@ export async function getISBNdbBookByISBN(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<ISBNdbBookData | null> {
-  // If no KV cache, skip caching
-  if (!env.CACHE) {
-    console.warn(`⚠️ ISBNdb ISBN search without cache (missing KV namespace)`);
-    return withCircuitBreaker('isbndb', env, () => getISBNdbBookByISBN_Uncached(isbn, env));
-  }
-
-  // Check cache FIRST
   const normalizedIsbn = isbn.replace(/-/g, ''); // Normalize ISBN
   const cacheKey = `isbndb:isbn:${normalizedIsbn}`;
-  const cached = await getCached(cacheKey, env, ctx);
-
-  if (cached) {
-    console.log(`📦 Cache HIT: ISBNdb ISBN ${isbn}`);
-    return cached.data as ISBNdbBookData;
-  }
-
-  // Cache MISS - fetch from API with circuit breaker
-  console.log(`🌐 Cache MISS: Fetching ISBNdb ISBN ${isbn}`);
-  const result = await withCircuitBreaker('isbndb', env, () => getISBNdbBookByISBN_Uncached(isbn, env));
-
-  // Write successful results to cache (longer TTL for ISBNdb - premium API)
-  if (result) {
-    const hotTtl = getCacheTTL('hot', env);
-    const coldTtl = getCacheTTL('cold', env);
-    await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl);
-    console.log(`✅ Cached ISBNdb ISBN ${isbn}`);
-  }
-
-  return result;
+  return withCache<ISBNdbBookData>(
+    cacheKey,
+    () => getISBNdbBookByISBN_Uncached(isbn, env),
+    env,
+    ctx,
+    { provider: 'isbndb', logContext: `ISBNdb ISBN ${isbn}` }
+  );
 }
 
 /**
