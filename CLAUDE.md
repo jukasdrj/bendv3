@@ -8,20 +8,27 @@
 
 ---
 
-## 🚨 CRITICAL: API Sync V2 Migration
+## 🚨 CRITICAL: API Version Status
 
-**Status:** V2 Priority with Aggressive Deprecation
-**Sunset Date:** March 1, 2026
+**Current:** V3 (Native Hono OpenAPI) - December 2025
+**Sunset Dates:** V1 (March 1, 2026) | V2 (TBD, 90 days after V3 GA)
 
 ### Documentation
-- **[docs/openapi.yaml](docs/openapi.yaml)** - OpenAPI 3.1 spec (source of truth)
+- **[docs/openapi.yaml](docs/openapi.yaml)** - V2 OpenAPI 3.1 spec (source of truth)
+- **[docs/V3_MIGRATION_COMPLETE.md](docs/V3_MIGRATION_COMPLETE.md)** - V3 migration guide
 
 ### Endpoint Status
 | Path | Status | Notes |
 |------|--------|-------|
-| `/api/v2/*` | ✅ CURRENT | Use these |
+| `/v3/*` | 🚀 CURRENT | Native Hono OpenAPI, full zod@4 support |
+| `/api/v2/*` | ✅ STABLE | Production ready, deprecation TBD |
 | `/v1/*` | ⚠️ DEPRECATED | Sunset March 2026 |
 | `/search/*` | ⛔ LEGACY | Remove immediately |
+
+### Key V3 Endpoints (NEW!)
+- `GET /v3/books/:isbn` - Get book by ISBN with full metadata
+- `GET /v3/openapi.json` - OpenAPI 3.1 specification
+- `GET /v3/docs` - Interactive Swagger UI
 
 ### Key V2 Endpoints
 - `GET /api/v2/search` - Unified search (replaces all V1 search)

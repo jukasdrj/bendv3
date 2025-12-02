@@ -1983,4 +1983,24 @@ app.doc("/doc/openapi.json", openAPIConfig);
 
 console.log("[OpenAPI] Registered /doc/openapi.json endpoint");
 
+// ============================================================================
+// V3 API - Native @hono/zod-openapi (December 2025 - iOS Migration)
+// ============================================================================
+// Mount the v3 API using native @hono/zod-openapi for:
+// - Full zod@4 compatibility (no version conflicts)
+// - Direct OpenAPI route definitions with createRoute()
+// - Separate OpenAPI documentation at /v3/docs
+// - Type-safe request/response handling
+// - Integration with existing service layer (Alexandria, DOs, etc.)
+import { createV3Router } from "./api-v3/index";
+
+try {
+  const v3Router = createV3Router();
+  app.route("/", v3Router);
+  console.log("[V3 API] Successfully mounted native @hono/zod-openapi routes");
+} catch (error) {
+  console.error("[V3 API] Failed to mount v3 routes:", error);
+  // Don't crash the worker - v1/v2 routes should still work
+}
+
 export default app;
