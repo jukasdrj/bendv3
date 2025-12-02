@@ -111,22 +111,32 @@ components:
             code:
               type: string
               enum:
-                - NOT_FOUND
+                # Request validation errors (4xx)
+                - MISSING_PARAMETER
                 - INVALID_REQUEST
                 - INVALID_ISBN
                 - INVALID_QUERY
-                - MISSING_PARAMETER
+                - INVALID_FILE
+                - FILE_TOO_LARGE
+                - BATCH_TOO_LARGE
+                - EMPTY_BATCH
+                # Resource errors (4xx)
+                - NOT_FOUND
                 - UNAUTHORIZED
                 - FORBIDDEN
-                - INTERNAL_ERROR
-                - API_ERROR
-                - NETWORK_ERROR
+                - CLIENT_DISCONNECTED
+                # External service errors (5xx or 4xx)
                 - RATE_LIMIT_EXCEEDED
                 - CIRCUIT_OPEN
                 - PROVIDER_ERROR
+                - PROVIDER_TIMEOUT
+                - CACHE_ERROR
+                # Internal errors (5xx)
+                - INTERNAL_ERROR
+                - API_ERROR
+                - NETWORK_ERROR
                 - TIMEOUT
                 - FEATURE_NOT_AVAILABLE
-                - FILE_TOO_LARGE
             message:
               type: string
               description: Human-readable error message
