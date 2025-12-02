@@ -1,6 +1,5 @@
 import { searchByTitle } from "../handlers/book-search.js";
 import { searchByAuthor } from "../handlers/author-search.js";
-import { generateCacheKey, setCached } from "../utils/cache.js";
 import { enrichBooksParallel } from "../services/parallel-enrichment.js";
 
 /**

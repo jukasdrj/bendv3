@@ -19,7 +19,7 @@ import type { AlexandriaResult } from "./normalizers/alexandria.js"
 import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js"
 import type { ExternalAPIEnv, NormalizedResponse, WorkDTOWithAuthors } from "./external-apis"
 import { logExternalApiCall } from "../utils/analytics-logger.ts"
-import { createCacheService } from "./cache-service.js"
+import { getCached, setCached } from "../utils/cache.js"
 import { withCircuitBreaker } from "./circuit-breaker"
 import { getCacheTTL } from "../config/cache-ttl.js"
 
@@ -61,30 +61,20 @@ export async function searchAlexandriaByISBN(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  // Get KV namespace
-  const kvNamespace = env.CACHE
-
-  // If no KV cache or ExecutionContext, skip caching (fallback to direct API call)
-  if (!kvNamespace || !ctx) {
-    console.warn(`⚠️ Alexandria ISBN search without cache (missing ${!kvNamespace ? 'KV namespace' : 'ExecutionContext'})`)
+  // If no KV cache, skip caching (fallback to direct API call)
+  if (!env.CACHE) {
+    console.warn(`⚠️ Alexandria ISBN search without cache (missing KV namespace)`)
     return withCircuitBreaker('alexandria', env, () => searchAlexandriaByISBN_Uncached(isbn, env))
   }
 
-  // Create cache service with 'alex' prefix
-  const cache = createCacheService(kvNamespace, 'alex', env, ctx)
-
   // Check cache FIRST
-  const cacheKey = `isbn:${isbn.replace(/-/g, '')}` // Normalize ISBN (remove hyphens)
-  const cached = await cache.get(cacheKey)
+  const normalizedIsbn = isbn.replace(/-/g, '') // Normalize ISBN (remove hyphens)
+  const cacheKey = `alex:isbn:${normalizedIsbn}`
+  const cached = await getCached(cacheKey, env, ctx)
 
   if (cached) {
     console.log(`📦 Cache HIT: Alexandria ISBN ${isbn}`)
-    try {
-      return JSON.parse(cached)
-    } catch (error) {
-      console.error(`❌ Cache parse error for Alexandria ISBN ${isbn}:`, error)
-      // Fall through to API call if cached data is corrupted
-    }
+    return cached.data as NormalizedResponse
   }
 
   // Cache MISS - fetch from API with circuit breaker
@@ -95,14 +85,8 @@ export async function searchAlexandriaByISBN(
   if (result && result.works && result.works.length > 0) {
     const hotTtl = getCacheTTL('hot', env)
     const coldTtl = getCacheTTL('cold', env)
-
-    try {
-      await cache.put(cacheKey, JSON.stringify(result), hotTtl, coldTtl)
-      console.log(`✅ Cached Alexandria ISBN ${isbn} (hot: ${hotTtl}s, cold: ${coldTtl}s)`)
-    } catch (error) {
-      console.error(`❌ Cache write error for Alexandria ISBN ${isbn}:`, error)
-      // Don't throw - caching is non-critical
-    }
+    await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl)
+    console.log(`✅ Cached Alexandria ISBN ${isbn} (hot: ${hotTtl}s, cold: ${coldTtl}s)`)
   }
 
   return result

@@ -152,20 +152,3 @@ export async function setCached(
   }
 }
 
-/**
- *
- * @deprecated Use CacheKeyFactory from '../services/cache-key-factory.js' instead.
- * This function is kept for backward compatibility but should not be used in new code.
- *
- * Generate cache key from prefix and parameters
- * @param {string} prefix - Cache key prefix (e.g., 'search:title', 'search:isbn')
- * @param {Object} params - Key-value pairs to include in cache key
- * @returns {string} Generated cache key
- */
-export function generateCacheKey(prefix, params) {
-  const sortedParams = Object.keys(params)
-    .sort()
-    .map((k) => `${k}=${params[k]}`)
-    .join("&");
-  return `${prefix}:${sortedParams}`;
-}
