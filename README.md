@@ -78,7 +78,22 @@ See `ARCHITECTURE_OVERVIEW.md` for architecture details.
 
 ## API Endpoints
 
-### Book Search
+### V3 API (Current - December 2025)
+**Native Hono OpenAPI with full zod@4 support**
+
+- `GET /v3/books/:isbn` - Get book by ISBN with full metadata
+- `GET /v3/openapi.json` - OpenAPI 3.1 specification
+- `GET /v3/docs` - Interactive Swagger UI documentation
+
+**Migration Info:** See [docs/V3_MIGRATION_COMPLETE.md](docs/V3_MIGRATION_COMPLETE.md)
+
+### V2 API (Stable)
+- `GET /api/v2/search` - Unified search (replaces all V1 search)
+- `POST /api/v2/books/enrich` - Single book enrichment
+- `POST /api/v2/imports` - CSV import workflow
+- `GET /api/v2/imports/:id/stream` - SSE progress
+
+### V1 API (Deprecated - Sunset March 2026)
 - `GET /v1/search/title?q={query}` - Title search (canonical response)
 - `GET /v1/search/isbn?isbn={isbn}` - ISBN lookup with validation
 - `GET /v1/search/advanced?title={title}&author={author}` - Flexible search
@@ -91,7 +106,7 @@ See `ARCHITECTURE_OVERVIEW.md` for architecture details.
 ### Status Updates
 - `GET /ws/progress?jobId={uuid}` - WebSocket for real-time progress
 
-### Health
+### Health & Monitoring
 - `GET /health` - Health check and endpoint listing
 
 ## Quick Start
