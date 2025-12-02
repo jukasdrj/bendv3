@@ -211,7 +211,11 @@ components:
 
     EnrichedBook:
       type: object
-      description: Fully enriched book with provider metadata
+      description: |
+        Fully enriched book with simplified flat structure.
+
+        **Key Difference:** Returns `authors: string[]` (just names).
+        For full author metadata, use `/api/v2/books/enrich/detailed` which returns `AuthorDTO[]`.
       properties:
         isbn:
           type: string
@@ -221,6 +225,7 @@ components:
           type: array
           items:
             type: string
+          description: Author names only (flat structure). For full author metadata with gender, use /enrich/detailed
         publisher:
           type: string
         publishedDate:
@@ -254,6 +259,187 @@ components:
         - provider
         - enrichedAt
         - vectorized
+
+    EnrichedBookDetailed:
+      type: object
+      description: |
+        Fully enriched book with detailed canonical structure.
+
+        **Key Difference:** Returns nested `AuthorDTO[]`, `WorkDTO`, and `EditionDTO` objects.
+        For simpler clients, use `/api/v2/books/enrich` which returns flat `authors: string[]`.
+      properties:
+        isbn:
+          type: string
+        title:
+          type: string
+        work:
+          $ref: '#/components/schemas/WorkDTO'
+        edition:
+          $ref: '#/components/schemas/EditionDTO'
+        authors:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthorDTO'
+          description: Full author objects with name, gender, and metadata
+        provider:
+          type: string
+          enum: [google_books, open_library, isbndb, orchestrated, alexandria, kv-cache]
+          description: Primary data provider
+        enrichedAt:
+          type: string
+          format: date-time
+        vectorized:
+          type: boolean
+          description: Whether embedding was generated for semantic search
+      required:
+        - isbn
+        - title
+        - work
+        - edition
+        - authors
+        - provider
+        - enrichedAt
+        - vectorized
+
+    WorkDTO:
+      type: object
+      description: Abstract representation of a creative work (FRBR Work level)
+      properties:
+        title:
+          type: string
+        subjectTags:
+          type: array
+          items:
+            type: string
+          description: Normalized genre/subject tags
+        originalLanguage:
+          type: string
+        firstPublicationYear:
+          type: integer
+        description:
+          type: string
+        coverImageURL:
+          type: string
+          format: uri
+        synthetic:
+          type: boolean
+          description: True if Work was inferred from Edition data
+        primaryProvider:
+          type: string
+          enum: [alexandria, google_books, open_library, isbndb]
+        openLibraryWorkID:
+          type: string
+        googleBooksVolumeIDs:
+          type: array
+          items:
+            type: string
+        goodreadsWorkIDs:
+          type: array
+          items:
+            type: string
+        amazonASINs:
+          type: array
+          items:
+            type: string
+      required:
+        - title
+        - subjectTags
+        - goodreadsWorkIDs
+        - amazonASINs
+        - librarythingIDs
+        - googleBooksVolumeIDs
+        - isbndbQuality
+        - reviewStatus
+
+    EditionDTO:
+      type: object
+      description: Physical/digital manifestation of a Work (FRBR Expression/Manifestation)
+      properties:
+        isbn:
+          type: string
+          description: Primary ISBN
+        isbns:
+          type: array
+          items:
+            type: string
+          description: All ISBNs for this edition
+        title:
+          type: string
+        publisher:
+          type: string
+        publicationDate:
+          type: string
+          description: YYYY-MM-DD or YYYY format
+        pageCount:
+          type: integer
+          minimum: 0
+        format:
+          type: string
+          enum: [paperback, hardcover, ebook, audiobook, unknown]
+        coverImageURL:
+          type: string
+          format: uri
+        editionTitle:
+          type: string
+        editionDescription:
+          type: string
+        language:
+          type: string
+        primaryProvider:
+          type: string
+          enum: [alexandria, google_books, open_library, isbndb]
+        openLibraryEditionID:
+          type: string
+        googleBooksVolumeIDs:
+          type: array
+          items:
+            type: string
+        amazonASINs:
+          type: array
+          items:
+            type: string
+      required:
+        - isbns
+        - format
+        - amazonASINs
+        - googleBooksVolumeIDs
+        - librarythingIDs
+        - isbndbQuality
+
+    AuthorDTO:
+      type: object
+      description: Creator of works
+      properties:
+        name:
+          type: string
+        gender:
+          type: string
+          enum: [male, female, non_binary, unknown]
+          description: Author gender (required for analytics)
+        culturalRegion:
+          type: string
+          enum: [western, eastern, middle_eastern, african, latin_american, indigenous, unknown]
+        nationality:
+          type: string
+        birthYear:
+          type: integer
+        deathYear:
+          type: integer
+        openLibraryID:
+          type: string
+        isbndbID:
+          type: string
+        googleBooksID:
+          type: string
+        goodreadsID:
+          type: string
+        bookCount:
+          type: integer
+          minimum: 0
+          description: Number of books by this author
+      required:
+        - name
+        - gender
 
     # =========================================================================
     # JOB SCHEMAS
@@ -3191,10 +3377,17 @@ paths:
     post:
       tags:
         - V2 Enrichment
-      summary: Enrich book by barcode/ISBN
+      summary: Enrich book by barcode/ISBN (simplified response)
       operationId: enrichBook
       description: |
         Synchronous book enrichment from multiple providers.
+
+        **Response Structure:** Returns simplified flat response with `authors: string[]` (just names).
+
+        **Need full author metadata?** Use `/api/v2/books/enrich/detailed` which returns:
+        - Complete `AuthorDTO[]` with gender, nationality, birth year, etc.
+        - Full `WorkDTO` with subject tags, description, external IDs
+        - Complete `EditionDTO` with ISBN list, format, edition title
 
         **Provider Pipeline:**
         1. KV Cache (fastest)
@@ -3264,6 +3457,134 @@ paths:
                   provider: "google_books"
                   enrichedAt: "2025-12-01T12:00:00Z"
                   vectorized: true
+                metadata:
+                  timestamp: "2025-12-01T12:00:00Z"
+                  source: "google_books"
+                  cached: false
+        '400':
+          description: Invalid barcode/ISBN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Book not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Circuit breaker open
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/books/enrich/detailed:
+    post:
+      tags:
+        - V2 Enrichment
+      summary: Enrich book with detailed canonical structure
+      operationId: enrichBookDetailed
+      description: |
+        Synchronous book enrichment returning full canonical DTOs.
+
+        **Difference from `/api/v2/books/enrich`:**
+        - Returns nested `AuthorDTO[]` with full metadata (name, gender, etc.)
+        - Returns complete `WorkDTO` and `EditionDTO` structures
+        - Provides maximum detail for clients needing comprehensive data
+
+        **Use Cases:**
+        - Mobile apps needing full author metadata
+        - Advanced search interfaces
+        - Data export/integration workflows
+        - When you need author gender, work subjects, edition details
+
+        **For simpler clients:** Use `/api/v2/books/enrich` which returns flat `authors: string[]`.
+
+        **Provider Pipeline:**
+        1. KV Cache (fastest)
+        2. D1 Database
+        3. Google Books API
+        4. OpenLibrary API
+        5. ISBNdb API (cover images)
+
+        **Optional Vectorization:**
+        Set `includeEmbedding: true` to generate and store vector embedding
+        for semantic search.
+
+        **Example:**
+        ```bash
+        curl -X POST https://api.oooefam.net/api/v2/books/enrich/detailed \
+          -H "Content-Type: application/json" \
+          -d '{"barcode": "9780439708180"}'
+        ```
+
+        **Rate Limit:** 50 requests/minute per IP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                barcode:
+                  type: string
+                  description: ISBN-10 or ISBN-13 (preferred parameter name)
+                  pattern: '^\d{10}$|^\d{13}$'
+                  example: "9780439708180"
+                isbn:
+                  type: string
+                  description: ISBN (deprecated, use barcode)
+                  deprecated: true
+                includeEmbedding:
+                  type: boolean
+                  default: false
+                  description: Generate vector embedding for semantic search
+              oneOf:
+                - required: [barcode]
+                - required: [isbn]
+      responses:
+        '200':
+          description: Enriched book data with detailed canonical structure
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/EnrichedBookDetailed'
+                  metadata:
+                    $ref: '#/components/schemas/ResponseMetadata'
+              example:
+                data:
+                  isbn: "9780439708180"
+                  title: "Harry Potter and the Sorcerer's Stone"
+                  work:
+                    title: "Harry Potter and the Philosopher's Stone"
+                    description: "Harry Potter has never even heard of Hogwarts..."
+                    subjectTags: ["Fiction", "Fantasy", "Magic", "Wizards"]
+                    coverImageURL: "https://covers.openlibrary.org/b/isbn/9780439708180-L.jpg"
+                    primaryProvider: "google_books"
+                  edition:
+                    isbn: "9780439708180"
+                    publisher: "Scholastic"
+                    publicationDate: "1998-09-01"
+                    pageCount: 320
+                    format: "Paperback"
+                    language: "English"
+                  authors:
+                    - name: "J.K. Rowling"
+                      gender: "female"
+                  provider: "google_books"
+                  enrichedAt: "2025-12-01T12:00:00Z"
+                  vectorized: false
                 metadata:
                   timestamp: "2025-12-01T12:00:00Z"
                   source: "google_books"
