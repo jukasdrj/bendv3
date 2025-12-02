@@ -180,7 +180,7 @@ export async function handleBatchEnrichment(request, env, ctx) {
     const reporter = new ProgressReporter(jobId, env);
 
     // Start background enrichment
-    ctx.waitUntil(processBatchEnrichment(books, reporter, env, jobId));
+    ctx.waitUntil(processBatchEnrichment(books, reporter, env, jobId, ctx));
 
     // FIX: Return the response documented in the API contract (§6.2)
     // This aligns the implementation with the documentation and expected client behavior.
@@ -220,7 +220,7 @@ export async function handleBatchEnrichment(request, env, ctx) {
  * @param {Object} env - Worker environment bindings
  * @param {string} jobId - The client-provided job identifier
  */
-async function processBatchEnrichment(books, reporter, env, jobId) {
+async function processBatchEnrichment(books, reporter, env, jobId, ctx) {
   const startTime = Date.now();
   try {
     // Reuse existing enrichBooksParallel() logic
@@ -236,6 +236,7 @@ async function processBatchEnrichment(books, reporter, env, jobId) {
             isbn: book.isbn,
           },
           env,
+          ctx,
         );
 
         // Return EnrichedBookDTO structure (iOS expects nested 'enriched' field)

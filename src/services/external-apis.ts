@@ -51,6 +51,7 @@ export interface ExternalAPIEnv {
   ALEXANDRIA_CLIENT_ID?: string; // Worker secret (plain string)
   ALEXANDRIA_CLIENT_SECRET?: string; // Worker secret (plain string)
   GOOGLE_BOOKS_ANALYTICS?: AnalyticsEngineDataset;
+  ANALYTICS_ENGINE?: AnalyticsEngineDataset; // For logExternalApiCall analytics
   CACHE?: KVNamespace;
   CACHE_HOT_TTL?: string; // Hot TTL in seconds (default: 7200 = 2h)
   CACHE_COLD_TTL?: string; // Cold TTL in seconds (default: 1209600 = 14d)
@@ -347,7 +348,7 @@ async function searchGoogleBooks_Uncached(
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
-    "GoogleBooks",
+    "google-books",
     async () => {
       console.log(`GoogleBooks search for "${query}"`);
 
@@ -416,7 +417,7 @@ async function searchGoogleBooksByISBN_Uncached(
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
-    "GoogleBooks",
+    "google-books",
     async () => {
       console.log(`GoogleBooks ISBN search for "${isbn}"`);
 
@@ -550,6 +551,7 @@ const OPENLIBRARY_USER_AGENT =
 export async function searchOpenLibraryByGoodreadsId(
   goodreadsId: string,
   env: ExternalAPIEnv,
+  ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
   const startTime = Date.now();
   try {
@@ -591,6 +593,7 @@ export async function searchOpenLibraryByGoodreadsId(
 export async function searchOpenLibraryById(
   workId: string,
   env: ExternalAPIEnv,
+  ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
   const startTime = Date.now();
   try {
@@ -682,7 +685,7 @@ async function searchOpenLibrary_Uncached(
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
-    "OpenLibrary",
+    "openlibrary",
     async () => {
       console.log(`OpenLibrary general search for "${query}"`);
 
@@ -867,7 +870,7 @@ async function searchISBNdb_Uncached(
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
-    "ISBNdb",
+    "isbndb",
     async () => {
       console.log(
         `ISBNdb search for "${title}" by "${authorName || "any author"}"`,
@@ -1008,7 +1011,7 @@ async function getISBNdbBookByISBN_Uncached(
   env: ExternalAPIEnv,
 ): Promise<ISBNdbBookData | null> {
   return logExternalApiCall(
-    "ISBNdb",
+    "isbndb",
     async () => {
       console.log(`ISBNdb getBookByISBN("${isbn}")`);
       const url = `https://api2.isbndb.com/book/${isbn}?with_prices=0`;

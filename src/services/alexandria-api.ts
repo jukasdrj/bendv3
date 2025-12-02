@@ -105,7 +105,7 @@ async function searchAlexandriaByISBN_Uncached(
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
-    "Alexandria",
+    "alexandria",
     async () => {
       console.log(`Alexandria ISBN search for "${isbn}"`)
 

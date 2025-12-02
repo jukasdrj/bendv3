@@ -422,6 +422,7 @@ export async function enrichSingleBook(
       const result: SingleEnrichmentResult | null = await searchByISBN(
         isbn,
         env,
+        ctx,
       );
       // If we have a result with a cover, we're done
       if (
@@ -437,6 +438,7 @@ export async function enrichSingleBook(
       const result: SingleEnrichmentResult | null = await searchGoogleBooksById(
         googleBooksId,
         env,
+        ctx,
       );
       if (
         result &&
@@ -449,6 +451,7 @@ export async function enrichSingleBook(
       const result: SingleEnrichmentResult | null = await searchOpenLibraryById(
         openLibraryId,
         env,
+        ctx,
       );
       if (
         result &&
@@ -459,7 +462,7 @@ export async function enrichSingleBook(
 
     if (query.goodreadsId) {
       const result: SingleEnrichmentResult | null =
-        await searchOpenLibraryByGoodreadsId(query.goodreadsId, env);
+        await searchOpenLibraryByGoodreadsId(query.goodreadsId, env, ctx);
       if (
         result &&
         (result.work.coverImageURL || result.edition?.coverImageURL)
@@ -471,6 +474,7 @@ export async function enrichSingleBook(
     const googleResult: SingleEnrichmentResult | null = await searchGoogleBooks(
       { title, author },
       env,
+      ctx,
     );
     if (
       googleResult &&
@@ -481,7 +485,7 @@ export async function enrichSingleBook(
 
     // Strategy 4: Fallback to OpenLibrary with title+author
     const openLibResult: SingleEnrichmentResult | null =
-      await searchOpenLibrary({ title, author }, env);
+      await searchOpenLibrary({ title, author }, env, ctx);
     if (openLibResult) {
       return openLibResult;
     }
@@ -582,6 +586,7 @@ export async function enrichSingleBook(
 async function searchGoogleBooks(
   query: BookSearchQuery,
   env: WorkerEnv,
+  ctx?: ExecutionContext,
 ): Promise<SingleEnrichmentResult | null> {
   const { title, author, isbn } = query;
 
@@ -591,8 +596,8 @@ async function searchGoogleBooks(
     : [title, author].filter(Boolean).join(" ");
 
   const result = isbn
-    ? await externalApis.searchGoogleBooksByISBN(searchQuery, env)
-    : await externalApis.searchGoogleBooks(searchQuery, { maxResults: 1 }, env);
+    ? await externalApis.searchGoogleBooksByISBN(searchQuery, env, ctx)
+    : await externalApis.searchGoogleBooks(searchQuery, { maxResults: 1 }, env, ctx);
 
   if (!result || !result.works || result.works.length === 0) {
     return null;
@@ -618,6 +623,7 @@ async function searchGoogleBooks(
 async function searchOpenLibrary(
   query: BookSearchQuery,
   env: WorkerEnv,
+  ctx?: ExecutionContext,
 ): Promise<SingleEnrichmentResult | null> {
   const { title, author } = query;
 
@@ -626,6 +632,7 @@ async function searchOpenLibrary(
     searchQuery,
     { maxResults: 1 },
     env,
+    ctx,
   );
 
   if (!result || !result.works || result.works.length === 0) {
@@ -652,14 +659,15 @@ async function searchOpenLibrary(
 async function searchByISBN(
   isbn: string,
   env: WorkerEnv,
+  ctx?: ExecutionContext,
 ): Promise<SingleEnrichmentResult | null> {
   // Try Alexandria first (local, free, fast)
   try {
-    const alexandriaResult = await externalApis.searchAlexandriaByISBN(isbn, env);
+    const alexandriaResult = await externalApis.searchAlexandriaByISBN(isbn, env, ctx);
     if (alexandriaResult?.works?.length) {
       return {
         success: true,
-        work: alexandriaResult.works[0],
+        work: addProvenanceFields(alexandriaResult.works[0], "alexandria"),
         edition: alexandriaResult.editions?.[0] || null,
         authors: alexandriaResult.authors || [],
       };
@@ -670,7 +678,7 @@ async function searchByISBN(
   }
 
   // Fallback to Google Books ISBN search
-  const googleResult = await searchGoogleBooks({ isbn }, env);
+  const googleResult = await searchGoogleBooks({ isbn }, env, ctx);
   if (
     googleResult &&
     googleResult.success &&
@@ -680,7 +688,7 @@ async function searchByISBN(
   }
 
   // Fallback to OpenLibrary ISBN search
-  const olResult = await searchOpenLibrary({ isbn }, env);
+  const olResult = await searchOpenLibrary({ isbn }, env, ctx);
   if (olResult && olResult.success) {
     return olResult;
   }
