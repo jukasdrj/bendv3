@@ -26,13 +26,13 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20251202.0",
     "@stoplight/spectral-cli": "^6.15.0",
-    "@vitest/coverage-v8": "^4.0.14",
-    "@vitest/ui": "^4.0.14",
+    "@vitest/coverage-v8": "^4.0.15",
+    "@vitest/ui": "^4.0.15",
     "msw": "^2.12.3",
     "openapi-diff": "^0.24.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.14",
+    "vitest": "^4.0.15",
     "wrangler": "^4.51.0"
   },
   "dependencies": {
