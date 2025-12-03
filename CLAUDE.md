@@ -1,6 +1,6 @@
 # BooksTrack Backend - Claude Code Quick Reference
 
-**Version:** 2.4 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** December 1, 2025
+**Version:** 2.5 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** December 3, 2025
 
 > **📖 For comprehensive Claude Code guidelines, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md)**
 >
@@ -22,8 +22,8 @@
 |------|--------|-------|
 | `/v3/*` | 🚀 CURRENT | Native Hono OpenAPI, full zod@4 support |
 | `/api/v2/*` | ✅ STABLE | Production ready, deprecation TBD |
-| `/v1/*` | ⚠️ DEPRECATED | Sunset March 2026 |
-| `/search/*` | ⛔ LEGACY | Remove immediately |
+| `/v1/*` | ⚠️ DEPRECATED | Sunset March 2026 (deprecation headers active) |
+| `/search/*` | ⛔ REMOVED | Legacy routes removed |
 
 ### Key V3 Endpoints (NEW!)
 - `GET /v3/books/:isbn` - Get book by ISBN with full metadata
@@ -126,10 +126,18 @@ npm run deploy                 # Deploy to production
 - Provider-specific error context
 
 **Circuit Breaker:**
-- Per-provider circuits (google-books, open-library, isbndb)
+- Per-provider circuits (google-books, open-library, isbndb, alexandria)
 - 5 failures → OPEN, 2 successes → CLOSED, 60s cooldown
 - KV-backed state with 5min TTL
 - Analytics logging for observability
+
+**Cache Architecture (v3.0 - Alexandria-First):**
+- KV-only for book metadata (removed R2 cold storage tier)
+- Alexandria as PRIMARY provider (49M+ ISBNs, 0 cost, <100ms)
+- Hot/Cold TTL strategy (2h effectiveness window, 14d expiration)
+- Edge cache retained for covers/static assets only
+- ISBNdb harvest deprecated (Alexandria replaces)
+- See [docs/CACHE_ARCHITECTURE.md](docs/CACHE_ARCHITECTURE.md) for details
 
 **Testing:**
 - Vitest framework (forks pool, max 2 forks)
@@ -142,25 +150,21 @@ npm run deploy                 # Deploy to production
 
 ## 📊 Current Sprint Status
 
-**Active Issues:** 0 (as of Nov 27, 2025) - ALL COMPLETE! 🎉
-- **P1:** 0 ✅
-- **P2:** 0 ✅
-- **P3:** 0 ✅
+**Active Issues:** 0 (as of Dec 3, 2025) - ALL COMPLETE! 🎉
 
-**Recent Completions (Nov 26-27, 2025):**
-- ✅ **Circuit Breaker Chain Complete** - Issues #80, #77, #97, #98, #99, #100, #81
-  - Core CircuitBreaker class with CLOSED/OPEN/HALF_OPEN states
-  - All 9 external API functions protected
-  - Structured error differentiation (NOT_FOUND, CIRCUIT_OPEN, RATE_LIMIT, etc)
-  - Cache monitoring and alerting integrated
-  - 16 comprehensive unit tests passing
-  - Full API contract documentation (v2.7.1)
-  - 100% production deployment success
+**Recent Completions (Dec 3, 2025):**
+- ✅ **Cache Architecture v3.0** - Alexandria-first optimization
+  - Removed R2 cold storage tier (Alexandria provides persistence)
+  - Removed legacy cache format backward compatibility
+  - Simplified unified-cache to KV-only path
+  - Deprecated ISBNdb harvest (Alexandria replaces)
+  - Added V1 deprecation headers (RFC 8594)
 
 **Previous Major Milestones:**
-- ✅ Sprint 3 Phase 2 (Nov 21): ResponseEnvelope v2.0, Hono migration, CORS consolidation
-- ✅ Sprint 3 Phase 1 (Nov 20): R2 cleanup, WebSocket race condition fixes
-- ✅ Sprint 2 (Nov 20): 6 documentation issues
+- ✅ V3 API Complete (Dec 2025): Native Hono OpenAPI, zod@4 validation
+- ✅ Circuit Breaker Chain (Nov 27): All 9 external APIs protected
+- ✅ Sprint 3 Phase 2 (Nov 21): ResponseEnvelope v2.0, Hono migration
+- ✅ Sprint 3 Phase 1 (Nov 20): R2 cleanup, WebSocket fixes
 
 **See [.claude/CLAUDE.md](.claude/CLAUDE.md) for full architectural details.**
 
@@ -175,6 +179,6 @@ npm run deploy                 # Deploy to production
 
 ---
 
-**Last Updated:** December 1, 2025
+**Last Updated:** December 3, 2025
 **Maintained by:** Justin Gardner (@jukasdrj)
 **Full Documentation:** [.claude/CLAUDE.md](.claude/CLAUDE.md)

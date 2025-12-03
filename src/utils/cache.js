@@ -54,6 +54,18 @@ export async function getCached(key, env, ctx = null) {
   try {
     const { value, metadata } = await env.CACHE.getWithMetadata(key, "json");
     if (value) {
+      // Verify cache format is valid (v3.0+ format with data and cachedAt)
+      if (!value.data || !value.cachedAt) {
+        console.warn(`Invalid cache format for key ${key}, treating as miss`);
+        trackCacheEvent(env, ctx, {
+          type: "miss",
+          prefix,
+          key,
+          timestamp,
+        });
+        return null;
+      }
+
       // Track cache hit (non-blocking)
       trackCacheEvent(env, ctx, {
         type: "hit",
@@ -63,31 +75,18 @@ export async function getCached(key, env, ctx = null) {
         hotTtlExpiry: metadata?.hotTtlExpiry,
       });
 
-      // Handle both old format (direct data) and new format (with metadata)
-      if (value.data && value.cachedAt) {
-        // New format with metadata
-        const age = Math.floor((Date.now() - value.cachedAt) / 1000); // Age in seconds
-        const ttl = value.ttl || 0;
+      // Extract metadata from cached value
+      const age = Math.floor((Date.now() - value.cachedAt) / 1000); // Age in seconds
+      const ttl = value.ttl || 0;
 
-        return {
-          data: value.data,
-          cacheMetadata: {
-            hit: true,
-            age: age,
-            ttl: ttl,
-          },
-        };
-      } else {
-        // Old format (direct data) - backward compatibility
-        return {
-          data: value,
-          cacheMetadata: {
-            hit: true,
-            age: 0,
-            ttl: 0,
-          },
-        };
-      }
+      return {
+        data: value.data,
+        cacheMetadata: {
+          hit: true,
+          age: age,
+          ttl: ttl,
+        },
+      };
     }
   } catch (error) {
     console.error("Cache read error:", error);
