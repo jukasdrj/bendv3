@@ -1,27 +1,29 @@
 /**
  * Enrichment Queue Consumer
  *
- * Processes ISBNs from the enrichment queue and writes data to Alexandria.
- * This ensures CSV imports (which bypass the normal enrichment pipeline)
- * still contribute to Alexandria's knowledge base.
+ * Processes ISBNs from the enrichment queue, fetches metadata from providers,
+ * and updates both Alexandria and the user's library (D1/KV) with enriched data.
  *
  * Queue Flow:
  *   CSV Import → BookRepository.save() → ENRICHMENT_QUEUE.send()
- *                                              ↓
+ *                     (no cover)                  ↓
  *                              enrichment-queue-consumer (this file)
  *                                              ↓
  *                              enrichMultipleBooks() → Alexandria
+ *                                              ↓
+ *                              updateLibraryWithCover() → D1/KV (cover URLs)
  *
  * Benefits:
  * - CSV imports remain fast (no enrichment blocking)
  * - Alexandria learns from user imports (eventual consistency)
+ * - User library gets cover images after async enrichment
  * - Proper ExecutionContext for waitUntil() operations
- * - User CSV data gets priority in provider chain
  *
- * Related: Issue #XXX - Alexandria doesn't learn from CSV imports
+ * Related: Fix for cover images not showing after CSV import
  */
 
 import { enrichMultipleBooks } from "../services/enrichment.js"
+import { BookRepository } from "../repositories/book-repository.js"
 import type { Env } from "../types/env.js"
 import type {
   MessageBatch,
@@ -90,9 +92,21 @@ export async function processEnrichmentBatch(
       )
 
       if (result.works.length > 0) {
+        const work = result.works[0]
+        const edition = result.editions?.[0]
+        const coverUrl = edition?.coverImageURL || work?.coverImageURL
+
         console.log(
-          `[Enrichment Queue] ✅ Enriched ISBN ${isbn}: ${result.works[0].title} (provider: ${result.works[0].primaryProvider})`,
+          `[Enrichment Queue] ✅ Enriched ISBN ${isbn}: ${work.title} (provider: ${work.primaryProvider})`,
         )
+
+        // Update the user's library (D1/KV) with cover URLs
+        if (coverUrl) {
+          await updateLibraryWithCover(isbn, coverUrl, result, env)
+        } else {
+          console.log(`[Enrichment Queue] ⚠️ No cover URL found for ISBN ${isbn}`)
+        }
+
         successCount++
       } else {
         // Book not found in any provider - this is OK, not an error
@@ -124,5 +138,82 @@ export async function processEnrichmentBatch(
       doubles: [successCount, failedCount, skippedCount, duration],
       indexes: ["enrichment_queue"],
     })
+  }
+}
+
+/**
+ * Update user's library (D1/KV) with cover URLs from enrichment
+ *
+ * This bridges the gap between:
+ * 1. CSV import (saves books without covers)
+ * 2. Background enrichment (fetches covers from providers)
+ *
+ * Strategy:
+ * - Fetch existing book from library (preserves user data like ratings)
+ * - Merge enriched cover URLs into existing record
+ * - Save back to D1/KV
+ *
+ * @param isbn - ISBN to update
+ * @param coverUrl - Primary cover URL from enrichment
+ * @param enrichmentResult - Full enrichment result with works/editions/authors
+ * @param env - Worker environment bindings
+ */
+async function updateLibraryWithCover(
+  isbn: string,
+  coverUrl: string,
+  enrichmentResult: { works: any[]; editions: any[]; authors: any[] },
+  env: Env,
+): Promise<void> {
+  try {
+    const bookRepo = new BookRepository(env)
+
+    // Fetch existing book to preserve user data (ratings, notes, etc.)
+    const existingBook = await bookRepo.findByISBN(isbn)
+
+    if (!existingBook) {
+      console.log(`[Enrichment Queue] Book ${isbn} not found in library, skipping cover update`)
+      return
+    }
+
+    // Check if cover already exists (avoid unnecessary updates)
+    if (existingBook.coverMediumUrl || existingBook.coverLargeUrl) {
+      console.log(`[Enrichment Queue] Book ${isbn} already has cover, skipping update`)
+      return
+    }
+
+    // Extract best available cover URLs from enrichment
+    const edition = enrichmentResult.editions?.[0]
+    const work = enrichmentResult.works?.[0]
+
+    // Merge enriched data into existing book
+    const updatedBook = {
+      ...existingBook,
+      // Cover URLs (prefer edition over work)
+      coverSmallUrl: edition?.coverImageURL || work?.coverImageURL || coverUrl,
+      coverMediumUrl: edition?.coverImageURL || work?.coverImageURL || coverUrl,
+      coverLargeUrl: edition?.coverImageURL || work?.coverImageURL || coverUrl,
+      // Update canonical metadata with enriched data
+      canonicalMetadata: {
+        ...existingBook.canonicalMetadata,
+        works: enrichmentResult.works.length > 0
+          ? enrichmentResult.works
+          : existingBook.canonicalMetadata?.works || [],
+        editions: enrichmentResult.editions.length > 0
+          ? enrichmentResult.editions
+          : existingBook.canonicalMetadata?.editions || [],
+        authors: enrichmentResult.authors.length > 0
+          ? enrichmentResult.authors
+          : existingBook.canonicalMetadata?.authors || [],
+      },
+      updatedAt: Math.floor(Date.now() / 1000),
+    }
+
+    // Save updated book back to D1/KV
+    await bookRepo.save(updatedBook)
+
+    console.log(`[Enrichment Queue] 📚 Updated library with cover for ISBN ${isbn}: ${coverUrl.substring(0, 60)}...`)
+  } catch (error) {
+    // Non-fatal: log but don't fail the enrichment
+    console.error(`[Enrichment Queue] ⚠️ Failed to update library for ISBN ${isbn}:`, error)
   }
 }
