@@ -1,12 +1,19 @@
 # BooksTrack Cache Architecture
 
-**Version:** 2.0
-**Last Updated:** December 2, 2025
-**Status:** Production (73% hit rate)
+**Version:** 3.0
+**Last Updated:** December 3, 2025
+**Status:** Production (73% hit rate) - Alexandria-First Architecture
 
 ## Overview
 
-BooksTrack uses a multi-tier caching strategy to deliver sub-200ms response times while minimizing external API costs. The system combines Cloudflare KV (hot/cold strategy), Durable Objects (metrics), and strategic TTL policies.
+BooksTrack uses a simplified caching strategy optimized for the Alexandria-first provider architecture. With Alexandria providing 49.3M+ ISBNs at zero API cost with sub-100ms response times, the cache layer has been streamlined to focus on KV caching with reduced complexity.
+
+### Key Changes in v3.0 (December 2025)
+- **Removed:** R2 cold storage tier (replaced by Alexandria's persistent storage)
+- **Removed:** Legacy cache format backward compatibility
+- **Simplified:** Unified cache now uses KV-only path for book metadata
+- **Deprecated:** ISBNdb harvest (Alexandria provides real-time processing)
+- **Retained:** Edge cache for static assets (covers, images) only
 
 ---
 
@@ -20,20 +27,19 @@ BooksTrack uses a multi-tier caching strategy to deliver sub-200ms response time
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     CACHE LAYER (KV)                                 │
+│                     KV CACHE (Single Tier)                           │
 │  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  Hot Cache (Effectiveness Window: 2h TTL)                    │  │
-│  │  - Tracks frequently accessed items for TTL tuning.         │  │
+│  │  Hot TTL (Effectiveness Window: 2h)                          │  │
+│  │  - Tracks cache effectiveness for TTL tuning                 │  │
+│  │  - Items remain in cache after hot window expires            │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │                              │                                       │
-│                              │ (on miss)                             │
-│                              ▼                                       │
 │  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  Cold Cache (Content-Specific Expiration)                    │  │
+│  │  Cold TTL (Content-Specific Expiration)                      │  │
+│  │  - ISBN / Cover: 365 days (static content)                   │  │
+│  │  - Enrichment: 180 days (stable metadata)                    │  │
+│  │  - Title / Author: 7 days (new editions possible)            │  │
 │  │  - Default: 14 days                                          │  │
-│  │  - ISBN / Cover: 365 days                                    │  │
-│  │  - Enrichment: 180 days                                      │  │
-│  │  - Title / Author: 7 days                                    │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
                               │
@@ -42,11 +48,12 @@ BooksTrack uses a multi-tier caching strategy to deliver sub-200ms response time
 ┌─────────────────────────────────────────────────────────────────────┐
 │               PROVIDER WATERFALL (with Circuit Breakers)             │
 │                                                                       │
-│  Alexandria (local) → Google Books → OpenLibrary → ISBNdb           │
+│  Alexandria (PRIMARY) → Google Books → OpenLibrary → ISBNdb         │
+│       ↑                                                               │
+│  49.3M+ ISBNs, 0 cost, <100ms                                        │
 │                                                                       │
 │  - Each provider protected by circuit breaker                        │
-│  - 5 failures → OPEN, 60s cooldown                                   │
-│  - 2 successes → CLOSED                                              │
+│  - 5 failures → OPEN, 60s cooldown, 2 successes → CLOSED             │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -54,10 +61,29 @@ BooksTrack uses a multi-tier caching strategy to deliver sub-200ms response time
 │                 CACHE METRICS (Durable Object)                       │
 │                                                                       │
 │  - Hit/miss tracking per prefix                                      │
-│  - Effectiveness monitoring                                          │
+│  - Effectiveness monitoring (hot vs cold hits)                       │
 │  - Analytics for optimization                                        │
 └─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    R2 STORAGE (Covers Only)                          │
+│                                                                       │
+│  - bookstrack-covers bucket (processed cover images)                 │
+│  - bookshelf-images bucket (user uploads)                            │
+│  - Alexandria cover service writes here                              │
+│  - NOT used for book metadata caching                                │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+### What Changed from v2.0
+| Component | v2.0 (Before) | v3.0 (After) |
+|-----------|---------------|--------------|
+| **Cache Tiers** | 3 (Edge → KV → R2) | 1 (KV only for metadata) |
+| **R2 Cold Storage** | Book metadata archive | Covers/images only |
+| **Edge Cache** | All API responses | Static assets only |
+| **Rehydration** | R2 → KV background restore | Removed |
+| **Cold Index** | KV index of R2 entries | Removed |
+| **ISBNdb Harvest** | Daily batch job | Deprecated (Alexandria replaces) |
 
 ---
 

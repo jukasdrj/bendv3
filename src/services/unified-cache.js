@@ -81,24 +81,7 @@ export class UnifiedCacheService {
       return kvResult;
     }
 
-    // NEW: Tier 2.5: Check Cold Storage Index
-    const coldIndex = await this.env.CACHE.get(
-      `cold-index:${cacheKey}`,
-      "json",
-    );
-    if (coldIndex) {
-      this.logMetrics("cold_check", cacheKey, Date.now() - startTime);
-
-      // Trigger background rehydration (non-blocking)
-      if (this.ctx?.waitUntil) {
-        this.ctx.waitUntil(this.rehydrateFromR2(cacheKey, coldIndex, endpoint));
-      }
-
-      // Return null immediately (user gets fresh API data)
-      return { data: null, source: "COLD", latency: Date.now() - startTime };
-    }
-
-    // Tier 3: API Miss
+    // Cache miss - fall through to external APIs
     this.logMetrics("api_miss", cacheKey, Date.now() - startTime);
     return { data: null, source: "MISS", latency: Date.now() - startTime };
   }
@@ -198,46 +181,6 @@ export class UnifiedCacheService {
     }
   }
 
-  /**
-   * Rehydrate archived data from R2 to KV and Edge
-   *
-   * @param {string} cacheKey - Original cache key
-   * @param {Object} coldIndex - Cold storage index metadata
-   * @param {string} endpoint - Endpoint type
-   */
-  async rehydrateFromR2(cacheKey, coldIndex, endpoint) {
-    try {
-      console.log(`Rehydrating ${cacheKey} from R2...`);
-
-      // 1. Fetch from R2
-      const r2Object = await this.env.LIBRARY_DATA.get(coldIndex.r2Path);
-      if (!r2Object) {
-        console.error(`R2 object not found: ${coldIndex.r2Path}`);
-        return;
-      }
-
-      const data = await r2Object.json();
-
-      // 2. Restore to KV with extended TTL (7 days)
-      await this.kvCache.set(cacheKey, data, endpoint, {
-        ttl: 7 * 24 * 60 * 60,
-      });
-
-      // 3. Populate Edge cache
-      await this.edgeCache.set(cacheKey, data, 6 * 60 * 60);
-
-      // 4. Remove from cold index (now warm)
-      await this.env.CACHE.delete(`cold-index:${cacheKey}`);
-
-      // 5. Log rehydration
-      this.logMetrics("r2_rehydrated", cacheKey, 0);
-
-      console.log(`Successfully rehydrated ${cacheKey}`);
-    } catch (error) {
-      console.error(`Rehydration failed for ${cacheKey}:`, error);
-      // Log error but don't throw (background operation)
-    }
-  }
 
   /**
    * Extract cache key prefix (e.g., "book:isbn:123" → "book")
@@ -304,8 +247,6 @@ export class UnifiedCacheService {
       this.trackCacheEvent("hit", cacheKey, { source: "kv" });
     } else if (event === "api_miss") {
       this.trackCacheEvent("miss", cacheKey);
-    } else if (event === "r2_rehydrated") {
-      this.trackCacheEvent("hit", cacheKey, { source: "r2" });
     }
 
     // Also log to Analytics Engine (legacy)

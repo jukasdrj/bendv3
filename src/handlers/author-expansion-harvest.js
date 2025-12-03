@@ -1,21 +1,24 @@
 /**
- * Author Expansion Harvest Handler
+ * @deprecated ISBNdb harvest now replaced by Alexandria integration (2025-12-03)
  *
- * Automated harvest using ISBNdb batch API and author search.
- * Processes 25 popular authors to expand cache with complete bibliographies.
+ * Author Expansion Harvest Handler - DEPRECATED
  *
- * Flow:
- * 1. Load 25 curated authors from config
- * 2. For each author, search ISBNdb directly (up to 1000 books/author)
- * 3. Use batch API to fetch metadata for up to 1000 ISBNs at once
- * 4. Warm production cache via lenient ISBN search
+ * This handler has been disabled during Alexandria Phase 2 rollout.
+ * Alexandria now provides:
+ * - 49.3M+ ISBNs at zero API cost (vs ISBNdb's 5000/day limit)
+ * - Sub-100ms response times (vs ISBNdb's 300-500ms)
+ * - Real-time cover processing via alexandria-cover-service.ts
  *
- * Benefits over manual expansion:
- * - Uses ISBNdb's native author search (more reliable than OpenLibrary)
- * - Batch API reduces from 1000 requests to 1 request per author
- * - Direct access to ISBNdb's complete catalog (not limited by Google Books)
+ * Migration Status:
+ * - Phase 1 (Complete): Alexandria ISBN lookup primary
+ * - Phase 2 (Complete): Alexandria cover processing replaces ISBNdb harvest
+ * - Phase 3 (Pending): Alexandria title/author search
  *
- * Scheduled: Daily 3 AM UTC via cron
+ * This file will be removed after March 2026 sunset.
+ *
+ * @see src/services/alexandria-api.ts for new implementation
+ * @see src/services/alexandria-cover-service.ts for cover processing
+ * @see docs/CACHE_ARCHITECTURE.md for updated architecture
  */
 
 import { ISBNdbAPI } from '../services/isbndb-api.js'
@@ -30,6 +33,43 @@ import { writeISBNdbBooksToCache } from '../services/cache-direct-write.ts'
  * @returns {Promise<{success: boolean, stats: Object}>}
  */
 export async function executeAuthorExpansionHarvest(env, authorCount = 25, booksPerAuthor = 200) {
+  // DEPRECATED: Return early with deprecation notice
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+  console.log("⚠️  DEPRECATED: author-expansion-harvest.js")
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+  console.log("")
+  console.log("This harvest has been disabled as of 2025-12-03.")
+  console.log("Book metadata now provided by Alexandria (49M+ ISBNs, zero cost).")
+  console.log("Cover processing handled by alexandria-cover-service.ts")
+  console.log("")
+  console.log("Benefits of Alexandria:")
+  console.log("  ✅ 49.3M+ ISBNs at zero API cost")
+  console.log("  ✅ Sub-100ms response times")
+  console.log("  ✅ No daily quota limits (vs ISBNdb 5000/day)")
+  console.log("  ✅ Real-time processing, no batch jobs needed")
+  console.log("")
+  console.log("This file will be removed after March 2026 sunset.")
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+  return {
+    success: true,
+    deprecated: true,
+    disabledDate: "2025-12-03",
+    message: "ISBNdb harvest disabled - using Alexandria real-time processing",
+    stats: {
+      authorsProcessed: 0,
+      authorsFailed: 0,
+      totalBooksDiscovered: 0,
+      totalISBNsHarvested: 0,
+      isbndbBatchCalls: 0,
+      cacheWarmingCalls: 0,
+      newlyCached: 0,
+      alreadyCached: 0,
+      errors: []
+    }
+  }
+
+  // Original implementation below (preserved for reference, unreachable)
   const startTime = Date.now()
 
   const stats = {
