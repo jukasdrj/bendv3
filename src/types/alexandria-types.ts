@@ -1,75 +1,86 @@
 /**
- * Alexandria API Type Definitions (Placeholder)
+ * Alexandria API Type Definitions
  *
- * TODO: Replace with @ooheynerds/alexandria-types package when published
+ * Official types from alexandria-worker package (v2.0.0).
+ * Provides full type safety for Hono RPC client and Alexandria API integration.
  *
- * These types mirror the Alexandria worker's exported AppType for Hono RPC.
- * Once Alexandria publishes its type package, this file will be replaced with
- * an import from that package.
+ * @see https://www.npmjs.com/package/alexandria-worker
+ * @see docs/ALEXANDRIA_RPC_MIGRATION.md for migration guide
  */
 
-import type { Hono } from 'hono'
-
-/**
- * TEMPORARY PLACEHOLDER: Alexandria's exported AppType
- *
- * This interface represents the routes exposed by the Alexandria worker.
- * It should match the `export type AlexandriaAppType = typeof routes` from
- * the Alexandria worker's index.ts file.
- *
- * **REPLACEMENT STEPS (Once Alexandria Publishes Types):**
- * 1. Install: `npm install @ooheynerds/alexandria-types`
- * 2. Replace this file with: `export type { AlexandriaAppType } from '@ooheynerds/alexandria-types'`
- * 3. Delete all placeholder interfaces below
- *
- * @see https://github.com/your-org/alexandria/worker/index.ts
- * @see docs/ALEXANDRIA_RPC_MIGRATION.md for full migration checklist
- */
-export interface AlexandriaAppType extends Hono {
-  // Placeholder - routes will be auto-inferred from Alexandria's AppType export
-  // This empty interface prevents type errors until the real types are available
-}
+// ============================================================================
+// Hono App Type (for RPC Client)
+// ============================================================================
 
 /**
- * Alexandria search query parameters (inferred from current implementation)
+ * Alexandria Hono app type for RPC client
+ *
+ * This type represents all routes exposed by the Alexandria worker.
+ * Used by the Hono RPC client to provide compile-time route validation
+ * and type inference for request/response shapes.
+ *
+ * Note: Imported from alexandria-worker package root (exports app type),
+ * not from /types (which only exports data types).
+ *
+ * @example
+ * ```typescript
+ * import { hc } from 'hono/client'
+ * import type { AlexandriaAppType } from './alexandria-types'
+ *
+ * const client = hc<AlexandriaAppType>('https://alexandria.ooheynerds.com')
+ * const response = await client.api.search.$get({ query: { isbn: '...' } })
+ * ```
  */
-export interface AlexandriaSearchQuery {
-  isbn?: string
-  title?: string
-  author?: string
-  limit?: string
-}
+import type { AlexandriaAppType as AlexandriaApp } from 'alexandria-worker'
+export type AlexandriaAppType = AlexandriaApp
 
-/**
- * Alexandria API response structure for ISBN lookup
- */
-export interface AlexandriaISBNResponse {
-  results: AlexandriaResult[]
-}
+// ============================================================================
+// Request Types
+// ============================================================================
 
-/**
- * Single result from Alexandria API
- *
- * **DEPRECATED: Duplicated from src/services/normalizers/alexandria.ts**
- *
- * This type is temporarily duplicated here for the RPC client placeholder.
- * Once Alexandria publishes @ooheynerds/alexandria-types, this interface
- * will be removed in favor of the official type export.
- *
- * @deprecated Remove when @ooheynerds/alexandria-types is available
- */
-export interface AlexandriaResult {
-  isbn?: string
-  title?: string
-  author?: string
-  publisher?: string
-  publish_date?: string
-  pages?: number
-  cover_url?: string
-  work_id?: string
-  work_title?: string
-  work_description?: string
-  author_key?: string
-  author_name?: string
-  author_bio?: string
-}
+export type {
+  SearchQuery,
+  ProcessCover,
+  EnrichEdition,
+  EnrichWork,
+  EnrichAuthor,
+  QueueEnrichment,
+} from 'alexandria-worker/types'
+
+// ============================================================================
+// Response Types
+// ============================================================================
+
+export type {
+  SearchResult,
+  BookResult,
+  HealthCheck,
+  DatabaseStats,
+  CoverProcessResult,
+  CoverMetadata,
+  CoverStatus,
+  BatchCoverResult,
+  EnrichmentResult,
+  EnrichmentQueueResult,
+  EnrichmentJobStatus,
+  ErrorResponse,
+} from 'alexandria-worker/types'
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+export { ENDPOINTS, API_ROUTES } from 'alexandria-worker/types'
+
+// ============================================================================
+// Zod Schemas (for runtime validation)
+// ============================================================================
+
+export {
+  SearchQuerySchema,
+  ProcessCoverSchema,
+  EnrichEditionSchema,
+  EnrichWorkSchema,
+  EnrichAuthorSchema,
+  QueueEnrichmentSchema,
+} from 'alexandria-worker/types'
