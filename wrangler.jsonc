@@ -339,21 +339,13 @@
   "//": "Using Cloudflare Secrets Store instead of per-Worker secrets",
   "//": "Store ID: b0562ac16fde468c8af12717a6c88400 (default_secrets_store)",
   "//": "========================================================================",
+  "//": "Sprint 2 Thin Client: GOOGLE_BOOKS_API_KEY and ISBNDB_API_KEY removed",
+  "//": "BooksTrack no longer calls external APIs directly (Alexandria handles them)",
   "secrets_store_secrets": [
     {
       "binding": "GEMINI_API_KEY",
       "store_id": "b0562ac16fde468c8af12717a6c88400",
       "secret_name": "google_gemini_oooebooks"
-    },
-    {
-      "binding": "GOOGLE_BOOKS_API_KEY",
-      "store_id": "b0562ac16fde468c8af12717a6c88400",
-      "secret_name": "Google_books_hardoooe"
-    },
-    {
-      "binding": "ISBNDB_API_KEY",
-      "store_id": "b0562ac16fde468c8af12717a6c88400",
-      "secret_name": "ISBNDB_API_KEY"
     }
   ],
   "//": "========================================================================",
