@@ -31,6 +31,7 @@ export interface Env {
   ENABLE_HONO_ROUTER?: string;
   ENABLE_UNIFIED_ENVELOPE?: string;
   ENABLE_REFACTORED_DOS?: string;
+  ENABLE_ALEXANDRIA_RPC?: string; // Sprint 1: Hono RPC migration (default: false)
 
   // Workflow Feature Flags (Issue #71)
   WORKFLOW_ROLLOUT_PERCENT?: string;
@@ -90,6 +91,14 @@ export interface Env {
   // Worker Secrets (via wrangler secret put)
   CF_ACCOUNT_ID?: string;
   CF_API_TOKEN?: string;
+
+  // Alexandria Integration (Worker Secrets)
+  ALEXANDRIA_CLIENT_ID?: string;
+  ALEXANDRIA_CLIENT_SECRET?: string;
+  ALEXANDRIA_BASE_URL?: string; // Fallback URL for local dev without service bindings
+
+  // Service Bindings (Hono RPC)
+  ALEXANDRIA?: Fetcher; // Service binding for sub-millisecond RPC to Alexandria worker
 
   // Alerting Configuration (secrets - use wrangler secret put)
   MAILGUN_API_KEY?: string;

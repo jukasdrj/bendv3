@@ -110,6 +110,18 @@
     "//": "Day 6: Optional dual-write validation (set to 'true' for dev/testing)",
     "VALIDATE_DUAL_WRITES": "false"
   },
+  "//": "========================================================================",
+  "//": "Service Bindings - Hono RPC (Sprint 1: Alexandria Migration)",
+  "//": "ALEXANDRIA service binding allows sub-millisecond internal RPC calls",
+  "//": "with full type safety via Hono RPC client",
+  "//": "========================================================================",
+  "services": [
+    {
+      "binding": "ALEXANDRIA",
+      "service": "alexandria-worker",
+      "entrypoint": "default"
+    }
+  ],
   "kv_namespaces": [
     {
       "binding": "CACHE",
