@@ -108,7 +108,14 @@
     "D1_READ_PERCENTAGE": "100",
     "D1_MIGRATION_BATCH_SIZE": "1000",
     "//": "Day 6: Optional dual-write validation (set to 'true' for dev/testing)",
-    "VALIDATE_DUAL_WRITES": "false"
+    "VALIDATE_DUAL_WRITES": "false",
+    "//": "========================================================================",
+    "//": "Alexandria Hono RPC Migration (Sprint 1 - ACTIVATED Dec 3, 2025)",
+    "//": "Enable sub-millisecond RPC calls to Alexandria via Service Binding",
+    "//": "Package: alexandria-worker@2.0.0",
+    "//": "Expected: 75x latency improvement (150ms → <2ms P95)",
+    "//": "========================================================================",
+    "ENABLE_ALEXANDRIA_RPC": "true"
   },
   "//": "========================================================================",
   "//": "Service Bindings - Hono RPC (Sprint 1: Alexandria Migration)",
