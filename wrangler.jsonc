@@ -110,22 +110,27 @@
     "//": "Day 6: Optional dual-write validation (set to 'true' for dev/testing)",
     "VALIDATE_DUAL_WRITES": "false",
     "//": "========================================================================",
-    "//": "Alexandria Hono RPC Migration (Sprint 1 - READY, AWAITING DEPLOYMENT)",
-    "//": "Enable sub-millisecond RPC calls to Alexandria via Service Binding",
+    "//": "Alexandria Hono RPC Migration (Sprint 1 - ACTIVATED Dec 3, 2025)",
+    "//": "Enables sub-millisecond RPC calls to Alexandria via Service Binding",
     "//": "Package: alexandria-worker@2.0.0",
     "//": "Expected: 75x latency improvement (150ms → <2ms P95)",
-    "//": "BLOCKED: Alexandria worker must be deployed first",
-    "//": "TO ACTIVATE: Deploy Alexandria, then set ENABLE_ALEXANDRIA_RPC='true'",
+    "//": "Status: ACTIVE - Service binding + feature flag enabled",
     "//": "========================================================================",
-    "ENABLE_ALEXANDRIA_RPC": "false"
+    "ENABLE_ALEXANDRIA_RPC": "true"
   },
   "//": "========================================================================",
-  "//": "Service Bindings - Hono RPC (Sprint 1: Alexandria Migration)",
-  "//": "ALEXANDRIA service binding allows sub-millisecond internal RPC calls",
+  "//": "Service Bindings - Hono RPC (Sprint 1: Alexandria Migration - ACTIVE)",
+  "//": "ALEXANDRIA service binding enables sub-millisecond internal RPC calls",
   "//": "with full type safety via Hono RPC client",
-  "//": "DISABLED: Awaiting Alexandria worker deployment",
-  "//": "TO ENABLE: Uncomment 'services' array after Alexandria is deployed",
+  "//": "Status: ACTIVE (Alexandria deployed Dec 3, 2025)",
   "//": "========================================================================",
+  "services": [
+    {
+      "binding": "ALEXANDRIA",
+      "service": "alexandria",
+      "entrypoint": "default"
+    }
+  ],
   "kv_namespaces": [
     {
       "binding": "CACHE",
