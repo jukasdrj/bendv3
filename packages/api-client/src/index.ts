@@ -3,6 +3,18 @@ import type { paths } from './schema'
 
 export type { paths, components } from './schema'
 
+// Export streaming utilities
+export {
+  createSSEStream,
+  createWebSocketStream,
+  useSSEStream_Example,
+  useWebSocketStream_Example,
+  type SSEProgressEvent,
+  type WebSocketProgressMessage,
+  type SSEStreamOptions,
+  type WebSocketStreamOptions,
+} from './streaming'
+
 /**
  * Create a type-safe BooksTrack API client
  *

@@ -99,9 +99,22 @@ BooksTrack uses a multi-tier job management architecture for async operations:
 - `failed` - Error occurred (includes error details)
 - `canceled` - User canceled job
 
-**Polling vs WebSocket:**
-- **WebSocket** (`/ws/progress?jobId=xxx`) - Real-time updates, preferred
+**Progress Streaming (Hybrid Architecture):**
+- **SSE** (`/api/v2/imports/:id/stream`) - CSV imports (one-way, auto-reconnect)
+- **WebSocket** (`/ws/progress?jobId=xxx`) - Batch enrichment, scanning (bidirectional, cancel support)
 - **HTTP Polling** (`GET /v1/jobs/:jobId/status`) - Fallback, rate-limited to 30 req/min
+
+**Why SSE for CSV imports?**
+- Browser-native reconnection with `Last-Event-ID`
+- Firewall-friendly (HTTP/1.1)
+- Automatic retry on connection loss
+- Books array included in completion event (iOS persistence)
+
+**Why WebSocket for batch operations?**
+- Bidirectional communication (ready acks, cancel messages)
+- Real-time progress during enrichment/scanning
+- Client can cancel mid-stream
+- Lower latency for interactive operations
 
 **D1 Integration (Issue #22):**
 - Dual-write enabled: KV + D1 for durability

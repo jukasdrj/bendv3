@@ -50,8 +50,10 @@
 ### Key V2 Endpoints
 - `GET /api/v2/search` - Unified search (replaces all V1 search)
 - `POST /api/v2/books/enrich` - Single book enrichment
-- `POST /api/v2/imports` - CSV import workflow
-- `GET /api/v2/imports/:id/stream` - SSE progress (replaces WebSocket)
+- `POST /api/v2/imports` - CSV import workflow (SSE streaming)
+- `GET /api/v2/imports/:id/stream` - SSE progress for CSV imports
+- `POST /v1/enrichment/batch` - Batch enrichment (WebSocket streaming)
+- `GET /ws/progress` - WebSocket progress for batch operations
 
 ---
 

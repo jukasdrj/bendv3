@@ -80,24 +80,39 @@ if (error) {
 }
 ```
 
-#### WebSocket Progress Tracking
+#### Progress Streaming (SSE vs WebSocket)
 
+BooksTrack uses **two streaming protocols** depending on the use case:
+
+- **SSE** for CSV imports (one-way, auto-reconnect)
+- **WebSocket** for batch enrichment (bidirectional, cancel support)
+
+**SSE Example (CSV Import):**
 ```typescript
-// Start batch job
-const { data: job } = await client.POST('/v1/enrich/batch', {
-  body: { workIds: [...] }
+const { data } = await client.POST('/api/v2/imports', { body: formData })
+const { sseUrl } = data.data
+
+const eventSource = new EventSource(sseUrl)
+eventSource.addEventListener('progress', (e) => {
+  const update = JSON.parse(e.data)
+  console.log(`Progress: ${update.progress * 100}%`)
+})
+```
+
+**WebSocket Example (Batch Enrichment):**
+```typescript
+const { data } = await client.POST('/v1/enrichment/batch', {
+  body: { books: [...], jobId: crypto.randomUUID() }
 })
 
-const jobId = job.data.jobId
-
-// Connect to WebSocket
-const ws = new WebSocket(`wss://api.oooefam.net/ws/progress?jobId=${jobId}`)
-
+const ws = new WebSocket(data.data.websocketUrl, [data.data.authToken])
 ws.onmessage = (event) => {
-  const progress = JSON.parse(event.data)
-  console.log(`Progress: ${progress.progress * 100}%`)
+  const message = JSON.parse(event.data)
+  console.log(`Progress: ${message.progress * 100}%`)
 }
 ```
+
+📖 **See [STREAMING_GUIDE.md](./STREAMING_GUIDE.md) for complete SSE/WebSocket documentation**
 
 #### Polling Job Status (Fallback)
 
