@@ -25,6 +25,7 @@
 import { enrichMultipleBooks } from "../services/enrichment.js"
 import { BookRepository } from "../repositories/book-repository.js"
 import type { Env } from "../types/env.js"
+import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js"
 import type {
   MessageBatch,
   ExecutionContext,
@@ -161,7 +162,7 @@ export async function processEnrichmentBatch(
 async function updateLibraryWithCover(
   isbn: string,
   coverUrl: string,
-  enrichmentResult: { works: any[]; editions: any[]; authors: any[] },
+  enrichmentResult: { works: WorkDTO[]; editions: EditionDTO[]; authors: AuthorDTO[] },
   env: Env,
 ): Promise<void> {
   try {
@@ -176,28 +177,24 @@ async function updateLibraryWithCover(
     }
 
     // Check if cover already exists (avoid unnecessary updates)
-    if (existingBook.coverMediumUrl || existingBook.coverLargeUrl) {
+    if (existingBook.coverSmallUrl || existingBook.coverMediumUrl || existingBook.coverLargeUrl) {
       console.log(`[Enrichment Queue] Book ${isbn} already has cover, skipping update`)
       return
     }
 
-    // Extract best available cover URLs from enrichment
-    const edition = enrichmentResult.editions?.[0]
-    const work = enrichmentResult.works?.[0]
-
     // Merge enriched data into existing book
     const updatedBook = {
       ...existingBook,
-      // Cover URLs (prefer edition over work)
-      coverSmallUrl: edition?.coverImageURL || work?.coverImageURL || coverUrl,
-      coverMediumUrl: edition?.coverImageURL || work?.coverImageURL || coverUrl,
-      coverLargeUrl: edition?.coverImageURL || work?.coverImageURL || coverUrl,
+      // Cover URLs (coverUrl already contains edition?.coverImageURL || work?.coverImageURL)
+      coverSmallUrl: coverUrl,
+      coverMediumUrl: coverUrl,
+      coverLargeUrl: coverUrl,
       // Update canonical metadata with enriched data
+      // Note: works.length > 0 is guaranteed by caller (line 95)
       canonicalMetadata: {
         ...existingBook.canonicalMetadata,
-        works: enrichmentResult.works.length > 0
-          ? enrichmentResult.works
-          : existingBook.canonicalMetadata?.works || [],
+        works: enrichmentResult.works,
+        // Preserve existing metadata if enrichment didn't find editions/authors
         editions: enrichmentResult.editions.length > 0
           ? enrichmentResult.editions
           : existingBook.canonicalMetadata?.editions || [],
