@@ -54,6 +54,18 @@ export async function getCached(key, env, ctx = null) {
   try {
     const { value, metadata } = await env.CACHE.getWithMetadata(key, "json");
     if (value) {
+      // Verify cache format is valid (v3.0+ format with data and cachedAt)
+      if (!value.data || !value.cachedAt) {
+        console.warn(`Invalid cache format for key ${key}, treating as miss`);
+        trackCacheEvent(env, ctx, {
+          type: "miss",
+          prefix,
+          key,
+          timestamp,
+        });
+        return null;
+      }
+
       // Track cache hit (non-blocking)
       trackCacheEvent(env, ctx, {
         type: "hit",

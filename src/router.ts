@@ -70,9 +70,10 @@ app.use("/api/*", validateApiContract({ strict: false, logFailures: true }));
 app.use("/v1/*", async (c, next) => {
   await next();
   // Add deprecation headers per RFC 8594
+  const baseUrl = new URL(c.req.url).origin;
   c.header("Deprecation", "true");
   c.header("Sunset", "Sat, 01 Mar 2026 00:00:00 GMT");
-  c.header("Link", '</api/v2>; rel="successor-version"');
+  c.header("Link", `<${baseUrl}/v3>; rel="successor-version"`);
   c.header("X-Deprecation-Notice", "V1 API deprecated. Migrate to V2/V3. Sunset: March 1, 2026");
 });
 
