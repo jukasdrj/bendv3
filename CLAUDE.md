@@ -153,6 +153,11 @@ npm run deploy                 # Deploy to production
 **Active Issues:** 0 (as of Dec 3, 2025) - ALL COMPLETE! 🎉
 
 **Recent Completions (Dec 3, 2025):**
+- ✅ **Alexandria Worker v2.1.0** - Updated package integration
+  - Added `CombinedSearchQuery` and `CombinedSearchResult` types
+  - New `/api/search/combined` endpoint support available
+  - `SearchResult.count` deprecated in favor of `pagination.total`
+  - Full backward compatibility maintained (BooksTrack uses ISBN lookups only)
 - ✅ **Cache Architecture v3.0** - Alexandria-first optimization
   - Removed R2 cold storage tier (Alexandria provides persistence)
   - Removed legacy cache format backward compatibility

@@ -1,8 +1,13 @@
 /**
  * Alexandria API Type Definitions
  *
- * Official types from alexandria-worker package (v2.0.0).
+ * Official types from alexandria-worker package (v2.1.0).
  * Provides full type safety for Hono RPC client and Alexandria API integration.
+ *
+ * **Version 2.1.0 Changes:**
+ * - Added `CombinedSearchQuery` and `CombinedSearchResult` types
+ * - Added new `/api/search/combined` endpoint support
+ * - `SearchResult.count` is deprecated in favor of `pagination.total`
  *
  * @see https://www.npmjs.com/package/alexandria-worker
  * @see docs/ALEXANDRIA_RPC_MIGRATION.md for migration guide
@@ -40,6 +45,7 @@ export type AlexandriaAppType = AlexandriaApp
 
 export type {
   SearchQuery,
+  CombinedSearchQuery,
   ProcessCover,
   EnrichEdition,
   EnrichWork,
@@ -53,6 +59,7 @@ export type {
 
 export type {
   SearchResult,
+  CombinedSearchResult,
   BookResult,
   HealthCheck,
   DatabaseStats,
@@ -78,6 +85,7 @@ export { ENDPOINTS, API_ROUTES } from 'alexandria-worker/types'
 
 export {
   SearchQuerySchema,
+  CombinedSearchQuerySchema,
   ProcessCoverSchema,
   EnrichEditionSchema,
   EnrichWorkSchema,
