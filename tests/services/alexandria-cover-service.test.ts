@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { processBookCover, selectBestCoverURL } from '../../src/services/alexandria-cover-service';
+import { processBookCover, selectBestCoverURL, queueCoverProcessing } from '../../src/services/alexandria-cover-service';
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -276,6 +276,135 @@ describe('Alexandria Cover Service', () => {
         const result = selectBestCoverURL(providers);
         expect(result.quality).toBe('missing');
         expect(result.url).toContain('placehold.co');
+    });
+  });
+
+  describe('queueCoverProcessing', () => {
+    const request = {
+      work_key: 'OL123W',
+      provider_url: 'http://example.com/image.jpg',
+      isbn: '9781234567890',
+    };
+
+    it('should queue via service binding if ALEXANDRIA.queue.send exists', async () => {
+      const mockQueueSend = vi.fn().mockResolvedValue(undefined);
+      const envWithBinding = {
+        ...env,
+        ALEXANDRIA: {
+          queue: {
+            send: mockQueueSend,
+          },
+        },
+      };
+
+      const result = await queueCoverProcessing(request, envWithBinding as any, 'high');
+
+      expect(result.queued).toBe(true);
+      expect(result.error).toBeUndefined();
+      expect(mockQueueSend).toHaveBeenCalledWith({
+        isbn: request.isbn,
+        work_key: request.work_key,
+        provider_url: request.provider_url,
+        priority: 'high',
+      });
+    });
+
+    it('should fall back to HTTP if service binding fails', async () => {
+      const mockQueueSend = vi.fn().mockRejectedValue(new Error('Queue send failed'));
+      const envWithBinding = {
+        ...env,
+        ALEXANDRIA: {
+          queue: {
+            send: mockQueueSend,
+          },
+        },
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true }),
+      });
+
+      const result = await queueCoverProcessing(request, envWithBinding as any, 'normal');
+
+      expect(result.queued).toBe(true);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://alexandria.ooheynerds.com/api/covers/queue',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            'CF-Access-Client-Id': 'test-client-id',
+            'CF-Access-Client-Secret': 'test-client-secret',
+          }),
+        })
+      );
+    });
+
+    it('should queue via HTTP if no service binding exists', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true }),
+      });
+
+      const result = await queueCoverProcessing(request, env as any, 'low');
+
+      expect(result.queued).toBe(true);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://alexandria.ooheynerds.com/api/covers/queue',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ ...request, priority: 'low' }),
+        })
+      );
+    });
+
+    it('should return error if HTTP request fails', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: async () => 'Server error',
+      });
+
+      const result = await queueCoverProcessing(request, env as any);
+
+      expect(result.queued).toBe(false);
+      expect(result.error).toContain('HTTP 500');
+    });
+
+    it('should return error if network request throws', async () => {
+      mockFetch.mockRejectedValue(new Error('Network error'));
+
+      const result = await queueCoverProcessing(request, env as any);
+
+      expect(result.queued).toBe(false);
+      expect(result.error).toBe('Network error');
+    });
+
+    it('should warn if credentials are missing', async () => {
+      const noCredsEnv = {};
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true }),
+      });
+
+      await queueCoverProcessing(request, noCredsEnv as any);
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Missing ALEXANDRIA_CLIENT_ID'));
+    });
+
+    it('should use default priority of "normal" if not specified', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true }),
+      });
+
+      await queueCoverProcessing(request, env as any);
+
+      const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callBody.priority).toBe('normal');
     });
   });
 });

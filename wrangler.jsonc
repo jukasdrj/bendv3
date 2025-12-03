@@ -288,9 +288,14 @@
         "queue": "author-warming-queue"
       },
       {
-        "//": "Sprint 3: Async book enrichment with vectorization",
+        "//": "Sprint 3: Async book enrichment with vectorization - Routes to Alexandria",
         "binding": "ENRICHMENT_QUEUE",
-        "queue": "enrichment-queue"
+        "queue": "alexandria-enrichment-queue"
+      },
+      {
+        "//": "Cover & Queue Architecture: Send cover requests to Alexandria",
+        "binding": "ALEXANDRIA_COVER_QUEUE",
+        "queue": "alexandria-cover-queue"
       }
     ],
     "consumers": [

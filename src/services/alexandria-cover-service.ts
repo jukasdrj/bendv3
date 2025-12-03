@@ -227,6 +227,88 @@ export async function processBookCover(
 }
 
 /**
+ * Queue cover processing request to Alexandria (async)
+ *
+ * For non-blocking cover downloads - use when you don't need immediate results.
+ * Sends messages directly to Alexandria's cover queue using Cloudflare Queues.
+ *
+ * @param request - Cover processing request
+ * @param env - Worker environment with ALEXANDRIA_COVER_QUEUE binding
+ * @param priority - Priority level ('high' | 'normal' | 'low')
+ * @returns Queue send result
+ */
+export async function queueCoverProcessing(
+  request: CoverProcessingRequest,
+  env: ExternalAPIEnv,
+  priority: 'high' | 'normal' | 'low' = 'normal',
+): Promise<{ queued: boolean; error?: string }> {
+  try {
+    // Check if ALEXANDRIA_COVER_QUEUE binding exists (preferred - direct queue access)
+    // @ts-ignore - ALEXANDRIA_COVER_QUEUE binding from wrangler.toml
+    if (env.ALEXANDRIA_COVER_QUEUE) {
+      try {
+        // @ts-ignore
+        await env.ALEXANDRIA_COVER_QUEUE.send({
+          isbn: request.isbn,
+          work_key: request.work_key,
+          provider_url: request.provider_url,
+          priority,
+          queued_at: new Date().toISOString(),
+        })
+
+        console.log(
+          `[CoverQueue] Queued ${request.isbn || request.work_key} via queue binding (priority: ${priority})`,
+        )
+        return { queued: true }
+      } catch (queueError: any) {
+        console.error(`[CoverQueue] Queue binding failed: ${queueError.message}`)
+        // Fall through to HTTP fallback
+      }
+    }
+
+    // Fallback: HTTP POST to Alexandria's queue endpoint (if queue binding not available)
+    console.warn('[CoverQueue] ALEXANDRIA_COVER_QUEUE binding not found, using HTTP fallback')
+    const queueUrl = `${ALEXANDRIA_BASE_URL}/api/covers/queue`
+    const clientId = env.ALEXANDRIA_CLIENT_ID
+    const clientSecret = env.ALEXANDRIA_CLIENT_SECRET
+
+    const headers: Record<string, string> = {
+      'User-Agent': ALEXANDRIA_USER_AGENT,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    }
+
+    // Add Cloudflare Access service token headers if available
+    if (clientId && clientSecret) {
+      headers['CF-Access-Client-Id'] = clientId
+      headers['CF-Access-Client-Secret'] = clientSecret
+    } else {
+      console.warn('[CoverQueue] Missing ALEXANDRIA_CLIENT_ID or CLIENT_SECRET')
+    }
+
+    const response = await fetch(queueUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...request, priority }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`HTTP ${response.status}: ${errorText}`)
+    }
+
+    console.log(
+      `[CoverQueue] Queued ${request.isbn || request.work_key} via HTTP (priority: ${priority})`,
+    )
+    return { queued: true }
+  } catch (error: any) {
+    console.error('[CoverQueue] Failed to queue:', error.message)
+    return { queued: false, error: error.message }
+  }
+}
+
+/**
  * Select best cover URL from available providers
  *
  * Priority order (highest to lowest quality):

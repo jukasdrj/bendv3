@@ -18,7 +18,7 @@
 
 import { BookRepository } from '../repositories/book-repository'
 import { enrichMultipleBooks } from './enrichment'
-import { processBookCover } from './alexandria-cover-service'
+import { processBookCover, queueCoverProcessing } from './alexandria-cover-service'
 import type { BookRecord } from '../types/database'
 import type { WorkDTO, EditionDTO, AuthorDTO } from '../types/canonical'
 
@@ -106,6 +106,7 @@ export async function findBookByISBN(
       const workKey = work.openLibraryWorkID || work.openLibraryID
       if (workKey && providerCoverURL) {
         try {
+          // Try immediate processing with short timeout (1 retry for fast fail)
           const alexandriaResult = await processBookCover(
             {
               work_key: workKey,
@@ -113,6 +114,7 @@ export async function findBookByISBN(
               isbn: isbn,
             },
             env as any,
+            1  // Only 1 retry (fast fail for immediate processing)
           )
 
           if (alexandriaResult.success) {
@@ -121,7 +123,7 @@ export async function findBookByISBN(
               medium: alexandriaResult.urls.medium,
               large: alexandriaResult.urls.large,
             }
-            
+
             // 🏈 THE TOUCHDOWN PLAY - Update externalResult with Alexandria URLs!
             // This ensures the client receives Alexandria-hosted cover URLs instead of provider URLs
             if (externalResult.works[0]) {
@@ -130,13 +132,39 @@ export async function findBookByISBN(
             if (externalResult.editions?.[0]) {
               externalResult.editions[0].coverImageURL = alexandriaResult.urls.large
             }
-            
-            console.log(`[BookService] ✅ Cover processed via Alexandria for ${isbn}`)
+
+            console.log(`[BookService] ✅ Cover processed immediately via Alexandria for ${isbn}`)
           } else {
-            console.warn(`[BookService] ⚠️ Alexandria cover processing failed, using provider URL`)
+            // Queue for background processing on failure
+            console.warn(`[BookService] ⚠️ Immediate cover processing failed, queuing for background processing`)
+            await queueCoverProcessing(
+              {
+                work_key: workKey,
+                provider_url: providerCoverURL,
+                isbn: isbn,
+              },
+              env as any,
+              'normal'  // Normal priority for background processing
+            )
+            console.log(`[BookService] 📬 Cover queued for background processing: ${isbn}`)
           }
         } catch (coverError) {
           console.error(`[BookService] Error processing cover via Alexandria:`, coverError)
+          // Queue for background processing as fallback
+          try {
+            await queueCoverProcessing(
+              {
+                work_key: workKey,
+                provider_url: providerCoverURL,
+                isbn: isbn,
+              },
+              env as any,
+              'normal'
+            )
+            console.log(`[BookService] 📬 Cover queued after error: ${isbn}`)
+          } catch (queueError) {
+            console.error(`[BookService] Failed to queue cover:`, queueError)
+          }
           // Fall back to provider URLs (already set in coverURLs)
         }
       }
