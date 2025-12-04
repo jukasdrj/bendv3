@@ -22,7 +22,8 @@ import {
   BookSchema,
   ErrorResponseSchema,
   SuccessResponseSchema,
-  ISBNSchema
+  ISBNSchema,
+  type EnrichedBook
 } from '@bookstrack/schemas'
 import { createProblemDetails } from '@bookstrack/schemas/errors'
 import { findBooksByTitle, findBookByISBN } from '../services/book-service'
@@ -276,7 +277,7 @@ for semantic search.`,
       const { enrichMultipleBooks } = await import('../services/enrichment')
       const { generateBookEmbedding, storeEmbedding } = await import('../services/embedding-service')
 
-      const enrichedBooks: any[] = []
+      const enrichedBooks: EnrichedBook[] = []
       const notFound: string[] = []
 
       // Process ISBNs in parallel batches to prevent timeout
@@ -286,7 +287,7 @@ for semantic search.`,
         try {
           // Check cache first
           const cacheKey = `book:isbn:${isbn}`
-          const cached = await c.env.CACHE.get(cacheKey, 'json') as any
+          const cached = await c.env.CACHE.get<EnrichedBook>(cacheKey, 'json')
 
           if (cached && (!includeEmbedding || cached.vectorized)) {
             return { success: true, book: cached }
