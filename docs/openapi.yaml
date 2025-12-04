@@ -2369,7 +2369,7 @@ paths:
         - Version compatibility (check API version)
         - Rate limit awareness (know limits before hitting them)
         - Deprecation notices (prepare for sunset endpoints)
-          
+
       responses:
         '200':
           description: API capabilities retrieved successfully
@@ -2378,6 +2378,10 @@ paths:
               schema:
                 type: object
                 properties:
+                  success:
+                    type: boolean
+                    description: Indicates whether the request was successful
+                    example: true
                   data:
                     type: object
                     properties:
@@ -2484,8 +2488,36 @@ paths:
                       - timestamp
                     additionalProperties: false
                 required:
+                  - success
                   - data
+                  - metadata
                 additionalProperties: false
+              example:
+                success: true
+                data:
+                  apiVersion: "2.1.0"
+                  features:
+                    - name: "text_search"
+                      enabled: true
+                      version: "1.0.0"
+                      endpoints:
+                        - "GET /api/v2/search?mode=text"
+                        - "GET /v1/search/title"
+                      rateLimit:
+                        requests: 100
+                        windowMs: 60000
+                  limits:
+                    maxBatchSize: 50
+                    maxCsvRows: 5000
+                    maxImageSizeMb: 10
+                    maxConcurrentJobs: 3
+                  deprecations:
+                    - endpoint: "GET /search/title"
+                      sunsetDate: "2026-03-01"
+                      replacement: "GET /v1/search/title"
+                metadata:
+                  timestamp: "2025-12-03T10:00:00Z"
+                  source: "capabilities-handler"
         '500':
           description: Internal server error
           content:

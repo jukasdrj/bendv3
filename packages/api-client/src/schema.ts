@@ -1028,7 +1028,52 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
+                        /**
+                         * @example {
+                         *       "success": true,
+                         *       "data": {
+                         *         "apiVersion": "2.1.0",
+                         *         "features": [
+                         *           {
+                         *             "name": "text_search",
+                         *             "enabled": true,
+                         *             "version": "1.0.0",
+                         *             "endpoints": [
+                         *               "GET /api/v2/search?mode=text",
+                         *               "GET /v1/search/title"
+                         *             ],
+                         *             "rateLimit": {
+                         *               "requests": 100,
+                         *               "windowMs": 60000
+                         *             }
+                         *           }
+                         *         ],
+                         *         "limits": {
+                         *           "maxBatchSize": 50,
+                         *           "maxCsvRows": 5000,
+                         *           "maxImageSizeMb": 10,
+                         *           "maxConcurrentJobs": 3
+                         *         },
+                         *         "deprecations": [
+                         *           {
+                         *             "endpoint": "GET /search/title",
+                         *             "sunsetDate": "2026-03-01",
+                         *             "replacement": "GET /v1/search/title"
+                         *           }
+                         *         ]
+                         *       },
+                         *       "metadata": {
+                         *         "timestamp": "2025-12-03T10:00:00Z",
+                         *         "source": "capabilities-handler"
+                         *       }
+                         *     }
+                         */
                         "application/json": {
+                            /**
+                             * @description Indicates whether the request was successful
+                             * @example true
+                             */
+                            success: boolean;
                             data: {
                                 apiVersion: string;
                                 features: {
@@ -1054,7 +1099,7 @@ export interface paths {
                                     replacement: string;
                                 }[];
                             };
-                            metadata?: {
+                            metadata: {
                                 /** Format: date-time */
                                 timestamp: string;
                                 cached?: boolean;

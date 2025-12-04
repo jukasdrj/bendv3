@@ -2,6 +2,15 @@
 
 All notable changes to the BooksTrack API Client will be documented in this file.
 
+## [1.1.2] - 2025-12-03
+
+### Fixed
+
+- **Capabilities Endpoint Decoding** - Added missing `success` field to OpenAPI spec
+  - Fixes iOS error: "The data couldn't be read because it is missing"
+  - OpenAPI spec now matches actual backend response format
+  - SDK auto-generated with correct schema including `success: boolean`
+
 ## [1.1.1] - 2025-12-03
 
 ### Added
