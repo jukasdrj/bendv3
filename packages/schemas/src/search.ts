@@ -11,8 +11,11 @@ import { SuccessResponseSchema, LinkSchema } from './response'
 
 /**
  * Search mode enumeration
+ *
+ * Note: Only 'text' mode is currently supported. Semantic and similar search
+ * modes will be added in a future release when Vectorize integration is complete.
  */
-export const SearchModeSchema = z.enum(['text', 'semantic', 'similar']).describe('Search mode')
+export const SearchModeSchema = z.enum(['text']).describe('Search mode')
 export type SearchMode = z.infer<typeof SearchModeSchema>
 
 /**
@@ -32,11 +35,11 @@ export const SearchRequestSchema = z.object({
   q: z.string()
     .min(1)
     .max(200)
-    .describe('Search query (e.g., "Harry Potter" or "similar:9780439708180")'),
+    .describe('Search query - book title to search for (e.g., "Harry Potter")'),
   mode: SearchModeSchema
     .default('text')
     .optional()
-    .describe('Search mode: text (title), semantic (vector), similar (by ISBN)'),
+    .describe('Search mode (currently only "text" supported for title search)'),
   // Offset-based pagination (default)
   page: z.coerce.number()
     .int()
