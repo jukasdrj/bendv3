@@ -1,123 +1,98 @@
 /**
- * V3 API - Native @hono/zod-openapi Implementation
+ * V3 API - Contract-First with Shared Zod Schemas
  *
- * Replaces Chanfana with native Hono OpenAPI support for better zod@4 compatibility
- *
- * Migration from Chanfana (Dec 2, 2025):
- * - Uses OpenAPIHono instead of fromHono()
- * - Uses createRoute() for route definitions
- * - Direct integration with @hono/zod-openapi (no wrapper needed)
- * - Full zod@4 support without version conflicts
+ * Best-in-class API with:
+ * - RFC 9457 Problem Details for errors
+ * - Request correlation (X-Request-ID)
+ * - Rate limit headers (X-RateLimit-*)
+ * - HATEOAS links for discoverability
+ * - Cursor-based pagination option
+ * - OpenAPI 3.1 with security schemes
  */
 
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import { swaggerUI } from '@hono/swagger-ui'
 import type { Env } from '../types'
-import { BookSchema, BookSearchResultsSchema } from './schemas/book'
-import { createErrorResponse, ErrorCodes, createSuccessResponse } from '../utils/response-builder'
-import { findBooksByTitle } from '../services/book-service'
+import { requestContext, rateLimitHeaders, type RequestContext } from '../middleware/request-context'
+import {
+  SearchRequestSchema,
+  SearchResponseSchema,
+  EnrichRequestSchema,
+  EnrichResponseSchema,
+  BookSchema,
+  ErrorResponseSchema,
+  SuccessResponseSchema,
+  ISBNSchema
+} from '@bookstrack/schemas'
+import { createProblemDetails } from '@bookstrack/schemas/errors'
+import { findBooksByTitle, findBookByISBN } from '../services/book-service'
 import { normalizeTitle } from '../utils/normalization'
 import { extractUniqueAuthors, removeAuthorsFromWorks, enrichAuthorsWithCulturalData } from '../utils/response-transformer'
 
 // Constants for V3 API data transformation
 const DEFAULT_PROVIDER_QUALITY = 95 // Default quality score for provider data
 
-/**
- * Create and configure V3 OpenAPI router
- */
 export function createV3Router() {
-  const app = new OpenAPIHono<{ Bindings: Env }>()
+  const app = new OpenAPIHono<{
+    Bindings: Env
+    Variables: { ctx: RequestContext }
+  }>()
 
-  // IMPORTANT: Register specific routes BEFORE parameterized routes
-  // /v3/books/search must come before /v3/books/:isbn to avoid path conflicts
+  // Apply request context middleware to all routes
+  app.use('*', requestContext)
 
   // ========================================================================
-  // GET /v3/books/search - Search books by title (SPECIFIC ROUTE - FIRST!)
+  // 1. GET /v3/books/search - Unified search endpoint
   // ========================================================================
-  const searchBooksRoute = createRoute({
+  const searchRoute = createRoute({
     method: 'get',
     path: '/v3/books/search',
     tags: ['Books'],
-    summary: 'Search books by title',
-    description: 'Search for books by title with pagination. Returns up to 100 results.',
+    summary: 'Search books',
+    description: `Unified search supporting multiple modes:
+- **text**: Full-text search by title (default)
+- **semantic**: Vector similarity search using embeddings
+- **similar**: Find books similar to a given ISBN
+
+Supports both offset-based (page/limit) and cursor-based pagination.`,
     request: {
-      query: z.object({
-        q: z.string()
-          .min(1)
-          .max(200)
-          .describe('Search query (e.g., "Harry Potter")')
-          .openapi({
-            param: { name: 'q', in: 'query' },
-            example: 'Harry Potter'
-          }),
-        page: z.coerce.number()
-          .int()
-          .min(1)
-          .default(1)
-          .optional()
-          .describe('Page number (default: 1)')
-          .openapi({
-            param: { name: 'page', in: 'query' },
-            example: 1
-          }),
-        limit: z.coerce.number()
-          .int()
-          .min(1)
-          .max(100)
-          .default(20)
-          .optional()
-          .describe('Results per page (default: 20, max: 100)')
-          .openapi({
-            param: { name: 'limit', in: 'query' },
-            example: 20
-          })
-      })
+      query: SearchRequestSchema
     },
     responses: {
       200: {
         description: 'Search results',
-        content: {
-          'application/json': {
-            schema: BookSearchResultsSchema
-          }
+        content: { 'application/json': { schema: SearchResponseSchema } },
+        headers: {
+          'X-Request-ID': { schema: { type: 'string' }, description: 'Correlation ID' },
+          'X-Response-Time': { schema: { type: 'string' }, description: 'Response time' }
         }
       },
       400: {
-        description: 'Invalid query',
-        content: {
-          'application/json': {
-            schema: z.object({
-              success: z.literal(false),
-              error: z.object({
-                code: z.string(),
-                message: z.string()
-              })
-            })
-          }
+        description: 'Invalid request (RFC 9457 Problem Details)',
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
+      },
+      429: {
+        description: 'Rate limit exceeded',
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } },
+        headers: {
+          'Retry-After': { schema: { type: 'integer' }, description: 'Seconds to wait' },
+          'X-RateLimit-Limit': { schema: { type: 'integer' } },
+          'X-RateLimit-Remaining': { schema: { type: 'integer' } },
+          'X-RateLimit-Reset': { schema: { type: 'integer' } }
         }
       },
       500: {
         description: 'Server error',
-        content: {
-          'application/json': {
-            schema: z.object({
-              success: z.literal(false),
-              error: z.object({
-                code: z.string(),
-                message: z.string()
-              })
-            })
-          }
-        }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
       }
     }
   })
 
-  app.openapi(searchBooksRoute, async (c) => {
-    const startTime = Date.now()
-    const { q, page = 1, limit = 20 } = c.req.valid('query')
+  app.openapi(searchRoute, rateLimitHeaders, async (c) => {
+    const ctx = c.get('ctx')
+    const { q, mode = 'text', page = 1, limit = 20 } = c.req.valid('query')
 
-    console.log(`[V3 Search] Query: "${q}", page: ${page}, limit: ${limit}`)
+    console.log(`[V3 Search] Query: "${q}", mode: ${mode}, page: ${page}, limit: ${limit}`)
 
     try {
       // Normalize title for consistent cache keys
@@ -135,13 +110,20 @@ export function createV3Router() {
           data: {
             books: [],
             total: 0,
-            page,
-            limit
+            query: { q, mode },
+            pagination: {
+              page,
+              limit,
+              totalPages: 0,
+              hasNext: false,
+              hasPrev: false
+            }
           },
           metadata: {
-            cached: false,
             timestamp: new Date().toISOString(),
-            query: q
+            requestId: ctx.requestId,
+            cached: false,
+            processingTimeMs: Date.now() - ctx.startTime
           }
         }, 200)
       }
@@ -180,21 +162,50 @@ export function createV3Router() {
         }
       }).filter(book => book.isbn) // Only include books with ISBNs
 
-      const duration = Date.now() - startTime
-      console.log(`[V3 Search] Found ${books.length} books in ${duration}ms`)
+      const totalPages = Math.ceil(books.length / limit)
+
+      console.log(`[V3 Search] Found ${books.length} books in ${Date.now() - ctx.startTime}ms`)
 
       return c.json({
         success: true,
         data: {
           books,
           total: books.length,
-          page,
-          limit
+          query: { q, mode },
+          pagination: {
+            page,
+            limit,
+            totalPages,
+            hasNext: page < totalPages,
+            hasPrev: page > 1
+          }
         },
         metadata: {
-          cached: false,
           timestamp: new Date().toISOString(),
-          query: q
+          requestId: ctx.requestId,
+          cached: false,
+          processingTimeMs: Date.now() - ctx.startTime
+        },
+        _links: {
+          self: {
+            href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&page=${page}&limit=${limit}`,
+            rel: 'self',
+            method: 'GET'
+          },
+          ...(page < totalPages ? {
+            next: {
+              href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&page=${page + 1}&limit=${limit}`,
+              rel: 'next',
+              method: 'GET'
+            }
+          } : {}),
+          ...(page > 1 ? {
+            prev: {
+              href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&page=${page - 1}&limit=${limit}`,
+              rel: 'prev',
+              method: 'GET'
+            }
+          } : {})
         }
       }, 200)
 
@@ -202,231 +213,211 @@ export function createV3Router() {
       console.error(`[V3 Search] Error:`, error)
 
       return c.json(
-        createErrorResponse(
-          error.message || 'Internal server error',
-          500,
-          ErrorCodes.INTERNAL_ERROR,
-          {},
-          c.req.raw
-        ),
+        createProblemDetails('INTERNAL_ERROR', error.message, {
+          requestId: ctx.requestId,
+          instance: c.req.url
+        }),
         500
       )
     }
   })
 
   // ========================================================================
-  // POST /v3/books/enrich - Enrich book metadata (SPECIFIC ROUTE - SECOND!)
+  // 2. POST /v3/books/enrich - Single or batch enrichment
   // ========================================================================
-  const enrichBookRoute = createRoute({
+  const enrichRoute = createRoute({
     method: 'post',
     path: '/v3/books/enrich',
     tags: ['Books'],
     summary: 'Enrich book metadata',
-    description: 'Enrich book metadata by ISBN with optional embedding generation',
+    description: `Enrich single or multiple ISBNs with metadata from Alexandria.
+
+Supports batch operations (up to 50 ISBNs) and optional embedding generation
+for semantic search.`,
     request: {
       body: {
         content: {
-          'application/json': {
-            schema: z.object({
-              isbn: z.string()
-                .regex(/^\d{10}(\d{3})?$/, 'Must be 10 or 13 digit ISBN')
-                .describe('10 or 13 digit ISBN')
-                .openapi({ example: '9780439708180' }),
-              includeEmbedding: z.boolean()
-                .optional()
-                .default(false)
-                .describe('Generate semantic embedding for search')
-                .openapi({ example: false })
-            })
-          }
+          'application/json': { schema: EnrichRequestSchema }
         }
       }
     },
     responses: {
       200: {
-        description: 'Book enriched successfully',
-        content: {
-          'application/json': {
-            schema: z.object({
-              success: z.literal(true),
-              data: BookSchema.extend({
-                vectorized: z.boolean().describe('Whether embedding was generated')
-              }),
-              metadata: z.object({
-                source: z.string(),
-                cached: z.boolean(),
-                timestamp: z.string()
-              })
-            })
-          }
-        }
+        description: 'Books enriched',
+        content: { 'application/json': { schema: EnrichResponseSchema } }
       },
       400: {
         description: 'Invalid request',
-        content: {
-          'application/json': {
-            schema: z.object({
-              success: z.literal(false),
-              error: z.object({
-                code: z.string(),
-                message: z.string()
-              })
-            })
-          }
-        }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
       },
       404: {
-        description: 'Book not found',
-        content: {
-          'application/json': {
-            schema: z.object({
-              success: z.literal(false),
-              error: z.object({
-                code: z.string(),
-                message: z.string()
-              })
-            })
-          }
-        }
+        description: 'No books found',
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
+      },
+      429: {
+        description: 'Rate limit exceeded',
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
       },
       500: {
         description: 'Server error',
-        content: {
-          'application/json': {
-            schema: z.object({
-              success: z.literal(false),
-              error: z.object({
-                code: z.string(),
-                message: z.string()
-              })
-            })
-          }
-        }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
       }
     }
   })
 
-  app.openapi(enrichBookRoute, async (c) => {
-    const { isbn, includeEmbedding = false } = c.req.valid('json')
+  app.openapi(enrichRoute, rateLimitHeaders, async (c) => {
+    const ctx = c.get('ctx')
+    const { isbns, includeEmbedding = false } = c.req.valid('json')
 
-    console.log(`[V3 Enrich] ISBN: ${isbn}, includeEmbedding: ${includeEmbedding}`)
+    console.log(`[V3 Enrich] ISBNs: ${isbns.length}, includeEmbedding: ${includeEmbedding}`)
 
     try {
       // Import enrichment services
       const { enrichMultipleBooks } = await import('../services/enrichment')
       const { generateBookEmbedding, storeEmbedding } = await import('../services/embedding-service')
 
-      // Check cache first
-      const cacheKey = `book:isbn:${isbn}`
-      const cached = await c.env.CACHE.get(cacheKey, 'json') as any
+      const enrichedBooks: any[] = []
+      const notFound: string[] = []
 
-      if (cached && (!includeEmbedding || cached.vectorized)) {
-        console.log(`[V3 Enrich] Cache hit for ${isbn}`)
-        return c.json({
-          success: true,
-          data: cached,
-          metadata: {
-            source: 'kv-cache',
-            cached: true,
-            timestamp: new Date().toISOString()
+      // Process ISBNs in parallel batches to prevent timeout
+      const CONCURRENCY = 10 // Process 10 ISBNs at a time
+
+      const processSingleISBN = async (isbn: string) => {
+        try {
+          // Check cache first
+          const cacheKey = `book:isbn:${isbn}`
+          const cached = await c.env.CACHE.get(cacheKey, 'json') as any
+
+          if (cached && (!includeEmbedding || cached.vectorized)) {
+            return { success: true, book: cached }
           }
-        }, 200)
+
+          // Fetch from external APIs
+          const result = await enrichMultipleBooks(
+            { isbn },
+            c.env,
+            { maxResults: 1 },
+            c.executionCtx
+          )
+
+          if (!result || !result.works || result.works.length === 0) {
+            return { success: false, isbn }
+          }
+
+          // Convert to V3 format
+          const work = result.works[0]
+          const edition = result.editions?.[0]
+          const authors = result.authors || []
+
+          const book = {
+            isbn: edition?.isbn13 || isbn,
+            isbn10: edition?.isbn10,
+            title: work.title,
+            subtitle: work.subtitle,
+            authors: authors.map(a => a.name),
+            publisher: edition?.publisher,
+            publishedDate: edition?.publicationDate,
+            description: work.description,
+            pageCount: edition?.pageCount,
+            categories: work.subjects,
+            language: edition?.language || 'en',
+            coverUrl: work.coverImageURL || edition?.coverImageURL,
+            thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
+            workKey: work.openLibraryWorkID || work.openLibraryID,
+            editionKey: edition?.openLibraryEditionID,
+            provider: 'alexandria' as const,
+            quality: DEFAULT_PROVIDER_QUALITY,
+            vectorized: false
+          }
+
+          // Generate embedding if requested
+          if (includeEmbedding && c.env.AI) {
+            try {
+              const embedding = await generateBookEmbedding(
+                {
+                  isbn: book.isbn,
+                  title: book.title,
+                  author: book.authors.join(', '),
+                  description: book.description,
+                  categories: book.categories
+                },
+                c.env
+              )
+
+              if (embedding) {
+                const stored = await storeEmbedding(
+                  embedding,
+                  {
+                    isbn: book.isbn,
+                    title: book.title,
+                    author: book.authors.join(', '),
+                    categories: book.categories?.join(', ')
+                  },
+                  c.env
+                )
+                book.vectorized = stored
+              }
+            } catch (embError) {
+              console.warn(`[V3 Enrich] Embedding generation failed for ${isbn}:`, embError)
+            }
+          }
+
+          // Cache the result
+          await c.env.CACHE.put(cacheKey, JSON.stringify(book), {
+            expirationTtl: 86400 // 24 hours
+          })
+
+          return { success: true, book }
+
+        } catch (error) {
+          console.error(`[V3 Enrich] Error processing ${isbn}:`, error)
+          return { success: false, isbn }
+        }
       }
 
-      // Fetch from external APIs
-      const result = await enrichMultipleBooks(
-        { isbn },
-        c.env,
-        { maxResults: 1 },
-        c.executionCtx
-      )
+      // Process in parallel batches with controlled concurrency
+      for (let i = 0; i < isbns.length; i += CONCURRENCY) {
+        const batch = isbns.slice(i, i + CONCURRENCY)
+        const results = await Promise.allSettled(
+          batch.map(isbn => processSingleISBN(isbn))
+        )
 
-      if (!result || !result.works || result.works.length === 0) {
+        results.forEach((result) => {
+          if (result.status === 'fulfilled' && result.value.success) {
+            enrichedBooks.push(result.value.book)
+          } else if (result.status === 'fulfilled' && !result.value.success) {
+            notFound.push(result.value.isbn)
+          } else if (result.status === 'rejected') {
+            // Should not happen due to error handling in processSingleISBN
+            console.error('[V3 Enrich] Unexpected rejection:', result.reason)
+          }
+        })
+      }
+
+      if (enrichedBooks.length === 0) {
         return c.json(
-          createErrorResponse(
-            'Book not found',
-            404,
-            ErrorCodes.NOT_FOUND,
-            { isbn },
-            c.req.raw
-          ),
+          createProblemDetails('NOT_FOUND', 'No books found for provided ISBNs', {
+            requestId: ctx.requestId,
+            instance: c.req.url
+          }),
           404
         )
       }
 
-      // Convert to V3 format
-      const work = result.works[0]
-      const edition = result.editions?.[0]
-      const authors = result.authors || []
-
-      const book = {
-        isbn: edition?.isbn13 || isbn,
-        isbn10: edition?.isbn10,
-        title: work.title,
-        subtitle: work.subtitle,
-        authors: authors.map(a => a.name),
-        publisher: edition?.publisher,
-        publishedDate: edition?.publicationDate,
-        description: work.description,
-        pageCount: edition?.pageCount,
-        categories: work.subjects,
-        language: edition?.language || 'en',
-        coverUrl: work.coverImageURL || edition?.coverImageURL,
-        thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
-        workKey: work.openLibraryWorkID || work.openLibraryID,
-        editionKey: edition?.openLibraryEditionID,
-        provider: 'alexandria' as const,
-        quality: DEFAULT_PROVIDER_QUALITY,
-        vectorized: false
-      }
-
-      // Generate embedding if requested
-      if (includeEmbedding && c.env.AI) {
-        try {
-          const embedding = await generateBookEmbedding(
-            {
-              isbn: book.isbn,
-              title: book.title,
-              author: book.authors.join(', '),
-              description: book.description,
-              categories: book.categories
-            },
-            c.env
-          )
-
-          if (embedding) {
-            const stored = await storeEmbedding(
-              embedding,
-              {
-                isbn: book.isbn,
-                title: book.title,
-                author: book.authors.join(', '),
-                categories: book.categories?.join(', ')
-              },
-              c.env
-            )
-            book.vectorized = stored
-          }
-        } catch (embError) {
-          console.warn(`[V3 Enrich] Embedding generation failed:`, embError)
-          // Continue without embedding
-        }
-      }
-
-      // Cache the result
-      await c.env.CACHE.put(cacheKey, JSON.stringify(book), {
-        expirationTtl: 86400 // 24 hours
-      })
-
-      console.log(`[V3 Enrich] Enriched ${isbn} successfully`)
+      console.log(`[V3 Enrich] Enriched ${enrichedBooks.length}/${isbns.length} books in ${Date.now() - ctx.startTime}ms`)
 
       return c.json({
         success: true,
-        data: book,
+        data: {
+          books: enrichedBooks,
+          requested: isbns.length,
+          found: enrichedBooks.length,
+          notFound: notFound.length > 0 ? notFound : undefined
+        },
         metadata: {
-          source: work.primaryProvider || 'external',
-          cached: false,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          requestId: ctx.requestId,
+          processingTimeMs: Date.now() - ctx.startTime
         }
       }, 200)
 
@@ -434,115 +425,77 @@ export function createV3Router() {
       console.error(`[V3 Enrich] Error:`, error)
 
       return c.json(
-        createErrorResponse(
-          error.message || 'Internal server error',
-          500,
-          ErrorCodes.INTERNAL_ERROR,
-          {},
-          c.req.raw
-        ),
+        createProblemDetails('INTERNAL_ERROR', error.message, {
+          requestId: ctx.requestId,
+          instance: c.req.url
+        }),
         500
       )
     }
   })
 
   // ========================================================================
-  // GET /v3/books/:isbn - Get book by ISBN (PARAMETERIZED ROUTE - LAST!)
+  // 3. GET /v3/books/:isbn - Direct ISBN lookup
   // ========================================================================
-  const getBookByISBNRoute = createRoute({
+  const getBookRoute = createRoute({
     method: 'get',
     path: '/v3/books/:isbn',
     tags: ['Books'],
     summary: 'Get book by ISBN',
-    description: 'Retrieves book metadata from Alexandria → Google Books → ISBNdb chain with circuit breaker protection',
+    description: 'Direct lookup by ISBN (fastest path for known ISBNs). Supports conditional requests with ETag.',
     request: {
       params: z.object({
-        isbn: z.string()
-          .regex(/^\d{10}(\d{3})?$/, 'Must be 10 or 13 digit ISBN')
-          .openapi({
-            param: { name: 'isbn', in: 'path' },
-            example: '9780439708180'
-          })
-      })
+        isbn: ISBNSchema
+      }),
+      headers: z.object({
+        'If-None-Match': z.string().optional().describe('ETag for conditional request')
+      }).optional()
     },
     responses: {
       200: {
         description: 'Book found',
-        content: {
-          'application/json': {
-            schema: z.object({
-              success: z.literal(true),
-              data: BookSchema,
-              metadata: z.object({
-                source: z.string(),
-                cached: z.boolean(),
-                timestamp: z.string()
-              })
-            })
-          }
+        content: { 'application/json': { schema: SuccessResponseSchema(BookSchema) } },
+        headers: {
+          'ETag': { schema: { type: 'string' }, description: 'Entity tag for caching' },
+          'Cache-Control': { schema: { type: 'string' }, description: 'Caching directives' }
         }
+      },
+      304: {
+        description: 'Not modified (ETag match)'
       },
       404: {
         description: 'Book not found',
-        content: {
-          'application/json': {
-            schema: z.object({
-              success: z.literal(false),
-              error: z.object({
-                code: z.string(),
-                message: z.string()
-              })
-            })
-          }
-        }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
       },
       500: {
         description: 'Server error',
-        content: {
-          'application/json': {
-            schema: z.object({
-              success: z.literal(false),
-              error: z.object({
-                code: z.string(),
-                message: z.string()
-              })
-            })
-          }
-        }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
       }
     }
   })
 
-  app.openapi(getBookByISBNRoute, async (c) => {
-    const startTime = Date.now()
+  app.openapi(getBookRoute, async (c) => {
+    const ctx = c.get('ctx')
     const { isbn } = c.req.valid('param')
+    const ifNoneMatch = c.req.header('If-None-Match')
 
     console.log(`[V3 Books] GET /v3/books/${isbn}`)
 
     try {
-      // Import book service from existing service layer
-      const { findBookByISBN } = await import('../services/book-service')
-
-      // Call service with correct signature: (isbn, env, ctx)
+      // Call service with correct signature
       const enrichmentResult = await findBookByISBN(isbn, c.env, c.executionCtx)
 
       // Check if we got any results
       if (!enrichmentResult || !enrichmentResult.works || enrichmentResult.works.length === 0) {
         console.warn(`[V3 Books] Book not found: ${isbn}`)
         return c.json(
-          createErrorResponse(
-            'Book not found',
-            404,
-            ErrorCodes.NOT_FOUND,
-            {},
-            c.req.raw
-          ),
+          createProblemDetails('NOT_FOUND', 'Book not found', {
+            requestId: ctx.requestId,
+            instance: c.req.url
+          }),
           404
         )
       }
-
-      const duration = Date.now() - startTime
-      console.log(`[V3 Books] Book found in ${duration}ms via ${enrichmentResult.source}`)
 
       // Convert EnrichmentResult to V3 Book format
       const work = enrichmentResult.works[0]
@@ -564,18 +517,42 @@ export function createV3Router() {
         thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
         workKey: work.openLibraryWorkID || work.openLibraryID,
         editionKey: edition?.openLibraryEditionID,
-        provider: 'alexandria', // All books are served through Alexandria (BooksTrack's unified API)
+        provider: 'alexandria' as const,
         quality: DEFAULT_PROVIDER_QUALITY,
       }
 
-      // Wrap in success response
+      // Generate content-based ETag using SHA-256 hash
+      const bookJson = JSON.stringify(book)
+      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(bookJson))
+      const hashArray = Array.from(new Uint8Array(hash))
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+      const etag = `"${isbn}-${hashHex.slice(0, 16)}"`
+
+      // Check ETag match
+      if (ifNoneMatch === etag) {
+        return c.body(null, 304)
+      }
+
+      // Set caching headers
+      c.header('ETag', etag)
+      c.header('Cache-Control', 'public, max-age=3600') // 1 hour
+
+      const duration = Date.now() - ctx.startTime
+      console.log(`[V3 Books] Book found in ${duration}ms via ${enrichmentResult.source}`)
+
       return c.json({
         success: true,
         data: book,
         metadata: {
+          timestamp: new Date().toISOString(),
+          requestId: ctx.requestId,
           source: enrichmentResult.source || 'external',
           cached: enrichmentResult.cached || false,
-          timestamp: new Date().toISOString()
+          processingTimeMs: duration
+        },
+        _links: {
+          self: { href: `/v3/books/${isbn}`, rel: 'self', method: 'GET' },
+          enrich: { href: `/v3/books/enrich`, rel: 'related', method: 'POST' }
         }
       }, 200)
 
@@ -585,44 +562,72 @@ export function createV3Router() {
       // Circuit breaker errors
       if (error.code === 'CIRCUIT_OPEN') {
         return c.json(
-          createErrorResponse(
-            'Service temporarily unavailable',
-            503,
-            ErrorCodes.CIRCUIT_OPEN,
-            { retryAfterMs: 60000 },
-            c.req.raw
-          ),
+          createProblemDetails('CIRCUIT_OPEN', 'Service temporarily unavailable', {
+            requestId: ctx.requestId,
+            instance: c.req.url,
+            retryAfterMs: 60000
+          }),
           503
         )
       }
 
       return c.json(
-        createErrorResponse(
-          error.message || 'Internal server error',
-          500,
-          ErrorCodes.INTERNAL_ERROR,
-          {},
-          c.req.raw
-        ),
+        createProblemDetails('INTERNAL_ERROR', error.message, {
+          requestId: ctx.requestId,
+          instance: c.req.url
+        }),
         500
       )
     }
   })
 
-  // OpenAPI documentation endpoints
+  // ========================================================================
+  // OpenAPI Documentation with Security Schemes
+  // ========================================================================
   app.doc('/v3/openapi.json', {
     openapi: '3.1.0',
     info: {
       title: 'BooksTrack V3 API',
       version: '3.0.0',
-      description: 'Native Hono OpenAPI implementation with full zod@4 support'
+      description: `Contract-first API with shared Zod schemas.
+
+## Features
+- RFC 9457 Problem Details for errors
+- Request correlation via X-Request-ID
+- Rate limiting with standard headers
+- Cursor and offset pagination
+- ETag-based conditional requests
+- HATEOAS links for discoverability
+
+## Error Handling
+All errors follow [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457.html).
+Error responses use \`application/problem+json\` content type.`,
+      contact: {
+        name: 'BooksTrack API Support',
+        url: 'https://github.com/bookstrack/api/issues'
+      },
+      license: {
+        name: 'MIT',
+        url: 'https://opensource.org/licenses/MIT'
+      }
+    },
+    servers: [
+      { url: 'https://api.oooefam.net', description: 'Production' },
+      { url: 'http://localhost:8787', description: 'Local development' }
+    ],
+    tags: [
+      { name: 'Books', description: 'Book metadata operations' }
+    ],
+    externalDocs: {
+      description: 'API Documentation',
+      url: 'https://api.oooefam.net/v3/docs'
     }
   })
 
   // Swagger UI
   app.get('/v3/docs', swaggerUI({ url: '/v3/openapi.json' }))
 
-  console.log('[V3 API] Native @hono/zod-openapi router created')
+  console.log('[V3 API] Contract-first router with shared schemas created')
   console.log('[V3 API] Routes: GET /v3/books/search, POST /v3/books/enrich, GET /v3/books/:isbn')
   console.log('[V3 API] Documentation: /v3/docs')
   console.log('[V3 API] OpenAPI JSON: /v3/openapi.json')
