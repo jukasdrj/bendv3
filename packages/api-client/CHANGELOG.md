@@ -2,6 +2,20 @@
 
 All notable changes to the BooksTrack API Client will be documented in this file.
 
+## [1.1.1] - 2025-12-03
+
+### Added
+
+- **Job Cancellation Endpoint** - `DELETE /api/v2/jobs/{jobId}/cancel`
+  - Properly documented with Bearer token authentication requirement
+  - SDK now includes typed cancel endpoint with auth headers
+  - Fixes 401 errors when iOS app attempts to cancel completed jobs
+
+### Fixed
+
+- OpenAPI spec now documents cancel endpoint authentication requirements
+- Added `securitySchemes.BearerAuth` for job operation authentication
+
 ## [1.1.0] - 2025-12-03
 
 ### Added

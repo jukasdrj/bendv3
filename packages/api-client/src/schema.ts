@@ -103,7 +103,10 @@ export interface paths {
         };
         /**
          * Search for a book by ISBN
-         * @description Search for a book by ISBN-10 or ISBN-13 (digits only, no hyphens).
+         * @deprecated
+         * @description **DEPRECATED:** Use `POST /api/v2/books/enrich` instead. Sunset: March 1, 2026.
+         *     ---
+         *     Search for a book by ISBN-10 or ISBN-13 (digits only, no hyphens).
          *
          *     Returns comprehensive book data including:
          *     - Works: Abstract creative works (title, description, subjects)
@@ -619,7 +622,10 @@ export interface paths {
         };
         /**
          * Search for books by title
-         * @description Search for books by title using multi-provider orchestration.
+         * @deprecated
+         * @description **DEPRECATED:** Use `GET /api/v2/search?mode=text` instead. Sunset: March 1, 2026.
+         *     ---
+         *     Search for books by title using multi-provider orchestration.
          *
          *     Returns up to 20 results by default, each including:
          *     - Works: Abstract creative works (title, description, subjects)
@@ -1097,10 +1103,895 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/trending/searches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get trending search queries
+         * @description Returns popular search queries based on user activity.
+         *     Falls back to curated list if no analytics data available.
+         *
+         *     **Query Parameters:**
+         *     - `limit`: Number of results (1-20, default 10)
+         *     - `timeRange`: Time window - 'day', 'week', or 'month' (default 'week')
+         *
+         *     **Response Format (Unified ResponseEnvelope):**
+         *     ```json
+         *     {
+         *       "success": true,
+         *       "data": {
+         *         "searches": [
+         *           { "query": "Harry Potter", "searchCount": 1250, "category": "Fantasy" }
+         *         ],
+         *         "count": 10,
+         *         "totalAvailable": 20,
+         *         "timeRange": "week"
+         *       },
+         *       "metadata": {
+         *         "timestamp": "2025-12-01T00:00:00Z",
+         *         "source": "curated",
+         *         "cached": false
+         *       }
+         *     }
+         *     ```
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Number of results to return (1-20) */
+                    limit?: number;
+                    /** @description Time window for trending data */
+                    timeRange?: "day" | "week" | "month";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Trending searches retrieved successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example true */
+                            success: boolean;
+                            data: {
+                                searches: {
+                                    /** @example Harry Potter */
+                                    query: string;
+                                    /** @example 1250 */
+                                    searchCount: number;
+                                    /** @example Fantasy */
+                                    category?: string;
+                                }[];
+                                /** @example 10 */
+                                count: number;
+                                /** @example 20 */
+                                totalAvailable: number;
+                                /** @example week */
+                                timeRange: string;
+                            };
+                            metadata: {
+                                /** Format: date-time */
+                                timestamp?: string;
+                                /** @enum {string} */
+                                source?: "kv-cache" | "curated" | "analytics";
+                                cached?: boolean;
+                                /** Format: date-time */
+                                generatedAt?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/trending/books": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get trending books
+         * @description Returns trending books based on user activity and popularity.
+         *     Falls back to curated list if no analytics data available.
+         *
+         *     **Query Parameters:**
+         *     - `limit`: Number of results (1-20, default 10)
+         *     - `timeRange`: Time window - 'day', 'week', or 'month' (default 'week')
+         *
+         *     **Response Format (Unified ResponseEnvelope):**
+         *     ```json
+         *     {
+         *       "success": true,
+         *       "data": {
+         *         "books": [
+         *           {
+         *             "isbn": "9781649374042",
+         *             "title": "Fourth Wing",
+         *             "authors": ["Rebecca Yarros"],
+         *             "coverUrl": "https://...",
+         *             "trendScore": 98,
+         *             "reason": "TikTok sensation"
+         *           }
+         *         ],
+         *         "count": 10,
+         *         "totalAvailable": 20,
+         *         "timeRange": "week"
+         *       },
+         *       "metadata": { ... }
+         *     }
+         *     ```
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Number of results to return (1-20) */
+                    limit?: number;
+                    /** @description Time window for trending data */
+                    timeRange?: "day" | "week" | "month";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Trending books retrieved successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example true */
+                            success: boolean;
+                            data: {
+                                books: {
+                                    /** @example 9781649374042 */
+                                    isbn: string;
+                                    /** @example Fourth Wing */
+                                    title: string;
+                                    /**
+                                     * @example [
+                                     *       "Rebecca Yarros"
+                                     *     ]
+                                     */
+                                    authors: string[];
+                                    /** Format: uri */
+                                    coverUrl?: string;
+                                    /** @example 98 */
+                                    trendScore: number;
+                                    /** @example TikTok sensation */
+                                    reason?: string;
+                                }[];
+                                /** @example 10 */
+                                count: number;
+                                /** @example 20 */
+                                totalAvailable: number;
+                                /** @example week */
+                                timeRange: string;
+                            };
+                            metadata: {
+                                /** Format: date-time */
+                                timestamp?: string;
+                                /** @enum {string} */
+                                source?: "kv-cache" | "d1-database" | "curated";
+                                cached?: boolean;
+                                /** Format: date-time */
+                                generatedAt?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/recommendations/weekly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get weekly book recommendations
+         * @description Returns global weekly book recommendations.
+         *     Non-personalized curated picks generated every Sunday at midnight UTC.
+         *
+         *     **Query Parameters:**
+         *     - `limit`: Number of results (1-20, default 10)
+         *
+         *     **Response Format (Unified ResponseEnvelope):**
+         *     ```json
+         *     {
+         *       "success": true,
+         *       "data": {
+         *         "weekOf": "2025-12-01",
+         *         "recommendations": [
+         *           {
+         *             "isbn": "9780439708180",
+         *             "title": "Harry Potter and the Sorcerer's Stone",
+         *             "author": "J.K. Rowling",
+         *             "coverUrl": "https://...",
+         *             "reason": "Classic fantasy adventure"
+         *           }
+         *         ],
+         *         "count": 10,
+         *         "totalAvailable": 20
+         *       },
+         *       "metadata": {
+         *         "timestamp": "2025-12-01T00:00:00Z",
+         *         "source": "kv-cache",
+         *         "cached": true,
+         *         "generatedAt": "2025-11-30T00:00:00Z"
+         *       }
+         *     }
+         *     ```
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Number of recommendations to return (1-20) */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Weekly recommendations retrieved successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example true */
+                            success: boolean;
+                            data: {
+                                /**
+                                 * Format: date
+                                 * @example 2025-12-01
+                                 */
+                                weekOf: string;
+                                recommendations: {
+                                    /** @example 9780439708180 */
+                                    isbn: string;
+                                    /** @example Harry Potter and the Sorcerer's Stone */
+                                    title: string;
+                                    /** @example J.K. Rowling */
+                                    author: string;
+                                    /** Format: uri */
+                                    coverUrl?: string;
+                                    /** @example Classic fantasy adventure */
+                                    reason: string;
+                                    score?: number;
+                                }[];
+                                /** @example 10 */
+                                count: number;
+                                /** @example 20 */
+                                totalAvailable: number;
+                                /** @description Info message when no recommendations available */
+                                message?: string;
+                            };
+                            metadata: {
+                                /** Format: date-time */
+                                timestamp?: string;
+                                /** @enum {string} */
+                                source?: "kv-cache" | "d1-database" | "none";
+                                cached?: boolean;
+                                /** Format: date-time */
+                                generatedAt?: string;
+                                /** Format: date-time */
+                                expiresAt?: string;
+                                /** Format: date-time */
+                                nextGenerationTime?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unified search endpoint
+         * @description Unified search supporting text, semantic, and hybrid modes.
+         *
+         *     **Search Modes:**
+         *     - `text` (default): Traditional keyword matching via OpenLibrary
+         *     - `semantic`: AI-powered vector search using Cloudflare Vectorize
+         *     - `hybrid`: Combines both (future enhancement, currently delegates to semantic)
+         *
+         *     **Examples:**
+         *     ```bash
+         *     # Text search (default)
+         *     curl "https://api.oooefam.net/api/v2/search?q=harry%20potter"
+         *
+         *     # Semantic search
+         *     curl "https://api.oooefam.net/api/v2/search?q=wizards+magic+school&mode=semantic"
+         *     ```
+         *
+         *     **Rate Limits:** 100 requests/minute per IP
+         */
+        get: operations["searchBooks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create import job
+         * @description Initiate an asynchronous import job for CSV files or bookshelf photos.
+         *
+         *     **Supported File Types:**
+         *     - CSV files: Book metadata (Title, Author, ISBN, etc.)
+         *     - Image files: Bookshelf photos for AI detection (JPEG, PNG)
+         *
+         *     **File Limits:**
+         *     - Max size: 8MB (fits Gemini 2M token context)
+         *     - CSV: Up to 1000 rows recommended
+         *
+         *     **Processing Flow:**
+         *     1. File validation (format, size)
+         *     2. Generate jobId and authToken
+         *     3. Schedule async processing via Durable Object
+         *     4. Return job info with SSE stream URL
+         *
+         *     **Progress Tracking (Recommended):**
+         *     Use SSE stream: `GET /api/v2/imports/{jobId}/stream`
+         *
+         *     **Example:**
+         *     ```bash
+         *     curl -X POST https://api.oooefam.net/api/v2/imports \
+         *       -F "file=@books.csv"
+         *     ```
+         */
+        post: operations["createImportJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/imports/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get import job status
+         * @description Poll job status for CSV/photo import.
+         *
+         *     **Prefer SSE:** Use `GET /api/v2/imports/{jobId}/stream` for real-time updates.
+         *
+         *     **Job States:**
+         *     - `initialized`: Job created, waiting to start
+         *     - `processing`: Actively processing items
+         *     - `completed`: Successfully finished
+         *     - `failed`: Error occurred
+         *     - `canceled`: User canceled
+         *
+         *     **Rate Limit:** 30 requests/minute per IP
+         */
+        get: operations["getImportJobStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/imports/{jobId}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream import progress (SSE)
+         * @description Server-Sent Events stream for real-time import progress.
+         *
+         *     **Connection:**
+         *     ```javascript
+         *     const eventSource = new EventSource('/api/v2/imports/{jobId}/stream')
+         *
+         *     eventSource.addEventListener('progress', (e) => {
+         *       const data = JSON.parse(e.data)
+         *       console.log(`Progress: ${data.progress * 100}%`)
+         *     })
+         *
+         *     eventSource.addEventListener('completed', (e) => {
+         *       const data = JSON.parse(e.data)
+         *       console.log('Done!', data)
+         *       eventSource.close()
+         *     })
+         *     ```
+         *
+         *     **Event Types:**
+         *     - `initialized`: Job started
+         *     - `processing`: Progress update
+         *     - `completed`: Job finished successfully
+         *     - `failed`: Job failed with error
+         *     - `canceled`: Job was canceled
+         *
+         *     **Reconnection:**
+         *     Browser automatically reconnects. Use `Last-Event-ID` header to resume.
+         *
+         *     **Headers Required:**
+         *     - `Accept: text/event-stream`
+         */
+        get: operations["streamImportProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/jobs/{jobId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Cancel import/enrichment job
+         * @description Cancel a running or pending job (CSV import, batch enrichment, etc.).
+         *
+         *     **Authentication:** Required - use the `authToken` returned when creating the job.
+         *
+         *     **Behavior:**
+         *     - If job is running: Stops processing and marks as `canceled`
+         *     - If job is completed/failed: Returns 200 (idempotent)
+         *     - If job not found: Returns 404
+         *     - If token invalid/expired: Returns 401
+         *
+         *     **Token Expiration:** 2 hours from job creation
+         *
+         *     **Example:**
+         *     ```javascript
+         *     const response = await fetch('/api/v2/jobs/{jobId}/cancel', {
+         *       method: 'DELETE',
+         *       headers: {
+         *         'Authorization': `Bearer ${authToken}` // From job creation response
+         *       }
+         *     })
+         *     ```
+         */
+        delete: operations["cancelJob"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/imports/{jobId}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get import job results
+         * @description Retrieve completed job results. Results stored for 1 hour after completion.
+         *
+         *     **Response includes:**
+         *     - Import statistics (created, updated, failed counts)
+         *     - Error details for failed items
+         *     - Full canonical book objects for SwiftData persistence
+         *
+         *     **iOS Clients (IMPORTANT):**
+         *     The `books` array contains complete book metadata. Parse and save to
+         *     local SwiftData storage for offline access.
+         */
+        get: operations["getImportJobResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/books/enrich": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enrich book by barcode/ISBN (simplified response)
+         * @description Synchronous book enrichment from multiple providers.
+         *
+         *     **Response Structure:** Returns simplified flat response with `authors: string[]` (just names).
+         *
+         *     **Need full author metadata?** Use `/api/v2/books/enrich/detailed` which returns:
+         *     - Complete `AuthorDTO[]` with gender, nationality, birth year, etc.
+         *     - Full `WorkDTO` with subject tags, description, external IDs
+         *     - Complete `EditionDTO` with ISBN list, format, edition title
+         *
+         *     **Provider Pipeline:**
+         *     1. KV Cache (fastest)
+         *     2. D1 Database
+         *     3. Google Books API
+         *     4. OpenLibrary API
+         *     5. ISBNdb API (cover images)
+         *
+         *     **Optional Vectorization:**
+         *     Set `includeEmbedding: true` to generate and store vector embedding
+         *     for semantic search.
+         *
+         *     **Example:**
+         *     ```bash
+         *     curl -X POST https://api.oooefam.net/api/v2/books/enrich \
+         *       -H "Content-Type: application/json" \
+         *       -d '{"barcode": "9780439708180", "includeEmbedding": true}'
+         *     ```
+         *
+         *     **Rate Limit:** 50 requests/minute per IP
+         */
+        post: operations["enrichBook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/books/enrich/detailed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enrich book with detailed canonical structure
+         * @description Synchronous book enrichment returning full canonical DTOs.
+         *
+         *     **Difference from `/api/v2/books/enrich`:**
+         *     - Returns nested `AuthorDTO[]` with full metadata (name, gender, etc.)
+         *     - Returns complete `WorkDTO` and `EditionDTO` structures
+         *     - Provides maximum detail for clients needing comprehensive data
+         *
+         *     **Use Cases:**
+         *     - Mobile apps needing full author metadata
+         *     - Advanced search interfaces
+         *     - Data export/integration workflows
+         *     - When you need author gender, work subjects, edition details
+         *
+         *     **For simpler clients:** Use `/api/v2/books/enrich` which returns flat `authors: string[]`.
+         *
+         *     **Provider Pipeline:**
+         *     1. KV Cache (fastest)
+         *     2. D1 Database
+         *     3. Google Books API
+         *     4. OpenLibrary API
+         *     5. ISBNdb API (cover images)
+         *
+         *     **Optional Vectorization:**
+         *     Set `includeEmbedding: true` to generate and store vector embedding
+         *     for semantic search.
+         *
+         *     **Example:**
+         *     ```bash
+         *     curl -X POST https://api.oooefam.net/api/v2/books/enrich/detailed \
+         *       -H "Content-Type: application/json" \
+         *       -d '{"barcode": "9780439708180"}'
+         *     ```
+         *
+         *     **Rate Limit:** 50 requests/minute per IP
+         */
+        post: operations["enrichBookDetailed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    securitySchemes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: never;
+    schemas: {
+        /** @description Standard metadata included in all responses */
+        ResponseMetadata: {
+            /**
+             * Format: date-time
+             * @description ISO 8601 timestamp of response
+             */
+            timestamp: string;
+            /**
+             * @description Data source provider
+             * @enum {string}
+             */
+            source?: "google_books" | "open_library" | "isbndb" | "kv-cache" | "d1-database" | "vectorize" | "text-search" | "job-state-manager-do" | "curated" | "none";
+            /** @description Whether response was served from cache */
+            cached?: boolean;
+            /** @description Processing time in milliseconds */
+            processingTime?: number;
+        };
+        /** @description Standard error response envelope */
+        ErrorResponse: {
+            data: unknown;
+            metadata?: components["schemas"]["ResponseMetadata"];
+            error: {
+                /** @enum {string} */
+                code: "MISSING_PARAMETER" | "INVALID_REQUEST" | "INVALID_ISBN" | "INVALID_QUERY" | "INVALID_FILE" | "FILE_TOO_LARGE" | "BATCH_TOO_LARGE" | "EMPTY_BATCH" | "NOT_FOUND" | "UNAUTHORIZED" | "FORBIDDEN" | "CLIENT_DISCONNECTED" | "RATE_LIMIT_EXCEEDED" | "CIRCUIT_OPEN" | "PROVIDER_ERROR" | "PROVIDER_TIMEOUT" | "CACHE_ERROR" | "INTERNAL_ERROR" | "API_ERROR" | "NETWORK_ERROR" | "TIMEOUT" | "FEATURE_NOT_AVAILABLE";
+                /** @description Human-readable error message */
+                message: string;
+                /** @description Additional error context */
+                details?: {
+                    [key: string]: unknown;
+                };
+                /** @description Whether the request can be retried */
+                retryable?: boolean;
+                /** @description Milliseconds to wait before retry */
+                retryAfterMs?: number;
+                /** @description Provider that caused the error */
+                provider?: string;
+            };
+        };
+        /** @description Book result from search */
+        BookSearchResult: {
+            /** @description Primary ISBN (ISBN-13 preferred) */
+            isbn?: string;
+            isbn13?: string;
+            isbn10?: string;
+            title: string;
+            authors: string[];
+            publisher?: string;
+            publishedDate?: string;
+            description?: string;
+            pageCount?: number;
+            categories?: string[];
+            /** Format: uri */
+            coverUrl?: string;
+            language?: string;
+            /** @description OpenLibrary work ID for edition grouping */
+            openLibraryWorkId?: string;
+        };
+        /**
+         * @description Fully enriched book with simplified flat structure.
+         *
+         *     **Key Difference:** Returns `authors: string[]` (just names).
+         *     For full author metadata, use `/api/v2/books/enrich/detailed` which returns `AuthorDTO[]`.
+         */
+        EnrichedBook: {
+            isbn: string;
+            title: string;
+            /** @description Author names only (flat structure). For full author metadata with gender, use /enrich/detailed */
+            authors: string[];
+            publisher?: string;
+            publishedDate?: string;
+            description?: string;
+            pageCount?: number;
+            categories?: string[];
+            /** Format: uri */
+            coverUrl?: string;
+            /**
+             * @description Primary data provider
+             * @enum {string}
+             */
+            provider: "google_books" | "open_library" | "isbndb" | "orchestrated" | "kv-cache";
+            /** Format: date-time */
+            enrichedAt: string;
+            /** @description Whether embedding was generated for semantic search */
+            vectorized: boolean;
+        };
+        /**
+         * @description Fully enriched book with detailed canonical structure.
+         *
+         *     **Key Difference:** Returns nested `AuthorDTO[]`, `WorkDTO`, and `EditionDTO` objects.
+         *     For simpler clients, use `/api/v2/books/enrich` which returns flat `authors: string[]`.
+         */
+        EnrichedBookDetailed: {
+            isbn: string;
+            title: string;
+            work: components["schemas"]["WorkDTO"];
+            edition: components["schemas"]["EditionDTO"];
+            /** @description Full author objects with name, gender, and metadata */
+            authors: components["schemas"]["AuthorDTO"][];
+            /**
+             * @description Primary data provider
+             * @enum {string}
+             */
+            provider: "google_books" | "open_library" | "isbndb" | "orchestrated" | "alexandria" | "kv-cache";
+            /** Format: date-time */
+            enrichedAt: string;
+            /** @description Whether embedding was generated for semantic search */
+            vectorized: boolean;
+        };
+        /** @description Abstract representation of a creative work (FRBR Work level) */
+        WorkDTO: {
+            title: string;
+            /** @description Normalized genre/subject tags */
+            subjectTags: string[];
+            originalLanguage?: string;
+            firstPublicationYear?: number;
+            description?: string;
+            /** Format: uri */
+            coverImageURL?: string;
+            /** @description True if Work was inferred from Edition data */
+            synthetic?: boolean;
+            /** @enum {string} */
+            primaryProvider?: "alexandria" | "google_books" | "open_library" | "isbndb";
+            openLibraryWorkID?: string;
+            googleBooksVolumeIDs: string[];
+            goodreadsWorkIDs: string[];
+            amazonASINs: string[];
+        };
+        /** @description Physical/digital manifestation of a Work (FRBR Expression/Manifestation) */
+        EditionDTO: {
+            /** @description Primary ISBN */
+            isbn?: string;
+            /** @description All ISBNs for this edition */
+            isbns: string[];
+            title?: string;
+            publisher?: string;
+            /** @description YYYY-MM-DD or YYYY format */
+            publicationDate?: string;
+            pageCount?: number;
+            /** @enum {string} */
+            format: "paperback" | "hardcover" | "ebook" | "audiobook" | "unknown";
+            /** Format: uri */
+            coverImageURL?: string;
+            editionTitle?: string;
+            editionDescription?: string;
+            language?: string;
+            /** @enum {string} */
+            primaryProvider?: "alexandria" | "google_books" | "open_library" | "isbndb";
+            openLibraryEditionID?: string;
+            googleBooksVolumeIDs: string[];
+            amazonASINs: string[];
+        };
+        /** @description Creator of works */
+        AuthorDTO: {
+            name: string;
+            /**
+             * @description Author gender (required for analytics)
+             * @enum {string}
+             */
+            gender: "male" | "female" | "non_binary" | "unknown";
+            /** @enum {string} */
+            culturalRegion?: "western" | "eastern" | "middle_eastern" | "african" | "latin_american" | "indigenous" | "unknown";
+            nationality?: string;
+            birthYear?: number;
+            deathYear?: number;
+            openLibraryID?: string;
+            isbndbID?: string;
+            googleBooksID?: string;
+            goodreadsID?: string;
+            /** @description Number of books by this author */
+            bookCount?: number;
+        };
+        /** @description Current state of an async job */
+        JobState: {
+            /** Format: uuid */
+            jobId: string;
+            /** @enum {string} */
+            status: "initialized" | "processing" | "completed" | "failed" | "canceled";
+            /** @description Progress from 0.0 to 1.0 */
+            progress: number;
+            processedCount: number;
+            totalCount: number;
+            /** @enum {string} */
+            pipeline: "csv_import" | "batch_enrichment" | "ai_scan";
+            /** Format: date-time */
+            startTime?: string;
+            /** Format: date-time */
+            lastUpdateTime?: string;
+            /** Format: date-time */
+            completedTime?: string;
+            /** Format: date-time */
+            failedTime?: string;
+            error?: {
+                code?: string;
+                message?: string;
+                retryable?: boolean;
+                details?: Record<string, never>;
+            };
+            canceled?: boolean;
+            cancelReason?: string;
+            /** Format: date-time */
+            canceledTime?: string;
+        };
+        /** @description Results from a completed import job */
+        JobResults: {
+            booksCreated: number;
+            booksUpdated?: number;
+            duplicatesSkipped?: number;
+            enrichmentSucceeded?: number;
+            enrichmentFailed?: number;
+            errors?: {
+                /** @description Row number in CSV (if applicable) */
+                row?: number;
+                isbn?: string;
+                error?: string;
+            }[];
+            /** @description Full canonical book objects for iOS persistence */
+            books: components["schemas"]["BookSearchResult"][];
+        };
+    };
     responses: never;
     parameters: never;
     requestBodies: never;
@@ -1108,4 +1999,669 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    searchBooks: {
+        parameters: {
+            query: {
+                /** @description Search query (1-200 characters) */
+                q: string;
+                /** @description Search mode */
+                mode?: "text" | "semantic" | "hybrid";
+                /** @description Maximum results (1-50) */
+                limit?: number;
+                /** @description Pagination offset */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Search results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": {
+                     *         "query": {
+                     *           "q": "harry potter",
+                     *           "mode": "text",
+                     *           "limit": 20,
+                     *           "offset": 0
+                     *         },
+                     *         "results": [
+                     *           {
+                     *             "isbn": "9780439708180",
+                     *             "title": "Harry Potter and the Sorcerer's Stone",
+                     *             "authors": [
+                     *               "J.K. Rowling"
+                     *             ],
+                     *             "coverUrl": "https://covers.openlibrary.org/b/isbn/9780439708180-L.jpg",
+                     *             "publisher": "Scholastic",
+                     *             "publishedDate": "1999-09-01"
+                     *           }
+                     *         ],
+                     *         "totalCount": 42
+                     *       },
+                     *       "metadata": {
+                     *         "timestamp": "2025-12-01T12:00:00.000Z",
+                     *         "source": "text-search",
+                     *         "cached": false,
+                     *         "searchMode": "text"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        data: {
+                            query: {
+                                q?: string;
+                                /** @enum {string} */
+                                mode?: "text" | "semantic" | "hybrid";
+                                limit?: number;
+                                offset?: number;
+                            };
+                            results: components["schemas"]["BookSearchResult"][];
+                            totalCount: number;
+                        };
+                        metadata: components["schemas"]["ResponseMetadata"];
+                    };
+                };
+            };
+            /** @description Invalid request parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Semantic search unavailable (Vectorize not populated) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createImportJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description CSV or image file (max 8MB)
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Import job created */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": {
+                     *         "jobId": "550e8400-e29b-41d4-a716-446655440000",
+                     *         "authToken": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                     *         "sseUrl": "/api/v2/imports/550e8400-e29b-41d4-a716-446655440000/stream",
+                     *         "statusUrl": "/api/v2/imports/550e8400-e29b-41d4-a716-446655440000"
+                     *       },
+                     *       "metadata": {
+                     *         "timestamp": "2025-12-01T12:00:00.000Z"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        data?: {
+                            /**
+                             * Format: uuid
+                             * @description Unique job identifier
+                             */
+                            jobId: string;
+                            /**
+                             * Format: uuid
+                             * @description Token for SSE authentication
+                             */
+                            authToken: string;
+                            /** @description SSE stream URL for progress */
+                            sseUrl: string;
+                            /** @description HTTP polling URL */
+                            statusUrl: string;
+                        };
+                        metadata?: components["schemas"]["ResponseMetadata"];
+                    };
+                };
+            };
+            /** @description Invalid file or missing file */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description File too large (max 8MB) */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded (5 req/min) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getImportJobStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": {
+                     *         "jobId": "550e8400-e29b-41d4-a716-446655440000",
+                     *         "status": "processing",
+                     *         "progress": 0.67,
+                     *         "processedCount": 100,
+                     *         "totalCount": 150,
+                     *         "pipeline": "csv_import",
+                     *         "startTime": "2025-12-01T10:00:00Z"
+                     *       },
+                     *       "metadata": {
+                     *         "timestamp": "2025-12-01T10:03:00Z",
+                     *         "source": "job-state-manager-do"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        data?: components["schemas"]["JobState"];
+                        metadata?: components["schemas"]["ResponseMetadata"];
+                    };
+                };
+            };
+            /** @description Job not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    streamImportProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream established */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example : connection established
+                     *     retry: 5000
+                     *
+                     *     id: 1701432000000-progress
+                     *     event: processing
+                     *     data: {"jobId":"550e8400-...","status":"processing","progress":0.5,"processedCount":75,"totalCount":150}
+                     *
+                     *     id: 1701432060000-completed
+                     *     event: completed
+                     *     data: {"jobId":"550e8400-...","status":"completed","progress":1.0,"processedCount":150,"totalCount":150}
+                     */
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Missing Accept header */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancelJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job ID returned from job creation endpoint */
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job canceled successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": {
+                     *         "jobId": "550e8400-e29b-41d4-a716-446655440000",
+                     *         "status": "canceled",
+                     *         "message": "Job canceled successfully"
+                     *       },
+                     *       "metadata": {
+                     *         "timestamp": "2025-12-03T10:05:00Z"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        data?: {
+                            /** Format: uuid */
+                            jobId?: string;
+                            /** @enum {string} */
+                            status?: "canceled";
+                            message?: string;
+                        };
+                        metadata?: components["schemas"]["ResponseMetadata"];
+                    };
+                };
+            };
+            /** @description Unauthorized - missing or invalid auth token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "UNAUTHORIZED",
+                     *         "message": "Invalid or expired token",
+                     *         "statusCode": 401
+                     *       },
+                     *       "metadata": {
+                     *         "timestamp": "2025-12-03T10:05:00Z"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "NOT_FOUND",
+                     *         "message": "Job not found",
+                     *         "statusCode": 404
+                     *       },
+                     *       "metadata": {
+                     *         "timestamp": "2025-12-03T10:05:00Z"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getImportJobResults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": {
+                     *         "booksCreated": 145,
+                     *         "booksUpdated": 0,
+                     *         "duplicatesSkipped": 5,
+                     *         "enrichmentSucceeded": 140,
+                     *         "enrichmentFailed": 5,
+                     *         "errors": [
+                     *           {
+                     *             "row": 15,
+                     *             "isbn": "1234567890",
+                     *             "error": "Invalid ISBN"
+                     *           }
+                     *         ],
+                     *         "books": [
+                     *           {
+                     *             "isbn": "9780439708180",
+                     *             "title": "Harry Potter and the Sorcerer's Stone",
+                     *             "authors": [
+                     *               "J.K. Rowling"
+                     *             ],
+                     *             "publisher": "Scholastic",
+                     *             "coverUrl": "https://..."
+                     *           }
+                     *         ]
+                     *       },
+                     *       "metadata": {
+                     *         "timestamp": "2025-12-01T12:00:00Z",
+                     *         "cached": true,
+                     *         "ttl": "1 hour"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        data?: components["schemas"]["JobResults"];
+                        metadata?: components["schemas"]["ResponseMetadata"];
+                    };
+                };
+            };
+            /** @description Results not found or expired */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    enrichBook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description ISBN-10 or ISBN-13 (preferred parameter name)
+                     * @example 9780439708180
+                     */
+                    barcode?: string;
+                    /**
+                     * @deprecated
+                     * @description ISBN (deprecated, use barcode)
+                     */
+                    isbn?: string;
+                    /**
+                     * @description Generate vector embedding for semantic search
+                     * @default false
+                     */
+                    includeEmbedding?: boolean;
+                } & (unknown | unknown);
+            };
+        };
+        responses: {
+            /** @description Enriched book data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": {
+                     *         "isbn": "9780439708180",
+                     *         "title": "Harry Potter and the Sorcerer's Stone",
+                     *         "authors": [
+                     *           "J.K. Rowling"
+                     *         ],
+                     *         "publisher": "Scholastic",
+                     *         "publishedDate": "1998-09-01",
+                     *         "description": "Harry Potter has never even heard of Hogwarts...",
+                     *         "pageCount": 320,
+                     *         "categories": [
+                     *           "Fiction",
+                     *           "Fantasy"
+                     *         ],
+                     *         "coverUrl": "https://covers.openlibrary.org/b/isbn/9780439708180-L.jpg",
+                     *         "provider": "google_books",
+                     *         "enrichedAt": "2025-12-01T12:00:00Z",
+                     *         "vectorized": true
+                     *       },
+                     *       "metadata": {
+                     *         "timestamp": "2025-12-01T12:00:00Z",
+                     *         "source": "google_books",
+                     *         "cached": false
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        data?: components["schemas"]["EnrichedBook"];
+                        metadata?: components["schemas"]["ResponseMetadata"];
+                    };
+                };
+            };
+            /** @description Invalid barcode/ISBN */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Book not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Circuit breaker open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    enrichBookDetailed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description ISBN-10 or ISBN-13 (preferred parameter name)
+                     * @example 9780439708180
+                     */
+                    barcode?: string;
+                    /**
+                     * @deprecated
+                     * @description ISBN (deprecated, use barcode)
+                     */
+                    isbn?: string;
+                    /**
+                     * @description Generate vector embedding for semantic search
+                     * @default false
+                     */
+                    includeEmbedding?: boolean;
+                } & (unknown | unknown);
+            };
+        };
+        responses: {
+            /** @description Enriched book data with detailed canonical structure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": {
+                     *         "isbn": "9780439708180",
+                     *         "title": "Harry Potter and the Sorcerer's Stone",
+                     *         "work": {
+                     *           "title": "Harry Potter and the Philosopher's Stone",
+                     *           "description": "Harry Potter has never even heard of Hogwarts...",
+                     *           "subjectTags": [
+                     *             "Fiction",
+                     *             "Fantasy",
+                     *             "Magic",
+                     *             "Wizards"
+                     *           ],
+                     *           "coverImageURL": "https://covers.openlibrary.org/b/isbn/9780439708180-L.jpg",
+                     *           "primaryProvider": "google_books"
+                     *         },
+                     *         "edition": {
+                     *           "isbn": "9780439708180",
+                     *           "publisher": "Scholastic",
+                     *           "publicationDate": "1998-09-01",
+                     *           "pageCount": 320,
+                     *           "format": "Paperback",
+                     *           "language": "English"
+                     *         },
+                     *         "authors": [
+                     *           {
+                     *             "name": "J.K. Rowling",
+                     *             "gender": "female"
+                     *           }
+                     *         ],
+                     *         "provider": "google_books",
+                     *         "enrichedAt": "2025-12-01T12:00:00Z",
+                     *         "vectorized": false
+                     *       },
+                     *       "metadata": {
+                     *         "timestamp": "2025-12-01T12:00:00Z",
+                     *         "source": "google_books",
+                     *         "cached": false
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        data?: components["schemas"]["EnrichedBookDetailed"];
+                        metadata?: components["schemas"]["ResponseMetadata"];
+                    };
+                };
+            };
+            /** @description Invalid barcode/ISBN */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Book not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Circuit breaker open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+}

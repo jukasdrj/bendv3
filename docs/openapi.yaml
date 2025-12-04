@@ -3305,6 +3305,99 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v2/jobs/{jobId}/cancel:
+    delete:
+      tags:
+        - V2 Jobs
+      summary: Cancel import/enrichment job
+      operationId: cancelJob
+      description: |
+        Cancel a running or pending job (CSV import, batch enrichment, etc.).
+
+        **Authentication:** Required - use the `authToken` returned when creating the job.
+
+        **Behavior:**
+        - If job is running: Stops processing and marks as `canceled`
+        - If job is completed/failed: Returns 200 (idempotent)
+        - If job not found: Returns 404
+        - If token invalid/expired: Returns 401
+
+        **Token Expiration:** 2 hours from job creation
+
+        **Example:**
+        ```javascript
+        const response = await fetch('/api/v2/jobs/{jobId}/cancel', {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${authToken}` // From job creation response
+          }
+        })
+        ```
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Job ID returned from job creation endpoint
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Job canceled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      jobId:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        enum: [canceled]
+                      message:
+                        type: string
+                  metadata:
+                    $ref: '#/components/schemas/ResponseMetadata'
+              example:
+                data:
+                  jobId: "550e8400-e29b-41d4-a716-446655440000"
+                  status: "canceled"
+                  message: "Job canceled successfully"
+                metadata:
+                  timestamp: "2025-12-03T10:05:00Z"
+        '401':
+          description: Unauthorized - missing or invalid auth token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                  statusCode: 401
+                metadata:
+                  timestamp: "2025-12-03T10:05:00Z"
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "NOT_FOUND"
+                  message: "Job not found"
+                  statusCode: 404
+                metadata:
+                  timestamp: "2025-12-03T10:05:00Z"
+
   /api/v2/imports/{jobId}/results:
     get:
       tags:
@@ -3613,3 +3706,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: UUID
+      description: |
+        Bearer token authentication for job operations (cancel, etc.).
+
+        **Token Source:** Returned in `authToken` field when creating jobs via:
+        - `POST /api/v2/imports` (CSV/photo imports)
+        - `POST /v1/enrichment/batch` (batch enrichment)
+
+        **Expiration:** 2 hours from job creation
+
+        **Usage:**
+        ```
+        Authorization: Bearer 550e8400-e29b-41d4-a716-446655440000
+        ```
