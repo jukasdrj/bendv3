@@ -32,6 +32,7 @@ import { extractUniqueAuthors, removeAuthorsFromWorks, enrichAuthorsWithCultural
 
 // Constants for V3 API data transformation
 const DEFAULT_PROVIDER_QUALITY = 95 // Default quality score for provider data
+const MAX_SEARCH_RESULTS = 100 // Maximum results to fetch for client-side pagination
 
 export function createV3Router() {
   const app = new OpenAPIHono<{
@@ -99,10 +100,11 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
       // Normalize title for consistent cache keys
       const normalizedTitle = normalizeTitle(q)
 
-      // Use existing book service - fetch ALL results to get true total count
-      // Note: Alexandria search doesn't support pagination yet, returns all matches
+      // Fetch results from Alexandria (no server-side pagination support yet)
+      // LIMITATION: Client-side pagination limited to first MAX_SEARCH_RESULTS
+      // For queries with >100 results, only first 100 are accessible
       const result = await findBooksByTitle(normalizedTitle, undefined, c.env, {
-        maxResults: 100 // Get up to 100 results to properly calculate total
+        maxResults: MAX_SEARCH_RESULTS
       })
 
       if (!result || !result.works || result.works.length === 0) {
@@ -114,6 +116,7 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
             total: 0,
             query: { q, mode },
             pagination: {
+              type: 'offset' as const,
               page,
               limit,
               totalPages: 0,
@@ -164,9 +167,9 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
         }
       }).filter(book => book.isbn) // Only include books with ISBNs
 
-      // Calculate true pagination from ALL results
+      // Calculate true pagination from ALL results (limited to MAX_SEARCH_RESULTS)
       const totalResults = allBooks.length
-      const totalPages = Math.ceil(totalResults / limit)
+      const totalPages = Math.ceil(totalResults / limit) || 0
 
       // Client-side pagination: slice the results for the requested page
       const startIdx = (page - 1) * limit
@@ -182,6 +185,7 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
           total: totalResults,
           query: { q, mode },
           pagination: {
+            type: 'offset' as const,
             page,
             limit,
             totalPages,
