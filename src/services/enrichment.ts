@@ -377,7 +377,7 @@ export async function enrichSingleBook(
       isbndbWorkId: book.isbndb_work_id || undefined,
       description: book.description || undefined,
       firstPublishedYear: book.first_published_year || undefined,
-      coverImageURL: book.cover_url || undefined,
+      coverImageURL: book.coverUrl || undefined, // Fixed: Use camelCase coverUrl from Alexandria
       subjects: book.subjects ? JSON.parse(book.subjects) : undefined,
       // Provenance: Alexandria is the source (it handled the smart lookup)
       dataProvider: 'alexandria' as DataProvider,
@@ -393,7 +393,7 @@ export async function enrichSingleBook(
       pageCount: book.page_count || undefined,
       language: book.language || 'en',
       publisher: book.publisher || undefined,
-      coverImageURL: book.cover_url || undefined,
+      coverImageURL: book.coverUrl || undefined, // Fixed: Use camelCase coverUrl from Alexandria
       binding: book.binding || undefined,
       msrp: book.msrp || undefined,
       dimensions: book.dimensions || undefined,
