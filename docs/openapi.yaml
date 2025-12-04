@@ -97,12 +97,48 @@ components:
       required:
         - timestamp
 
+    SuccessResponse:
+      type: object
+      description: |
+        Standard success response envelope used by all endpoints.
+
+        All successful API responses follow this structure with a `success: true`
+        discriminator, the response data in the `data` field, and metadata
+        about the request/response.
+      properties:
+        success:
+          type: boolean
+          description: Success discriminator (always true for success responses)
+          enum: [true]
+          example: true
+        data:
+          type: object
+          description: Response payload (structure varies by endpoint)
+          additionalProperties: true
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+      required:
+        - success
+        - data
+        - metadata
+      additionalProperties: false
+
     ErrorResponse:
       type: object
-      description: Standard error response envelope
+      description: |
+        Standard error response envelope used by all endpoints.
+
+        All error API responses follow this structure with a `success: false`
+        discriminator, null data, and an error object with details.
       properties:
+        success:
+          type: boolean
+          description: Success discriminator (always false for error responses)
+          enum: [false]
+          example: false
         data:
           nullable: true
+          description: Always null for error responses
         metadata:
           $ref: '#/components/schemas/ResponseMetadata'
         error:
@@ -158,8 +194,11 @@ components:
             - code
             - message
       required:
+        - success
         - data
+        - metadata
         - error
+      additionalProperties: false
 
     # =========================================================================
     # BOOK SCHEMAS

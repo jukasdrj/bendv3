@@ -1835,10 +1835,42 @@ export interface components {
             /** @description Processing time in milliseconds */
             processingTime?: number;
         };
-        /** @description Standard error response envelope */
+        /**
+         * @description Standard success response envelope used by all endpoints.
+         *
+         *     All successful API responses follow this structure with a `success: true`
+         *     discriminator, the response data in the `data` field, and metadata
+         *     about the request/response.
+         */
+        SuccessResponse: {
+            /**
+             * @description Success discriminator (always true for success responses)
+             * @example true
+             * @enum {boolean}
+             */
+            success: true;
+            /** @description Response payload (structure varies by endpoint) */
+            data: {
+                [key: string]: unknown;
+            };
+            metadata: components["schemas"]["ResponseMetadata"];
+        };
+        /**
+         * @description Standard error response envelope used by all endpoints.
+         *
+         *     All error API responses follow this structure with a `success: false`
+         *     discriminator, null data, and an error object with details.
+         */
         ErrorResponse: {
+            /**
+             * @description Success discriminator (always false for error responses)
+             * @example false
+             * @enum {boolean}
+             */
+            success: false;
+            /** @description Always null for error responses */
             data: unknown;
-            metadata?: components["schemas"]["ResponseMetadata"];
+            metadata: components["schemas"]["ResponseMetadata"];
             error: {
                 /** @enum {string} */
                 code: "MISSING_PARAMETER" | "INVALID_REQUEST" | "INVALID_ISBN" | "INVALID_QUERY" | "INVALID_FILE" | "FILE_TOO_LARGE" | "BATCH_TOO_LARGE" | "EMPTY_BATCH" | "NOT_FOUND" | "UNAUTHORIZED" | "FORBIDDEN" | "CLIENT_DISCONNECTED" | "RATE_LIMIT_EXCEEDED" | "CIRCUIT_OPEN" | "PROVIDER_ERROR" | "PROVIDER_TIMEOUT" | "CACHE_ERROR" | "INTERNAL_ERROR" | "API_ERROR" | "NETWORK_ERROR" | "TIMEOUT" | "FEATURE_NOT_AVAILABLE";

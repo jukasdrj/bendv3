@@ -2,7 +2,29 @@
 
 All notable changes to the BooksTrack API Client will be documented in this file.
 
-## [1.1.2] - 2025-12-03
+## [1.2.0] - 2025-12-03
+
+### Added
+
+- **Shared Response Schemas** - Created `SuccessResponse` and updated `ErrorResponse`
+  - All responses now properly document the `success: boolean` discriminator
+  - Provides foundation for consistent response handling across all endpoints
+
+### Fixed
+
+- **Capabilities Endpoint Decoding** - Added missing `success` field to OpenAPI spec
+  - Fixes iOS error: "The data couldn't be read because it is missing"
+  - OpenAPI spec now matches actual backend response format
+  - SDK auto-generated with correct schema including `success: boolean`
+
+### Known Issues
+
+- **Incomplete Response Schema Migration** - Not all endpoints reference `SuccessResponse` yet
+  - Shared schemas created but full endpoint migration is in progress
+  - Priority endpoints (capabilities, imports, search) are fixed
+  - Complete migration tracked in backend issue tracker
+
+## [1.1.2] - 2025-12-03 (Deprecated - use 1.2.0)
 
 ### Fixed
 
