@@ -29,6 +29,8 @@ import { createProblemDetails } from '@bookstrack/schemas/errors'
 import { findBooksByTitle, findBookByISBN } from '../services/book-service'
 import { normalizeTitle } from '../utils/normalization'
 import { extractUniqueAuthors, removeAuthorsFromWorks, enrichAuthorsWithCulturalData } from '../utils/response-transformer'
+import { enrichMultipleBooks } from '../services/enrichment'
+import { generateBookEmbedding, storeEmbedding } from '../services/embedding-service'
 
 // Constants for V3 API data transformation
 const DEFAULT_PROVIDER_QUALITY = 95 // Default quality score for provider data
@@ -281,10 +283,6 @@ for semantic search.`,
     console.log(`[V3 Enrich] ISBNs: ${isbns.length}, includeEmbedding: ${includeEmbedding}`)
 
     try {
-      // Import enrichment services
-      const { enrichMultipleBooks } = await import('../services/enrichment')
-      const { generateBookEmbedding, storeEmbedding } = await import('../services/embedding-service')
-
       const enrichedBooks: EnrichedBook[] = []
       const notFound: string[] = []
 
