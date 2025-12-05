@@ -5,6 +5,14 @@
  * Endpoints:
  * - GET /v1/search/isbn (Sprint 1, Day 3)
  * - GET /v1/search/title (Sprint 1, Day 4)
+ *
+ * @deprecated All V1 endpoints are deprecated and will be removed March 1, 2026.
+ * Migrate to V3 API:
+ * - /v1/search/isbn → /v3/books/:isbn
+ * - /v1/search/title → /v3/books/search?q=title
+ *
+ * @see {@link /docs/V1_SUNSET_PLAN.md}
+ * @sunset 2026-03-01
  */
 
 import { createRoute } from '@hono/zod-openapi'
@@ -46,9 +54,17 @@ import { ErrorResponseSchema } from '../../schemas/common'
 export const searchISBNRoute = createRoute({
   method: 'get',
   path: '/v1/search/isbn',
-  tags: ['Search'],
-  summary: 'Search for a book by ISBN',
+  tags: ['Search', 'Deprecated'],
+  deprecated: true,
+  summary: '[DEPRECATED] Search for a book by ISBN - Use /v3/books/:isbn instead',
   description: `
+> ⚠️ **DEPRECATED**: This endpoint will be removed on **March 1, 2026**.
+> Use the V3 API instead: \`GET /v3/books/:isbn\`
+>
+> **Migration:**
+> - V1: \`GET /v1/search/isbn?isbn=9780439708180\`
+> - V3: \`GET /v3/books/9780439708180\`
+
 Search for a book by ISBN-10 or ISBN-13 (digits only, no hyphens).
 
 Returns comprehensive book data including:
@@ -265,9 +281,17 @@ If a provider's circuit is OPEN, the request fails fast with \`CIRCUIT_OPEN\` er
 export const searchTitleRoute = createRoute({
   method: 'get',
   path: '/v1/search/title',
-  tags: ['Search'],
-  summary: 'Search for books by title',
+  tags: ['Search', 'Deprecated'],
+  deprecated: true,
+  summary: '[DEPRECATED] Search for books by title - Use /v3/books/search instead',
   description: `
+> ⚠️ **DEPRECATED**: This endpoint will be removed on **March 1, 2026**.
+> Use the V3 API instead: \`GET /v3/books/search?q=title\`
+>
+> **Migration:**
+> - V1: \`GET /v1/search/title?q=harry+potter\`
+> - V3: \`GET /v3/books/search?q=harry+potter\`
+
 Search for books by title using multi-provider orchestration.
 
 Returns up to 20 results by default, each including:

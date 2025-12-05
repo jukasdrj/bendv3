@@ -3,6 +3,16 @@
  *
  * Search for books by title using canonical response format
  * Returns up to 20 results for iOS search UI
+ *
+ * @deprecated This V1 endpoint is deprecated and will be removed on March 1, 2026.
+ * Use the V3 API instead: GET /v3/books/search?q=title
+ *
+ * Migration guide:
+ * - V1: GET /v1/search/title?q=harry+potter
+ * - V3: GET /v3/books/search?q=harry+potter
+ *
+ * @see {@link /docs/V1_SUNSET_PLAN.md} for complete migration details
+ * @sunset 2026-03-01
  */
 
 import type { BookSearchResponse } from "../../types/responses.js";

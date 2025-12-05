@@ -1,12 +1,58 @@
 # V1 API Sunset Plan
 
-**Status:** Draft
+**Status:** Active
 **Sunset Date:** March 1, 2026
 **Created:** December 4, 2025
+**Last Updated:** December 5, 2025
 
 ## Overview
 
 V1 API deprecation headers are currently active (since Nov 2025). This document outlines the complete removal plan for March 1, 2026.
+
+---
+
+## Deprecation Implementation Status
+
+### ✅ Completed (December 5, 2025)
+
+**HTTP Headers (RFC 8594):**
+- `Deprecation: true` - Standard deprecation header
+- `Sunset: Sat, 01 Mar 2026 00:00:00 GMT` - Exact sunset date
+- `Link: <{baseUrl}/v3>; rel="successor-version"` - Points to V3 API
+- `X-Deprecation-Notice: V1 API deprecated. Migrate to V2/V3. Sunset: March 1, 2026`
+
+Applied via middleware in `src/router.ts:68-78`
+
+**JSDoc Deprecation Markers:**
+All V1 handler files now include `@deprecated` JSDoc tags with:
+- Sunset date
+- Migration path to V3/V2
+- Link to this sunset plan
+
+| File | Status |
+|------|--------|
+| `src/handlers/v1/search-isbn.ts` | ✅ Marked |
+| `src/handlers/v1/search-title.ts` | ✅ Marked |
+| `src/handlers/v1/search-advanced.ts` | ✅ Marked |
+| `src/handlers/v1/search-editions.ts` | ✅ Marked |
+| `src/handlers/v1/csv-results.ts` | ✅ Marked |
+| `src/handlers/v1/scan-results.ts` | ✅ Marked |
+
+**OpenAPI Schema Markers:**
+All V1 OpenAPI routes now include:
+- `deprecated: true` property (displays strikethrough in Swagger UI)
+- `tags: ['..., 'Deprecated']` for filtering
+- Deprecation warning banner in description
+- Migration guide with V1 → V3/V2 examples
+
+| Route | File | Status |
+|-------|------|--------|
+| `GET /v1/search/isbn` | `src/openapi/routes/search.ts` | ✅ Marked |
+| `GET /v1/search/title` | `src/openapi/routes/search.ts` | ✅ Marked |
+| `GET /v1/jobs/{jobId}/status` | `src/openapi/routes/job.ts` | ✅ Marked |
+| `GET /v1/scan/results/{jobId}` | `src/openapi/routes/job.ts` | ✅ Marked |
+| `GET /v1/csv/results/{jobId}` | `src/openapi/routes/job.ts` | ✅ Marked |
+| `GET /v1/csv/status/{jobId}` | `src/openapi/routes/job.ts` | ✅ Marked |
 
 ---
 

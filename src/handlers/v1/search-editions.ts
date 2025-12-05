@@ -3,6 +3,19 @@
  *
  * Search for all editions of a specific work by title and author
  * Used by iOS "Find Different Edition" feature
+ *
+ * @deprecated This V1 endpoint is deprecated and will be removed on March 1, 2026.
+ * Migration path TBD - may be added to V3 as /v3/books/:isbn/editions
+ *
+ * Migration guide:
+ * - V1: GET /v1/editions/search?workTitle=harry+potter&author=rowling
+ * - V3: TBD (check V3 API documentation for updates)
+ *
+ * If this endpoint is critical for your integration, please contact the
+ * API team to discuss migration options before the sunset date.
+ *
+ * @see {@link /docs/V1_SUNSET_PLAN.md} for complete migration details
+ * @sunset 2026-03-01
  */
 
 import type { BookSearchResponse } from "../../types/responses.js";

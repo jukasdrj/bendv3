@@ -5,6 +5,16 @@
  * Results are stored after WebSocket completion message (summary-only pattern).
  *
  * Related: Issue #133 (Summary-only WebSocket completions)
+ *
+ * @deprecated This V1 endpoint is deprecated and will be removed on March 1, 2026.
+ * Use the V2 API instead: GET /api/v2/scans/:id/results
+ *
+ * Migration guide:
+ * - V1: GET /v1/scan/results/{jobId}
+ * - V2: GET /api/v2/scans/{jobId}/results
+ *
+ * @see {@link /docs/V1_SUNSET_PLAN.md} for complete migration details
+ * @sunset 2026-03-01
  */
 
 import { handleKVResults, type KVResultsConfig } from "../../utils/kv-results-handler.js";
