@@ -5,7 +5,7 @@
  * @see https://www.rfc-editor.org/rfc/rfc9457.html
  */
 
-import { z } from 'zod'
+import { z } from '@hono/zod-openapi'
 
 /**
  * Data source providers
@@ -19,7 +19,7 @@ export const DataSourceSchema = z.enum([
   'vectorize',
   'text-search',
   'job-state-manager-do'
-])
+]).openapi('DataSource')
 
 export type DataSource = z.infer<typeof DataSourceSchema>
 
@@ -30,7 +30,7 @@ export const RateLimitSchema = z.object({
   limit: z.number().int().describe('Max requests per window'),
   remaining: z.number().int().describe('Requests remaining in window'),
   reset: z.number().int().describe('Unix timestamp when window resets')
-})
+}).openapi('RateLimit')
 
 export type RateLimit = z.infer<typeof RateLimitSchema>
 
@@ -44,7 +44,7 @@ export const ResponseMetadataSchema = z.object({
   cached: z.boolean().optional().describe('Whether response was served from cache'),
   processingTimeMs: z.number().int().min(0).optional().describe('Processing time in milliseconds'),
   rateLimit: RateLimitSchema.optional().describe('Rate limit status')
-})
+}).openapi('ResponseMetadata')
 
 export type ResponseMetadata = z.infer<typeof ResponseMetadataSchema>
 
@@ -55,7 +55,7 @@ export const LinkSchema = z.object({
   href: z.string().url().describe('Link URL'),
   rel: z.string().describe('Link relation type'),
   method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']).optional().describe('HTTP method')
-})
+}).openapi('Link')
 
 export type Link = z.infer<typeof LinkSchema>
 
@@ -118,7 +118,7 @@ export const FieldErrorSchema = z.object({
   field: z.string().describe('Field path (e.g., "isbns[0]")'),
   message: z.string().describe('Validation error message'),
   code: z.string().optional().describe('Validation error code')
-})
+}).openapi('FieldError')
 
 export type FieldError = z.infer<typeof FieldErrorSchema>
 
@@ -158,7 +158,7 @@ export const ErrorResponseSchema = z.object({
     timestamp: z.string().datetime().describe('ISO 8601 timestamp'),
     requestId: z.string().uuid().optional().describe('Request correlation ID')
   })
-})
+}).openapi('ErrorResponse')
 
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
 

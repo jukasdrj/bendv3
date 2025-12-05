@@ -1717,11 +1717,23 @@ console.log("[OpenAPI] Registered /doc/openapi.json endpoint");
 // - Type-safe request/response handling
 // - Integration with existing service layer (Alexandria, DOs, etc.)
 import { createV3Router } from "./api-v3/index";
+import openapiSpec from "./api-v3/openapi-static.json";
 
 try {
   const v3Router = createV3Router();
   app.route("/", v3Router);
+
+  // Serve static OpenAPI spec (workaround for OpenAPIHono sub-router limitation)
+  // The .doc() method and .getOpenAPIDocument() don't work when mounted with app.route()
+  app.get("/v3/openapi.json", (c) => {
+    return c.json(openapiSpec, 200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=3600'
+    });
+  });
+
   console.log("[V3 API] Successfully mounted native @hono/zod-openapi routes");
+  console.log("[V3 API] Static OpenAPI spec available at /v3/openapi.json");
 } catch (error) {
   console.error("[V3 API] Failed to mount v3 routes:", error);
   // Don't crash the worker - v1/v2 routes should still work

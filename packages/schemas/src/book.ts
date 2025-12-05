@@ -4,7 +4,7 @@
  * Core book metadata schema used across all endpoints.
  */
 
-import { z } from 'zod'
+import { z } from '@hono/zod-openapi'
 
 /**
  * Data provider enumeration
@@ -14,7 +14,7 @@ export const ProviderSchema = z.enum([
   'google_books',
   'open_library',
   'isbndb'
-])
+]).openapi('Provider')
 
 export type Provider = z.infer<typeof ProviderSchema>
 
@@ -40,7 +40,7 @@ export const BookSchema = z.object({
   editionKey: z.string().optional().describe('OpenLibrary edition key (e.g., OL7353617M)'),
   provider: ProviderSchema.describe('Data source provider'),
   quality: z.number().min(0).max(100).describe('Data quality score 0-100')
-})
+}).openapi('Book')
 
 export type Book = z.infer<typeof BookSchema>
 
