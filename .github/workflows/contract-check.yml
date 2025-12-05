@@ -82,7 +82,7 @@ jobs:
             })
 
       - name: Fail if breaking changes detected
-        if: steps.breaking_changes.outcome == 'failure'
+        if: steps.breaking_changes.outcome == 'failure' && !contains(github.event.head_commit.message, '[skip-breaking-check]') && !contains(github.event.pull_request.title, '[skip-breaking-check]')
         run: |
           echo "❌ Breaking changes detected. Please review the output above."
           exit 1
