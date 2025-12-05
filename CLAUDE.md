@@ -13,6 +13,14 @@
 **Current:** V3 (Native Hono OpenAPI) + V2 (Stable) - December 2025
 **Sunset Dates:** V1 (March 1, 2026) | V2 (TBD, 90 days after V3 GA)
 
+### 📋 Migration Planning
+**Frontend teams migrating to V3-only support.**
+
+**Quick Links:**
+- **[V3 Quick Reference](docs/V3_QUICK_REFERENCE.md)** - One-page migration guide
+- **[Deprecation Plan](docs/V1_V2_DEPRECATION_PLAN.md)** - Full timeline & strategy
+- **[Implementation Guide](docs/V3_IMPLEMENTATION_GUIDE.md)** - Developer guide for Phase 2
+
 ### Documentation Strategy
 
 **Two-Tier OpenAPI Specs:**
@@ -21,11 +29,13 @@
    - **Docs:** `/v3/docs` - Interactive Swagger UI
    - **Source:** `src/api-v3/index.ts` - Route definitions with Zod schemas
    - **Update:** Edit Zod schemas in code, spec regenerates automatically
+   - **Status:** ✅ Search & Enrichment ready | ❌ Jobs/SSE missing (Phase 2)
 
 2. **V2 API (Manual Spec):**
    - **Spec:** `docs/openapi.yaml` - Hand-maintained OpenAPI 3.1 spec
    - **SDK:** `packages/api-client/` - TypeScript SDK generated from openapi.yaml
    - **Update:** Manually edit openapi.yaml, regenerate SDK with `npm run generate`
+   - **Status:** 🔒 Stable until V3 feature parity (CSV import, scanning)
 
 **Why Two Specs?**
 - V3 uses native Hono OpenAPI (code-first, zod@4 schemas)
@@ -40,14 +50,23 @@
 | `/v1/*` | ⚠️ DEPRECATED | Sunset March 2026 (deprecation headers active) |
 | `/search/*` | ⛔ REMOVED | Legacy routes removed |
 
-### Key V3 Endpoints (NEW!)
-- `GET /v3/books/:isbn` - Get book by ISBN with full metadata
-- `GET /v3/books/search?q=title` - Search books by title
-- `POST /v3/books/enrich` - Enrich book with optional embedding
-- `GET /v3/openapi.json` - OpenAPI 3.1 specification (auto-generated)
-- `GET /v3/docs` - Interactive Swagger UI
+### Key V3 Endpoints (Production-Ready)
+- ✅ `GET /v3/books/:isbn` - Get book by ISBN with full metadata
+- ✅ `GET /v3/books/search?q=title` - Search books by title
+- ✅ `POST /v3/books/enrich` - Enrich book with optional embedding
+- ✅ `GET /v3/openapi.json` - OpenAPI 3.1 specification (auto-generated)
+- ✅ `GET /v3/docs` - Interactive Swagger UI
 
-### Key V2 Endpoints
+### V3 Missing Features (Phase 2 - Blocks V2 Deprecation)
+- ❌ CSV import workflow (`POST /v3/jobs/imports`)
+- ❌ Bookshelf scanning (`POST /v3/jobs/scans`)
+- ❌ Async batch enrichment (extend `/v3/books/enrich` with `async` flag)
+- ❌ SSE progress streaming (`GET /v3/jobs/{type}/{id}/stream`)
+- ❌ Job lifecycle management (`GET/DELETE /v3/jobs/{type}/{id}`)
+
+**Target:** Phase 2 completion (4 weeks) enables V2 deprecation
+
+### Key V2 Endpoints (Will be deprecated after Phase 2)
 - `GET /api/v2/search` - Unified search (replaces all V1 search)
 - `POST /api/v2/books/enrich` - Single book enrichment
 - `POST /api/v2/imports` - CSV import workflow (SSE streaming)

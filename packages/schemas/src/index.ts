@@ -8,6 +8,15 @@
  * @see https://www.rfc-editor.org/rfc/rfc9457.html
  */
 
+// Error handling (RFC 9457)
+export {
+  createProblemDetails,
+  ERROR_STATUS_MAP,
+  ERROR_TITLE_MAP,
+  RETRYABLE_ERRORS,
+  type ProblemDetailsOptions
+} from './errors'
+
 // Response envelopes and metadata
 export {
   DataSourceSchema,
@@ -69,3 +78,33 @@ export {
   type EnrichResultData,
   type EnrichResponse
 } from './enrich'
+
+// Jobs (async workflows)
+export {
+  JobTypeSchema,
+  JobStatusSchema,
+  JobErrorSchema,
+  JobSchema,
+  JobInitDataSchema,
+  JobInitResponseSchema,
+  JobStatusResponseSchema,
+  JobResultsDataSchema,
+  JobResultsResponseSchema,
+  SSEProgressEventSchema,
+  SSECompleteEventSchema,
+  SSEErrorEventSchema,
+  SSEPingEventSchema,
+  type JobType,
+  type JobStatus,
+  type JobError,
+  type Job,
+  type JobInitData,
+  type JobInitResponse,
+  type JobStatusResponse,
+  type JobResultsData,
+  type JobResultsResponse,
+  type SSEProgressEvent,
+  type SSECompleteEvent,
+  type SSEErrorEvent,
+  type SSEPingEvent
+} from './jobs'

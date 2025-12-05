@@ -402,18 +402,18 @@ export class JobStateManagerDO extends DurableObject {
    * Avoids Worker CPU time limits for long-running Gemini AI calls (20-60s)
    * Similar to CSV import, this delegates work to Durable Object alarm context
    *
-   * @param {ArrayBuffer} imageData - Raw image data
+   * V3 API: Now supports multiple images (1-5 photos per scan job)
+   *
+   * @param {Array<{index: number, buffer: ArrayBuffer, type: string}>} images - Array of processed images
    * @param {string} jobId - Job identifier
-   * @param {Object} requestHeaders - Headers from original request (X-AI-Provider, etc.)
    * @returns {Promise<{success: boolean}>}
    */
-  async scheduleBookshelfScan(imageData, jobId, requestHeaders) {
-    // Store image data as ArrayBuffer
-    await this.storage.put("imageData", imageData);
-    await this.storage.put("requestHeaders", requestHeaders || {});
+  async scheduleBookshelfScan(images, jobId) {
+    // Store multiple images with metadata
+    await this.storage.put("scanImages", images);
     await this.storage.put("processingType", "bookshelf_scan");
     await this.storage.setAlarm(Date.now()); // Trigger immediately
-    console.log(`[JobStateManager] Scheduled bookshelf scan for job ${jobId}`);
+    console.log(`[JobStateManager] Scheduled bookshelf scan for job ${jobId} (${images.length} photos)`);
     return { success: true };
   }
 
@@ -590,18 +590,17 @@ export class JobStateManagerDO extends DurableObject {
       await this.storage.delete("csvText");
       await this.storage.delete("processingType");
     } else if (processingType === "bookshelf_scan") {
-      // Bookshelf scan processing path
+      // Bookshelf scan processing path (V3: supports multiple photos)
       console.log(
         "[JobStateManager] Alarm triggered for bookshelf scan processing",
       );
 
-      const imageData = await this.storage.get("imageData");
-      const requestHeaders = await this.storage.get("requestHeaders");
+      const scanImages = await this.storage.get("scanImages");
       const jobState = await this.storage.get("jobState");
 
-      if (!imageData || !jobState) {
+      if (!scanImages || !jobState) {
         console.error(
-          "[JobStateManager] Missing image data or job state in alarm handler",
+          "[JobStateManager] Missing scan images or job state in alarm handler",
         );
         return;
       }
@@ -610,22 +609,16 @@ export class JobStateManagerDO extends DurableObject {
       const reporter = new ProgressReporter(jobState.jobId, this.env);
 
       try {
-        // Create a mock request object with headers (for X-AI-Provider support)
-        const mockRequest = {
-          headers: {
-            get: (key) => requestHeaders[key] || null,
-          },
-        };
+        // Import batch scan processing from V2 handler
+        const { processBatchPhotos } = await import("../handlers/batch-scan-handler.js");
 
-        // Call the AI scanner with reporter instead of doStub
-        // We pass null for ctx since we're in alarm context (no ctx.waitUntil needed)
-        await processBookshelfScan(
+        // Process all photos (V3: batch processing)
+        // This function handles R2 upload, Gemini Vision, deduplication, and enrichment
+        await processBatchPhotos(
           jobState.jobId,
-          imageData,
-          mockRequest,
+          scanImages,
           this.env,
-          reporter, // Use reporter instead of doStub
-          null, // No execution context in alarm
+          reporter, // Use reporter interface for progress updates
         );
       } catch (error) {
         console.error(
@@ -640,14 +633,13 @@ export class JobStateManagerDO extends DurableObject {
           details: {
             fallbackAvailable: false,
             suggestion:
-              "Try uploading a clearer photo or contact support if issue persists",
+              "Try uploading clearer photos or contact support if issue persists",
           },
         });
       }
 
       // Clean up temporary storage
-      await this.storage.delete("imageData");
-      await this.storage.delete("requestHeaders");
+      await this.storage.delete("scanImages");
       await this.storage.delete("processingType");
     } else {
       // Cleanup path (24 hour cleanup after job completion/failure)

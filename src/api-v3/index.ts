@@ -31,6 +31,8 @@ import { normalizeTitle } from '../utils/normalization'
 import { extractUniqueAuthors, removeAuthorsFromWorks, enrichAuthorsWithCulturalData } from '../utils/response-transformer'
 import { enrichMultipleBooks } from '../services/enrichment'
 import { generateBookEmbedding, storeEmbedding } from '../services/embedding-service'
+import { registerImportRoutes } from './jobs/imports'
+import { registerScanRoutes } from './jobs/scans'
 
 // Constants for V3 API data transformation
 const DEFAULT_PROVIDER_QUALITY = 95 // Default quality score for provider data
@@ -52,6 +54,12 @@ export function createV3Router() {
 
   // Apply request context middleware to all routes
   app.use('*', requestContext)
+
+  // ========================================================================
+  // Job Management Routes
+  // ========================================================================
+  registerImportRoutes(app)
+  registerScanRoutes(app)
 
   // ========================================================================
   // 1. GET /v3/books/search - Unified search endpoint
@@ -610,7 +618,9 @@ for semantic search.`,
   app.get('/v3/docs', swaggerUI({ url: '/v3/openapi.json' }))
 
   console.log('[V3 API] Contract-first router with shared schemas created')
-  console.log('[V3 API] Routes: GET /v3/books/search, POST /v3/books/enrich, GET /v3/books/:isbn')
+  console.log('[V3 API] Book Routes: GET /v3/books/search, POST /v3/books/enrich, GET /v3/books/:isbn')
+  console.log('[V3 API] Job Routes (Imports): POST /v3/jobs/imports, GET /v3/jobs/imports/:id, GET /v3/jobs/imports/:id/stream')
+  console.log('[V3 API] Job Routes (Scans): POST /v3/jobs/scans, GET /v3/jobs/scans/:id, GET /v3/jobs/scans/:id/stream')
   console.log('[V3 API] Documentation: /v3/docs')
   console.log('[V3 API] OpenAPI JSON: /v3/openapi.json')
 
