@@ -5,7 +5,7 @@
  * both offset and cursor-based pagination.
  */
 
-import { z } from 'zod'
+import { z } from '@hono/zod-openapi'
 import { BookSchema } from './book'
 import { SuccessResponseSchema, LinkSchema } from './response'
 
@@ -76,7 +76,7 @@ export const OffsetPaginationSchema = z.object({
   totalPages: z.number().int().min(0).describe('Total number of pages'),
   hasNext: z.boolean().describe('Whether there are more pages'),
   hasPrev: z.boolean().describe('Whether there are previous pages')
-})
+}).openapi('OffsetPagination')
 
 export type OffsetPagination = z.infer<typeof OffsetPaginationSchema>
 
@@ -88,7 +88,7 @@ export const CursorPaginationSchema = z.object({
   cursor: z.string().nullable().describe('Cursor for next page (null if no more results)'),
   hasMore: z.boolean().describe('Whether there are more results'),
   limit: z.number().int().min(1).max(100).describe('Results per page')
-})
+}).openapi('CursorPagination')
 
 export type CursorPagination = z.infer<typeof CursorPaginationSchema>
 
@@ -98,7 +98,7 @@ export type CursorPagination = z.infer<typeof CursorPaginationSchema>
 export const PaginationSchema = z.discriminatedUnion('type', [
   OffsetPaginationSchema,
   CursorPaginationSchema
-])
+]).openapi('Pagination')
 
 export type Pagination = z.infer<typeof PaginationSchema>
 
@@ -113,7 +113,7 @@ export const SearchResultDataSchema = z.object({
     mode: SearchModeSchema
   }).describe('Original search query'),
   pagination: PaginationSchema.describe('Pagination info (offset or cursor based)')
-})
+}).openapi('SearchResultData')
 
 export type SearchResultData = z.infer<typeof SearchResultDataSchema>
 

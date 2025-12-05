@@ -4,7 +4,7 @@
  * Single or batch ISBN enrichment with optional embedding generation.
  */
 
-import { z } from 'zod'
+import { z } from '@hono/zod-openapi'
 import { BookSchema } from './book'
 import { SuccessResponseSchema } from './response'
 
@@ -20,7 +20,7 @@ export const EnrichRequestSchema = z.object({
     .default(false)
     .optional()
     .describe('Generate semantic embeddings for vector search')
-})
+}).openapi('EnrichRequest')
 
 export type EnrichRequest = z.infer<typeof EnrichRequestSchema>
 
@@ -29,7 +29,7 @@ export type EnrichRequest = z.infer<typeof EnrichRequestSchema>
  */
 export const EnrichedBookSchema = BookSchema.extend({
   vectorized: z.boolean().describe('Whether semantic embedding was generated')
-})
+}).openapi('EnrichedBook')
 
 export type EnrichedBook = z.infer<typeof EnrichedBookSchema>
 
@@ -41,7 +41,7 @@ export const EnrichResultDataSchema = z.object({
   requested: z.number().int().min(1).describe('Number of ISBNs requested'),
   found: z.number().int().min(0).describe('Number of books found'),
   notFound: z.array(z.string()).optional().describe('ISBNs that were not found')
-})
+}).openapi('EnrichResultData')
 
 export type EnrichResultData = z.infer<typeof EnrichResultDataSchema>
 
