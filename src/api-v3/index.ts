@@ -42,6 +42,14 @@ export function createV3Router() {
     Variables: { ctx: RequestContext }
   }>()
 
+  // Initialize OpenAPI metadata BEFORE defining routes
+  // This is required for getOpenAPIDocument() to work properly
+  // Note: We don't provide a path here - the endpoint is created in parent router
+  app.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', {
+    type: 'http',
+    scheme: 'bearer'
+  })
+
   // Apply request context middleware to all routes
   app.use('*', requestContext)
 
@@ -595,45 +603,8 @@ for semantic search.`,
   // ========================================================================
   // OpenAPI Documentation with Security Schemes
   // ========================================================================
-  app.doc('/v3/openapi.json', {
-    openapi: '3.1.0',
-    info: {
-      title: 'BooksTrack V3 API',
-      version: '3.0.0',
-      description: `Contract-first API with shared Zod schemas.
-
-## Features
-- RFC 9457 Problem Details for errors
-- Request correlation via X-Request-ID
-- Rate limiting with standard headers
-- Cursor and offset pagination
-- ETag-based conditional requests
-- HATEOAS links for discoverability
-
-## Error Handling
-All errors follow [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457.html).
-Error responses use \`application/problem+json\` content type.`,
-      contact: {
-        name: 'BooksTrack API Support',
-        url: 'https://github.com/bookstrack/api/issues'
-      },
-      license: {
-        name: 'MIT',
-        url: 'https://opensource.org/licenses/MIT'
-      }
-    },
-    servers: [
-      { url: 'https://api.oooefam.net', description: 'Production' },
-      { url: 'http://localhost:8787', description: 'Local development' }
-    ],
-    tags: [
-      { name: 'Books', description: 'Book metadata operations' }
-    ],
-    externalDocs: {
-      description: 'API Documentation',
-      url: 'https://api.oooefam.net/v3/docs'
-    }
-  })
+  // Note: OpenAPI JSON endpoint is handled in parent router (src/router.ts)
+  // This is a workaround because .doc() doesn't work when OpenAPIHono is mounted as sub-app
 
   // Swagger UI
   app.get('/v3/docs', swaggerUI({ url: '/v3/openapi.json' }))

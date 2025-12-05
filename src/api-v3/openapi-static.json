@@ -1,0 +1,355 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BooksTrack V3 API",
+    "version": "3.0.0",
+    "description": "Contract-first API with shared Zod schemas",
+    "contact": {
+      "name": "BooksTrack API Support",
+      "url": "https://github.com/bookstrack/api/issues"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.oooefam.net",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:8787",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Books",
+      "description": "Book metadata operations"
+    }
+  ],
+  "paths": {
+    "/v3/books/search": {
+      "get": {
+        "tags": ["Books"],
+        "summary": "Search books",
+        "description": "Unified search supporting multiple modes: text, semantic, similar",
+        "operationId": "searchBooks",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search query"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["text", "semantic", "similar"],
+              "default": "text"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/books/{isbn}": {
+      "get": {
+        "tags": ["Books"],
+        "summary": "Get book by ISBN",
+        "operationId": "getBookByISBN",
+        "parameters": [
+          {
+            "name": "isbn",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(\\d{10}|\\d{13})$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Book details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Book not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/books/enrich": {
+      "post": {
+        "tags": ["Books"],
+        "summary": "Enrich books with metadata",
+        "operationId": "enrichBooks",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrichRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Enriched books",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SearchResponse": {
+        "type": "object",
+        "required": ["success", "data", "metadata"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "books": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Book"
+                }
+              },
+              "total": {
+                "type": "integer"
+              }
+            }
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        }
+      },
+      "BookResponse": {
+        "type": "object",
+        "required": ["success", "data", "metadata"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Book"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        }
+      },
+      "EnrichRequest": {
+        "type": "object",
+        "required": ["isbns"],
+        "properties": {
+          "isbns": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(\\d{10}|\\d{13})$"
+            },
+            "minItems": 1,
+            "maxItems": 50
+          },
+          "includeEmbedding": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "EnrichResponse": {
+        "type": "object",
+        "required": ["success", "data", "metadata"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "books": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Book"
+                }
+              },
+              "found": {
+                "type": "integer"
+              },
+              "requested": {
+                "type": "integer"
+              }
+            }
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        }
+      },
+      "Book": {
+        "type": "object",
+        "required": ["isbn", "title"],
+        "properties": {
+          "isbn": {
+            "type": "string"
+          },
+          "isbn13": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "authors": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "publishedDate": {
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "pageCount": {
+            "type": "integer"
+          },
+          "coverUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "description": {
+            "type": "string"
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["success", "error"],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [false]
+          },
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "ResponseMetadata": {
+        "type": "object",
+        "required": ["timestamp"],
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "cached": {
+            "type": "boolean"
+          },
+          "processingTimeMs": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}
