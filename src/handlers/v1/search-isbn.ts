@@ -3,6 +3,16 @@
  *
  * Search for books by ISBN using canonical response format
  * Refactored to use shared enrichMultipleBooks() service for consistency
+ *
+ * @deprecated This V1 endpoint is deprecated and will be removed on March 1, 2026.
+ * Use the V3 API instead: GET /v3/books/:isbn
+ *
+ * Migration guide:
+ * - V1: GET /v1/search/isbn?isbn=9780439708180
+ * - V3: GET /v3/books/9780439708180
+ *
+ * @see {@link /docs/V1_SUNSET_PLAN.md} for complete migration details
+ * @sunset 2026-03-01
  */
 
 import type { BookSearchResponse } from "../../types/responses.js";

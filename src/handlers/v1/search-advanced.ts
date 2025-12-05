@@ -3,6 +3,19 @@
  *
  * Advanced search for books by title and/or author using canonical response format
  * Returns up to 20 results for iOS search UI
+ *
+ * @deprecated This V1 endpoint is deprecated and will be removed on March 1, 2026.
+ * Use the V3 API instead: GET /v3/books/search?q=title+author
+ *
+ * Migration guide:
+ * - V1: GET /v1/search/advanced?title=harry+potter&author=rowling
+ * - V3: GET /v3/books/search?q=harry+potter+rowling (combined query)
+ *
+ * Note: V3 search does not have separate title/author parameters.
+ * Combine your search terms into a single query string.
+ *
+ * @see {@link /docs/V1_SUNSET_PLAN.md} for complete migration details
+ * @sunset 2026-03-01
  */
 
 import type { BookSearchResponse } from "../../types/responses.js";

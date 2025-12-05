@@ -6,6 +6,16 @@
  * Day 13: GET /v1/scan/results/{jobId} - Retrieve AI scan results (LEGACY)
  *         GET /v1/csv/results/{jobId} - Retrieve CSV import results (LEGACY)
  *         GET /v1/csv/status/{jobId} - CSV import status polling (DEPRECATED)
+ *
+ * @deprecated All V1 job endpoints are deprecated and will be removed March 1, 2026.
+ * Migrate to V2 API:
+ * - /v1/jobs/{jobId}/status → /api/v2/imports/{jobId}
+ * - /v1/scan/results/{jobId} → /api/v2/scans/{jobId}/results
+ * - /v1/csv/results/{jobId} → /api/v2/imports/{jobId}/results
+ * - /v1/csv/status/{jobId} → /api/v2/imports/{jobId}
+ *
+ * @see {@link /docs/V1_SUNSET_PLAN.md}
+ * @sunset 2026-03-01
  */
 
 import { createRoute } from '@hono/zod-openapi'
@@ -104,9 +114,17 @@ const JobStateResponseSchema = ResponseEnvelopeSchema(JobStateSchema)
 export const getJobStatusRoute = createRoute({
   method: 'get',
   path: '/v1/jobs/{jobId}/status',
-  tags: ['Jobs'],
-  summary: 'Get unified job status (legacy)',
+  tags: ['Jobs', 'Deprecated'],
+  deprecated: true,
+  summary: '[DEPRECATED] Get unified job status - Use /api/v2/imports/{jobId} instead',
   description: `
+> ⚠️ **DEPRECATED**: This endpoint will be removed on **March 1, 2026**.
+> Use the V2 API instead: \`GET /api/v2/imports/{jobId}\`
+>
+> **Migration:**
+> - V1: \`GET /v1/jobs/{jobId}/status\`
+> - V2: \`GET /api/v2/imports/{jobId}\`
+
 Poll job status for all pipeline types (CSV import, batch enrichment, bookshelf scanning).
 This is the unified legacy endpoint returning complete job metadata.
 
@@ -349,13 +367,21 @@ If a job was canceled, the response will include \`canceled\`, \`cancelReason\`,
 export const getScanResultsRoute = createRoute({
   method: 'get',
   path: '/v1/scan/results/{jobId}',
-  tags: ['Jobs'],
-  summary: 'Get AI scan results (legacy)',
+  tags: ['Jobs', 'Deprecated'],
+  deprecated: true,
+  summary: '[DEPRECATED] Get AI scan results - Use /api/v2/scans/{jobId}/results instead',
   description: `
+> ⚠️ **DEPRECATED**: This endpoint will be removed on **March 1, 2026**.
+> Use the V2 API instead: \`GET /api/v2/scans/{jobId}/results\`
+>
+> **Migration:**
+> - V1: \`GET /v1/scan/results/{jobId}\`
+> - V2: \`GET /api/v2/scans/{jobId}/results\`
+
 Retrieve AI bookshelf scan results after WebSocket completion.
 Results include detected books with enrichment data.
 
-**LEGACY ENDPOINT:** New integrations should use \`GET /api/v2/imports/{jobId}/results\` instead.
+**LEGACY ENDPOINT:** New integrations should use \`GET /api/v2/scans/{jobId}/results\` instead.
 
 **Result Storage:**
 - Results cached in KV for 24 hours after job completion
@@ -567,9 +593,17 @@ Parse this array and save all book objects to local storage for offline access.
 export const getCSVResultsRoute = createRoute({
   method: 'get',
   path: '/v1/csv/results/{jobId}',
-  tags: ['Jobs'],
-  summary: 'Get CSV import results (legacy)',
+  tags: ['Jobs', 'Deprecated'],
+  deprecated: true,
+  summary: '[DEPRECATED] Get CSV import results - Use /api/v2/imports/{jobId}/results instead',
   description: `
+> ⚠️ **DEPRECATED**: This endpoint will be removed on **March 1, 2026**.
+> Use the V2 API instead: \`GET /api/v2/imports/{jobId}/results\`
+>
+> **Migration:**
+> - V1: \`GET /v1/csv/results/{jobId}\`
+> - V2: \`GET /api/v2/imports/{jobId}/results\`
+
 Retrieve CSV import results after WebSocket completion.
 Results include imported books with enrichment data.
 
@@ -785,9 +819,17 @@ Parse this array and save all book objects to local storage for offline access.
 export const getCSVStatusRoute = createRoute({
   method: 'get',
   path: '/v1/csv/status/{jobId}',
-  tags: ['Jobs'],
-  summary: 'Get CSV import status (deprecated)',
+  tags: ['Jobs', 'Deprecated'],
+  deprecated: true,
+  summary: '[DEPRECATED] Get CSV import status - Use /api/v2/imports/{jobId} instead',
   description: `
+> ⚠️ **DEPRECATED**: This endpoint will be removed on **March 1, 2026**.
+> Use the V2 API instead: \`GET /api/v2/imports/{jobId}\`
+>
+> **Migration:**
+> - V1: \`GET /v1/csv/status/{jobId}\`
+> - V2: \`GET /api/v2/imports/{jobId}\`
+
 Poll CSV import job status with progress tracking.
 
 **DEPRECATED:** This endpoint is superseded by \`GET /v1/jobs/{jobId}/status\`.
