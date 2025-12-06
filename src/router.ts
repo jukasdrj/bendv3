@@ -20,10 +20,6 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { swaggerUI } from "@hono/swagger-ui";
 import { cors } from "hono/cors";
 import type { Env } from "./types/env";
-import { handleSearchISBN } from "./handlers/v1/search-isbn";
-import { handleSearchTitle } from "./handlers/v1/search-title";
-import { handleSearchAdvanced } from "./handlers/v1/search-advanced";
-import { handleSearchEditions } from "./handlers/v1/search-editions";
 import { handleBatchEnrichment } from "./handlers/batch-enrichment";
 import { handleBatchScan } from "./handlers/batch-scan-handler";
 import { handleCSVImport } from "./handlers/csv-import";
@@ -38,10 +34,8 @@ import { handleEnrichBookDetailed } from "./handlers/v2/enrich-detailed";
 import { getProgressDOStub } from "./utils/durable-object-helpers";
 import { analyticsMiddleware } from "./middleware/hono-analytics";
 import { capabilitiesRoute } from "./openapi/routes/capabilities";
-import { searchISBNRoute, searchTitleRoute } from "./openapi/routes/search";
 import { healthRoute } from "./openapi/routes/health";
 import { createImportJobRoute, getImportJobStatusRoute, getImportJobResultsRoute } from "./openapi/routes/imports";
-import { getJobStatusRoute, getScanResultsRoute, getCSVResultsRoute, getCSVStatusRoute } from "./openapi/routes/job";
 import { openAPIConfig } from "./openapi/config";
 import { checkRateLimit } from "./middleware/rate-limiter";
 import { createSuccessResponse, createErrorResponse, ErrorCodes } from "./utils/response-builder";
@@ -59,23 +53,10 @@ const getCtx = (c: any): ExecutionContext | undefined => c.executionCtx as Execu
 app.use("*", analyticsMiddleware());
 
 // API Contract Validation Middleware (Sprint 1, Day 1-2 - OpenAPI Migration)
-// Validates ResponseEnvelope format compliance on all v1 and v2 API routes
+// Validates ResponseEnvelope format compliance on v2 API routes
 // Start in monitoring mode (strict: false) - logs violations but doesn't reject
 // TODO: Enable strict mode (strict: true) after Sprint 3 when all endpoints migrated
-app.use("/v1/*", validateApiContract({ strict: false, logFailures: true }));
 app.use("/api/*", validateApiContract({ strict: false, logFailures: true }));
-
-// V1 Deprecation Middleware - Sunset March 1, 2026
-// Adds deprecation headers to all V1 endpoints to notify clients
-app.use("/v1/*", async (c, next) => {
-  await next();
-  // Add deprecation headers per RFC 8594
-  const baseUrl = new URL(c.req.url).origin;
-  c.header("Deprecation", "true");
-  c.header("Sunset", "Sat, 01 Mar 2026 00:00:00 GMT");
-  c.header("Link", `<${baseUrl}/v3>; rel="successor-version"`);
-  c.header("X-Deprecation-Notice", "V1 API deprecated. Migrate to V2/V3. Sunset: March 1, 2026");
-});
 
 // V2 Deprecation Middleware - Sunset March 7, 2026 (90 days after V3 GA)
 // Adds deprecation headers to all V2 endpoints to notify clients
@@ -174,54 +155,6 @@ app.openapi(searchTitleRoute, async (c) => {
 });
 
 // ============================================================================
-// V1 Search API - Additional Routes (Future Migration)
-// ============================================================================
-
-// GET /v1/search/advanced - Advanced search by title and/or author
-app.get("/v1/search/advanced", async (c) => {
-  // Validation: Limit length to prevent DoS (max 200 chars each)
-  const title = c.req.query("title")?.substring(0, 200) || "";
-  const author = c.req.query("author")?.substring(0, 200) || "";
-
-  if (!title && !author) {
-    return createErrorResponse(
-      "At least one search parameter required (title or author, max 200 characters each)",
-      400,
-      ErrorCodes.MISSING_PARAMETER,
-      { parameters: ["title", "author"] },
-      c.req.raw
-    );
-  }
-
-  return await handleSearchAdvanced(
-    title,
-    author,
-    c.env,
-    getCtx(c),
-    c.req.raw,
-  );
-});
-
-// ============================================================================
-// Trending/Popular Books Route - TODO: Implement properly (Issue TBD)
-// Currently returns 404, iOS app uses fallback curated list
-// ============================================================================
-
-// ============================================================================
-// Semantic Search Routes (Sprint 3 - Issues #25, #26)
-// ============================================================================
-
-// GET /v1/search/similar - Find similar books using Vectorize
-app.get("/v1/search/similar", async (c) => {
-  return await handleSimilarBooks(c.req.raw, c.env);
-});
-
-// GET /v1/search/semantic - Natural language semantic search
-app.get("/v1/search/semantic", async (c) => {
-  return await handleSemanticSearch(c.req.raw, c.env);
-});
-
-// ============================================================================
 // Batch Endpoints (Week 1 Migration - With Rate Limiting)
 // ============================================================================
 
@@ -242,13 +175,7 @@ const createRateLimitMiddleware = (maxRequests) => {
 };
 
 // POST /api/batch-enrich - iOS compatibility alias for batch enrichment
-// iOS app tries this endpoint first before falling back to /v1/enrichment/batch
 app.post("/api/batch-enrich", rateLimitMiddleware, async (c) => {
-  return await handleBatchEnrichment(c.req.raw, c.env, getCtx(c));
-});
-
-// POST /v1/enrichment/batch - Canonical batch enrichment endpoint
-app.post("/v1/enrichment/batch", rateLimitMiddleware, async (c) => {
   return await handleBatchEnrichment(c.req.raw, c.env, getCtx(c));
 });
 
