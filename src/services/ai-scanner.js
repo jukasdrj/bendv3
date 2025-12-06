@@ -224,21 +224,68 @@ export async function processBookshelfScan(
     // Stage 4: Completion (100%)
     const totalTime = Date.now() - startTime;
 
-    // Completion payload with modelUsed fallback
-    await doStub.complete("ai_scan", {
-      books: enrichedBooks,
-      suggestions,
-      summary: {
-        totalBooks: enrichedBooks.length,
-        highConfidence: categorized.high.length,
-        mediumConfidence: categorized.medium.length,
-        lowConfidence: categorized.low.length,
-        processingTimeMs: totalTime,
-        modelUsed, // Includes fallback to 'unknown' if metadata incomplete
+    // ISSUE #133: Store full results in KV to avoid multi-MB WebSocket payloads
+    // Build unified books array using standard structure
+    const books = enrichedBooks.map((b) => ({
+      title: b.title,
+      author: b.author,
+      isbn: b.isbn || null,
+      confidence: b.confidence,
+      boundingBox: b.boundingBox,
+      enrichmentStatus: b.enrichment?.status || "pending",
+      coverUrl: b.enrichment?.work?.coverImageURL || null,
+      publisher: b.enrichment?.editions?.[0]?.publisher || null,
+      publicationYear: b.enrichment?.editions?.[0]?.publicationYear || null,
+    }));
+
+    // Store complete results in KV with 24-hour expiration
+    const resultsKey = `scan-results:${jobId}`;
+    const fullResults = {
+      totalDetected: detectedBooks.length,
+      approved: categorized.high.length,
+      needsReview: categorized.medium.length + categorized.low.length,
+      books,
+      metadata: {
+        modelUsed,
+        processingTime: totalTime,
+        timestamp: Date.now(),
       },
+    };
+
+    await env.CACHE.put(resultsKey, JSON.stringify(fullResults), {
+      expirationTtl: 86400, // 24 hours
     });
 
-    console.log(`[AI Scanner] Job ${jobId} completed in ${totalTime}ms`);
+    debugLog(env, () => {
+      console.log(
+        `[AI Scanner] 💾 Stored full results in KV: ${resultsKey} (${books.length} books)`,
+      );
+    });
+
+    // Send summary-only completion via WebSocket (avoid large payloads)
+    const completionPayload = {
+      totalDetected: detectedBooks.length,
+      approved: categorized.high.length,
+      needsReview: categorized.medium.length + categorized.low.length,
+      resultsUrl: `/v1/scan/results/${jobId}`, // Client fetches full results via HTTP GET
+      metadata: {
+        modelUsed,
+        processingTime: totalTime,
+      },
+    };
+
+    debugLog(env, () => {
+      console.log(
+        `[AI Scanner] 📤 Sending summary-only completion:`,
+        JSON.stringify(completionPayload),
+      );
+    });
+
+    await doStub.complete("ai_scan", completionPayload);
+
+    console.log(
+      `[AI Scanner] Scan complete for job ${jobId}: ${detectedBooks.length} books, ${totalTime}ms`,
+    );
   } catch (error) {
     console.error(`[AI Scanner] Job ${jobId} failed:`, error);
 
