@@ -24,6 +24,7 @@ export interface JobStateManagerDO {
   validateAuthToken(token: string | undefined): Promise<{ valid: boolean; expired?: boolean }>
   scheduleCSVProcessing?(csvText: string, jobId: string): Promise<void>
   scheduleBookshelfScan?(images: any[], jobId: string): Promise<void>
+  scheduleEnrichment?(isbns: string[], includeEmbedding: boolean, jobId: string): Promise<void>
 }
 
 /**

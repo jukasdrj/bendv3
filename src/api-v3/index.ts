@@ -33,6 +33,13 @@ import { enrichMultipleBooks } from '../services/enrichment'
 import { generateBookEmbedding, storeEmbedding } from '../services/embedding-service'
 import { registerImportRoutes } from './jobs/imports'
 import { registerScanRoutes } from './jobs/scans'
+import { registerEnrichmentRoutes } from './jobs/enrichment'
+import {
+  getJobStateManagerDO,
+  generateAuthToken,
+  buildStreamUrl,
+  createJobLinks
+} from './jobs/common'
 
 // Constants for V3 API data transformation
 const DEFAULT_PROVIDER_QUALITY = 95 // Default quality score for provider data
@@ -60,6 +67,7 @@ export function createV3Router() {
   // ========================================================================
   registerImportRoutes(app)
   registerScanRoutes(app)
+  registerEnrichmentRoutes(app)
 
   // ========================================================================
   // 1. GET /v3/books/search - Unified search endpoint
@@ -298,9 +306,62 @@ for semantic search.`,
 
   app.openapi(enrichRoute, rateLimitHeaders, async (c) => {
     const ctx = c.get('ctx')
-    const { isbns, includeEmbedding = false } = c.req.valid('json')
+    const body = c.req.valid('json')
 
-    console.log(`[V3 Enrich] ISBNs: ${isbns.length}, includeEmbedding: ${includeEmbedding}`)
+    // Handle both isbns and barcodes (iOS compatibility)
+    const isbns = ('isbns' in body ? body.isbns : body.barcodes) as string[]
+    const includeEmbedding = body.includeEmbedding ?? false
+    const async = body.async ?? false
+
+    console.log(`[V3 Enrich] ISBNs: ${isbns.length}, includeEmbedding: ${includeEmbedding}, async: ${async}`)
+
+    // ========================================================================
+    // ASYNC MODE: Create background job and return immediately
+    // ========================================================================
+    if (async) {
+      const jobId = crypto.randomUUID()
+      const authToken = generateAuthToken()
+
+      console.log(`[V3 Enrich Async] Creating job ${jobId} for ${isbns.length} ISBNs`)
+
+      // Get JobStateManagerDO stub
+      const doStub = getJobStateManagerDO(jobId, c.env)
+
+      // Initialize job state
+      await doStub.initializeJobState(jobId, 'enrichment', isbns.length)
+
+      // Store auth token (1 hour expiry)
+      await doStub.setAuthToken(authToken, Date.now() + 3600000)
+
+      // Schedule enrichment processing via DO alarm
+      c.executionCtx.waitUntil(
+        doStub.scheduleEnrichment!(isbns, includeEmbedding, jobId)
+      )
+
+      const streamUrl = buildStreamUrl(c.req.url, 'enrichment', jobId)
+
+      return c.json(
+        {
+          success: true,
+          data: {
+            jobId,
+            status: 'queued' as const,
+            streamUrl,
+            token: authToken
+          },
+          metadata: {
+            timestamp: new Date().toISOString(),
+            requestId: ctx.requestId
+          },
+          _links: createJobLinks('enrichment', jobId, streamUrl)
+        },
+        202
+      )
+    }
+
+    // ========================================================================
+    // SYNC MODE: Existing behavior (unchanged)
+    // ========================================================================
 
     try {
       const enrichedBooks: EnrichedBook[] = []

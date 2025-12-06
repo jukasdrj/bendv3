@@ -1,6 +1,6 @@
 # BooksTrack Backend - Claude Code Quick Reference
 
-**Version:** 2.5 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** December 3, 2025
+**Version:** 2.6 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** December 5, 2025
 
 > **📖 For comprehensive Claude Code guidelines, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md)**
 >
@@ -53,16 +53,32 @@
 ### Key V3 Endpoints (Production-Ready)
 - ✅ `GET /v3/books/:isbn` - Get book by ISBN with full metadata
 - ✅ `GET /v3/books/search?q=title` - Search books by title
-- ✅ `POST /v3/books/enrich` - Enrich book with optional embedding
+- ✅ `POST /v3/books/enrich` - Enrich book with optional embedding (sync mode)
 - ✅ `GET /v3/openapi.json` - OpenAPI 3.1 specification (auto-generated)
 - ✅ `GET /v3/docs` - Interactive Swagger UI
 
+### V3 Job Routes (Production-Ready)
+- ✅ `POST /v3/jobs/imports` - CSV import workflow
+- ✅ `GET /v3/jobs/imports/:jobId` - Import job status
+- ✅ `GET /v3/jobs/imports/:jobId/stream` - SSE progress stream
+- ✅ `POST /v3/jobs/scans` - Bookshelf photo scanning
+- ✅ `GET /v3/jobs/scans/:jobId` - Scan job status
+- ✅ `GET /v3/jobs/scans/:jobId/stream` - SSE progress stream
+- ✅ `GET /v3/jobs/enrichment/:jobId` - Enrichment job status
+- ✅ `GET /v3/jobs/enrichment/:jobId/stream` - SSE progress stream (every 25 books)
+- ✅ `GET /v3/jobs/enrichment/:jobId/results` - Fetch enriched books
+- ✅ `DELETE /v3/jobs/enrichment/:jobId` - Cancel enrichment job
+
+### V3 In Progress (Issue #203 - Async Enrichment)
+- 🚧 Async batch enrichment (extend `/v3/books/enrich` with `async` flag)
+  - ✅ Schema updated (supports `async` flag + `barcodes` iOS format)
+  - ✅ Job routes created (`GET/DELETE /v3/jobs/enrichment/:jobId`)
+  - ⏳ Handler fork logic (sync vs async path)
+  - ⏳ DO alarm handlers (background processing)
+  - ⏳ Smoke tests
+
 ### V3 Missing Features (Phase 2 - Blocks V2 Deprecation)
-- ❌ CSV import workflow (`POST /v3/jobs/imports`)
-- ❌ Bookshelf scanning (`POST /v3/jobs/scans`)
-- ❌ Async batch enrichment (extend `/v3/books/enrich` with `async` flag)
-- ❌ SSE progress streaming (`GET /v3/jobs/{type}/{id}/stream`)
-- ❌ Job lifecycle management (`GET/DELETE /v3/jobs/{type}/{id}`)
+- ❌ None - All Phase 2 routes implemented!
 
 **Target:** Phase 2 completion (4 weeks) enables V2 deprecation
 
