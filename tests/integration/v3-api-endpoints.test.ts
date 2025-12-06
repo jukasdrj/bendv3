@@ -20,8 +20,7 @@ import {
   EnrichResponseSchema,
   BookSchema,
   ISBNSchema,
-  JobInitResponseSchema,
-  JobStatusResponseSchema
+  JobInitResponseSchema
 } from '@bookstrack/schemas'
 import { createProblemDetails } from '@bookstrack/schemas/errors'
 
@@ -71,27 +70,18 @@ describe('V3 API Request Schemas', () => {
     })
 
     it('should default mode to text', () => {
-      const result = SearchRequestSchema.safeParse({ q: 'test' })
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.mode).toBe('text')
-      }
+      const data = SearchRequestSchema.parse({ q: 'test' })
+      expect(data.mode).toBe('text')
     })
 
     it('should default page to 1', () => {
-      const result = SearchRequestSchema.safeParse({ q: 'test' })
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.page).toBe(1)
-      }
+      const data = SearchRequestSchema.parse({ q: 'test' })
+      expect(data.page).toBe(1)
     })
 
     it('should default limit to 20', () => {
-      const result = SearchRequestSchema.safeParse({ q: 'test' })
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.limit).toBe(20)
-      }
+      const data = SearchRequestSchema.parse({ q: 'test' })
+      expect(data.limit).toBe(20)
     })
 
     it('should reject invalid page values', () => {
@@ -129,14 +119,11 @@ describe('V3 API Request Schemas', () => {
     })
 
     it('should support async flag', () => {
-      const result = EnrichRequestSchema.safeParse({
+      const data = EnrichRequestSchema.parse({
         isbns: ['9780439708180'],
         async: true
       })
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.async).toBe(true)
-      }
+      expect(data.async).toBe(true)
     })
 
     it('should default async to false', () => {
@@ -412,16 +399,16 @@ describe('V3 API Error Handling', () => {
   })
 })
 
-describe('V3 API Common Utilities', () => {
+describe('V3 API Common Utilities', async () => {
+  const { generateAuthToken, validateTokenFormat, buildStreamUrl, createJobLinks } = await import('../../src/api-v3/jobs/common')
+
   describe('generateAuthToken', () => {
-    it('should generate 64-character hex token', async () => {
-      const { generateAuthToken } = await import('../../src/api-v3/jobs/common')
+    it('should generate 64-character hex token', () => {
       const token = generateAuthToken()
       expect(token).toMatch(/^[0-9a-f]{64}$/)
     })
 
-    it('should generate unique tokens', async () => {
-      const { generateAuthToken } = await import('../../src/api-v3/jobs/common')
+    it('should generate unique tokens', () => {
       const tokens = new Set()
       for (let i = 0; i < 100; i++) {
         tokens.add(generateAuthToken())
@@ -431,14 +418,12 @@ describe('V3 API Common Utilities', () => {
   })
 
   describe('validateTokenFormat', () => {
-    it('should validate correct token format', async () => {
-      const { validateTokenFormat } = await import('../../src/api-v3/jobs/common')
+    it('should validate correct token format', () => {
       const validToken = 'a'.repeat(64)
       expect(validateTokenFormat(validToken)).toBe(true)
     })
 
-    it('should reject invalid token', async () => {
-      const { validateTokenFormat } = await import('../../src/api-v3/jobs/common')
+    it('should reject invalid token', () => {
       expect(validateTokenFormat('short')).toBe(false)
       expect(validateTokenFormat('')).toBe(false)
       expect(validateTokenFormat(undefined)).toBe(false)
@@ -446,28 +431,24 @@ describe('V3 API Common Utilities', () => {
   })
 
   describe('buildStreamUrl', () => {
-    it('should build stream URL for imports', async () => {
-      const { buildStreamUrl } = await import('../../src/api-v3/jobs/common')
+    it('should build stream URL for imports', () => {
       const url = buildStreamUrl('https://api.example.com/v3/jobs/imports', 'imports', 'job-123')
       expect(url).toContain('/v3/jobs/imports/job-123/stream')
     })
 
-    it('should build stream URL for enrichment', async () => {
-      const { buildStreamUrl } = await import('../../src/api-v3/jobs/common')
+    it('should build stream URL for enrichment', () => {
       const url = buildStreamUrl('https://api.example.com/v3/books/enrich', 'enrichment', 'job-456')
       expect(url).toContain('/v3/jobs/enrichment/job-456/stream')
     })
 
-    it('should build stream URL for scans', async () => {
-      const { buildStreamUrl } = await import('../../src/api-v3/jobs/common')
+    it('should build stream URL for scans', () => {
       const url = buildStreamUrl('https://api.example.com/v3/jobs/scans', 'scans', 'job-789')
       expect(url).toContain('/v3/jobs/scans/job-789/stream')
     })
   })
 
   describe('createJobLinks', () => {
-    it('should create HATEOAS links for jobs', async () => {
-      const { createJobLinks } = await import('../../src/api-v3/jobs/common')
+    it('should create HATEOAS links for jobs', () => {
       const links = createJobLinks('imports', 'job-123', 'https://api.example.com/stream')
 
       expect(links.self).toBeDefined()
