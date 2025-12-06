@@ -15,7 +15,7 @@ import {
   ErrorCodes,
 } from "../utils/response-builder.js";
 import { enrichBooksParallel } from "../services/parallel-enrichment.js";
-import { handleSearchAdvanced } from "./v1/search-advanced.js";
+import { enrichMultipleBooks } from "../services/enrichment.ts";
 import { getConfidenceThreshold } from "../utils/confidence.js";
 import { deleteR2Objects } from "../utils/r2-utils.js";
 import { CircuitBreakerOpenError } from "../types/errors.js";
@@ -303,13 +303,17 @@ async function processBatchPhotos(jobId, images, env, doStub) {
           partialBooks,
           async (book) => {
             // Enrichment function: fetch metadata for this book
+            // Issue #205: Migrated from V1 handleSearchAdvanced to enrichMultipleBooks service
             // FIX: Catch CircuitBreakerOpenError to set proper status
-            let response;
+            let enrichmentResult;
             try {
-              response = await handleSearchAdvanced(
-                book.title || "",
-                book.author || "",
+              enrichmentResult = await enrichMultipleBooks(
+                {
+                  title: book.title || "",
+                  author: book.author || "",
+                },
                 env,
+                { maxResults: 20 },
                 ctx,
               );
             } catch (error) {
@@ -333,53 +337,22 @@ async function processBatchPhotos(jobId, images, env, doStub) {
               throw error;
             }
 
-            // Parse Response object to get canonical ApiResponse<BookSearchResponse>
-            let apiResponse;
-            try {
-              apiResponse = await response.json();
-            } catch (parseError) {
-              console.error("[Batch Scan] JSON parse failed for book:", book.title, parseError);
-              return {
-                ...book,
-                enrichment: {
-                  status: "error",
-                  error: "Invalid response format from search API",
-                  work: null,
-                  editions: [],
-                  authors: [],
-                },
-              };
-            }
+            // enrichMultipleBooks returns { works, editions, authors }
+            const work = enrichmentResult.works?.[0] || null;
+            const editions = enrichmentResult.editions || [];
+            const authors = enrichmentResult.authors || [];
 
-            // Parse canonical ApiResponse<BookSearchResponse>
-            if (apiResponse.success) {
-              const work = apiResponse.data.works?.[0] || null;
-              const editions = apiResponse.data.editions || [];
-              const authors = apiResponse.data.authors || [];
-
-              return {
-                ...book,
-                enrichment: {
-                  status: work ? "success" : "not_found",
-                  work,
-                  editions,
-                  authors,
-                  provider: apiResponse.meta.provider,
-                  cachedResult: apiResponse.meta.cached || false,
-                },
-              };
-            } else {
-              return {
-                ...book,
-                enrichment: {
-                  status: "error",
-                  error: apiResponse.error.message,
-                  work: null,
-                  editions: [],
-                  authors: [],
-                },
-              };
-            }
+            return {
+              ...book,
+              enrichment: {
+                status: work ? "success" : "not_found",
+                work,
+                editions,
+                authors,
+                provider: "alexandria", // enrichMultipleBooks uses Alexandria RPC
+                cachedResult: false, // Alexandria handles its own caching internally
+              },
+            };
           },
           async (completed, total, title, hasError) => {
             // Progress callback: update progress after each book
@@ -515,13 +488,17 @@ async function processBatchPhotos(jobId, images, env, doStub) {
       async (book) => {
         // Enrichment function: fetch metadata for this book
         // FIX: Catch CircuitBreakerOpenError to set proper status instead of "pending"
+        // Issue #205: Migrated from V1 handleSearchAdvanced to enrichMultipleBooks service
         // See: docs/plans/shelf-scan-fixes-plan.md §2.2
-        let response;
+        let enrichmentResult;
         try {
-          response = await handleSearchAdvanced(
-            book.title || "",
-            book.author || "",
+          enrichmentResult = await enrichMultipleBooks(
+            {
+              title: book.title || "",
+              author: book.author || "",
+            },
             env,
+            { maxResults: 20 },
             ctx,
           );
         } catch (error) {
@@ -547,62 +524,22 @@ async function processBatchPhotos(jobId, images, env, doStub) {
           throw error;
         }
 
-        // Parse Response object to get canonical ApiResponse<BookSearchResponse>
-        let apiResponse;
-        try {
-          apiResponse = await response.json();
-        } catch (parseError) {
-          console.error("[Batch Scan] JSON parse failed for book:", book.title, parseError);
-          return {
-            ...book,
-            enrichment: {
-              status: "error",
-              error: "Invalid response format from search API",
-              work: null,
-              editions: [],
-              authors: [],
-            },
-          };
-        }
+        // enrichMultipleBooks returns { works, editions, authors }
+        const work = enrichmentResult.works?.[0] || null;
+        const editions = enrichmentResult.editions || [];
+        const authors = enrichmentResult.authors || [];
 
-        // Parse canonical ApiResponse<BookSearchResponse>
-        if (apiResponse.success) {
-          const work = apiResponse.data.works?.[0] || null;
-          const editions = apiResponse.data.editions || [];
-          const authors = apiResponse.data.authors || [];
-
-          return {
-            ...book,
-            enrichment: {
-              status: work ? "success" : "not_found",
-              work,
-              editions,
-              authors,
-              provider: apiResponse.meta.provider,
-              cachedResult: apiResponse.meta.cached || false,
-            },
-          };
-        } else {
-          // FIX (Shelf Scan Plan - Issue 2.2): Detect circuit breaker errors in API response
-          const errorCode = apiResponse.error?.code;
-          const isCircuitOpen = errorCode === "CIRCUIT_OPEN";
-
-          return {
-            ...book,
-            enrichmentStatus: isCircuitOpen ? "circuit_open" : "error",
-            enrichment: {
-              status: isCircuitOpen ? "circuit_open" : "error",
-              error: apiResponse.error.message,
-              work: null,
-              editions: [],
-              authors: [],
-              // Include retryAfterMs for circuit_open so client knows when to retry
-              ...(isCircuitOpen && apiResponse.error.retryAfterMs && {
-                retryAfterMs: apiResponse.error.retryAfterMs,
-              }),
-            },
-          };
-        }
+        return {
+          ...book,
+          enrichment: {
+            status: work ? "success" : "not_found",
+            work,
+            editions,
+            authors,
+            provider: "alexandria", // enrichMultipleBooks uses Alexandria RPC
+            cachedResult: false, // Alexandria handles its own caching internally
+          },
+        };
       },
       async (completed, total, title, hasError) => {
         // Progress callback: update progress after each book

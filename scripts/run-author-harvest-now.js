@@ -76,10 +76,12 @@ async function searchISBNdbAuthor(authorName, apiKey) {
 
 /**
  * Warm cache via production API
+ * Issue #205: Migrated from V1 to V3 API endpoint
  */
 async function warmCache(isbn) {
   try {
-    const response = await fetch(`${PRODUCTION_API}/v1/search/isbn?isbn=${isbn}`) // Issue #139: Strict validation
+    // V3 API: GET /v3/books/:isbn (replaces V1 /v1/search/isbn?isbn=...)
+    const response = await fetch(`${PRODUCTION_API}/v3/books/${isbn}`) // Issue #139: Strict validation
     const data = await response.json()
 
     // Log invalid ISBNs (Issue #139)

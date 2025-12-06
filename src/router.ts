@@ -20,10 +20,6 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { swaggerUI } from "@hono/swagger-ui";
 import { cors } from "hono/cors";
 import type { Env } from "./types/env";
-import { handleSearchISBN } from "./handlers/v1/search-isbn";
-import { handleSearchTitle } from "./handlers/v1/search-title";
-import { handleSearchAdvanced } from "./handlers/v1/search-advanced";
-import { handleSearchEditions } from "./handlers/v1/search-editions";
 import { handleBatchEnrichment } from "./handlers/batch-enrichment";
 import { handleBatchScan } from "./handlers/batch-scan-handler";
 import { handleCSVImport } from "./handlers/csv-import";
@@ -38,10 +34,8 @@ import { handleEnrichBookDetailed } from "./handlers/v2/enrich-detailed";
 import { getProgressDOStub } from "./utils/durable-object-helpers";
 import { analyticsMiddleware } from "./middleware/hono-analytics";
 import { capabilitiesRoute } from "./openapi/routes/capabilities";
-import { searchISBNRoute, searchTitleRoute } from "./openapi/routes/search";
 import { healthRoute } from "./openapi/routes/health";
 import { createImportJobRoute, getImportJobStatusRoute, getImportJobResultsRoute } from "./openapi/routes/imports";
-import { getJobStatusRoute, getScanResultsRoute, getCSVResultsRoute, getCSVStatusRoute } from "./openapi/routes/job";
 import { openAPIConfig } from "./openapi/config";
 import { checkRateLimit } from "./middleware/rate-limiter";
 import { createSuccessResponse, createErrorResponse, ErrorCodes } from "./utils/response-builder";
@@ -59,23 +53,10 @@ const getCtx = (c: any): ExecutionContext | undefined => c.executionCtx as Execu
 app.use("*", analyticsMiddleware());
 
 // API Contract Validation Middleware (Sprint 1, Day 1-2 - OpenAPI Migration)
-// Validates ResponseEnvelope format compliance on all v1 and v2 API routes
+// Validates ResponseEnvelope format compliance on v2 API routes
 // Start in monitoring mode (strict: false) - logs violations but doesn't reject
 // TODO: Enable strict mode (strict: true) after Sprint 3 when all endpoints migrated
-app.use("/v1/*", validateApiContract({ strict: false, logFailures: true }));
 app.use("/api/*", validateApiContract({ strict: false, logFailures: true }));
-
-// V1 Deprecation Middleware - Sunset March 1, 2026
-// Adds deprecation headers to all V1 endpoints to notify clients
-app.use("/v1/*", async (c, next) => {
-  await next();
-  // Add deprecation headers per RFC 8594
-  const baseUrl = new URL(c.req.url).origin;
-  c.header("Deprecation", "true");
-  c.header("Sunset", "Sat, 01 Mar 2026 00:00:00 GMT");
-  c.header("Link", `<${baseUrl}/v3>; rel="successor-version"`);
-  c.header("X-Deprecation-Notice", "V1 API deprecated. Migrate to V2/V3. Sunset: March 1, 2026");
-});
 
 // V2 Deprecation Middleware - Sunset March 7, 2026 (90 days after V3 GA)
 // Adds deprecation headers to all V2 endpoints to notify clients
@@ -148,78 +129,12 @@ app.openapi(healthRoute, (c) => {
 });
 
 // ============================================================================
-// MVP Route 2: ISBN Search (OpenAPI Migration - Sprint 1, Day 3)
+// V1 API Routes Removed (Issue #205 - V1 Sunset March 1, 2026)
 // ============================================================================
-// MIGRATED TO OPENAPI: Sprint 1, Day 3 - First critical endpoint
-// Uses Zod schemas for automatic validation and OpenAPI spec generation
-app.openapi(searchISBNRoute, async (c) => {
-  // Query params are validated by Zod schema (SearchISBNQuerySchema)
-  const { isbn } = c.req.valid('query');
-
-  // Call existing handler with validated params
-  return await handleSearchISBN(isbn, c.env, c.req.raw, c.executionCtx);
-});
-
-// ============================================================================
-// MVP Route 3: Title Search (OpenAPI Migration - Sprint 1, Day 4)
-// ============================================================================
-// MIGRATED TO OPENAPI: Sprint 1, Day 4 - Second critical search endpoint
-// Uses Zod schemas for automatic validation and OpenAPI spec generation
-app.openapi(searchTitleRoute, async (c) => {
-  // Query params are validated by Zod schema (SearchTitleQuerySchema)
-  const { q: query } = c.req.valid('query');
-
-  // Call existing handler with validated params
-  return await handleSearchTitle(query, c.env, c.req.raw);
-});
-
-// ============================================================================
-// V1 Search API - Additional Routes (Future Migration)
-// ============================================================================
-
-// GET /v1/search/advanced - Advanced search by title and/or author
-app.get("/v1/search/advanced", async (c) => {
-  // Validation: Limit length to prevent DoS (max 200 chars each)
-  const title = c.req.query("title")?.substring(0, 200) || "";
-  const author = c.req.query("author")?.substring(0, 200) || "";
-
-  if (!title && !author) {
-    return createErrorResponse(
-      "At least one search parameter required (title or author, max 200 characters each)",
-      400,
-      ErrorCodes.MISSING_PARAMETER,
-      { parameters: ["title", "author"] },
-      c.req.raw
-    );
-  }
-
-  return await handleSearchAdvanced(
-    title,
-    author,
-    c.env,
-    getCtx(c),
-    c.req.raw,
-  );
-});
-
-// ============================================================================
-// Trending/Popular Books Route - TODO: Implement properly (Issue TBD)
-// Currently returns 404, iOS app uses fallback curated list
-// ============================================================================
-
-// ============================================================================
-// Semantic Search Routes (Sprint 3 - Issues #25, #26)
-// ============================================================================
-
-// GET /v1/search/similar - Find similar books using Vectorize
-app.get("/v1/search/similar", async (c) => {
-  return await handleSimilarBooks(c.req.raw, c.env);
-});
-
-// GET /v1/search/semantic - Natural language semantic search
-app.get("/v1/search/semantic", async (c) => {
-  return await handleSemanticSearch(c.req.raw, c.env);
-});
+// The following V1 routes have been removed:
+// - GET /v1/search/isbn (replaced by GET /v3/books/:isbn)
+// - GET /v1/search/title (replaced by GET /v3/books/search?q=title)
+// See docs/archive/v1-api-2026-03/README.md for migration guide
 
 // ============================================================================
 // Batch Endpoints (Week 1 Migration - With Rate Limiting)
@@ -242,13 +157,7 @@ const createRateLimitMiddleware = (maxRequests) => {
 };
 
 // POST /api/batch-enrich - iOS compatibility alias for batch enrichment
-// iOS app tries this endpoint first before falling back to /v1/enrichment/batch
 app.post("/api/batch-enrich", rateLimitMiddleware, async (c) => {
-  return await handleBatchEnrichment(c.req.raw, c.env, getCtx(c));
-});
-
-// POST /v1/enrichment/batch - Canonical batch enrichment endpoint
-app.post("/v1/enrichment/batch", rateLimitMiddleware, async (c) => {
   return await handleBatchEnrichment(c.req.raw, c.env, getCtx(c));
 });
 
@@ -695,362 +604,20 @@ app.get("/ws/progress", async (c) => {
 });
 
 // ============================================================================
-// Results Retrieval Endpoints (Week 2 Migration)
+// V1 Results/Job Status Routes Removed (Issue #205 - V1 Sunset March 1, 2026)
 // ============================================================================
+// The following V1 routes have been removed:
+// - GET /v1/scan/results/{jobId} (replaced by GET /v3/jobs/scans/:jobId/results)
+// - GET /v1/csv/status/{jobId} (replaced by GET /v3/jobs/imports/:jobId)
+// - GET /v1/csv/results/{jobId} (replaced by GET /v3/jobs/imports/:jobId/results)
+// - GET /v1/jobs/{jobId}/status (replaced by GET /v3/jobs/{type}/:jobId)
+// See docs/archive/v1-api-2026-03/README.md for migration guide
 
-// GET /v1/scan/results/{jobId} - Retrieve AI scan results after WebSocket completion
-app.openapi(getScanResultsRoute, async (c) => {
-  const { jobId } = c.req.valid('param')
+// DELETE /v1/jobs/{jobId} - REMOVED (Issue #205 - V1 Sunset March 1, 2026)
+// Replaced by DELETE /api/v2/jobs/:jobId/cancel
 
-  // Retrieve from KV cache (24-hour TTL for scan results)
-  const resultsKey = `scan-results:${jobId}`
-  const results = await c.env.CACHE.get(resultsKey, "json")
-
-  if (!results) {
-    return createErrorResponse(
-      "Scan results not found or expired. Results are stored for 24 hours after job completion.",
-      404,
-      ErrorCodes.NOT_FOUND,
-      { jobId, resultsKey, ttl: "24 hours" },
-      c.req.raw
-    )
-  }
-
-  return createSuccessResponse(
-    results,
-    { cached: true, provider: "kv_cache" },
-    200,
-    c.req.raw
-  )
-})
-
-// GET /v1/csv/status/{jobId} - OpenAPI v2.1 (Sprint 2, Day 13 Migration)
-app.openapi(getCSVStatusRoute, async (c) => {
-  // Apply rate limiting inline (30 req/min for polling)
-  const rateLimitResponse = await checkRateLimit(c.req.raw, c.env, { limit: 30, window: 60 });
-  if (rateLimitResponse) return rateLimitResponse;
-
-  try {
-    const { jobId } = c.req.valid('param')
-
-    // Get Durable Object stub for this job (legacy ProgressDO)
-    const doStub = getProgressDOStub(jobId, c.env)
-
-    // Fetch current job state
-    const state = await doStub.getJobState()
-
-    if (!state) {
-      return createErrorResponse(
-        "Job not found or not initialized",
-        404,
-        ErrorCodes.NOT_FOUND,
-        { jobId },
-        c.req.raw
-      )
-    }
-
-    // Return job state in ResponseEnvelope format
-    return createSuccessResponse(
-      state,
-      { source: "durable-object" },
-      200,
-      c.req.raw
-    )
-  } catch (error) {
-    console.error("[CSV Status] Error fetching job state:", error)
-    return createErrorResponse(
-      `Failed to fetch job status: ${(error as Error).message}`,
-      500,
-      ErrorCodes.INTERNAL_ERROR,
-      { jobId: c.req.param("jobId") },
-      c.req.raw
-    )
-  }
-});
-
-// GET /v1/csv/results/{jobId} - Retrieve CSV import results (OpenAPI v2.1)
-app.openapi(getCSVResultsRoute, async (c) => {
-  const { jobId } = c.req.valid('param');
-
-  // Retrieve from KV cache (24-hour TTL for CSV results)
-  const resultsKey = `csv-results:${jobId}`;
-  const results = await c.env.CACHE.get(resultsKey, "json");
-
-  if (!results) {
-    return createErrorResponse(
-      "CSV import results not found or expired. Results are stored for 24 hours after job completion.",
-      404,
-      ErrorCodes.NOT_FOUND,
-      { jobId, resultsKey, ttl: "24 hours" },
-      c.req.raw
-    );
-  }
-
-  return createSuccessResponse(
-    results,
-    { cached: true, provider: "kv_cache" },
-    200,
-    c.req.raw
-  );
-});
-
-// ============================================================================
-// Unified Results Endpoint (API Contract v2.0 - Issue #131)
-// ============================================================================
-
-// GET /v1/jobs/{jobId}/status - Unified job status polling endpoint (Issue #21)
-// OpenAPI route (Sprint 2, Day 12 - OpenAPI Fast Track Migration)
-// Supports: csv_import, batch_enrichment, ai_scan pipelines
-// Rate limited to 30 req/min per IP to prevent polling abuse
-app.openapi(getJobStatusRoute, async (c) => {
-  // Apply rate limiting inline (30 req/min for polling)
-  const rateLimitResponse = await checkRateLimit(c.req.raw, c.env, { limit: 30, window: 60 });
-  if (rateLimitResponse) return rateLimitResponse;
-
-  try {
-    const { jobId } = c.req.valid('param')
-
-    // Get JobStateManagerDO stub for this job
-    const doId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
-    const doStub = c.env.JOB_STATE_MANAGER_DO.get(doId);
-
-    // Fetch current job state via RPC
-    const state = await doStub.getJobState();
-
-    if (!state) {
-      return createErrorResponse(
-        "Job not found or not initialized",
-        404,
-        ErrorCodes.NOT_FOUND,
-        { jobId },
-        c.req.raw
-      );
-    }
-
-    // Return job state in ResponseEnvelope format
-    return createSuccessResponse(
-      {
-        jobId: state.jobId,
-        pipeline: state.pipeline,
-        status: state.status,
-        progress: state.progress,
-        processedCount: state.processedCount,
-        totalCount: state.totalCount,
-        startTime: state.startTime,
-        lastUpdateTime: state.lastUpdateTime,
-        // Include completion/failure details if present
-        ...(state.completedTime && { completedTime: state.completedTime }),
-        ...(state.failedTime && { failedTime: state.failedTime }),
-        ...(state.error && { error: state.error }),
-        ...(state.canceled && {
-          canceled: state.canceled,
-          cancelReason: state.cancelReason,
-          canceledTime: state.canceledTime
-        }),
-      },
-      {
-        source: "job-state-manager-do",
-        timestamp: new Date().toISOString(),
-      },
-      200,
-      c.req.raw
-    );
-  } catch (error) {
-    console.error("[Job Status] Error fetching job state:", error);
-    return createErrorResponse(
-      `Failed to fetch job status: ${(error as Error).message}`,
-      500,
-      ErrorCodes.INTERNAL_ERROR,
-      { jobId: c.req.param("jobId") },
-      c.req.raw
-    );
-  }
-});
-
-// DELETE /v1/jobs/{jobId} - Cancel job and cleanup resources
-// FIX: Shelf Scan Plan §2.3 - Cancel endpoint with R2 rollback
-// SECURITY: Requires Bearer token auth (Issue #102)
-// Supports: csv_import, batch_enrichment, ai_scan pipelines
-app.delete("/v1/jobs/:jobId", async (c) => {
-  try {
-    const jobId = c.req.param("jobId")?.substring(0, 100);
-
-    if (!jobId || jobId.trim().length === 0) {
-      return createErrorResponse(
-        "Missing jobId parameter",
-        400,
-        ErrorCodes.MISSING_PARAMETER,
-        { parameter: "jobId" },
-        c.req.raw
-      );
-    }
-
-    // Validate Bearer token (REQUIRED for auth) - Issue #102
-    const authHeader = c.req.header("Authorization");
-    const providedToken = authHeader?.replace("Bearer ", "");
-    if (!providedToken) {
-      return createErrorResponse(
-        "Authorization header required",
-        401,
-        ErrorCodes.UNAUTHORIZED,
-        { endpoint: "DELETE /v1/jobs/:jobId" },
-        c.req.raw
-      );
-    }
-
-    // 1. Get DO stub and validate auth before canceling
-    // Use PROGRESS_WEBSOCKET_DO to match batch-scan-handler.ts (creates jobs with this DO)
-    // JOB_STATE_MANAGER_DO is for the refactored architecture (future migration)
-    const doId = c.env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-    const doStub = c.env.PROGRESS_WEBSOCKET_DO.get(doId);
-
-    // Validate token against DO storage before allowing cancellation
-    const authResult = await (doStub as any).getJobStateAndAuth();
-    if (!authResult) {
-      return createErrorResponse(
-        "Job not found",
-        404,
-        ErrorCodes.NOT_FOUND,
-        { jobId },
-        c.req.raw
-      );
-    }
-
-    const { authToken, authTokenExpiration } = authResult;
-    if (!authToken || providedToken !== authToken || Date.now() > authTokenExpiration) {
-      return createErrorResponse(
-        "Invalid or expired token",
-        401,
-        ErrorCodes.UNAUTHORIZED,
-        { jobId, tokenExpired: authTokenExpiration ? Date.now() > authTokenExpiration : false },
-        c.req.raw
-      );
-    }
-
-    // Token validated - proceed with cancellation
-    const cancelResult = await doStub.cancelJob("Canceled by user request");
-
-    if (!cancelResult.success) {
-      return createErrorResponse(
-        "Job not found or already completed",
-        404,
-        ErrorCodes.NOT_FOUND,
-        { jobId },
-        c.req.raw
-      );
-    }
-
-    // 2. Cleanup R2 objects for this job (bookshelf scans)
-    let r2CleanedCount = 0;
-    try {
-      const r2Prefix = `bookshelf-scans/${jobId}/`;
-      const r2List = await c.env.BOOKSHELF_IMAGES?.list({ prefix: r2Prefix });
-
-      if (r2List?.objects && r2List.objects.length > 0) {
-        const deletePromises = r2List.objects.map((obj) =>
-          c.env.BOOKSHELF_IMAGES.delete(obj.key)
-        );
-        await Promise.allSettled(deletePromises);
-        r2CleanedCount = r2List.objects.length;
-        console.log(`[Job Cancel] Cleaned up ${r2CleanedCount} R2 objects for job ${jobId}`);
-      }
-    } catch (r2Error) {
-      console.warn(`[Job Cancel] R2 cleanup failed for job ${jobId}:`, r2Error);
-      // Continue - R2 cleanup failure shouldn't fail cancellation
-    }
-
-    // 3. Clear KV cache entries
-    let kvCleared = false;
-    try {
-      const kvKeys = [
-        `csv-results:${jobId}`,
-        `scan-results:${jobId}`,
-        `job-results:${jobId}`,
-      ];
-      await Promise.allSettled(kvKeys.map((key) => c.env.CACHE.delete(key)));
-      kvCleared = true;
-    } catch (kvError) {
-      console.warn(`[Job Cancel] KV cleanup failed for job ${jobId}:`, kvError);
-    }
-
-    // 4. Return cancellation confirmation
-    return createSuccessResponse(
-      {
-        jobId,
-        status: "canceled",
-        message: "Job canceled successfully",
-        cleanup: {
-          r2ObjectsDeleted: r2CleanedCount,
-          kvCacheCleared: kvCleared,
-        },
-      },
-      {
-        source: "job-cancel",
-        timestamp: new Date().toISOString(),
-      },
-      200,
-      c.req.raw
-    );
-  } catch (error) {
-    console.error("[Job Cancel] Error canceling job:", error);
-    return createErrorResponse(
-      `Failed to cancel job: ${(error as Error).message}`,
-      500,
-      ErrorCodes.INTERNAL_ERROR,
-      { jobId: c.req.param("jobId") },
-      c.req.raw
-    );
-  }
-});
-
-// GET /v1/jobs/{jobId}/results - Unified results endpoint for all pipelines
-// Replaces pipeline-specific endpoints (/v1/csv/results, /v1/scan/results)
-// Supports: csv_import, batch_enrichment, ai_scan
-app.get("/v1/jobs/:jobId/results", async (c) => {
-  const jobId = c.req.param("jobId")?.substring(0, 100);
-
-  if (!jobId || jobId.trim().length === 0) {
-    return createErrorResponse(
-      "Missing jobId parameter",
-      400,
-      ErrorCodes.MISSING_PARAMETER,
-      { parameter: "jobId" },
-      c.req.raw
-    );
-  }
-
-  // Try all possible result keys (pipeline-agnostic lookup)
-  const resultKeys = [
-    `csv-results:${jobId}`,      // csv_import pipeline
-    `scan-results:${jobId}`,     // ai_scan pipeline
-    `job-results:${jobId}`,      // batch_enrichment pipeline (generic)
-  ];
-
-  // Try each key in parallel for fastest lookup
-  const lookupPromises = resultKeys.map((key) =>
-    c.env.CACHE.get(key, "json").then((result) => ({ key, result }))
-  );
-
-  const lookups = await Promise.all(lookupPromises);
-  const found = lookups.find((lookup) => lookup.result !== null);
-
-  if (!found) {
-    return createErrorResponse(
-      "Job results not found or expired. Results are stored for 1 hour after job completion.",
-      404,
-      ErrorCodes.NOT_FOUND,
-      { jobId, ttl: "1 hour", checkedKeys: resultKeys },
-      c.req.raw
-    );
-  }
-
-  return createSuccessResponse(
-    found.result,
-    { cached: true, provider: "kv_cache", resourceId: found.key },
-    200,
-    c.req.raw
-  );
-});
+// GET /v1/jobs/{jobId}/results - REMOVED (Issue #205 - V1 Sunset March 1, 2026)
+// Replaced by GET /v3/jobs/{type}/:jobId/results
 
 // POST /api/batch-scan - Batch photo scanning (1-5 photos)
 app.post("/api/batch-scan", rateLimitMiddleware, async (c) => {
@@ -1110,37 +677,9 @@ app.post("/api/scan-bookshelf/cancel", async (c) => {
 });
 
 // ============================================================================
-// Additional V1 API Routes
+// V1 Additional Routes Removed (Issue #205 - V1 Sunset March 1, 2026)
 // ============================================================================
-
-// GET /v1/editions/search - Search for all editions of a work by title and author
-app.get("/v1/editions/search", async (c) => {
-  const workTitle = c.req.query("workTitle") || c.req.query("title") || "";
-  const author = c.req.query("author") || "";
-  const limit = parseInt(c.req.query("limit") || "20");
-
-  if (!workTitle || workTitle.trim().length === 0) {
-    return createErrorResponse(
-      "workTitle query parameter is required",
-      400,
-      ErrorCodes.MISSING_PARAMETER,
-      { parameter: "workTitle" },
-      c.req.raw
-    );
-  }
-
-  if (!author || author.trim().length === 0) {
-    return createErrorResponse(
-      "author query parameter is required",
-      400,
-      ErrorCodes.MISSING_PARAMETER,
-      { parameter: "author" },
-      c.req.raw
-    );
-  }
-
-  return await handleSearchEditions(workTitle, author, limit, c.env, getCtx(c), c.req.raw);
-});
+// GET /v1/editions/search - REMOVED (replaced by V3 work editions API)
 
 // GET /images/proxy - Proxy external images through API (CORS, caching)
 app.get("/images/proxy", async (c) => {

@@ -46,9 +46,11 @@
 | Path | Status | Documentation |
 |------|--------|---------------|
 | `/v3/*` | 🚀 CURRENT | `/v3/openapi.json` (auto-generated) |
-| `/api/v2/*` | ✅ STABLE | `docs/openapi.yaml` (manual) |
-| `/v1/*` | ⚠️ DEPRECATED | Sunset March 2026 (deprecation headers active) |
+| `/api/v2/*` | ✅ STABLE | `docs/openapi.yaml` (manual) - Sunset March 7, 2026 |
+| `/v1/*` | ⛔ REMOVED | Removed December 2025 - See migration guide |
 | `/search/*` | ⛔ REMOVED | Legacy routes removed |
+
+**V1 API Migration:** All V1 endpoints have been removed. See [docs/archive/v1-api-2026-03/README.md](docs/archive/v1-api-2026-03/README.md) for V3 migration guide.
 
 ### Key V3 Endpoints (Production-Ready)
 - ✅ `GET /v3/books/:isbn` - Get book by ISBN with full metadata
@@ -82,13 +84,14 @@
 
 **Target:** Phase 2 completion (4 weeks) enables V2 deprecation
 
-### Key V2 Endpoints (Will be deprecated after Phase 2)
-- `GET /api/v2/search` - Unified search (replaces all V1 search)
-- `POST /api/v2/books/enrich` - Single book enrichment
-- `POST /api/v2/imports` - CSV import workflow (SSE streaming)
+### Key V2 Endpoints (Deprecated - Sunset March 7, 2026)
+- `GET /api/v2/search` - Unified search (replaced by V3 search)
+- `POST /api/v2/books/enrich` - Single book enrichment (replaced by V3 enrich)
+- `POST /api/v2/imports` - CSV import workflow (replaced by V3 jobs)
 - `GET /api/v2/imports/:id/stream` - SSE progress for CSV imports
-- `POST /v1/enrichment/batch` - Batch enrichment (WebSocket streaming)
 - `GET /ws/progress` - WebSocket progress for batch operations
+
+**Note:** V1 batch enrichment endpoint (`POST /v1/enrichment/batch`) has been removed. Use V3 async enrichment instead.
 
 ---
 

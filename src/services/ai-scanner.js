@@ -6,7 +6,7 @@
  * CRITICAL: Uses direct function calls instead of RPC to eliminate circular dependencies!
  */
 
-import { handleSearchAdvanced } from "../handlers/v1/search-advanced.js";
+import { enrichMultipleBooks } from "./enrichment.ts";
 import { scanImageWithGemini } from "../providers/gemini-provider.js";
 import { enrichBooksParallel } from "./parallel-enrichment.js";
 import { categorizeBooks } from "../utils/confidence.js";
@@ -151,84 +151,81 @@ export async function processBookshelfScan(
     const enrichedBooks = await enrichBooksParallel(
       detectedBooks,
       async (book) => {
-        // Direct function call - NO RPC, no circular dependency!
-        // Use v1 canonical handler
+        // Direct service call - NO RPC, no circular dependency!
+        // Issue #205: Migrated from V1 handleSearchAdvanced to enrichMultipleBooks service
         // ISSUE #114: Guard verbose logging - only in DEBUG mode
         debugLog(env, () => {
           console.log(
             `[AI Scanner] Enriching book: "${book.title}" by ${book.author || "unknown"}`,
           );
         });
-        const apiResponse = await handleSearchAdvanced(
-          book.title || "",
-          book.author || "",
+
+        const enrichmentResult = await enrichMultipleBooks(
+          {
+            title: book.title || "",
+            author: book.author || "",
+          },
           env,
+          { maxResults: 20 },
           ctx, // Pass execution context for waitUntil support
         );
 
-        // Parse canonical ApiResponse<BookSearchResponse>
-        if (apiResponse.success) {
-          const work = apiResponse.data.works?.[0] || null;
-          const editions = apiResponse.data.editions || []; // FIX: Editions are at top level, not nested in works
-          const authors = apiResponse.data.authors || [];
+        // enrichMultipleBooks returns { works, editions, authors }
+        const work = enrichmentResult.works?.[0] || null;
+        const editions = enrichmentResult.editions || [];
+        const authors = enrichmentResult.authors || [];
 
-          // ISSUE #114: Guard verbose logging - only in DEBUG mode
-          debugLog(env, () => {
-            console.log(
-              `[AI Scanner] ✅ Enrichment ${work ? "found" : "not found"} for "${book.title}": work=${!!work}, editions=${editions.length}, authors=${authors.length}`,
-            );
-          });
-
-          return {
-            ...book,
-            enrichment: {
-              status: work ? "success" : "not_found",
-              work,
-              editions,
-              authors,
-              provider: apiResponse.meta.provider,
-              cachedResult: apiResponse.meta.cached || false,
-            },
-          };
-        } else {
-          console.error(
-            `[AI Scanner] ❌ Enrichment failed for "${book.title}": ${apiResponse.error.message}`,
+        // ISSUE #114: Guard verbose logging - only in DEBUG mode
+        debugLog(env, () => {
+          console.log(
+            `[AI Scanner] ✅ Enrichment ${work ? "found" : "not_found"} for "${book.title}": work=${!!work}, editions=${editions.length}, authors=${authors.length}`,
           );
-          return {
-            ...book,
-            enrichment: {
-              status: "error",
-              error: apiResponse.error.message,
-              work: null,
-              editions: [],
-              authors: [],
-            },
-          };
-        }
+        });
+
+        return {
+          ...book,
+          enrichment: {
+            status: work ? "success" : "not_found",
+            work,
+            editions,
+            authors,
+            provider: "alexandria", // enrichMultipleBooks uses Alexandria RPC
+            cachedResult: false, // Alexandria handles its own caching internally
+          },
+        };
       },
-      async (completed, total, title, hasError) => {
-        const progress =
+      async (index) => {
+        // Progress callback - update DO for real-time WebSocket updates
+        const enrichmentProgress =
           PROGRESS_STAGES.ENRICHMENT_START +
-          (PROGRESS_STAGES.ENRICHMENT_DELTA * completed) / total;
+          (index / detectedBooks.length) * PROGRESS_STAGES.ENRICHMENT_DELTA;
+
         await doStub.updateProgress("ai_scan", {
-          progress,
-          status: hasError
-            ? `Enriched ${completed}/${total} books (${title} failed)`
-            : `Enriched ${completed}/${total} books`,
-          processedCount: 2,
-          currentItem: `Enriching: ${title}`,
+          progress: enrichmentProgress,
+          status: `Enriching book ${index + 1} of ${detectedBooks.length}...`,
+          processedCount: 1 + index,
+          currentItem: detectedBooks[index]?.title || "Unknown",
         });
       },
-      10, // 10 concurrent requests (matches CSV import concurrency)
+      10, // maxConcurrency
     );
 
-    // Separate high/low confidence results
-    const { approved, review } = categorizeBooks(enrichedBooks, env);
+    console.log(
+      `[AI Scanner] Enrichment complete - ${enrichedBooks.length} books enriched`,
+    );
 
-    const processingTime = Date.now() - startTime;
+    // Categorize books by confidence level
+    const categorized = categorizeBooks(enrichedBooks);
 
-    // Stage 4: Complete (100%)
-    // Build unified books array using AIScanCompletePayload structure
+    console.log(
+      `[AI Scanner] Categorization: ${categorized.high.length} high, ${categorized.medium.length} medium, ${categorized.low.length} low confidence`,
+    );
+
+    // Stage 4: Completion (100%)
+    const totalTime = Date.now() - startTime;
+
+    // ISSUE #133: Store full results in KV to avoid multi-MB WebSocket payloads
+    // Build unified books array using standard structure
     const books = enrichedBooks.map((b) => ({
       title: b.title,
       author: b.author,
@@ -241,39 +238,16 @@ export async function processBookshelfScan(
       publicationYear: b.enrichment?.editions?.[0]?.publicationYear || null,
     }));
 
-    // ISSUE #114: Guard verbose logging - only in DEBUG mode
-    debugLog(env, () => {
-      console.log(
-        `[AI Scanner] 📦 Built books array with ${books.length} books:`,
-      );
-      console.log(
-        `[AI Scanner] Sample book 0:`,
-        JSON.stringify(books[0], null, 2),
-      );
-      console.log(
-        `[AI Scanner] Enrichment summary: ${enrichedBooks.filter((b) => b.enrichment?.status === "success").length} success, ${enrichedBooks.filter((b) => b.enrichment?.status === "not_found").length} not_found, ${enrichedBooks.filter((b) => b.enrichment?.status === "error").length} error`,
-      );
-    });
-
-    // Final progress update before completion (100%)
-    await doStub.updateProgress("ai_scan", {
-      progress: PROGRESS_STAGES.FINALIZATION,
-      status: "Scan complete, finalizing results...",
-      processedCount: 3,
-      currentItem: "Finalizing",
-    });
-
-    // ISSUE #133: Store full results in KV to avoid multi-MB WebSocket payloads
-    // Store complete results with 24-hour expiration
+    // Store complete results in KV with 24-hour expiration
     const resultsKey = `scan-results:${jobId}`;
     const fullResults = {
       totalDetected: detectedBooks.length,
-      approved: approved.length,
-      needsReview: review.length,
+      approved: categorized.high.length,
+      needsReview: categorized.medium.length + categorized.low.length,
       books,
       metadata: {
         modelUsed,
-        processingTime,
+        processingTime: totalTime,
         timestamp: Date.now(),
       },
     };
@@ -282,49 +256,43 @@ export async function processBookshelfScan(
       expirationTtl: 86400, // 24 hours
     });
 
-    // ISSUE #114: Guard verbose logging - only in DEBUG mode
     debugLog(env, () => {
       console.log(
         `[AI Scanner] 💾 Stored full results in KV: ${resultsKey} (${books.length} books)`,
       );
     });
 
-    // Send summary-only completion via WebSocket
+    // Send summary-only completion via WebSocket (avoid large payloads)
     const completionPayload = {
       totalDetected: detectedBooks.length,
-      approved: approved.length,
-      needsReview: review.length,
+      approved: categorized.high.length,
+      needsReview: categorized.medium.length + categorized.low.length,
       resultsUrl: `/v1/scan/results/${jobId}`, // Client fetches full results via HTTP GET
       metadata: {
         modelUsed,
-        processingTime,
+        processingTime: totalTime,
       },
     };
 
-    // ISSUE #114: Guard verbose logging - only in DEBUG mode
     debugLog(env, () => {
       console.log(
         `[AI Scanner] 📤 Sending summary-only completion:`,
         JSON.stringify(completionPayload),
       );
     });
+
     await doStub.complete("ai_scan", completionPayload);
 
     console.log(
-      `[AI Scanner] Scan complete for job ${jobId}: ${detectedBooks.length} books, ${processingTime}ms`,
+      `[AI Scanner] Scan complete for job ${jobId}: ${detectedBooks.length} books, ${totalTime}ms`,
     );
   } catch (error) {
-    console.error(`[AI Scanner] Scan failed for job ${jobId}:`, error);
+    console.error(`[AI Scanner] Job ${jobId} failed:`, error);
 
-    // Send error using unified schema
+    // Send error via Durable Object
     await doStub.sendError("ai_scan", {
-      code: "E_AI_SCAN_FAILED",
-      message: error.message,
-      retryable: true,
-      details: {
-        jobId,
-        stage: "AI processing",
-      },
+      message: error.message || "Unknown scan error",
+      code: "AI_SCAN_FAILED",
     });
   }
   // NOTE: No finally block needed! complete() and sendError() handle WebSocket cleanup
