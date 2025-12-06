@@ -315,17 +315,6 @@ for semantic search.`,
 
     console.log(`[V3 Enrich] ISBNs: ${isbns.length}, includeEmbedding: ${includeEmbedding}, async: ${async}`)
 
-    // Validation: ISBNs array must exist
-    if (!isbns || isbns.length === 0) {
-      return c.json(
-        createProblemDetails('INVALID_REQUEST', 'Missing isbns or barcodes array', {
-          requestId: ctx.requestId,
-          instance: c.req.url
-        }),
-        400
-      )
-    }
-
     // ========================================================================
     // ASYNC MODE: Create background job and return immediately
     // ========================================================================

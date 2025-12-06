@@ -98,6 +98,45 @@ function formatSSE(event: SSEEvent): string {
   return message
 }
 
+/**
+ * Send final event (completed/failed) to SSE stream
+ *
+ * Extracted helper to avoid code duplication in two places
+ */
+async function sendFinalEvent(
+  state: JobState,
+  writeEvent: (event: SSEEvent) => Promise<void>
+): Promise<void> {
+  if (state.status === 'completed') {
+    const completeEvent: SSECompleteEvent = {
+      jobId: state.jobId,
+      status: 'completed',
+      results: state.result?.books || [],
+      timestamp: new Date(state.completedTime || Date.now()).toISOString()
+    }
+    await writeEvent({
+      id: `${Date.now()}-final`,
+      event: 'completed',
+      data: JSON.stringify(completeEvent)
+    })
+  } else if (state.status === 'failed') {
+    const errorEvent: SSEErrorEvent = {
+      jobId: state.jobId,
+      error: state.error || {
+        code: 'UNKNOWN_ERROR',
+        message: 'Job failed',
+        retryable: false
+      },
+      timestamp: new Date(state.failedTime || Date.now()).toISOString()
+    }
+    await writeEvent({
+      id: `${Date.now()}-final`,
+      event: 'failed',
+      data: JSON.stringify(errorEvent)
+    })
+  }
+}
+
 // ============================================================================
 // Handler
 // ============================================================================
@@ -278,34 +317,7 @@ export async function handleSSEStream(
 
       // If job already complete, send final event and close
       if (state.status === 'completed' || state.status === 'failed' || state.status === 'canceled') {
-        if (state.status === 'completed') {
-          const completeEvent: SSECompleteEvent = {
-            jobId: state.jobId,
-            status: 'completed',
-            results: state.result?.books || [],
-            timestamp: new Date(state.completedTime || Date.now()).toISOString()
-          }
-          await writeEvent({
-            id: `${Date.now()}-final`,
-            event: 'completed',
-            data: JSON.stringify(completeEvent)
-          })
-        } else if (state.status === 'failed') {
-          const errorEvent: SSEErrorEvent = {
-            jobId: state.jobId,
-            error: state.error || {
-              code: 'UNKNOWN_ERROR',
-              message: 'Job failed (error details pending)',
-              retryable: false
-            },
-            timestamp: new Date(state.failedTime || Date.now()).toISOString()
-          }
-          await writeEvent({
-            id: `${Date.now()}-final`,
-            event: 'failed',
-            data: JSON.stringify(errorEvent)
-          })
-        }
+        await sendFinalEvent(state, writeEvent)
         await cleanup()
         await writer.close()
         return
@@ -386,34 +398,7 @@ export async function handleSSEStream(
 
       // Send final event if job completed
       if (state && (state.status === 'completed' || state.status === 'failed' || state.status === 'canceled')) {
-        if (state.status === 'completed') {
-          const completeEvent: SSECompleteEvent = {
-            jobId: state.jobId,
-            status: 'completed',
-            results: state.result?.books || [],
-            timestamp: new Date(state.completedTime || Date.now()).toISOString()
-          }
-          await writeEvent({
-            id: `${Date.now()}-final`,
-            event: 'completed',
-            data: JSON.stringify(completeEvent)
-          })
-        } else if (state.status === 'failed') {
-          const errorEvent: SSEErrorEvent = {
-            jobId: state.jobId,
-            error: state.error || {
-              code: 'UNKNOWN_ERROR',
-              message: 'Job failed',
-              retryable: false
-            },
-            timestamp: new Date(state.failedTime || Date.now()).toISOString()
-          }
-          await writeEvent({
-            id: `${Date.now()}-final`,
-            event: 'failed',
-            data: JSON.stringify(errorEvent)
-          })
-        }
+        await sendFinalEvent(state, writeEvent)
       }
 
       // Cleanup on normal completion

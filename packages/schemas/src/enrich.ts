@@ -13,34 +13,32 @@ import { SuccessResponseSchema } from './response'
  */
 const ISBNArraySchema = z.array(z.string().regex(/^\d{10}(\d{3})?$/))
 
+// Common properties shared across isbns and barcodes variants
+const commonEnrichProps = {
+  includeEmbedding: z.boolean()
+    .default(false)
+    .optional()
+    .describe('Generate semantic embeddings for vector search'),
+  async: z.boolean()
+    .default(false)
+    .optional()
+    .describe('Process asynchronously as background job (required for batches >50)')
+}
+
 export const EnrichRequestSchema = z.union([
   z.object({
     isbns: ISBNArraySchema
       .min(1)
       .max(500)
       .describe('Array of ISBNs to enrich (1-500, supports ISBN-10 and ISBN-13)'),
-    includeEmbedding: z.boolean()
-      .default(false)
-      .optional()
-      .describe('Generate semantic embeddings for vector search'),
-    async: z.boolean()
-      .default(false)
-      .optional()
-      .describe('Process asynchronously as background job (required for batches >50)')
+    ...commonEnrichProps
   }),
   z.object({
     barcodes: ISBNArraySchema
       .min(1)
       .max(500)
       .describe('Array of ISBNs (iOS format - same as isbns)'),
-    includeEmbedding: z.boolean()
-      .default(false)
-      .optional()
-      .describe('Generate semantic embeddings for vector search'),
-    async: z.boolean()
-      .default(false)
-      .optional()
-      .describe('Process asynchronously as background job (required for batches >50)')
+    ...commonEnrichProps
   })
 ]).refine((data) => {
   const isbns = 'isbns' in data ? data.isbns : data.barcodes
