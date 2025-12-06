@@ -77,6 +77,19 @@ app.use("/v1/*", async (c, next) => {
   c.header("X-Deprecation-Notice", "V1 API deprecated. Migrate to V2/V3. Sunset: March 1, 2026");
 });
 
+// V2 Deprecation Middleware - Sunset March 7, 2026 (90 days after V3 GA)
+// Adds deprecation headers to all V2 endpoints to notify clients
+// Issue #204: RFC 8594 deprecation headers for V2 API
+app.use("/api/v2/*", async (c, next) => {
+  await next();
+  // Add deprecation headers per RFC 8594
+  const baseUrl = new URL(c.req.url).origin;
+  c.header("Deprecation", "true");
+  c.header("Sunset", "Sat, 07 Mar 2026 00:00:00 GMT");
+  c.header("Link", `<${baseUrl}/v3>; rel="successor-version"`);
+  c.header("X-Deprecation-Notice", "V2 API deprecated. Migrate to V3. Sunset: March 7, 2026");
+});
+
 // Global CORS middleware (secure with iOS compatibility)
 app.use(
   "*",
