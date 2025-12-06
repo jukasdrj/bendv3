@@ -418,6 +418,26 @@ export class JobStateManagerDO extends DurableObject {
   }
 
   /**
+   * RPC Method: Schedule batch enrichment processing via alarm
+   *
+   * Avoids Worker CPU time limits for large batches (up to 500 ISBNs)
+   * Delegates work to Durable Object alarm context for async processing
+   *
+   * @param {string[]} isbns - Array of ISBNs to enrich
+   * @param {boolean} includeEmbedding - Whether to generate embeddings
+   * @param {string} jobId - Job identifier
+   * @returns {Promise<{success: boolean}>}
+   */
+  async scheduleEnrichment(isbns, includeEmbedding, jobId) {
+    await this.storage.put("enrichmentISBNs", isbns);
+    await this.storage.put("includeEmbedding", includeEmbedding);
+    await this.storage.put("processingType", "enrichment");
+    await this.storage.setAlarm(Date.now()); // Trigger immediately
+    console.log(`[JobStateManager] Scheduled enrichment for job ${jobId} (${isbns.length} ISBNs, embeddings: ${includeEmbedding})`);
+    return { success: true };
+  }
+
+  /**
    * RPC Method: Register SSE client for updates
    *
    * @param {string} clientId - Unique client identifier
@@ -537,12 +557,170 @@ export class JobStateManagerDO extends DurableObject {
   }
 
   /**
-   * Alarm handler: Process CSV, bookshelf scan, or cleanup old job state
+   * Process enrichment job in chunks
    *
-   * Handles three scenarios:
+   * Processes ISBNs in batches with progress updates every 25 books
+   *
+   * @param {string[]} isbns - Array of ISBNs to enrich
+   * @param {boolean} includeEmbedding - Whether to generate embeddings
+   * @param {ProgressReporter} reporter - Progress reporter instance
+   * @param {string} jobId - Job identifier
+   */
+  async processEnrichmentJob(isbns, includeEmbedding, reporter, jobId) {
+    const CONCURRENCY = 10; // Process 10 ISBNs at a time
+    const PROGRESS_INTERVAL = 25; // Update every 25 books
+
+    console.log(`[JobStateManager] Processing ${isbns.length} ISBNs (embeddings: ${includeEmbedding})`);
+
+    const enrichedBooks = [];
+    const notFound = [];
+
+    // Import enrichment service
+    const { enrichMultipleBooks } = await import("../services/enrichment.js");
+    const { generateBookEmbedding, storeEmbedding } = await import("../services/embedding-service.js");
+
+    // Process in chunks
+    for (let i = 0; i < isbns.length; i += CONCURRENCY) {
+      const batch = isbns.slice(i, Math.min(i + CONCURRENCY, isbns.length));
+
+      const results = await Promise.allSettled(
+        batch.map(async (isbn) => {
+          try {
+            // Check cache first
+            const cacheKey = `book:isbn:${isbn}`;
+            const cached = await this.env.CACHE.get(cacheKey, "json");
+
+            if (cached && (!includeEmbedding || cached.vectorized)) {
+              return { success: true, book: cached };
+            }
+
+            // Fetch from Alexandria
+            const result = await enrichMultipleBooks(
+              { isbn },
+              this.env,
+              { maxResults: 1 },
+              null // No executionCtx in DO alarm context
+            );
+
+            if (!result || !result.works || result.works.length === 0) {
+              return { success: false, isbn };
+            }
+
+            // Convert to enriched book format
+            const work = result.works[0];
+            const edition = result.editions?.[0];
+            const authors = result.authors || [];
+
+            const book = {
+              isbn: edition?.isbn || isbn,
+              title: work.title,
+              authors: authors.map((a) => a.name),
+              publisher: edition?.publisher,
+              publishedDate: edition?.publicationDate,
+              description: work.description,
+              pageCount: edition?.pageCount,
+              categories: work.subjects,
+              language: edition?.language || "en",
+              coverUrl: work.coverImageURL || edition?.coverImageURL,
+              thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
+              workKey: work.openLibraryWorkID || work.openLibraryID,
+              editionKey: edition?.openLibraryEditionID,
+              provider: "alexandria",
+              quality: 95,
+              vectorized: false,
+            };
+
+            // Generate embedding if requested
+            if (includeEmbedding && this.env.AI) {
+              try {
+                const embedding = await generateBookEmbedding(
+                  {
+                    isbn: book.isbn,
+                    title: book.title,
+                    author: book.authors.join(", "),
+                    description: book.description,
+                    categories: book.categories,
+                  },
+                  this.env
+                );
+
+                if (embedding) {
+                  const stored = await storeEmbedding(
+                    embedding,
+                    {
+                      isbn: book.isbn,
+                      title: book.title,
+                      author: book.authors.join(", "),
+                      categories: book.categories?.join(", "),
+                    },
+                    this.env
+                  );
+                  book.vectorized = stored;
+                }
+              } catch (embError) {
+                console.warn(`[Enrichment] Embedding generation failed for ${isbn}:`, embError);
+              }
+            }
+
+            // Cache the result
+            await this.env.CACHE.put(cacheKey, JSON.stringify(book), {
+              expirationTtl: 86400, // 24 hours
+            });
+
+            return { success: true, book };
+          } catch (error) {
+            console.error(`[Enrichment] Error processing ${isbn}:`, error);
+            return { success: false, isbn };
+          }
+        })
+      );
+
+      // Collect results
+      results.forEach((result) => {
+        if (result.status === "fulfilled" && result.value.success) {
+          enrichedBooks.push(result.value.book);
+        } else if (result.status === "fulfilled" && !result.value.success) {
+          notFound.push(result.value.isbn);
+        }
+      });
+
+      // Progress update every 25 books or at completion
+      const processedCount = i + batch.length;
+      if (processedCount % PROGRESS_INTERVAL === 0 || processedCount === isbns.length) {
+        await reporter.updateProgress("enrichment", {
+          processedCount,
+          totalCount: isbns.length,
+          progress: processedCount / isbns.length,
+        });
+        console.log(`[Enrichment] Progress: ${processedCount}/${isbns.length} books`);
+      }
+    }
+
+    // Store results in KV (2 hour TTL)
+    const resultsKey = `enrichment-results:${jobId}`;
+    await this.env.CACHE.put(
+      resultsKey,
+      JSON.stringify({ enrichedBooks, notFound }),
+      { expirationTtl: 7200 } // 2 hours
+    );
+
+    // Complete the job
+    await reporter.complete("enrichment", {
+      booksFound: enrichedBooks.length,
+      notFound: notFound.length,
+    });
+
+    console.log(`[Enrichment] Job ${jobId} complete: ${enrichedBooks.length} found, ${notFound.length} not found`);
+  }
+
+  /**
+   * Alarm handler: Process CSV, bookshelf scan, enrichment, or cleanup old job state
+   *
+   * Handles four scenarios:
    * 1. CSV processing (triggered immediately after scheduling)
    * 2. Bookshelf scan processing (triggered immediately after scheduling)
-   * 3. Cleanup after 24 hours (triggered after job completion/failure)
+   * 3. Batch enrichment processing (triggered immediately after scheduling)
+   * 4. Cleanup after 24 hours (triggered after job completion/failure)
    */
   async alarm() {
     const processingType = await this.storage.get("processingType");
@@ -640,6 +818,42 @@ export class JobStateManagerDO extends DurableObject {
 
       // Clean up temporary storage
       await this.storage.delete("scanImages");
+      await this.storage.delete("processingType");
+    } else if (processingType === "enrichment") {
+      // Batch enrichment processing path
+      console.log("[JobStateManager] Alarm triggered for batch enrichment processing");
+
+      const isbns = await this.storage.get("enrichmentISBNs");
+      const includeEmbedding = await this.storage.get("includeEmbedding");
+      const jobState = await this.storage.get("jobState");
+
+      if (!isbns || !jobState) {
+        console.error("[JobStateManager] Missing ISBNs or job state in alarm handler");
+        return;
+      }
+
+      const reporter = new ProgressReporter(jobState.jobId, this.env);
+
+      try {
+        // Process enrichment in chunks
+        await this.processEnrichmentJob(isbns, includeEmbedding, reporter, jobState.jobId);
+      } catch (error) {
+        console.error("[JobStateManager] Enrichment processing failed in alarm:", error);
+
+        await reporter.sendError("enrichment", {
+          code: "E_ALARM_PROCESSING_FAILED",
+          message: error.message || "Batch enrichment processing failed",
+          retryable: true,
+          details: {
+            fallbackAvailable: true,
+            suggestion: "Try reducing batch size or contact support if issue persists",
+          },
+        });
+      }
+
+      // Clean up temporary storage
+      await this.storage.delete("enrichmentISBNs");
+      await this.storage.delete("includeEmbedding");
       await this.storage.delete("processingType");
     } else {
       // Cleanup path (24 hour cleanup after job completion/failure)

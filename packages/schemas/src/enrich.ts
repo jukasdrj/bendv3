@@ -9,17 +9,51 @@ import { BookSchema } from './book'
 import { SuccessResponseSchema } from './response'
 
 /**
- * Enrich request body
+ * Enrich request body (supports both isbns and barcodes formats for iOS compatibility)
  */
-export const EnrichRequestSchema = z.object({
-  isbns: z.array(z.string().regex(/^\d{10}(\d{3})?$/))
-    .min(1)
-    .max(50)
-    .describe('Array of ISBNs to enrich (1-50, supports ISBN-10 and ISBN-13)'),
-  includeEmbedding: z.boolean()
-    .default(false)
-    .optional()
-    .describe('Generate semantic embeddings for vector search')
+const ISBNArraySchema = z.array(z.string().regex(/^\d{10}(\d{3})?$/))
+
+export const EnrichRequestSchema = z.union([
+  z.object({
+    isbns: ISBNArraySchema
+      .min(1)
+      .max(500)
+      .describe('Array of ISBNs to enrich (1-500, supports ISBN-10 and ISBN-13)'),
+    includeEmbedding: z.boolean()
+      .default(false)
+      .optional()
+      .describe('Generate semantic embeddings for vector search'),
+    async: z.boolean()
+      .default(false)
+      .optional()
+      .describe('Process asynchronously as background job (required for batches >50)')
+  }),
+  z.object({
+    barcodes: ISBNArraySchema
+      .min(1)
+      .max(500)
+      .describe('Array of ISBNs (iOS format - same as isbns)'),
+    includeEmbedding: z.boolean()
+      .default(false)
+      .optional()
+      .describe('Generate semantic embeddings for vector search'),
+    async: z.boolean()
+      .default(false)
+      .optional()
+      .describe('Process asynchronously as background job (required for batches >50)')
+  })
+]).refine((data) => {
+  const isbns = 'isbns' in data ? data.isbns : data.barcodes
+  const isAsync = data.async ?? false
+
+  // Sync mode limited to 50 ISBNs
+  if (!isAsync && isbns.length > 50) {
+    return false
+  }
+
+  return true
+}, {
+  message: 'Sync mode limited to 50 ISBNs. Use async=true for batches >50 (up to 500 ISBNs)'
 }).openapi('EnrichRequest')
 
 export type EnrichRequest = z.infer<typeof EnrichRequestSchema>

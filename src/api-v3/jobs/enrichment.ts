@@ -1,16 +1,17 @@
 /**
- * V3 CSV Import Job Routes
+ * V3 Batch Enrichment Job Routes
  *
- * Async CSV import workflow with SSE progress streaming
+ * Async batch enrichment workflow with SSE progress streaming
  *
  * Routes:
- * - POST /v3/jobs/imports - Initiate CSV import
- * - GET /v3/jobs/imports/:jobId - Get job status
- * - GET /v3/jobs/imports/:jobId/stream - SSE progress stream
- * - GET /v3/jobs/imports/:jobId/results - Get job results
- * - DELETE /v3/jobs/imports/:jobId - Cancel job
+ * - GET /v3/jobs/enrichment/:jobId - Get job status
+ * - GET /v3/jobs/enrichment/:jobId/stream - SSE progress stream
+ * - GET /v3/jobs/enrichment/:jobId/results - Get job results
+ * - DELETE /v3/jobs/enrichment/:jobId - Cancel job
  *
- * @module api-v3/jobs/imports
+ * Note: POST /v3/books/enrich handles async job creation (fork logic in main router)
+ *
+ * @module api-v3/jobs/enrichment
  */
 
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
@@ -18,181 +19,32 @@ import type { Env } from '../../types/env'
 import type { RequestContext } from '../../middleware/request-context'
 import {
   createProblemDetails,
-  JobInitResponseSchema,
   JobStatusResponseSchema,
   JobResultsResponseSchema,
-  JobStatusSchema,
   SSEProgressEventSchema,
   SSECompleteEventSchema,
   SSEErrorEventSchema,
-  type JobInitData,
   type Job,
   type JobResultsData
 } from '@bookstrack/schemas'
-import {
-  getJobStateManagerDO,
-  generateAuthToken,
-  buildStreamUrl,
-  createJobLinks,
-  validateTokenFormat
-} from './common'
+import { getJobStateManagerDO } from './common'
 import { handleSSEStream } from './stream'
 
 /**
- * Register CSV import routes
+ * Register batch enrichment job routes
  *
  * @param app - V3 OpenAPIHono router instance
  */
-export function registerImportRoutes(app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>) {
+export function registerEnrichmentRoutes(app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>) {
   // ========================================================================
-  // POST /v3/jobs/imports - Initiate CSV import
+  // GET /v3/jobs/enrichment/:jobId - Get job status
   // ========================================================================
-  const createImportRoute = createRoute({
-    method: 'post',
-    path: '/v3/jobs/imports',
-    tags: ['Jobs'],
-    summary: 'Import books from CSV',
-    description: `Upload CSV file for background processing with Gemini 2.0 Flash.
-
-Returns immediately with jobId for progress tracking via SSE stream.
-
-**CSV Format:**
-- Supported columns: isbn, title, author, publisher, publishedDate
-- Max file size: 8MB (fits in Gemini 2M token context)
-- Max rows: ~5000 books
-
-**Authentication:**
-- Bearer token returned in response (valid 1 hour)
-- Use token for SSE stream and status queries`,
-    request: {
-      body: {
-        content: {
-          'multipart/form-data': {
-            schema: z.object({
-              file: z.instanceof(File).openapi({
-                description: 'CSV file (max 8MB)',
-                format: 'binary',
-                type: 'string'
-              })
-            })
-          }
-        }
-      }
-    },
-    responses: {
-      202: {
-        description: 'Import job accepted',
-        content: { 'application/json': { schema: JobInitResponseSchema } }
-      },
-      400: {
-        description: 'Invalid file (missing, wrong format)',
-        content: { 'application/problem+json': { schema: z.any() } }
-      },
-      413: {
-        description: 'File too large (>8MB)',
-        content: { 'application/problem+json': { schema: z.any() } }
-      },
-      500: {
-        description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
-  })
-
-  app.openapi(createImportRoute, async (c) => {
-    const ctx = c.get('ctx')
-
-    try {
-      const formData = await c.req.formData()
-      const file = formData.get('file') as File | null
-
-      if (!file) {
-        return c.json(
-          createProblemDetails('INVALID_REQUEST', 'Missing file in multipart form data', {
-            requestId: ctx.requestId,
-            instance: c.req.url
-          }),
-          400
-        )
-      }
-
-      // Validate file size (8MB limit for Gemini 2M token context)
-      const MAX_FILE_SIZE = 8 * 1024 * 1024
-      if (file.size > MAX_FILE_SIZE) {
-        return c.json(
-          createProblemDetails('FILE_TOO_LARGE', `CSV file exceeds 8MB limit (${file.size} bytes)`, {
-            requestId: ctx.requestId,
-            instance: c.req.url,
-            maxSize: MAX_FILE_SIZE,
-            actualSize: file.size
-          }),
-          413
-        )
-      }
-
-      // Generate job ID and auth token
-      const jobId = crypto.randomUUID()
-      const authToken = generateAuthToken()
-
-      console.log(`[V3 Import] Creating job ${jobId} for ${file.name} (${file.size} bytes)`)
-
-      // Get JobStateManagerDO stub
-      const doStub = getJobStateManagerDO(jobId, c.env)
-
-      // Initialize job state (totalCount unknown until parsed)
-      await doStub.initializeJobState(jobId, 'csv_import', 0)
-
-      // Store auth token in DO (1 hour expiry)
-      await doStub.setAuthToken(authToken, Date.now() + 3600000)
-
-      // Schedule CSV processing via DO alarm (avoids Worker CPU limits)
-      const csvText = await file.text()
-      c.executionCtx.waitUntil(
-        doStub.scheduleCSVProcessing!(csvText, jobId)
-      )
-
-      const streamUrl = buildStreamUrl(c.req.url, 'imports', jobId)
-
-      const data: JobInitData = {
-        jobId,
-        status: 'queued',
-        streamUrl,
-        token: authToken
-      }
-
-      return c.json(
-        {
-          success: true,
-          data,
-          metadata: {
-            timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
-          },
-          _links: createJobLinks('imports', jobId, streamUrl)
-        },
-        202
-      )
-    } catch (error: any) {
-      console.error('[V3 Import] Error:', error)
-      return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
-          requestId: ctx.requestId,
-          instance: c.req.url
-        }),
-        500
-      )
-    }
-  })
-
-  // ========================================================================
-  // GET /v3/jobs/imports/:jobId - Get job status
-  // ========================================================================
-  const getImportStatusRoute = createRoute({
+  const getEnrichmentStatusRoute = createRoute({
     method: 'get',
-    path: '/v3/jobs/imports/:jobId',
+    path: '/v3/jobs/enrichment/:jobId',
     tags: ['Jobs'],
-    summary: 'Get import job status',
-    description: `Query current status of CSV import job.
+    summary: 'Get enrichment job status',
+    description: `Query current status of batch enrichment job.
 
 **Polling Guidance:**
 - Use SSE stream for real-time updates (recommended)
@@ -219,7 +71,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
     }
   })
 
-  app.openapi(getImportStatusRoute, async (c) => {
+  app.openapi(getEnrichmentStatusRoute, async (c) => {
     const ctx = c.get('ctx')
     const { jobId } = c.req.valid('param')
 
@@ -229,7 +81,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
 
       if (!state) {
         return c.json(
-          createProblemDetails('NOT_FOUND', 'Import job not found', {
+          createProblemDetails('NOT_FOUND', 'Enrichment job not found', {
             requestId: ctx.requestId,
             instance: c.req.url
           }),
@@ -261,7 +113,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
         200
       )
     } catch (error: any) {
-      console.error('[V3 Import Status] Error:', error)
+      console.error('[V3 Enrichment Status] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
@@ -273,13 +125,13 @@ Returns immediately with jobId for progress tracking via SSE stream.
   })
 
   // ========================================================================
-  // GET /v3/jobs/imports/:jobId/stream - SSE progress stream
+  // GET /v3/jobs/enrichment/:jobId/stream - SSE progress stream
   // ========================================================================
-  const streamImportRoute = createRoute({
+  const streamEnrichmentRoute = createRoute({
     method: 'get',
-    path: '/v3/jobs/imports/:jobId/stream',
+    path: '/v3/jobs/enrichment/:jobId/stream',
     tags: ['Jobs'],
-    summary: 'Stream import progress (SSE)',
+    summary: 'Stream enrichment progress (SSE)',
     description: `Real-time progress updates via Server-Sent Events.
 
 **Authentication:**
@@ -288,7 +140,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
 - Include in Authorization header: "Bearer {token}"
 
 **Event Types:**
-- progress: Periodic updates during processing
+- progress: Periodic updates during processing (every 25 books)
 - complete: Final event with full results (for iOS persistence)
 - error: Job failed (includes retryable flag)
 - ping: Heartbeat every 30 seconds
@@ -340,22 +192,27 @@ Returns immediately with jobId for progress tracking via SSE stream.
     }
   })
 
-  app.openapi(streamImportRoute, async (c) => {
+  app.openapi(streamEnrichmentRoute, async (c) => {
     const { jobId } = c.req.valid('param')
-    return handleSSEStream(c, 'imports', jobId)
+    return handleSSEStream(c, 'enrichment', jobId)
   })
 
   // ========================================================================
-  // GET /v3/jobs/imports/:jobId/results - Get job results
+  // GET /v3/jobs/enrichment/:jobId/results - Get job results
   // ========================================================================
-  const getImportResultsRoute = createRoute({
+  const getEnrichmentResultsRoute = createRoute({
     method: 'get',
-    path: '/v3/jobs/imports/:jobId/results',
+    path: '/v3/jobs/enrichment/:jobId/results',
     tags: ['Jobs'],
-    summary: 'Get import job results',
-    description: `Fetch enriched books from completed import job.
+    summary: 'Get enrichment job results',
+    description: `Fetch enriched books from completed enrichment job.
 
-Results cached in KV for 1 hour after completion.`,
+Results include:
+- Enriched book metadata
+- Books that were not found (ISBNs)
+- Embedding generation status (if requested)
+
+Results cached in KV for 2 hours after completion.`,
     request: {
       params: z.object({
         jobId: z.string().uuid()
@@ -377,7 +234,7 @@ Results cached in KV for 1 hour after completion.`,
     }
   })
 
-  app.openapi(getImportResultsRoute, async (c) => {
+  app.openapi(getEnrichmentResultsRoute, async (c) => {
     const ctx = c.get('ctx')
     const { jobId } = c.req.valid('param')
 
@@ -387,7 +244,7 @@ Results cached in KV for 1 hour after completion.`,
 
       if (!state) {
         return c.json(
-          createProblemDetails('NOT_FOUND', 'Import job not found', {
+          createProblemDetails('NOT_FOUND', 'Enrichment job not found', {
             requestId: ctx.requestId,
             instance: c.req.url
           }),
@@ -407,12 +264,12 @@ Results cached in KV for 1 hour after completion.`,
       }
 
       // Fetch results from KV
-      const resultsKey = `csv-results:${jobId}`
+      const resultsKey = `enrichment-results:${jobId}`
       const results = await c.env.CACHE.get(resultsKey, 'json')
 
       if (!results) {
         return c.json(
-          createProblemDetails('NOT_FOUND', 'Results not found (may have expired)', {
+          createProblemDetails('NOT_FOUND', 'Results not found (may have expired after 2 hours)', {
             requestId: ctx.requestId,
             instance: c.req.url
           }),
@@ -438,7 +295,7 @@ Results cached in KV for 1 hour after completion.`,
         200
       )
     } catch (error: any) {
-      console.error('[V3 Import Results] Error:', error)
+      console.error('[V3 Enrichment Results] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
@@ -450,14 +307,14 @@ Results cached in KV for 1 hour after completion.`,
   })
 
   // ========================================================================
-  // DELETE /v3/jobs/imports/:jobId - Cancel job
+  // DELETE /v3/jobs/enrichment/:jobId - Cancel job
   // ========================================================================
-  const cancelImportRoute = createRoute({
+  const cancelEnrichmentRoute = createRoute({
     method: 'delete',
-    path: '/v3/jobs/imports/:jobId',
+    path: '/v3/jobs/enrichment/:jobId',
     tags: ['Jobs'],
-    summary: 'Cancel import job',
-    description: `Cancel in-progress import job.
+    summary: 'Cancel enrichment job',
+    description: `Cancel in-progress enrichment job.
 
 **Note:** Jobs may not stop immediately (graceful shutdown).`,
     request: {
@@ -485,7 +342,7 @@ Results cached in KV for 1 hour after completion.`,
     }
   })
 
-  app.openapi(cancelImportRoute, async (c) => {
+  app.openapi(cancelEnrichmentRoute, async (c) => {
     const ctx = c.get('ctx')
     const { jobId } = c.req.valid('param')
 
@@ -495,7 +352,7 @@ Results cached in KV for 1 hour after completion.`,
 
       if (!state) {
         return c.json(
-          createProblemDetails('NOT_FOUND', 'Import job not found', {
+          createProblemDetails('NOT_FOUND', 'Enrichment job not found', {
             requestId: ctx.requestId,
             instance: c.req.url
           }),
@@ -547,7 +404,7 @@ Results cached in KV for 1 hour after completion.`,
         200
       )
     } catch (error: any) {
-      console.error('[V3 Import Cancel] Error:', error)
+      console.error('[V3 Enrichment Cancel] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
@@ -558,5 +415,5 @@ Results cached in KV for 1 hour after completion.`,
     }
   })
 
-  console.log('[V3 Jobs] CSV import routes registered')
+  console.log('[V3 Jobs] Batch enrichment routes registered: GET /v3/jobs/enrichment/:jobId, GET /v3/jobs/enrichment/:jobId/stream, GET /v3/jobs/enrichment/:jobId/results, DELETE /v3/jobs/enrichment/:jobId')
 }
