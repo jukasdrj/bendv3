@@ -87,21 +87,29 @@ See `ARCHITECTURE_OVERVIEW.md` for architecture details.
 
 **Migration Info:** See [docs/V3_MIGRATION_COMPLETE.md](docs/V3_MIGRATION_COMPLETE.md)
 
-### V2 API (Stable)
+### V2 API (Stable - Deprecated after V3 GA)
 - `GET /api/v2/search` - Unified search (replaces all V1 search)
 - `POST /api/v2/books/enrich` - Single book enrichment
 - `POST /api/v2/imports` - CSV import workflow
 - `GET /api/v2/imports/:id/stream` - SSE progress
 
-### V1 API (Deprecated - Sunset March 2026)
-- `GET /v1/search/title?q={query}` - Title search (canonical response)
-- `GET /v1/search/isbn?isbn={isbn}` - ISBN lookup with validation
-- `GET /v1/search/advanced?title={title}&author={author}` - Flexible search
+**Deprecation Notice:** V2 API sunset 90 days after V3 GA (March 7, 2026)
+
+### V1 API (REMOVED - December 2025)
+⚠️ **All V1 endpoints have been removed as of December 2025.**
+
+**Migration Guide:** See [docs/archive/v1-api-2026-03/README.md](docs/archive/v1-api-2026-03/README.md)
+
+**V3 Replacements:**
+- `GET /v1/search/isbn?isbn=X` → `GET /v3/books/:isbn`
+- `GET /v1/search/title?q=X` → `GET /v3/books/search?q=X`
+- `GET /v1/search/advanced` → `GET /v3/books/search?q=title+author`
+- `GET /v1/jobs/:jobId/status` → `GET /v3/jobs/{type}/:jobId`
 
 ### Background Jobs
-- `POST /v1/enrichment/batch` - Batch enrichment with WebSocket progress
 - `POST /api/scan-bookshelf?jobId={uuid}` - AI bookshelf scan (Gemini 2.0 Flash)
 - `POST /api/scan-bookshelf/batch` - Batch scan (max 5 photos)
+- `POST /v3/books/enrich` - Batch enrichment (async mode) with SSE progress
 
 ### Status Updates
 - `GET /ws/progress?jobId={uuid}` - WebSocket for real-time progress
