@@ -25,11 +25,11 @@ export const DEFAULT_TTL = {
   cold: 14 * 24 * 60 * 60,    // 14 days
 
   // Content-specific TTLs (used by kv-cache.js)
-  isbn: 365 * 24 * 60 * 60,       // 365 days
+  isbn: 7 * 24 * 60 * 60,       // 7 days
   title: 7 * 24 * 60 * 60,        // 7 days
   author: 7 * 24 * 60 * 60,       // 7 days
   enrichment: 180 * 24 * 60 * 60, // 180 days
-  cover: 365 * 24 * 60 * 60,      // 365 days
+  cover: 30 * 24 * 60 * 60,      // 30 days
 };
 
 /**

@@ -18,19 +18,17 @@ async function sha256(text) {
 
 /**
  * Generate cache key for CSV parse results.
- * Format: csv-parse:{hash}:{promptVersion}
+ * Format: csv-parse:{hash}
  *
  * Cache is automatically invalidated when:
  * - CSV content changes (different hash)
- * - Prompt version changes (e.g., v1 → v2)
  *
  * @param {string} csvText - Raw CSV content
- * @param {string} promptVersion - Prompt version (from PROMPT_VERSION constant)
- * @returns {Promise<string>} Cache key in format csv-parse:{hash}:{version}
+ * @returns {Promise<string>} Cache key in format csv-parse:{hash}
  */
-export async function generateCSVCacheKey(csvText, promptVersion) {
+export async function generateCSVCacheKey(csvText) {
   const hash = await sha256(csvText);
-  return `csv-parse:${hash}:${promptVersion}`;
+  return `csv-parse:${hash}`;
 }
 
 /**

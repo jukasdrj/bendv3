@@ -15,7 +15,10 @@ import { BendRoute, type AppContext } from '../../base'
 import {
   BookSchema,
 } from '../../schemas/book'
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../../../utils/response-builder'
+import {
+  createErrorResponse,
+  ErrorCodes,
+} from '../../../utils/response-builder'
 
 export class GetBookByISBN extends BendRoute {
   // OpenAPI schema definition

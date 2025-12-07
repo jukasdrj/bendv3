@@ -100,7 +100,7 @@ export async function processCSVCore(
       processedCount: 0,
     });
 
-    const cacheKey = await generateCSVCacheKey(csvText, PROMPT_VERSION);
+    const cacheKey = await generateCSVCacheKey(csvText);
     let parsedBooks = await env.CACHE.get(cacheKey, "json");
 
     // Issue #101: Cache hit telemetry for monitoring effectiveness

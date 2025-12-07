@@ -6,7 +6,6 @@
  */
 
 import {
-  createSuccessResponse,
   createErrorResponse,
   ErrorCodes,
 } from "./response-builder.js";
@@ -123,18 +122,15 @@ export async function handleKVResults<T>(
       );
     }
 
-    return createSuccessResponse(
+    return new Response(JSON.stringify(
       {
         ...results,
         expiresAt,
-      },
+      }),
       {
-        processingTime: Date.now() - startTime,
-        cached: true,
-        provider: "kv_cache",
-      },
-      200,
-      request,
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
     );
   } catch (error: any) {
     console.error(

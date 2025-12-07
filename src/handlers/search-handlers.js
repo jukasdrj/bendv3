@@ -9,7 +9,6 @@
 
 import * as externalApis from "../services/external-apis.ts";
 import {
-  createSuccessResponse,
   createErrorResponse,
   ErrorCodes,
 } from "../utils/response-builder.js";
@@ -151,13 +150,12 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
   if (negativeCache) {
     // Maintain consistent API contract: always return success: true for "no results"
     if (negativeCache.type === "no_results") {
-      return createSuccessResponse(
-        { items: [], resultCount: 0 }, // Temporary: keeping items[] until full DTO migration
-        {
-          provider: "none",
-          cached: true,
-        },
-      );
+      return new Response(JSON.stringify(
+        { items: [], resultCount: 0 }
+      ), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
     // Only true errors return success: false
     return createErrorResponse(
@@ -194,13 +192,12 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
         );
 
         const resultItems = items.slice(0, maxResults);
-        return createSuccessResponse(
-          { items: resultItems, resultCount: resultItems.length },
-          {
-            provider: "google",
-            cached: false,
-          },
-        );
+        return new Response(JSON.stringify(
+          { items: resultItems, resultCount: resultItems.length }
+        ), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       // Fallback to OpenLibrary if Google Books fails
@@ -221,13 +218,12 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
         );
 
         const resultItems = items.slice(0, maxResults);
-        return createSuccessResponse(
-          { items: resultItems, resultCount: resultItems.length },
-          {
-            provider: "openlibrary",
-            cached: false,
-          },
-        );
+        return new Response(JSON.stringify(
+          { items: resultItems, resultCount: resultItems.length }
+        ), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       // No results from any provider - store as "no_results" type (not error)
@@ -239,13 +235,12 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
         env,
       );
 
-      return createSuccessResponse(
-        { items: [], resultCount: 0 },
-        {
-          provider: "none",
-          cached: false,
-        },
-      );
+      return new Response(JSON.stringify(
+        { items: [], resultCount: 0 }
+      ), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     } catch (error) {
       console.error(
         `[AdvancedSearch] Error searching for "${bookTitle}":`,

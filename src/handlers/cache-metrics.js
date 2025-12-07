@@ -11,7 +11,7 @@
  * @returns {Response} Metrics summary with hit rates and per-prefix breakdown
  */
 
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../utils/response-builder.js'
+import { createErrorResponse, ErrorCodes } from '../utils/response-builder.js'
 
 export async function handleCacheMetrics(request, env) {
   try {
@@ -74,7 +74,7 @@ export async function handleCacheMetrics(request, env) {
     }
 
     // Return canonical response format
-    return createSuccessResponse(
+    return new Response(JSON.stringify(
       {
         window,
         timestamp: new Date().toISOString(),
@@ -89,13 +89,11 @@ export async function handleCacheMetrics(request, env) {
           ttlEffectiveHits: windowStats.total.ttl_effective_hits || 0,
         },
         byPrefix: prefixBreakdown,
-      },
+      }),
       {
-        source: "cache_metrics_do",
-        cached: false,
-      },
-      200,
-      request
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
     )
   } catch (error) {
     console.error("Failed to fetch cache metrics:", error);

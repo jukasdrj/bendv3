@@ -16,7 +16,6 @@ import {
   semanticSearch,
 } from '../services/embedding-service.js'
 import {
-  createSuccessResponse,
   createErrorResponse,
   ErrorCodes,
 } from '../utils/response-builder.js'
@@ -81,19 +80,16 @@ export async function handleSimilarBooks(
       }
     }
 
-    return createSuccessResponse({
+    return new Response(JSON.stringify({
       query: {
         isbn: cleanIsbn,
         limit,
       },
       results: similar,
       count: similar.length,
-    }, {
-      metadata: {
-        source: 'vectorize',
-        cached: false,
-        timestamp: new Date().toISOString(),
-      },
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
     })
   } catch (error) {
     console.error('[SemanticSearch] Similar books error:', error)
@@ -155,19 +151,16 @@ export async function handleSemanticSearch(
       }
     }
 
-    return createSuccessResponse({
+    return new Response(JSON.stringify({
       query: {
         q: searchQuery,
         limit,
       },
       results,
       count: results.length,
-    }, {
-      metadata: {
-        source: 'vectorize',
-        cached: false,
-        timestamp: new Date().toISOString(),
-      },
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
     })
   } catch (error) {
     console.error('[SemanticSearch] Search error:', error)

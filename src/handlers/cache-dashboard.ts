@@ -13,7 +13,7 @@
 import type { Context } from 'hono'
 import { aggregateMetrics } from '../services/metrics-aggregator.js'
 import { checkAlertThresholds } from '../services/alert-monitor.js'
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../utils/response-builder'
+import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
 
 /**
  * Get cache health status
@@ -162,7 +162,7 @@ export async function handleCacheDashboard(c: Context) {
       getCacheStats(c.env),
     ])
 
-    return createSuccessResponse(
+    return new Response(JSON.stringify(
       {
         health,
         alerts: {
@@ -170,13 +170,11 @@ export async function handleCacheDashboard(c: Context) {
           count: alerts.length,
         },
         stats,
-      },
+      }),
       {
-        source: 'cache-dashboard',
-        cached: false,
-      },
-      200,
-      c.req.raw
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
     )
   } catch (error) {
     console.error('[Cache Dashboard] Dashboard request failed:', error)
@@ -198,14 +196,11 @@ export async function handleCacheHealth(c: Context) {
   try {
     const health = await getCacheHealth(c.env)
 
-    return createSuccessResponse(
-      health,
+    return new Response(JSON.stringify(health),
       {
-        source: 'cache-health',
-        cached: false,
-      },
-      200,
-      c.req.raw
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
     )
   } catch (error) {
     console.error('[Cache Dashboard] Health check failed:', error)
@@ -240,18 +235,16 @@ export async function handleCacheAlerts(c: Context) {
 
     const alerts = await getRecentAlerts(c.env, limit)
 
-    return createSuccessResponse(
+    return new Response(JSON.stringify(
       {
         alerts,
         count: alerts.length,
         limit,
-      },
+      }),
       {
-        source: 'cache-alerts',
-        cached: false,
-      },
-      200,
-      c.req.raw
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
     )
   } catch (error) {
     console.error('[Cache Dashboard] Alert history request failed:', error)

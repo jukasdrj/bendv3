@@ -38,10 +38,6 @@
   ],
   "vars": {
     "//": "========================================================================",
-    "//": "Hono Router Migration (Phase 1 - Coexistence Infrastructure)",
-    "//": "========================================================================",
-    "ENABLE_HONO_ROUTER": "true",
-    "//": "========================================================================",
     "//": "Cloudflare Workflows Feature Flags (Issue #71 - Launch Blocker)",
     "//": "WORKFLOW_ROLLOUT_PERCENT: 0-100 for gradual rollout",
     "//": "ENABLE_WORKFLOW_IMPORT: 'true'/'false' to force enable/disable",
@@ -90,11 +86,6 @@
     "REQUEST_TIMEOUT_MS": "50000",
     "CONFIDENCE_THRESHOLD": "0.7",
     "MAX_SCAN_FILE_SIZE": "10485760",
-    "//": "Response Envelope Format",
-    "ENABLE_UNIFIED_ENVELOPE": "true",
-    "//": "Durable Object Architecture Refactoring (ENABLED - Nov 25, 2025)",
-    "//": "Fixes frontend 500 error: getJobState RPC method not found",
-    "ENABLE_REFACTORED_DOS": "true",
     "//": "WebSocket Hibernation API Migration (RE-ENABLED - Nov 24, 2025)",
     "//": "R2 migration complete - large payloads now stored in R2 instead of DO storage",
     "ENABLE_HIBERNATION_WEBSOCKET": "true",
@@ -183,16 +174,8 @@
   "durable_objects": {
     "bindings": [
       {
-        "name": "PROGRESS_WEBSOCKET_DO",
-        "class_name": "ProgressWebSocketDO"
-      },
-      {
         "name": "RATE_LIMITER_DO",
         "class_name": "RateLimiterDO"
-      },
-      {
-        "name": "PROGRESS_WEBSOCKET_DO_HIBERNATION",
-        "class_name": "ProgressWebSocketDO_Hibernation"
       },
       {
         "name": "WEBSOCKET_CONNECTION_DO",
@@ -214,10 +197,6 @@
   },
   "migrations": [
     {
-      "tag": "v1",
-      "new_classes": ["ProgressWebSocketDO"]
-    },
-    {
       "tag": "v2",
       "new_classes": ["RateLimiterDO"]
     },
@@ -228,10 +207,6 @@
     {
       "tag": "v4",
       "new_classes": ["CacheMetricsDO"]
-    },
-    {
-      "tag": "v5",
-      "new_classes": ["ProgressWebSocketDO_Hibernation"]
     },
     {
       "tag": "v6",

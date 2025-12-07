@@ -30,13 +30,13 @@ import { handleHarvestDashboard } from "./handlers/harvest-dashboard.js";
 import { handleImageProxy } from "./handlers/image-proxy";
 import { triggerBookImportWorkflow, getWorkflowStatus } from "./handlers/workflow-trigger-handler";
 import { handleSimilarBooks, handleSemanticSearch } from "./handlers/semantic-search-handler";
-import { getProgressDOStub } from "./utils/durable-object-helpers";
+
 import { analyticsMiddleware } from "./middleware/hono-analytics";
 import { healthRoute } from "./openapi/routes/health";
 import { openAPIConfig } from "./openapi/config";
 import { checkRateLimit } from "./middleware/rate-limiter";
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from "./utils/response-builder";
-import { validateApiContract } from "./middleware/api-contract-validator";
+import { createErrorResponse, ErrorCodes } from "./utils/response-builder";
+
 
 // OpenAPI-enabled Hono app with Bindings and ExecutionContext support
 // Using OpenAPIHono for automatic OpenAPI spec generation (Phase 1.4 POC)
@@ -49,11 +49,7 @@ const getCtx = (c: any): ExecutionContext | undefined => c.executionCtx as Execu
 // Global analytics middleware (adds X-Router and X-Response-Time headers)
 app.use("*", analyticsMiddleware());
 
-// API Contract Validation Middleware (Sprint 1, Day 1-2 - OpenAPI Migration)
-// Validates ResponseEnvelope format compliance on API routes
-// Start in monitoring mode (strict: false) - logs violations but doesn't reject
-// TODO: Enable strict mode (strict: true) after Sprint 3 when all endpoints migrated
-app.use("/api/*", validateApiContract({ strict: false, logFailures: true }));
+
 
 // Global CORS middleware (secure with iOS compatibility)
 app.use(
@@ -165,19 +161,9 @@ app.post("/api/token/refresh", rateLimitMiddleware, async (c) => {
     }
 
     // Feature flag: Use refactored architecture or legacy monolithic DO
-    const useRefactoredDOs = c.env.ENABLE_REFACTORED_DOS === "true";
-
-    let result;
-    if (useRefactoredDOs) {
-      // NEW ARCHITECTURE: Use WEBSOCKET_CONNECTION_DO for auth token management
       const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId);
       const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
       result = await wsDoStub.refreshAuthToken(oldToken);
-    } else {
-      // LEGACY ARCHITECTURE: Use getProgressDOStub()
-      const doStub = getProgressDOStub(jobId, c.env);
-      result = await doStub.refreshAuthToken(oldToken);
-    }
 
     if (result.error) {
       return createErrorResponse(
@@ -190,15 +176,16 @@ app.post("/api/token/refresh", rateLimitMiddleware, async (c) => {
     }
 
     // Return new token with expiration - use ResponseEnvelope format
-    return createSuccessResponse(
+    return new Response(JSON.stringify(
       {
         jobId,
         token: result.token,
         expiresIn: result.expiresIn,
-      },
-      { source: "durable-object" },
-      200,
-      c.req.raw
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
     );
   } catch (error) {
     console.error("Failed to refresh token:", error);
@@ -248,13 +235,10 @@ app.get(
 
       // Feature flag: Use refactored architecture or legacy monolithic DO
       // Explicit string comparison for clarity and safety
-      const useRefactoredDOs = c.env.ENABLE_REFACTORED_DOS === "true";
-
       let jobState: any;
       let authToken: string;
       let authTokenExpiration: number;
 
-      if (useRefactoredDOs) {
         // NEW ARCHITECTURE: Query JOB_STATE_MANAGER_DO and WEBSOCKET_CONNECTION_DO separately
         const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
         const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(stateDoId);
@@ -288,27 +272,6 @@ app.get(
 
         authToken = authResult.token;
         authTokenExpiration = authResult.expiresAt;
-      } else {
-        // LEGACY ARCHITECTURE: Use getProgressDOStub() which returns PROGRESS_WEBSOCKET_DO
-        const doStub = getProgressDOStub(jobId, c.env);
-
-        // Fetch job state and auth details (combined in legacy DO)
-        const result = await (doStub as any).getJobStateAndAuth();
-
-        if (!result) {
-          return createErrorResponse(
-            "Job not found or state not initialized",
-            404,
-            ErrorCodes.NOT_FOUND,
-            { jobId },
-            c.req.raw
-          );
-        }
-
-        jobState = result.jobState;
-        authToken = result.authToken;
-        authTokenExpiration = result.authTokenExpiration;
-      }
 
       // Validate token matches and is not expired
       if (
@@ -326,15 +289,13 @@ app.get(
       }
 
       // Return job state with ResponseEnvelope format
-      return createSuccessResponse(
-        jobState,
-        {
-          source: "durable-object",
-          timestamp: new Date().toISOString()
-        },
-        200,
-        c.req.raw
-      );
+      return new Response(JSON.stringify(
+        jobState
+      ),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     } catch (error) {
       console.error("Failed to get job state:", error);
       return createErrorResponse(
@@ -365,27 +326,18 @@ app.post("/api/scan-bookshelf/cancel", async (c) => {
     }
 
     // Feature flag: Use refactored architecture or legacy monolithic DO
-    const useRefactoredDOs = c.env.ENABLE_REFACTORED_DOS === "true";
-
-    let result;
-    if (useRefactoredDOs) {
-      // NEW ARCHITECTURE: Use JOB_STATE_MANAGER_DO for cancellation
       const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
       const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(stateDoId);
       result = await stateDoStub.cancelJob("User canceled bookshelf scan");
-    } else {
-      // LEGACY ARCHITECTURE: Use getProgressDOStub()
-      const doStub = getProgressDOStub(jobId, c.env);
-      result = await doStub.cancelBatch();
-    }
 
     // Return result from DO in ResponseEnvelope format
-    return createSuccessResponse(
-      result,
-      { source: "durable-object" },
-      200,
-      c.req.raw
-    );
+    return new Response(JSON.stringify(
+      result
+    ),
+    {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (error) {
     console.error("Cancel batch error:", error);
     return createErrorResponse(
@@ -438,11 +390,12 @@ app.post("/admin/trigger-harvest", async (c) => {
         })
     );
 
-    return createSuccessResponse(
-      { message: "Harvest started in background", authorCount, booksPerAuthor },
-      { source: "admin-trigger" },
-      202,
-      c.req.raw
+    return new Response(JSON.stringify(
+      { message: "Harvest started in background", authorCount, booksPerAuthor }),
+      {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      }
     );
   } catch (error) {
     console.error("[Admin] Harvest trigger failed:", error);
@@ -464,12 +417,13 @@ app.get("/api/cache/stats", async (c) => {
 
     // ✅ RPC MIGRATION: Direct method call (no HTTP overhead)
     const stats = await stub.getStats();
-    return createSuccessResponse(
-      stats,
-      { source: "cache-metrics-do" },
-      200,
-      c.req.raw
-    );
+    return new Response(JSON.stringify(
+      stats
+    ),
+    {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (error) {
     console.error("Error fetching cache stats:", error);
     return createErrorResponse(
@@ -537,21 +491,12 @@ app.get("/ws/progress", async (c) => {
   // See docs/openapi.yaml for WebSocket authentication specifications
 
   // Feature flag: Use refactored architecture or legacy monolithic DO
-  const useRefactoredDOs = c.env.ENABLE_REFACTORED_DOS === "true";
-
-  if (useRefactoredDOs) {
-    // NEW ARCHITECTURE: Use WEBSOCKET_CONNECTION_DO for WebSocket upgrades
     const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId);
     const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
 
     // Forward the request to the WebSocket DO
     // The DO will handle authentication, upgrade, and lifecycle
     return await wsDoStub.fetch(c.req.raw);
-  } else {
-    // LEGACY ARCHITECTURE: Use getProgressDOStub()
-    const doStub = getProgressDOStub(jobId, c.env);
-    return await doStub.fetch(c.req.raw);
-  }
 });
 
 // ============================================================================
@@ -660,7 +605,7 @@ app.post("/test/cache-event", async (c) => {
     // Get current stats
     const stats = await stub.getStats();
 
-    return createSuccessResponse(
+    return new Response(JSON.stringify(
       {
         message: "Sent 3 synthetic cache events",
         events: [
@@ -669,10 +614,11 @@ app.post("/test/cache-event", async (c) => {
           { type: "write", prefix: "author" },
         ],
         currentStats: stats,
-      },
-      {},
-      200,
-      c.req.raw
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
     );
   } catch (error) {
     console.error("Failed to send test cache events:", error);
@@ -694,14 +640,15 @@ app.post("/admin/trigger-recommendations", async (c) => {
     const { handleRecommendationsCron } = await import("./cron/recommendations-cron");
     await handleRecommendationsCron(c.env);
 
-    return createSuccessResponse(
+    return new Response(JSON.stringify(
       {
         message: "Weekly recommendations cron triggered successfully",
         timestamp: new Date().toISOString(),
-      },
-      { source: "manual-trigger" },
-      200,
-      c.req.raw
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
     );
   } catch (error) {
     console.error("Failed to trigger recommendations cron:", error);
@@ -770,11 +717,7 @@ app.get('/test/rpc-latency', async (c) => {
 
     // Return in ResponseEnvelope format
     return c.json(
-      createSuccessResponse(result, {
-        testType: 'native-rpc',
-        purpose: 'Verify DO-to-DO RPC performance (Issue #10)',
-        timestamp: new Date().toISOString(),
-      }),
+      result,
       200,
     )
   } catch (error) {

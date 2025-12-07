@@ -22,7 +22,7 @@
  * }
  */
 
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../utils/response-builder.js'
+import { createErrorResponse, ErrorCodes } from '../utils/response-builder.js'
 import type { BookImportInput } from '../workflows/import-book.js'
 import type { IWebSocketConnectionDO } from '../types/durable-objects.js'
 
@@ -131,7 +131,7 @@ export async function triggerBookImportWorkflow(
     const wsUrl = `${wsProtocol}//${requestUrl.host}/ws/progress?jobId=${encodeURIComponent(jobId)}&token=${encodeURIComponent(wsToken)}`
 
     // Return response with job details (202 Accepted for async operation)
-    return createSuccessResponse(
+    return new Response(JSON.stringify(
       {
         jobId,
         workflowId: instance.id,
@@ -139,12 +139,11 @@ export async function triggerBookImportWorkflow(
         source,
         status: 'started',
         wsUrl,
-      },
+      }),
       {
-        cached: false,
-      },
-      202, // Accepted - processing asynchronously
-      request
+        status: 202, // Accepted - processing asynchronously
+        headers: { "Content-Type": "application/json" },
+      }
     )
   } catch (error) {
     const err = error as Error
@@ -194,16 +193,17 @@ export async function getWorkflowStatus(
     const instance = await env.BOOK_IMPORT_WORKFLOW.get(workflowId)
     const status = await instance.status()
 
-    return createSuccessResponse(
+    return new Response(JSON.stringify(
       {
         workflowId,
         status: status.status,
         output: status.output,
         error: status.error,
-      },
-      {},
-      200,
-      request
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
     )
   } catch (error) {
     const err = error as Error
