@@ -1,41 +1,38 @@
 /**
- * Hono Router - Phase 1 MVP
+ * Hono Router - Main Application Router
  *
- * This router coexists with the manual routing in src/index.js
- * Feature flag: ENABLE_HONO_ROUTER (default: false)
+ * Primary HTTP router for BooksTrack backend API
+ * Uses OpenAPIHono for automatic OpenAPI spec generation
  *
- * MVP Routes:
- * - GET /health - Health check (baseline test)
- * - GET /v1/search/isbn - ISBN search (full stack integration test)
- * - GET /metrics - Metrics endpoint (analytics integration test)
- * - GET /ws/progress - WebSocket upgrade (WebSocket routing test)
+ * Active API Versions:
+ * - V3 API - Native Hono OpenAPI (current, production)
+ * - V2 API - REMOVED March 2026 (sunset completed)
+ * - V1 API - REMOVED December 2025
  *
- * OpenAPI Migration (Phase 1.4 POC):
- * - GET /api/v2/capabilities - First OpenAPI route (POC)
- * - GET /doc - Swagger UI
- * - GET /doc/openapi.json - OpenAPI spec
+ * Core Routes:
+ * - GET /health - Health check
+ * - GET /metrics - Prometheus metrics
+ * - GET /ws/progress - WebSocket progress tracking
+ * - GET /v3/* - V3 API endpoints (see src/api-v3/)
+ *
+ * Documentation:
+ * - GET /v3/docs - V3 Swagger UI
+ * - GET /v3/openapi.json - V3 OpenAPI spec
  */
 
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { swaggerUI } from "@hono/swagger-ui";
 import { cors } from "hono/cors";
 import type { Env } from "./types/env";
-import { handleBatchEnrichment } from "./handlers/batch-enrichment";
-import { handleBatchScan } from "./handlers/batch-scan-handler";
-import { handleCSVImport } from "./handlers/csv-import";
 import { handleMetricsRequest } from "./handlers/metrics-handler";
 import { handleCacheMetrics } from "./handlers/cache-metrics.js";
 import { handleHarvestDashboard } from "./handlers/harvest-dashboard.js";
 import { handleImageProxy } from "./handlers/image-proxy";
 import { triggerBookImportWorkflow, getWorkflowStatus } from "./handlers/workflow-trigger-handler";
 import { handleSimilarBooks, handleSemanticSearch } from "./handlers/semantic-search-handler";
-import { handleV2Search, handleWeeklyRecommendations, handleTrendingSearches, handleTrendingBooks, handleCapabilities, handleEnrichBook, handleSSEStream } from "./handlers/v2";
-import { handleEnrichBookDetailed } from "./handlers/v2/enrich-detailed";
 import { getProgressDOStub } from "./utils/durable-object-helpers";
 import { analyticsMiddleware } from "./middleware/hono-analytics";
-import { capabilitiesRoute } from "./openapi/routes/capabilities";
 import { healthRoute } from "./openapi/routes/health";
-import { createImportJobRoute, getImportJobStatusRoute, getImportJobResultsRoute } from "./openapi/routes/imports";
 import { openAPIConfig } from "./openapi/config";
 import { checkRateLimit } from "./middleware/rate-limiter";
 import { createSuccessResponse, createErrorResponse, ErrorCodes } from "./utils/response-builder";
@@ -53,23 +50,10 @@ const getCtx = (c: any): ExecutionContext | undefined => c.executionCtx as Execu
 app.use("*", analyticsMiddleware());
 
 // API Contract Validation Middleware (Sprint 1, Day 1-2 - OpenAPI Migration)
-// Validates ResponseEnvelope format compliance on v2 API routes
+// Validates ResponseEnvelope format compliance on API routes
 // Start in monitoring mode (strict: false) - logs violations but doesn't reject
 // TODO: Enable strict mode (strict: true) after Sprint 3 when all endpoints migrated
 app.use("/api/*", validateApiContract({ strict: false, logFailures: true }));
-
-// V2 Deprecation Middleware - Sunset March 7, 2026 (90 days after V3 GA)
-// Adds deprecation headers to all V2 endpoints to notify clients
-// Issue #204: RFC 8594 deprecation headers for V2 API
-app.use("/api/v2/*", async (c, next) => {
-  await next();
-  // Add deprecation headers per RFC 8594
-  const baseUrl = new URL(c.req.url).origin;
-  c.header("Deprecation", "true");
-  c.header("Sunset", "Sat, 07 Mar 2026 00:00:00 GMT");
-  c.header("Link", `<${baseUrl}/v3>; rel="successor-version"`);
-  c.header("X-Deprecation-Notice", "V2 API deprecated. Migrate to V3. Sunset: March 7, 2026");
-});
 
 // Global CORS middleware (secure with iOS compatibility)
 app.use(
@@ -137,7 +121,7 @@ app.openapi(healthRoute, (c) => {
 // See docs/archive/v1-api-2026-03/README.md for migration guide
 
 // ============================================================================
-// Batch Endpoints (Week 1 Migration - With Rate Limiting)
+// Rate Limiting Middleware
 // ============================================================================
 
 // Rate limiting middleware for Hono
@@ -155,39 +139,6 @@ const createRateLimitMiddleware = (maxRequests) => {
     return await next();
   };
 };
-
-// POST /api/batch-enrich - iOS compatibility alias for batch enrichment
-app.post("/api/batch-enrich", rateLimitMiddleware, async (c) => {
-  return await handleBatchEnrichment(c.req.raw, c.env, getCtx(c));
-});
-
-// POST /api/scan-bookshelf/batch - Batch AI bookshelf scanner
-app.post("/api/scan-bookshelf/batch", rateLimitMiddleware, async (c) => {
-  return await handleBatchScan(c.req.raw, c.env, getCtx(c));
-});
-
-// POST /api/import/csv-gemini - Gemini-powered CSV import
-app.post("/api/import/csv-gemini", rateLimitMiddleware, async (c) => {
-  return await handleCSVImport(c.req.raw, c.env, getCtx(c));
-});
-
-// ============================================================================
-// Cloudflare Workflows - Book Import Pipeline (Issue #71 - LAUNCH BLOCKER)
-// ============================================================================
-
-// POST /v2/import/workflow - Trigger book import workflow
-// Creates a new Workflow instance for asynchronous book import
-// Returns jobId and WebSocket URL for progress tracking
-app.post("/v2/import/workflow", rateLimitMiddleware, async (c) => {
-  return await triggerBookImportWorkflow(c.req.raw, c.env);
-});
-
-// GET /v2/import/workflow/:workflowId - Get workflow status
-// Query the current status of a running workflow
-app.get("/v2/import/workflow/:workflowId", async (c) => {
-  const workflowId = c.req.param("workflowId");
-  return await getWorkflowStatus(c.req.raw, c.env, workflowId);
-});
 
 // ============================================================================
 // P1 WebSocket Reconnection Routes (Issue #238)
@@ -619,62 +570,6 @@ app.get("/ws/progress", async (c) => {
 // GET /v1/jobs/{jobId}/results - REMOVED (Issue #205 - V1 Sunset March 1, 2026)
 // Replaced by GET /v3/jobs/{type}/:jobId/results
 
-// POST /api/batch-scan - Batch photo scanning (1-5 photos)
-app.post("/api/batch-scan", rateLimitMiddleware, async (c) => {
-  return await handleBatchScan(c.req.raw, c.env, getCtx(c));
-});
-
-// POST /api/scan-bookshelf/batch - Batch photo scanning (alias for /api/batch-scan)
-app.post("/api/scan-bookshelf/batch", rateLimitMiddleware, async (c) => {
-  return await handleBatchScan(c.req.raw, c.env, getCtx(c));
-});
-
-// POST /api/scan-bookshelf/cancel - Cancel batch scan job
-app.post("/api/scan-bookshelf/cancel", async (c) => {
-  try {
-    const { jobId } = await c.req.json();
-
-    if (!jobId) {
-      return createErrorResponse(
-        "jobId is required",
-        400,
-        ErrorCodes.MISSING_PARAMETER,
-        { parameter: "jobId" },
-        c.req.raw
-      );
-    }
-
-    // Feature flag: Use refactored architecture or legacy monolithic DO
-    const useRefactoredDOs = c.env.ENABLE_REFACTORED_DOS === "true";
-
-    if (useRefactoredDOs) {
-      // NEW ARCHITECTURE: Use JOB_STATE_MANAGER_DO for cancellation
-      const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
-      const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(stateDoId);
-      await stateDoStub.cancelJob("User canceled batch scan");
-    } else {
-      // LEGACY ARCHITECTURE: Use getProgressDOStub()
-      const doStub = getProgressDOStub(jobId, c.env);
-      await doStub.cancelBatch();
-    }
-
-    return createSuccessResponse(
-      { jobId, canceled: true },
-      {},
-      200,
-      c.req.raw
-    );
-  } catch (error) {
-    console.error("[Scan Cancel] Error:", error);
-    return createErrorResponse(
-      (error as Error).message,
-      500,
-      ErrorCodes.INTERNAL_ERROR,
-      undefined,
-      c.req.raw
-    );
-  }
-});
 
 // ============================================================================
 // V1 Additional Routes Removed (Issue #205 - V1 Sunset March 1, 2026)
@@ -821,289 +716,15 @@ app.post("/admin/trigger-recommendations", async (c) => {
 });
 
 // ============================================================================
-// V2 API Routes (Sprint 3 - API_CONTRACT_V2_PROPOSAL.md)
+// V2 API Routes Removed (Issue #206 - V2 Sunset March 7, 2026)
 // ============================================================================
-
-// GET /api/v2/search - Unified search (text + semantic modes)
-app.get("/api/v2/search", async (c) => {
-  return await handleV2Search(c.req.raw, c.env);
-});
-
-// GET /api/v2/recommendations/weekly - Global weekly book picks
-app.get("/api/v2/recommendations/weekly", async (c) => {
-  return await handleWeeklyRecommendations(c.req.raw, c.env);
-});
-
-// GET /api/v2/trending/searches - Popular search queries
-app.get("/api/v2/trending/searches", async (c) => {
-  return await handleTrendingSearches(c.req.raw, c.env);
-});
-
-// GET /api/v2/trending/books - Trending books based on popularity
-app.get("/api/v2/trending/books", async (c) => {
-  return await handleTrendingBooks(c.req.raw, c.env);
-});
-
-// ============================================================================
-// OpenAPI Migration POC (Phase 1.4) - First OpenAPI Route
-// ============================================================================
-
-// GET /api/v2/capabilities - Feature discovery endpoint (OpenAPI POC)
-// This is the first route migrated to @hono/zod-openapi
-// Response format is EXACTLY the same as before (backward compatible)
-app.openapi(capabilitiesRoute, async (c) => {
-  return await handleCapabilities(c.req.raw, c.env);
-});
-
-// POST /api/v2/books/enrich - Barcode enrichment with optional vectorization (flat response)
-app.post("/api/v2/books/enrich", rateLimitMiddleware, async (c) => {
-  return await handleEnrichBook(c.req.raw, c.env, getCtx(c));
-});
-
-// POST /api/v2/books/enrich/detailed - Barcode enrichment with nested canonical DTOs (detailed response)
-// Issue #150: Provides full WorkDTO, EditionDTO, and AuthorDTO objects for clients that need comprehensive metadata
-app.post("/api/v2/books/enrich/detailed", rateLimitMiddleware, async (c) => {
-  return await handleEnrichBookDetailed(c.req.raw, c.env, getCtx(c));
-});
-
-// POST /api/v2/imports - CSV import initiation (OpenAPI with rate limiting)
-app.openapi(createImportJobRoute, async (c) => {
-  // Apply rate limiting inline for OpenAPI routes
-  const rateLimitResponse = await checkRateLimit(c.req.raw, c.env);
-  if (rateLimitResponse) return rateLimitResponse;
-
-  return await handleCSVImport(c.req.raw, c.env, getCtx(c));
-});
-
-// GET /api/v2/imports/:jobId - Import job status (OpenAPI with Zod validation)
-app.openapi(getImportJobStatusRoute, async (c) => {
-  // Apply rate limiting inline (30 req/min for polling)
-  const rateLimitResponse = await checkRateLimit(c.req.raw, c.env, { limit: 30, window: 60 });
-  if (rateLimitResponse) return rateLimitResponse;
-
-  const { jobId } = c.req.valid('param');
-
-  // Get JobStateManagerDO stub for this job
-  const doId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
-  const doStub = c.env.JOB_STATE_MANAGER_DO.get(doId);
-
-  // Fetch current job state via RPC
-  const state = await doStub.getJobState();
-
-  if (!state) {
-    return createErrorResponse(
-      "Import job not found or not initialized",
-      404,
-      ErrorCodes.NOT_FOUND,
-      { jobId },
-      c.req.raw
-    );
-  }
-
-  return createSuccessResponse(
-    {
-      jobId: state.jobId,
-      status: state.status,
-      progress: state.progress,
-      processedCount: state.processedCount,
-      totalCount: state.totalCount,
-      ...(state.pipeline && { pipeline: state.pipeline }),
-      startTime: state.startTime,
-      ...(state.completedTime && { completedTime: state.completedTime }),
-      ...(state.error && { error: state.error }),
-    },
-    {
-      source: "job-state-manager-do",
-      timestamp: new Date().toISOString(),
-    },
-    200,
-    c.req.raw
-  );
-});
-
-// GET /api/v2/imports/:jobId/stream - SSE progress stream
-app.get("/api/v2/imports/:jobId/stream", async (c) => {
-  const jobId = c.req.param("jobId")?.substring(0, 100);
-
-  if (!jobId || jobId.trim().length === 0) {
-    return createErrorResponse(
-      "Missing jobId parameter",
-      400,
-      ErrorCodes.MISSING_PARAMETER,
-      { parameter: "jobId" },
-      c.req.raw
-    );
-  }
-
-  return await handleSSEStream(c.req.raw, c.env, jobId);
-});
-
-// DELETE /api/v2/jobs/{jobId}/cancel - Cancel job (V2 API)
-// Issue #001: iOS expects this endpoint at /api/v2/jobs/{jobId}/cancel
-// Keep V1 DELETE /v1/jobs/{jobId} as deprecated alias
-app.delete("/api/v2/jobs/:jobId/cancel", async (c) => {
-  try {
-    const jobId = c.req.param("jobId")?.substring(0, 100);
-
-    if (!jobId || jobId.trim().length === 0) {
-      return createErrorResponse(
-        "Missing jobId parameter",
-        400,
-        ErrorCodes.MISSING_PARAMETER,
-        { parameter: "jobId" },
-        c.req.raw
-      );
-    }
-
-    // Validate Bearer token (REQUIRED for auth)
-    const authHeader = c.req.header("Authorization");
-    const providedToken = authHeader?.replace("Bearer ", "");
-    if (!providedToken) {
-      return createErrorResponse(
-        "Authorization header required",
-        401,
-        ErrorCodes.UNAUTHORIZED,
-        { endpoint: "DELETE /api/v2/jobs/:jobId/cancel" },
-        c.req.raw
-      );
-    }
-
-    // Use PROGRESS_WEBSOCKET_DO (same as V1 cancel endpoint)
-    const doId = c.env.PROGRESS_WEBSOCKET_DO.idFromName(jobId);
-    const doStub = c.env.PROGRESS_WEBSOCKET_DO.get(doId);
-
-    // Validate token against DO storage
-    const authResult = await (doStub as any).getJobStateAndAuth();
-    if (!authResult) {
-      return createErrorResponse(
-        "Job not found",
-        404,
-        ErrorCodes.NOT_FOUND,
-        { jobId },
-        c.req.raw
-      );
-    }
-
-    const { authToken, authTokenExpiration } = authResult;
-    if (!authToken || providedToken !== authToken || Date.now() > authTokenExpiration) {
-      return createErrorResponse(
-        "Invalid or expired token",
-        401,
-        ErrorCodes.UNAUTHORIZED,
-        { jobId, tokenExpired: authTokenExpiration ? Date.now() > authTokenExpiration : false },
-        c.req.raw
-      );
-    }
-
-    // Cancel the job
-    const cancelResult = await doStub.cancelJob("Canceled by user request");
-
-    if (!cancelResult.success) {
-      return createErrorResponse(
-        "Job not found or already completed",
-        404,
-        ErrorCodes.NOT_FOUND,
-        { jobId },
-        c.req.raw
-      );
-    }
-
-    // Cleanup R2 objects
-    let r2CleanedCount = 0;
-    try {
-      const r2Prefix = `bookshelf-scans/${jobId}/`;
-      const r2List = await c.env.BOOKSHELF_IMAGES?.list({ prefix: r2Prefix });
-
-      if (r2List?.objects && r2List.objects.length > 0) {
-        const deletePromises = r2List.objects.map((obj) =>
-          c.env.BOOKSHELF_IMAGES.delete(obj.key)
-        );
-        await Promise.allSettled(deletePromises);
-        r2CleanedCount = r2List.objects.length;
-      }
-    } catch (r2Error) {
-      console.warn(`[V2 Cancel] R2 cleanup failed for job ${jobId}:`, r2Error);
-    }
-
-    // Clear KV cache entries
-    let kvCleared = false;
-    try {
-      const kvKeys = [
-        `csv-results:${jobId}`,
-        `scan-results:${jobId}`,
-        `job-results:${jobId}`,
-      ];
-      await Promise.allSettled(kvKeys.map((key) => c.env.CACHE.delete(key)));
-      kvCleared = true;
-    } catch (kvError) {
-      console.warn(`[V2 Cancel] KV cleanup failed for job ${jobId}:`, kvError);
-    }
-
-    return createSuccessResponse(
-      {
-        jobId,
-        status: "canceled",
-        message: "Job canceled successfully",
-        cleanup: {
-          r2ObjectsDeleted: r2CleanedCount,
-          kvCacheCleared: kvCleared,
-        },
-      },
-      {
-        source: "job-cancel",
-        timestamp: new Date().toISOString(),
-      },
-      200,
-      c.req.raw
-    );
-  } catch (error) {
-    console.error("[V2 Cancel] Error canceling job:", error);
-    return createErrorResponse(
-      `Failed to cancel job: ${(error as Error).message}`,
-      500,
-      ErrorCodes.INTERNAL_ERROR,
-      { jobId: c.req.param("jobId") },
-      c.req.raw
-    );
-  }
-});
-
-// GET /api/v2/imports/{jobId}/results - Get import job results (OpenAPI)
-app.openapi(getImportJobResultsRoute, async (c) => {
-  const { jobId } = c.req.valid('param')
-
-  // Try all possible result keys (pipeline-agnostic lookup)
-  const resultKeys = [
-    `csv-results:${jobId}`,      // csv_import pipeline
-    `scan-results:${jobId}`,     // ai_scan pipeline
-    `job-results:${jobId}`,      // batch_enrichment pipeline (generic)
-  ]
-
-  // Try each key in parallel for fastest lookup
-  const lookupPromises = resultKeys.map((key) =>
-    c.env.CACHE.get(key, 'json').then((result) => ({ key, result }))
-  )
-
-  const lookups = await Promise.all(lookupPromises)
-  const found = lookups.find((lookup) => lookup.result !== null)
-
-  if (!found) {
-    return createErrorResponse(
-      'Job results not found or expired. Results are stored for 1 hour after job completion.',
-      404,
-      ErrorCodes.NOT_FOUND,
-      { jobId, ttl: '1 hour', checkedKeys: resultKeys },
-      c.req.raw
-    )
-  }
-
-  return createSuccessResponse(
-    found.result,
-    { cached: true, provider: 'kv_cache', resourceId: found.key },
-    200,
-    c.req.raw
-  )
-})
+// All V2 endpoints have been removed after the sunset grace period.
+// The following routes were migrated to V3:
+// - GET /api/v2/search → Use V3 search endpoints
+// - POST /api/v2/books/enrich → Use V3 enrichment endpoints
+// - POST /api/v2/imports → Use V3 import jobs API
+// - DELETE /api/v2/jobs/:jobId/cancel → Use V3 job cancellation
+// See docs/archive/v2-openapi-2026-03.yaml for historical V2 API documentation
 
 // ============================================================================
 // Global 404 Handler
