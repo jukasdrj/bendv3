@@ -94,26 +94,21 @@ const REQUIRED_RESPONSE_HEADERS = {
 }
 
 /**
- * OpenAPI defined paths extracted from docs/openapi.yaml
+ * V3 API paths (V1 and V2 removed after sunset)
+ * V3 uses native Hono OpenAPI - see /v3/openapi.json for full spec
  */
-const OPENAPI_PATHS = [
+const V3_API_PATHS = [
   { method: 'GET', path: '/health' },
-  { method: 'GET', path: '/api/v2/capabilities' },
-  { method: 'GET', path: '/v1/search/isbn' },
-  { method: 'GET', path: '/v1/search/title' },
-  { method: 'GET', path: '/v1/search/author' },
-  { method: 'GET', path: '/api/v2/search' },
-  { method: 'GET', path: '/v1/search/similar' },
-  { method: 'POST', path: '/api/v2/books/enrich' },
-  { method: 'POST', path: '/api/batch-enrich' },
-  { method: 'POST', path: '/api/v2/imports' },
-  { method: 'GET', path: '/api/v2/imports/{jobId}' },
-  { method: 'GET', path: '/api/v2/imports/{jobId}/stream' },
-  { method: 'GET', path: '/api/v2/imports/{jobId}/results' },
-  { method: 'POST', path: '/api/batch-scan' },
-  { method: 'DELETE', path: '/v1/jobs/{jobId}' },
-  { method: 'GET', path: '/v1/jobs/{jobId}/status' },
-  { method: 'GET', path: '/v1/jobs/{jobId}/results' },
+  { method: 'GET', path: '/v3/books/:isbn' },
+  { method: 'GET', path: '/v3/books/search' },
+  { method: 'POST', path: '/v3/books/enrich' },
+  { method: 'POST', path: '/v3/jobs/imports' },
+  { method: 'GET', path: '/v3/jobs/imports/:jobId' },
+  { method: 'GET', path: '/v3/jobs/imports/:jobId/stream' },
+  { method: 'GET', path: '/v3/jobs/imports/:jobId/results' },
+  { method: 'POST', path: '/v3/jobs/scans' },
+  { method: 'GET', path: '/v3/jobs/scans/:jobId' },
+  { method: 'DELETE', path: '/v3/jobs/enrichment/:jobId' },
 ] as const
 
 // ============================================================================
