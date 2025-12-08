@@ -16,6 +16,7 @@ import {
   processCSVCore,
   buildServiceCompletionPayload,
 } from "../utils/csv-processor-core.js";
+import { getCacheTTL } from "../config/cache-ttl.js";
 
 /**
  * Process CSV import with progress tracking
@@ -35,7 +36,7 @@ import {
 export async function processCSVImport(csvText, progressReporter, env, jobId) {
   // Use shared CSV processing core with service-specific options
   await processCSVCore(csvText, jobId, progressReporter, env, {
-    resultsTTL: 86400, // 24 hours TTL (ISSUE #133: longer storage for service)
+    resultsTTL: getCacheTTL('hot', env), // Use hot TTL (2h) for temporary results
     resultsKeyPrefix: "csv-results", // Service-specific prefix
     buildCompletionPayload: buildServiceCompletionPayload, // Custom completion format
   });

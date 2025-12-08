@@ -1,6 +1,7 @@
 // src/utils/cache-keys.js
 
 import { normalizeISBN } from "./normalization.js";
+import { PROMPT_VERSION } from "../prompts/csv-parser-prompt.js";
 
 /**
  * Generate SHA-256 hash of string using Web Crypto API
@@ -22,28 +23,28 @@ async function sha256(text) {
  *
  * Cache is automatically invalidated when:
  * - CSV content changes (different hash)
- * - Prompt version changes (e.g., v1 → v2)
+ * - Prompt version changes (parsing logic updated)
  *
  * @param {string} csvText - Raw CSV content
- * @param {string} promptVersion - Prompt version (from PROMPT_VERSION constant)
  * @returns {Promise<string>} Cache key in format csv-parse:{hash}:{version}
  */
-export async function generateCSVCacheKey(csvText, promptVersion) {
+export async function generateCSVCacheKey(csvText) {
   const hash = await sha256(csvText);
-  return `csv-parse:${hash}:${promptVersion}`;
+  return `csv-parse:${hash}:${PROMPT_VERSION}`;
 }
 
 /**
  * Generate cache key for ISBN enrichment data.
- * Format: isbn:{normalizedISBN}
+ * Format: book:isbn:{normalizedISBN}
  *
  * Uses shared normalizeISBN() for consistent caching across all services.
+ * Updated to canonical format (Issue #213, Task 1.8).
  *
  * @param {string} isbn - ISBN string (with or without hyphens/spaces)
- * @returns {string} Cache key in format isbn:{normalized}
+ * @returns {string} Cache key in format book:isbn:{normalized}
  */
 export function generateISBNCacheKey(isbn) {
   // Use shared normalization utility for consistency
   const normalized = normalizeISBN(isbn);
-  return `isbn:${normalized}`;
+  return `book:isbn:${normalized}`; // Canonical cache key format
 }

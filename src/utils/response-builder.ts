@@ -82,45 +82,6 @@ export const ErrorCodes = {
 // RESPONSE ENVELOPE FUNCTIONS (PRIMARY API)
 // ============================================================================
 
-/**
- * Create success response using ResponseEnvelope format
- *
- * This is the STANDARD way to create success responses. All handlers should use this.
- *
- * @param data - Success data payload
- * @param metadata - Optional metadata object (timestamp added automatically)
- * @param status - HTTP status code (default: 200)
- * @param corsRequest - Optional request for CORS headers
- * @returns Response object with envelope success structure
- *
- * @example
- * return createSuccessResponse({ book: bookData }, { cached: true, provider: 'google-books' });
- * return createSuccessResponse(initResponse, {}, 202);
- */
-export function createSuccessResponse<T>(
-  data: T,
-  metadata: Partial<ResponseMetadata> = {},
-  status: number = 200,
-  corsRequest: Request | null = null,
-): Response {
-  const envelope: ResponseEnvelope<T> = {
-    success: true, // P0: Add success discriminator for iOS client compatibility
-    data,
-    metadata: {
-      timestamp: new Date().toISOString(),
-      ...metadata,
-    },
-  };
-
-  return new Response(JSON.stringify(envelope), {
-    status,
-    headers: {
-      ...getCorsHeaders(corsRequest),
-      "Content-Type": "application/json",
-      "X-Response-Format": "v2.0", // For monitoring compliance (Issue #93)
-    },
-  });
-}
 
 /**
  * Options for createErrorResponse

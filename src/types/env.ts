@@ -28,9 +28,6 @@ export interface WorkflowBinding<T = unknown> {
 
 export interface Env {
   // Feature Flags
-  ENABLE_HONO_ROUTER?: string;
-  ENABLE_UNIFIED_ENVELOPE?: string;
-  ENABLE_REFACTORED_DOS?: string;
   ENABLE_ALEXANDRIA_RPC?: string; // Sprint 1: Hono RPC migration (default: false)
 
   // Workflow Feature Flags (Issue #71)

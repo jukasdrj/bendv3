@@ -10,6 +10,7 @@ import { enrichMultipleBooks } from "./enrichment.ts";
 import { scanImageWithGemini } from "../providers/gemini-provider.js";
 import { enrichBooksParallel } from "./parallel-enrichment.js";
 import { categorizeBooks } from "../utils/confidence.js";
+import { getCacheTTL } from "../config/cache-ttl.js";
 
 /**
  * Debug logging helper - only logs verbose details in DEBUG mode
@@ -253,7 +254,7 @@ export async function processBookshelfScan(
     };
 
     await env.CACHE.put(resultsKey, JSON.stringify(fullResults), {
-      expirationTtl: 86400, // 24 hours
+      expirationTtl: getCacheTTL('hot', env), // Use hot TTL (2h) for temporary results
     });
 
     debugLog(env, () => {

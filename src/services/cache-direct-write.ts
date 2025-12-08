@@ -21,6 +21,7 @@
 import type { Env } from '../types/env.js'
 import { normalizeISBNdbToWork, normalizeISBNdbToEdition, normalizeISBNdbToAuthor } from './normalizers/isbndb.js'
 import { KVCacheService } from './kv-cache.js'
+import { getCacheTTL } from '../config/cache-ttl.js'
 
 /**
  * ISBNdb book response format (from ISBNdbAPI.searchByAuthor)
@@ -111,9 +112,9 @@ export async function writeISBNdbBooksToCache(
         }
       }
 
-      // Write to KV cache (24h TTL)
+      // Write to KV cache using cold TTL (14 days)
       await kvCache.set(cacheKey, canonicalData, 'isbn', {
-        ttl: 86400 // 24 hours
+        ttl: getCacheTTL('cold', env) // Use cold TTL for persistent cache
       })
 
       results.push({

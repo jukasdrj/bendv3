@@ -10,7 +10,7 @@
 
 import { AuthenticatedRoute, type AppContext } from '../../base'
 import { z } from 'zod'
-import { createSuccessResponse, createErrorResponse, ErrorCodes } from '../../../utils/response-builder'
+import { createErrorResponse, ErrorCodes } from '../../../utils/response-builder'
 
 // Request body schema
 const AddBookRequestSchema = z.object({

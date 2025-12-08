@@ -210,7 +210,7 @@ describe('Cache Miss & Recovery', () => {
  */
 describe('Cache Invalidation', () => {
   it('should invalidate cache on new enrichment', () => {
-    const cacheKey = 'isbn:9780439708180'
+    const cacheKey = 'book:isbn:9780439708180' // Canonical format (Issue #213)
     let cache = { [cacheKey]: { title: 'Book', version: 1 } }
 
     // On new enrichment, delete from cache
@@ -221,26 +221,26 @@ describe('Cache Invalidation', () => {
 
   it('should support pattern-based cache invalidation', () => {
     const cache = {
-      'isbn:9780439708180': { title: 'Book 1' },
-      'isbn:9780439064873': { title: 'Book 2' },
+      'book:isbn:9780439708180': { title: 'Book 1' }, // Canonical format
+      'book:isbn:9780439064873': { title: 'Book 2' }, // Canonical format
       'title:harry': { count: 100 },
       'title:potter': { count: 50 }
     }
 
-    // Invalidate all ISBN entries
-    const isbnPattern = /^isbn:/
+    // Invalidate all ISBN entries (updated pattern for canonical format)
+    const isbnPattern = /^book:isbn:/
     const keysToDelete = Object.keys(cache).filter(k => isbnPattern.test(k))
     keysToDelete.forEach(k => delete cache[k])
 
-    expect(cache['isbn:9780439708180']).toBeUndefined()
-    expect(cache['isbn:9780439064873']).toBeUndefined()
+    expect(cache['book:isbn:9780439708180']).toBeUndefined()
+    expect(cache['book:isbn:9780439064873']).toBeUndefined()
     expect(cache['title:harry']).toBeDefined() // Title entries untouched
   })
 
   it('should cleanup cache on manual eviction', () => {
     const cache = {
-      'isbn:9780439708180': { title: 'Book', size: 1000 },
-      'isbn:9780439064873': { title: 'Book 2', size: 1500 }
+      'book:isbn:9780439708180': { title: 'Book', size: 1000 }, // Canonical format
+      'book:isbn:9780439064873': { title: 'Book 2', size: 1500 } // Canonical format
     }
 
     // Manually evict entries
@@ -251,8 +251,8 @@ describe('Cache Invalidation', () => {
 
     keysToEvict.forEach(k => delete cache[k])
 
-    expect(cache['isbn:9780439708180']).toBeDefined() // Not evicted (1000 < 1200)
-    expect(cache['isbn:9780439064873']).toBeUndefined() // Evicted (1500 > 1200)
+    expect(cache['book:isbn:9780439708180']).toBeDefined() // Not evicted (1000 < 1200)
+    expect(cache['book:isbn:9780439064873']).toBeUndefined() // Evicted (1500 > 1200)
   })
 })
 
@@ -286,13 +286,13 @@ describe('Cache Key Generation', () => {
   })
 
   it('should namespace cache keys by data type', () => {
-    // Different prefixes for different data types
-    const isbnKey = `isbn:9780439708180`
+    // Different prefixes for different data types (Issue #213: canonical format)
+    const isbnKey = `book:isbn:9780439708180`
     const titleKey = `title:harry+potter`
     const csvKey = `csv-parse:abc123def456:v1`
 
     // Each key has distinct namespace
-    expect(isbnKey).toMatch(/^isbn:/)
+    expect(isbnKey).toMatch(/^book:isbn:/)
     expect(titleKey).toMatch(/^title:/)
     expect(csvKey).toMatch(/^csv-parse:/)
 

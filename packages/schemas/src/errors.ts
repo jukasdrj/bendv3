@@ -117,8 +117,8 @@ export function createProblemDetails(
   const title = ERROR_TITLE_MAP[code]
   const retryable = RETRYABLE_ERRORS.has(code)
 
+  // Pure RFC 9457 format (Issue #213: success field removed, HTTP status is sufficient)
   return {
-    success: false,
     type: `${ERROR_TYPE_BASE}/${code.toLowerCase().replace(/_/g, '-')}`,
     title,
     status,
@@ -159,6 +159,8 @@ export function isRetryable(code: ErrorCode): boolean {
 /**
  * Type guard to check if a response is an error
  *
+ * Updated for pure RFC 9457 (Issue #213): Check HTTP status instead of success field.
+ *
  * @example
  * ```typescript
  * const response = await api.getBook(isbn)
@@ -173,21 +175,24 @@ export function isErrorResponse(response: unknown): response is ErrorResponse {
   return (
     typeof response === 'object' &&
     response !== null &&
-    'success' in response &&
-    response.success === false
+    'status' in response &&
+    typeof (response as { status: unknown }).status === 'number' &&
+    (response as { status: number }).status >= 400
   )
 }
 
 /**
  * Type guard to check if a response is successful
+ *
+ * Updated for pure RFC 9457 (Issue #213): Check for data field instead of success field.
  */
 export function isSuccessResponse<T>(
   response: unknown
-): response is { success: true; data: T } {
+): response is { data: T } {
   return (
     typeof response === 'object' &&
     response !== null &&
-    'success' in response &&
-    response.success === true
+    'data' in response &&
+    !isErrorResponse(response) // Ensure it's not an error response
   )
 }
