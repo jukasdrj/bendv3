@@ -176,8 +176,8 @@ export function isErrorResponse(response: unknown): response is ErrorResponse {
     typeof response === 'object' &&
     response !== null &&
     'status' in response &&
-    typeof (response as any).status === 'number' &&
-    (response as any).status >= 400
+    typeof (response as { status: unknown }).status === 'number' &&
+    (response as { status: number }).status >= 400
   )
 }
 

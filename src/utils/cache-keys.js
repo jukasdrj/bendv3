@@ -1,6 +1,7 @@
 // src/utils/cache-keys.js
 
 import { normalizeISBN } from "./normalization.js";
+import { PROMPT_VERSION } from "../prompts/csv-parser-prompt.js";
 
 /**
  * Generate SHA-256 hash of string using Web Crypto API
@@ -18,17 +19,18 @@ async function sha256(text) {
 
 /**
  * Generate cache key for CSV parse results.
- * Format: csv-parse:{hash}
+ * Format: csv-parse:{hash}:{promptVersion}
  *
  * Cache is automatically invalidated when:
  * - CSV content changes (different hash)
+ * - Prompt version changes (parsing logic updated)
  *
  * @param {string} csvText - Raw CSV content
- * @returns {Promise<string>} Cache key in format csv-parse:{hash}
+ * @returns {Promise<string>} Cache key in format csv-parse:{hash}:{version}
  */
 export async function generateCSVCacheKey(csvText) {
   const hash = await sha256(csvText);
-  return `csv-parse:${hash}`;
+  return `csv-parse:${hash}:${PROMPT_VERSION}`;
 }
 
 /**
