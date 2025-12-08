@@ -33,15 +33,16 @@ export async function generateCSVCacheKey(csvText) {
 
 /**
  * Generate cache key for ISBN enrichment data.
- * Format: isbn:{normalizedISBN}
+ * Format: book:isbn:{normalizedISBN}
  *
  * Uses shared normalizeISBN() for consistent caching across all services.
+ * Updated to canonical format (Issue #213, Task 1.8).
  *
  * @param {string} isbn - ISBN string (with or without hyphens/spaces)
- * @returns {string} Cache key in format isbn:{normalized}
+ * @returns {string} Cache key in format book:isbn:{normalized}
  */
 export function generateISBNCacheKey(isbn) {
   // Use shared normalization utility for consistency
   const normalized = normalizeISBN(isbn);
-  return `isbn:${normalized}`;
+  return `book:isbn:${normalized}`; // Canonical cache key format
 }

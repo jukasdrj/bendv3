@@ -1,6 +1,7 @@
 // src/services/unified-cache.js
 import { EdgeCacheService } from "./edge-cache.js";
 import { KVCacheService } from "./kv-cache.js";
+import { getCacheTTL } from "../config/cache-ttl.js";
 
 /**
  * Unified Cache Service - Single entry point for all cache operations
@@ -32,8 +33,8 @@ export class UnifiedCacheService {
 
     // Tier 1: Edge Cache (fastest, 80% hit rate) with SWR support
     const edgeResult = await this.edgeCache.get(cacheKey, {
-      maxAge: 3600, // 1 hour fresh
-      staleWhileRevalidate: 86400, // 24 hours stale
+      maxAge: getCacheTTL('hot', this.env), // Hot TTL (2h) for freshness
+      staleWhileRevalidate: getCacheTTL('cold', this.env), // Cold TTL (14d) for stale
     });
 
     if (edgeResult) {
@@ -173,7 +174,7 @@ export class UnifiedCacheService {
           count: current.count + 1,
           lastAccess: Date.now()
         }),
-        { expirationTtl: 86400 } // 24h TTL
+        { expirationTtl: getCacheTTL('hot', this.env) } // Use hot TTL for access tracking
       )
     } catch (error) {
       // Non-critical, don't fail request

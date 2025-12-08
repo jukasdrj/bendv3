@@ -398,7 +398,7 @@ export async function searchGoogleBooksByISBN(
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
   const normalizedIsbn = isbn.replace(/-/g, ''); // Normalize ISBN (remove hyphens)
-  const cacheKey = `isbn:${normalizedIsbn}`;
+  const cacheKey = `book:isbn:${normalizedIsbn}`; // Canonical cache key format
   return withCache<NormalizedResponse>(
     cacheKey,
     () => searchGoogleBooksByISBN_Uncached(isbn, env),
