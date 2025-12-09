@@ -262,47 +262,92 @@
       },
       "Book": {
         "type": "object",
-        "required": ["isbn", "title"],
+        "required": ["isbn", "title", "authors", "provider", "quality"],
         "properties": {
           "isbn": {
-            "type": "string"
+            "type": "string",
+            "minLength": 13,
+            "maxLength": 13,
+            "description": "13-digit ISBN (example: 9780439708180)"
           },
-          "isbn13": {
-            "type": "string"
+          "isbn10": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 10,
+            "description": "10-digit ISBN if available (example: 0439708184)"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "description": "Book title"
           },
           "subtitle": {
-            "type": "string"
+            "type": "string",
+            "description": "Book subtitle"
           },
           "authors": {
             "type": "array",
             "items": {
-              "type": "object"
-            }
-          },
-          "publishedDate": {
-            "type": "string"
+              "type": "string"
+            },
+            "description": "List of author names"
           },
           "publisher": {
-            "type": "string"
-          },
-          "pageCount": {
-            "type": "integer"
-          },
-          "coverUrl": {
             "type": "string",
-            "format": "uri"
+            "description": "Publisher name"
+          },
+          "publishedDate": {
+            "type": "string",
+            "description": "Publication date (ISO 8601 or partial format)"
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "description": "Book description/synopsis"
+          },
+          "pageCount": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of pages"
           },
           "categories": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Book categories/genres"
+          },
+          "language": {
+            "type": "string",
+            "description": "ISO 639-1 language code (e.g., \"en\")"
+          },
+          "coverUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Cover image URL"
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Thumbnail image URL"
+          },
+          "workKey": {
+            "type": "string",
+            "description": "OpenLibrary work key (e.g., OL82563W)"
+          },
+          "editionKey": {
+            "type": "string",
+            "description": "OpenLibrary edition key (e.g., OL7353617M)"
+          },
+          "provider": {
+            "type": "string",
+            "enum": ["alexandria", "google_books", "open_library", "isbndb"],
+            "description": "Data source provider"
+          },
+          "quality": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Data quality score 0-100"
           }
         }
       },

@@ -10,8 +10,6 @@
  * - Now uses Hono router exclusively for all HTTP routing
  */
 
-import { ProgressWebSocketDO } from "./durable-objects/progress-socket.js";
-import { ProgressWebSocketDO_Hibernation } from "./durable-objects/progress-socket-hibernation.js";
 import { RateLimiterDO } from "./durable-objects/rate-limiter.js";
 import { WebSocketConnectionDO } from "./durable-objects/websocket-connection.js";
 import { JobStateManagerDO } from "./durable-objects/job-state-manager.js";
@@ -29,8 +27,6 @@ import { handleScheduledCacheWarming } from "./handlers/scheduled-cache-warming.
 
 // Export Durable Object classes for Cloudflare Workers runtime
 export {
-  ProgressWebSocketDO,
-  ProgressWebSocketDO_Hibernation,
   RateLimiterDO,
   WebSocketConnectionDO,
   JobStateManagerDO,

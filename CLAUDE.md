@@ -161,11 +161,14 @@ npm run deploy                 # Deploy to production
 - Analytics logging for observability
 
 **Cache Architecture (v3.0 - Alexandria-First):**
-- KV-only for book metadata (removed R2 cold storage tier)
-- Alexandria as PRIMARY provider (49M+ ISBNs, 0 cost, <100ms)
-- Hot/Cold TTL strategy (2h effectiveness window, 14d expiration)
-- Edge cache retained for covers/static assets only
-- ISBNdb harvest deprecated (Alexandria replaces)
+- **Primary Provider:** Alexandria RPC (49M+ ISBNs, internal data, <100ms)
+- **KV Cache:** Book metadata only (removed R2 cold storage tier)
+- **TTL Strategy:** 2h hot cache, 14d cold expiration
+- **Edge Cache:** Covers and static assets only
+- **Provider Chain:** Alexandria (primary) → Google Books (fallback) → OpenLibrary (fallback)
+- **Circuit Breaker:** Per-provider protection (alexandria, google_books, open_library, isbndb)
+- **Service Binding:** Sub-millisecond RPC when available (production/staging)
+- **Integration:** Strictly typed Hono RPC client with Zod schemas
 - See [docs/CACHE_ARCHITECTURE.md](docs/CACHE_ARCHITECTURE.md) for details
 
 **Testing:**

@@ -294,11 +294,23 @@ router.get('/v1/new-endpoint', async (c) => {
 - **Cache TTL:** 7 days (covers don't change)
 - **Circuit breaker:** 5 failures → OPEN, 60s cooldown
 
-### OpenLibrary API
+### Alexandria RPC (Primary Provider)
+- **Integration:** Service Binding (internal) or HTTPS (external)
+- **Base URL:** `https://alexandria.ooheynerds.com` (fallback)
+- **Dataset:** 49M+ ISBNs with OpenLibrary metadata
+- **Cost:** $0 (internal data)
+- **Latency:** <100ms (typical), sub-millisecond via Service Binding
+- **Use case:** Primary book metadata provider (replaces OpenLibrary direct calls)
+- **Architecture:** Strictly typed Hono RPC client with Zod validation
+- **Circuit breaker:** 5 failures → OPEN, 60s cooldown
+
+### OpenLibrary API (Deprecated - Use Alexandria)
+- **Status:** Deprecated in favor of Alexandria RPC
 - **Base URL:** `https://openlibrary.org/api`
 - **Rate limit:** No official limit (be respectful)
 - **Cache TTL:** 24 hours
 - **Circuit breaker:** 5 failures → OPEN, 60s cooldown
+- **Migration:** All calls should go through Alexandria client instead
 
 ### Gemini 2.0 Flash
 - **Model:** `gemini-2.0-flash-exp`
