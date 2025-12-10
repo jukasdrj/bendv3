@@ -47,8 +47,8 @@ describe('UnifiedCacheService', () => {
     expect(result.data).toEqual(mockData);
     expect(result.source).toBe('EDGE');
     expect(service.edgeCache.get).toHaveBeenCalledWith(cacheKey, {
-      maxAge: 3600,
-      staleWhileRevalidate: 86400
+      maxAge: 7200,
+      staleWhileRevalidate: 1209600
     });
   });
 
@@ -70,8 +70,8 @@ describe('UnifiedCacheService', () => {
     expect(result.data).toEqual(mockData);
     expect(result.source).toBe('KV');
     expect(service.edgeCache.get).toHaveBeenCalledWith(cacheKey, {
-      maxAge: 3600,
-      staleWhileRevalidate: 86400
+      maxAge: 7200,
+      staleWhileRevalidate: 1209600
     });
     expect(service.kvCache.get).toHaveBeenCalledWith(cacheKey, 'title');
   });
@@ -112,8 +112,8 @@ describe('UnifiedCacheService', () => {
     await service.get(cacheKey, 'title');
 
     expect(service.edgeCache.get).toHaveBeenCalledWith(cacheKey, {
-      maxAge: 3600,
-      staleWhileRevalidate: 86400
+      maxAge: 7200,
+      staleWhileRevalidate: 1209600
     });
   });
 });
