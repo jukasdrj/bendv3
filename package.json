@@ -24,7 +24,7 @@
     "docs:v3": "echo 'V3 API Docs: Start dev server (npm run dev) and visit http://localhost:8787/v3/docs'"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20251209.0",
+    "@cloudflare/workers-types": "^4.20251210.0",
     "@stoplight/spectral-cli": "^6.15.0",
     "@vitest/coverage-v8": "^4.0.15",
     "@vitest/ui": "^4.0.15",

@@ -1,8 +1,10 @@
 # @bookstrack/api-client
 
-**Official TypeScript SDK for BooksTrack API**
+**Official TypeScript SDK for BooksTrack V3 API**
 
 Auto-generated from OpenAPI specification using `openapi-typescript` + `openapi-fetch`.
+
+> **Version 2.0** - V3 API only. V1/V2 endpoints have been sunset.
 
 ## Features
 
@@ -38,16 +40,25 @@ const client = createBooksTrackClient({
   baseUrl: 'https://api.oooefam.net'
 })
 
-// Search by ISBN
-const { data, error } = await client.GET('/v1/search/isbn', {
-  params: { query: { isbn: '9780439708180' } }
+// Get API capabilities (call on app startup)
+const { data: caps } = await client.GET('/v3/capabilities')
+console.log('API Version:', caps.data.apiVersion)
+
+// Search books by title
+const { data, error } = await client.GET('/v3/books/search', {
+  params: { query: { q: 'harry potter' } }
 })
 
 if (error) {
   console.error('API Error:', error)
 } else {
-  console.log('Book:', data.data)
+  console.log('Books:', data.data.books)
 }
+
+// Get book by ISBN
+const { data: book } = await client.GET('/v3/books/{isbn}', {
+  params: { path: { isbn: '9780439708180' } }
+})
 ```
 
 ### Advanced Usage
@@ -63,20 +74,20 @@ const client = createBooksTrackClient({
 })
 ```
 
-#### POST Requests (Batch Enrichment)
+#### POST Requests (Book Enrichment)
 
 ```typescript
-const { data, error } = await client.POST('/v1/enrich/batch', {
+const { data, error } = await client.POST('/v3/books/enrich', {
   body: {
-    workIds: ['OL123W', 'OL456W'],
-    force: false
+    isbns: ['9780439708180', '9780316769488'],
+    includeEmbedding: false
   }
 })
 
 if (error) {
   console.error('Failed to enrich:', error)
 } else {
-  console.log('Job ID:', data.data.jobId)
+  console.log('Enriched:', data.data.books)
 }
 ```
 

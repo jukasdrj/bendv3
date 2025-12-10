@@ -34,6 +34,7 @@ import { generateBookEmbedding, storeEmbedding } from '../services/embedding-ser
 import { registerImportRoutes } from './jobs/imports'
 import { registerScanRoutes } from './jobs/scans'
 import { registerEnrichmentRoutes } from './jobs/enrichment'
+import { registerDiscoveryRoutes } from './discovery'
 import {
   getJobStateManagerDO,
   generateAuthToken,
@@ -61,6 +62,11 @@ export function createV3Router() {
 
   // Apply request context middleware to all routes
   app.use('*', requestContext)
+
+  // ========================================================================
+  // Discovery Routes (Capabilities, Recommendations)
+  // ========================================================================
+  registerDiscoveryRoutes(app)
 
   // ========================================================================
   // Job Management Routes
@@ -694,6 +700,7 @@ for semantic search.`,
   app.get('/v3/docs', swaggerUI({ url: '/v3/openapi.json' }))
 
   console.log('[V3 API] Contract-first router with shared schemas created')
+  console.log('[V3 API] Discovery Routes: GET /v3/capabilities, GET /v3/recommendations/weekly')
   console.log('[V3 API] Book Routes: GET /v3/books/search, POST /v3/books/enrich, GET /v3/books/:isbn')
   console.log('[V3 API] Job Routes (Imports): POST /v3/jobs/imports, GET /v3/jobs/imports/:id, GET /v3/jobs/imports/:id/stream')
   console.log('[V3 API] Job Routes (Scans): POST /v3/jobs/scans, GET /v3/jobs/scans/:id, GET /v3/jobs/scans/:id/stream')

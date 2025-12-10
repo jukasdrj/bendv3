@@ -25,11 +25,98 @@
   ],
   "tags": [
     {
+      "name": "Discovery",
+      "description": "API capabilities and recommendations"
+    },
+    {
       "name": "Books",
       "description": "Book metadata operations"
     }
   ],
   "paths": {
+    "/v3/capabilities": {
+      "get": {
+        "tags": ["Discovery"],
+        "summary": "Get API capabilities",
+        "description": "Returns API feature availability, limits, and deprecation notices. Clients should call this on app startup.",
+        "operationId": "getCapabilities",
+        "responses": {
+          "200": {
+            "description": "API capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/recommendations/weekly": {
+      "get": {
+        "tags": ["Discovery"],
+        "summary": "Get weekly book recommendations",
+        "description": "Returns global weekly book recommendations. Non-personalized curated picks generated every Sunday at midnight UTC.",
+        "operationId": "getWeeklyRecommendations",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 10
+            },
+            "description": "Number of recommendations (1-20)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Weekly recommendations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No recommendations available",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v3/books/search": {
       "get": {
         "tags": ["Books"],
@@ -392,6 +479,188 @@
           },
           "processingTimeMs": {
             "type": "integer"
+          }
+        }
+      },
+      "CapabilitiesResponse": {
+        "type": "object",
+        "required": ["success", "data", "metadata"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "required": ["apiVersion", "features", "limits", "deprecations"],
+            "properties": {
+              "apiVersion": {
+                "type": "string",
+                "description": "Current API version"
+              },
+              "features": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Feature"
+                }
+              },
+              "limits": {
+                "$ref": "#/components/schemas/Limits"
+              },
+              "deprecations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Deprecation"
+                }
+              }
+            }
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        }
+      },
+      "Feature": {
+        "type": "object",
+        "required": ["name", "enabled", "version", "endpoints"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Feature identifier"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether feature is available"
+          },
+          "version": {
+            "type": "string",
+            "description": "Feature version"
+          },
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Related API endpoints"
+          },
+          "rateLimit": {
+            "type": "object",
+            "properties": {
+              "requests": {
+                "type": "integer",
+                "description": "Max requests per window"
+              },
+              "windowMs": {
+                "type": "integer",
+                "description": "Rate limit window in milliseconds"
+              }
+            }
+          },
+          "notes": {
+            "type": "string",
+            "description": "Additional notes"
+          }
+        }
+      },
+      "Limits": {
+        "type": "object",
+        "required": ["maxBatchSize", "maxCsvRows", "maxImageSizeMb", "maxConcurrentJobs"],
+        "properties": {
+          "maxBatchSize": {
+            "type": "integer",
+            "description": "Maximum items per batch request"
+          },
+          "maxCsvRows": {
+            "type": "integer",
+            "description": "Maximum rows in CSV import"
+          },
+          "maxImageSizeMb": {
+            "type": "integer",
+            "description": "Maximum image size for scans"
+          },
+          "maxConcurrentJobs": {
+            "type": "integer",
+            "description": "Max concurrent async jobs per user"
+          }
+        }
+      },
+      "Deprecation": {
+        "type": "object",
+        "required": ["endpoint", "sunsetDate", "replacement"],
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "Deprecated endpoint path"
+          },
+          "sunsetDate": {
+            "type": "string",
+            "description": "Sunset date (ISO 8601)"
+          },
+          "replacement": {
+            "type": "string",
+            "description": "Replacement endpoint or migration guide"
+          }
+        }
+      },
+      "RecommendationsResponse": {
+        "type": "object",
+        "required": ["success", "data", "metadata"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "required": ["weekOf", "recommendations", "count", "totalAvailable"],
+            "properties": {
+              "weekOf": {
+                "type": "string",
+                "description": "Week start date (ISO 8601)"
+              },
+              "recommendations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Recommendation"
+                }
+              },
+              "count": {
+                "type": "integer",
+                "description": "Number of recommendations returned"
+              },
+              "totalAvailable": {
+                "type": "integer",
+                "description": "Total recommendations available"
+              }
+            }
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        }
+      },
+      "Recommendation": {
+        "type": "object",
+        "required": ["isbn", "title", "author", "reason"],
+        "properties": {
+          "isbn": {
+            "type": "string",
+            "description": "Book ISBN"
+          },
+          "title": {
+            "type": "string",
+            "description": "Book title"
+          },
+          "author": {
+            "type": "string",
+            "description": "Primary author"
+          },
+          "coverUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Cover image URL"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why this book is recommended"
           }
         }
       }

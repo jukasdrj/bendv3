@@ -2,6 +2,47 @@
 
 All notable changes to the BooksTrack API Client will be documented in this file.
 
+## [2.0.0] - 2025-12-10
+
+### BREAKING CHANGES
+
+- **V3 API Only** - SDK now targets V3 API exclusively
+  - All V1 and V2 endpoints have been removed
+  - Schema regenerated from `/v3/openapi.json`
+  - Update all endpoint paths from `/api/v2/*` to `/v3/*`
+
+### Added
+
+- **Discovery Endpoints** - New V3 discovery routes
+  - `GET /v3/capabilities` - API feature discovery, limits, deprecations
+  - `GET /v3/recommendations/weekly` - Weekly curated book recommendations
+
+### Changed
+
+- **Schema Source** - Now generated from `src/api-v3/openapi-static.json`
+- **Version Bump** - Major version to indicate breaking API changes
+
+### Removed
+
+- All V2 endpoints (sunset March 2026):
+  - `/api/v2/capabilities` → Use `/v3/capabilities`
+  - `/api/v2/recommendations/weekly` → Use `/v3/recommendations/weekly`
+  - `/api/v2/search` → Use `/v3/books/search`
+  - `/api/v2/imports/*` → Use `/v3/jobs/imports/*`
+  - `/api/v2/books/enrich` → Use `/v3/books/enrich`
+
+### Migration Guide (1.x → 2.0)
+
+```typescript
+// Before (V2)
+const response = await client.GET('/api/v2/capabilities')
+const search = await client.GET('/api/v2/search', { params: { query: { q: 'harry potter' } } })
+
+// After (V3)
+const response = await client.GET('/v3/capabilities')
+const search = await client.GET('/v3/books/search', { params: { query: { q: 'harry potter' } } })
+```
+
 ## [1.2.0] - 2025-12-03
 
 ### Added
