@@ -66,12 +66,15 @@ export type Link = z.infer<typeof LinkSchema>
  * ```typescript
  * const BookResponseSchema = SuccessResponseSchema(BookSchema)
  * ```
+ *
+ * Includes `error: null` for iOS client compatibility.
  */
 export function SuccessResponseSchema<T extends z.ZodTypeAny>(dataSchema: T) {
   return z.object({
     success: z.literal(true).describe('Success discriminator (always true for successful responses)'),
     data: dataSchema,
     metadata: ResponseMetadataSchema,
+    error: z.null().optional().describe('Null for success responses (iOS compatibility)'),
     _links: z.record(z.string(), LinkSchema).optional().describe('HATEOAS links for resource discoverability')
   })
 }

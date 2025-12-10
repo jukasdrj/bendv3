@@ -104,15 +104,21 @@ export type Pagination = z.infer<typeof PaginationSchema>
 
 /**
  * Search response data
+ *
+ * Field names match iOS client expectations:
+ * - results (not books)
+ * - totalCount (not total)
+ * - query includes limit/offset for iOS compatibility
  */
 export const SearchResultDataSchema = z.object({
-  books: z.array(BookSchema).describe('Array of book results'),
-  total: z.number().int().min(0).describe('Total number of results'),
+  results: z.array(BookSchema).describe('Array of book results'),
+  totalCount: z.number().int().min(0).describe('Total number of results'),
   query: z.object({
-    q: z.string(),
-    mode: SearchModeSchema
-  }).describe('Original search query'),
-  pagination: PaginationSchema.describe('Pagination info (offset or cursor based)')
+    q: z.string().describe('Search query string'),
+    mode: SearchModeSchema.describe('Search mode used'),
+    limit: z.number().int().min(1).max(100).describe('Results per page'),
+    offset: z.number().int().min(0).describe('Zero-based offset for pagination')
+  }).describe('Original search query with pagination parameters')
 }).openapi('SearchResultData')
 
 export type SearchResultData = z.infer<typeof SearchResultDataSchema>

@@ -166,28 +166,22 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
       })
 
       if (!result || !result.works || result.works.length === 0) {
-        // No books found
+        // No books found - iOS-compatible response format
+        const offset = (page - 1) * limit
         return c.json({
           success: true,
           data: {
-            books: [],
-            total: 0,
-            query: { q, mode },
-            pagination: {
-              type: 'offset' as const,
-              page,
-              limit,
-              totalPages: 0,
-              hasNext: false,
-              hasPrev: false
-            }
+            results: [],
+            totalCount: 0,
+            query: { q, mode, limit, offset }
           },
           metadata: {
             timestamp: new Date().toISOString(),
             requestId: ctx.requestId,
             cached: false,
             processingTimeMs: Date.now() - ctx.startTime
-          }
+          },
+          error: null
         }, 200)
       }
 
@@ -234,22 +228,18 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
       const endIdx = startIdx + limit
       const paginatedBooks = allBooks.slice(startIdx, endIdx)
 
-      console.log(`[V3 Search] Found ${totalResults} total books, returning page ${page} (${paginatedBooks.length} books) in ${Date.now() - ctx.startTime}ms`)
+      // Calculate offset for iOS-compatible response
+      const offset = (page - 1) * limit
 
+      console.log(`[V3 Search] Found ${totalResults} total books, returning page ${page} (offset ${offset}, ${paginatedBooks.length} books) in ${Date.now() - ctx.startTime}ms`)
+
+      // iOS-compatible response format with results/totalCount/query.offset
       return c.json({
         success: true,
         data: {
-          books: paginatedBooks,
-          total: totalResults,
-          query: { q, mode },
-          pagination: {
-            type: 'offset' as const,
-            page,
-            limit,
-            totalPages,
-            hasNext: page < totalPages,
-            hasPrev: page > 1
-          }
+          results: paginatedBooks,
+          totalCount: totalResults,
+          query: { q, mode, limit, offset }
         },
         metadata: {
           timestamp: new Date().toISOString(),
@@ -257,22 +247,23 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
           cached: false,
           processingTimeMs: Date.now() - ctx.startTime
         },
+        error: null,
         _links: {
           self: {
-            href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&page=${page}&limit=${limit}`,
+            href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&limit=${limit}&offset=${offset}`,
             rel: 'self',
             method: 'GET'
           },
           ...(page < totalPages ? {
             next: {
-              href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&page=${page + 1}&limit=${limit}`,
+              href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&limit=${limit}&offset=${offset + limit}`,
               rel: 'next',
               method: 'GET'
             }
           } : {}),
-          ...(page > 1 ? {
+          ...(offset > 0 ? {
             prev: {
-              href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&page=${page - 1}&limit=${limit}`,
+              href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&limit=${limit}&offset=${Math.max(0, offset - limit)}`,
               rel: 'prev',
               method: 'GET'
             }
