@@ -5,9 +5,9 @@ BooksTrack Backend – Ideal State
 Status: Active
 Owner: Backend Platform
 Stakeholders: iOS App, Harvest Dashboard, Operations
-Last Updated: 2025-11-28
-API Contract Version: v2.7.0
-Authoritative Contract: `docs/openapi.yaml`
+Last Updated: 2025-12-09
+API Contract Version: v3.0
+Authoritative Contract: `/v3/openapi.json` (auto-generated)
 
 ## 1. Product Overview
 - Name: BooksTrack Backend (Cloudflare Workers API)
@@ -207,31 +207,32 @@ graph TD
 - Response headers: `Content-Type: application/json`; `X-Response-Format: v2.0`; `X-Error-Type` on errors
 
 ### 6.2 Versioning and Deprecation
-- Current: v1 routes under `/v1/search/*`, v2 routes under `/api/v2/*`
-- Deprecated Legacy: `/search/*`; Deprecation and Sunset headers set; removal no earlier than March 1, 2026
+- Current: V3 routes under `/v3/*` (only active API version)
+- Removed: V1 (December 2025), V2 (March 2026)
 - Never break userspace: provide alternates and migration time; feature flags for safe rollouts
 
-### 6.3 Endpoints (representative)
-#### 6.3.1 V1 API (Legacy & Compatibility)
-- `GET /v1/search/isbn?isbn=…` → 200 | 400 | 404
-- `GET /v1/search/title?q=…`
-- `GET /v1/search/advanced?title=…&author=…`
-- `POST /api/scan-bookshelf/batch` (Batch Image Scan)
-- `POST /api/import/csv-gemini` (Legacy CSV)
-- `POST /api/token/refresh` `{ jobId, oldToken }`
-- `GET /v1/jobs/{jobId}/status` (Unified Job Status)
-- `GET /metrics` → 200 (analytics)
-- `GET /health` → 200 (Service Health)
+### 6.3 Endpoints (V3 API)
 
-#### 6.3.2 V2 API (Modern & Intelligent)
-- `GET /api/v2/search?q=…&mode=semantic`
-- `GET /api/v2/recommendations/weekly`
-- `POST /api/v2/imports` (Start Import Workflow)
-- `GET /api/v2/imports/{jobId}` (Import Status)
-- `GET /api/v2/imports/{jobId}/stream` (SSE Progress)
-- `POST /api/v2/books/enrich/detailed` (Comprehensive Metadata)
-- `GET /api/v2/capabilities` (Feature Discovery)
-- `GET /doc` (Swagger UI)
+#### 6.3.1 Book Operations
+- `GET /v3/books/:isbn` → 200 | 400 | 404
+- `GET /v3/books/search?q=…` → Search by title/author
+- `POST /v3/books/enrich` → Batch enrichment (sync or async mode)
+- `GET /v3/openapi.json` → OpenAPI 3.1 specification
+- `GET /v3/docs` → Interactive Swagger UI
+
+#### 6.3.2 Job Management
+- `POST /v3/jobs/imports` → Start CSV import workflow
+- `GET /v3/jobs/imports/:jobId` → Import status
+- `GET /v3/jobs/imports/:jobId/stream` → SSE progress
+- `POST /v3/jobs/scans` → Start bookshelf scan
+- `GET /v3/jobs/scans/:jobId` → Scan status
+- `GET /v3/jobs/scans/:jobId/stream` → SSE progress
+- `GET /v3/jobs/enrichment/:jobId` → Enrichment status
+- `GET /v3/jobs/enrichment/:jobId/stream` → SSE progress
+
+#### 6.3.3 System Endpoints
+- `GET /health` → 200 (Service Health)
+- `GET /metrics` → 200 (analytics)
 
 ```mermaid
 sequenceDiagram
@@ -240,18 +241,18 @@ sequenceDiagram
     participant Cache
     participant External Providers
 
-    Client->>Backend API: GET /v1/search/isbn?isbn=...
+    Client->>Backend API: GET /v3/books/:isbn
     activate Backend API
 
-    Backend API->>Cache: Check for cached response (D1/KV)
+    Backend API->>Cache: Check for cached response (KV)
     alt Cache Hit
         Cache-->>Backend API: Cached BookSearchResponse
         Backend API-->>Client: 200 OK (from cache)
     else Cache Miss
-        Backend API->>External Providers: Search by ISBN
+        Backend API->>External Providers: Search by ISBN (Alexandria → Google → OpenLibrary)
         External Providers-->>Backend API: Provider-specific data
         Backend API->>Backend API: Normalize to DTOs
-        Backend API->>Cache: Store normalized response (Dual Write D1+KV)
+        Backend API->>Cache: Store normalized response (KV)
         Backend API-->>Client: 200 OK (from provider)
     end
 
@@ -361,8 +362,10 @@ sequenceDiagram
   - `ENABLE_D1_WRITES` for dual-write storage migration
 - Phased Rollout
   - 1% → 10% → 50% → 100% traffic shaping via feature flags and canary metrics
-- Deprecation Timeline
-  - Legacy `/search/*` sunset March 1, 2026 (headers already set)
+- API Version History
+  - V1 API: Removed December 2025
+  - V2 API: Removed March 2026
+  - V3 API: Current (December 2025+)
 - Deployment
   - `wrangler deploy`; instant rollback via config/env flips
 
@@ -385,20 +388,18 @@ sequenceDiagram
 - Internationalization: language-aware search normalization priority?
 
 ## 15. Acceptance Criteria
-- All v1 endpoints return unified envelope with `X-Response-Format: v2.0`
-- Hono router enabled by default; manual router behind feature flag for rollback
+- All V3 endpoints return unified envelope with `success` discriminator
+- Hono router enabled by default with full OpenAPI support
 - AI scan and CSV import accept up to 10MB inputs; reject with clear error envelope otherwise
-- WebSocket progress:
-  - Token via subprotocol supported; refresh endpoint works
-  - Hibernation mode passes smoke tests; reconnection restores state
+- SSE Progress:
+  - Token-based authentication for progress streams
+  - Reconnection restores state
 - Caching:
-  - Hot KV TTL 2h, Cold R2 TTL 14d; measurable cache hit ratio ≥ 60% week over week
+  - KV-only cache with content-specific TTLs; measurable cache hit ratio ≥ 60% week over week
 - Observability:
   - Metrics, logs, traces visible; alerts wired for error spikes and p99 latency
 - Testing:
   - ≥ 75% coverage overall; category thresholds met; E2E suite passes
-- Backward Compatibility:
-  - Legacy `/search/*` returns Deprecation/Sunset headers; functionality intact until removal date
 
 ## 16. Milestones
 - M1 (Week 1–2): Hono default, unified envelope everywhere, CI coverage gates in place, search v1 hardened

@@ -82,40 +82,30 @@ See `ARCHITECTURE_OVERVIEW.md` for architecture details.
 **Native Hono OpenAPI with full zod@4 support**
 
 - `GET /v3/books/:isbn` - Get book by ISBN with full metadata
+- `GET /v3/books/search?q=query` - Search books by title/author
+- `POST /v3/books/enrich` - Enrich book metadata (sync or async mode)
 - `GET /v3/openapi.json` - OpenAPI 3.1 specification
 - `GET /v3/docs` - Interactive Swagger UI documentation
 
-**Migration Info:** See [docs/V3_MIGRATION_COMPLETE.md](docs/V3_MIGRATION_COMPLETE.md)
-
-### V2 API (Stable - Deprecated after V3 GA)
-- `GET /api/v2/search` - Unified search (replaces all V1 search)
-- `POST /api/v2/books/enrich` - Single book enrichment
-- `POST /api/v2/imports` - CSV import workflow
-- `GET /api/v2/imports/:id/stream` - SSE progress
-
-**Deprecation Notice:** V2 API sunset 90 days after V3 GA (March 7, 2026)
-
-### V1 API (REMOVED - December 2025)
-⚠️ **All V1 endpoints have been removed as of December 2025.**
-
-**Migration Guide:** See [docs/archive/v1-api-2026-03/README.md](docs/archive/v1-api-2026-03/README.md)
-
-**V3 Replacements:**
-- `GET /v1/search/isbn?isbn=X` → `GET /v3/books/:isbn`
-- `GET /v1/search/title?q=X` → `GET /v3/books/search?q=X`
-- `GET /v1/search/advanced` → `GET /v3/books/search?q=title+author`
-- `GET /v1/jobs/:jobId/status` → `GET /v3/jobs/{type}/:jobId`
-
-### Background Jobs
-- `POST /api/scan-bookshelf?jobId={uuid}` - AI bookshelf scan (Gemini 2.0 Flash)
-- `POST /api/scan-bookshelf/batch` - Batch scan (max 5 photos)
-- `POST /v3/books/enrich` - Batch enrichment (async mode) with SSE progress
+### Job Endpoints
+- `POST /v3/jobs/imports` - CSV import workflow
+- `GET /v3/jobs/imports/:jobId` - Import job status
+- `GET /v3/jobs/imports/:jobId/stream` - SSE progress stream
+- `POST /v3/jobs/scans` - Bookshelf photo scanning
+- `GET /v3/jobs/scans/:jobId` - Scan job status
+- `GET /v3/jobs/scans/:jobId/stream` - SSE progress stream
+- `GET /v3/jobs/enrichment/:jobId` - Enrichment job status
+- `GET /v3/jobs/enrichment/:jobId/stream` - SSE progress stream
 
 ### Status Updates
 - `GET /ws/progress?jobId={uuid}` - WebSocket for real-time progress
 
 ### Health & Monitoring
 - `GET /health` - Health check and endpoint listing
+
+### Previous API Versions (Removed)
+- ⛔ **V1 API:** Removed December 2025 - See [docs/archive/v1-api-2026-03/](docs/archive/v1-api-2026-03/)
+- ⛔ **V2 API:** Removed March 2026
 
 ## Quick Start
 
@@ -281,32 +271,20 @@ npx wrangler tail --remote --format pretty
 
 ## Documentation
 
-> **📚 [Complete Documentation Index](DOCS_INDEX.md)** - Comprehensive guide to all documentation
-
 ### Quick Links (Start Here)
-- **[Documentation Index](DOCS_INDEX.md)** - 📚 **NEW** - Complete documentation navigation and index
-- **[API Reference](docs/openapi.yaml)** - OpenAPI 3.1 spec (source of truth for all API endpoints)
-- **[Architecture Overview](ARCHITECTURE_OVERVIEW.md)** - Backend architecture and design principles
 - **[Claude Code Guide](.claude/CLAUDE.md)** - Comprehensive AI development guidelines
+- **[Frontend Integration](FRONTEND_INTEGRATION.md)** - Quick reference for frontend developers
+- **[V3 Frontend Handoff](docs/V3_FRONTEND_HANDOFF.md)** - Complete V3 API integration guide
+- **[Cache Architecture](docs/CACHE_ARCHITECTURE.md)** - Caching strategy and TTLs
 
-### Deployment & Operations
-- **[Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Complete deployment guide with rollback procedures
-- **[Dashboard Deployment](docs/deployment/DASHBOARD_DEPLOYMENT.md)** - Harvest dashboard setup and configuration
-- **[Staging Testing Guide](docs/STAGING_TESTING_GUIDE.md)** - Staging environment testing procedures
-- **[Secrets Setup](docs/deployment/SECRETS_SETUP.md)** - Step-by-step guide for configuring GitHub secrets
-- **[Monitoring Dashboard](docs/deployment/MONITORING_DASHBOARD.md)** - Cloudflare monitoring setup
-- **[Alerting Rules](docs/deployment/ALERTING_RULES.md)** - Production alerting configuration
-- **[Troubleshooting Runbook](docs/deployment/TROUBLESHOOTING_RUNBOOK.md)** - Common issue resolutions
-
-### Feature Guides
-- **[Cover Harvest System](docs/guides/ISBNDB-HARVEST-IMPLEMENTATION.md)** - ISBNdb cover caching (5000 req/day)
-- **[Metrics & Monitoring](docs/guides/METRICS.md)** - Performance targets and monitoring
-- **[WebSocket Migration](docs/WEBSOCKET_MIGRATION_IOS.md)** - iOS WebSocket client integration
+### Interactive API Documentation
+- **V3 Swagger UI:** https://api.oooefam.net/v3/docs
+- **V3 OpenAPI Spec:** https://api.oooefam.net/v3/openapi.json
 
 ### Reference
-- **[Canonical API Workflows](docs/workflows/canonical-contracts-workflow.md)** - Visual process diagrams
-- **[Historical Docs](docs/archives/)** - Completed deployments and historical notes
-- **[Archived Plans](archive/plans/)** - Completed implementation plans and strategies
+- **[Agents Guide](docs/AGENTS.md)** - AI agent quick reference
+- **[PRD](docs/PRD.md)** - Product requirements document
+- **[V1 API Archive](docs/archive/v1-api-2026-03/)** - Historical V1 API documentation
 
 ## License
 

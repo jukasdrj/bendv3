@@ -1,7 +1,7 @@
 # BooksTrack API - Frontend Integration Guide
 
-**Last Updated:** December 5, 2025
-**API Version:** 4.0.0
+**Last Updated:** December 9, 2025
+**API Version:** 3.0
 **Production URL:** https://api.oooefam.net
 
 > Quick reference for frontend teams integrating with the BooksTrack API
@@ -28,10 +28,10 @@ curl https://api.oooefam.net/health
   "data": {
     "status": "ok",
     "worker": "api-worker",
-    "version": "2.1.0"
+    "version": "3.0.0"
   },
   "metadata": {
-    "timestamp": "2025-12-05T17:30:21Z"
+    "timestamp": "2025-12-09T17:30:21Z"
   }
 }
 ```
@@ -46,24 +46,20 @@ All endpoints are public and rate-limited by IP. No API keys needed.
 
 ### Interactive Documentation
 
-**V3 API (Current - Recommended):**
+**V3 API (Current):**
 - **Swagger UI:** https://api.oooefam.net/v3/docs - Interactive API explorer
 - **OpenAPI Spec:** https://api.oooefam.net/v3/openapi.json - Auto-generated from Zod schemas
 - **Response Envelope:** Documented below (see "Response Format" section)
-- ⚠️ **Note:** Schema definitions in OpenAPI spec are currently incomplete - refer to the "Response Format" section for accurate envelope structure
 
-**V2 API (Stable):**
-- **OpenAPI Spec:** [`docs/openapi.yaml`](docs/openapi.yaml) - Hand-maintained, complete schemas
-- **Status:** Maintained until V3 GA (TBD)
-
-**V1 API:**
-- ⚠️ **Deprecated** - Sunset March 1, 2026
+**Previous API Versions:**
+- ⛔ **V1 API:** Removed December 2025 - See [docs/archive/v1-api-2026-03/](docs/archive/v1-api-2026-03/)
+- ⛔ **V2 API:** Removed March 2026 - See archive for historical reference
 
 ---
 
 ## 🔑 Key Endpoints
 
-### V3 API (Recommended)
+### V3 API (Current)
 
 ```typescript
 // Get book by ISBN
@@ -75,25 +71,14 @@ GET /v3/books/search?q=harry+potter&limit=20
 
 // Enrich book metadata
 POST /v3/books/enrich
-Body: { isbn: "9780439708180", generateEmbedding: false }
-```
+Body: { isbns: ["9780439708180"], includeEmbedding: false }
 
-### V2 API (Stable)
-
-```typescript
-// Unified search (supports text, semantic, hybrid modes)
-GET /api/v2/search?q=query&mode=text&limit=20
-
-// Single book enrichment
-POST /api/v2/books/enrich
-Body: { isbn: "9780439708180" }
-
-// CSV import with SSE streaming
-POST /api/v2/imports
+// CSV Import
+POST /v3/jobs/imports
 Body: FormData with 'file' field
 
 // SSE progress stream
-GET /api/v2/imports/:id/stream
+GET /v3/jobs/imports/:jobId/stream
 ```
 
 ---
@@ -112,7 +97,7 @@ All V3 endpoints use a **discriminated union** with `success` field:
     // Your data here (book object, search results, etc.)
   },
   "metadata": {
-    "timestamp": "2025-12-05T17:30:21Z",
+    "timestamp": "2025-12-09T17:30:21Z",
     "requestId": "123e4567-e89b-12d3-a456-426614174000",  // X-Request-ID
     "source": "alexandria",  // Data provider
     "cached": true,
@@ -132,7 +117,7 @@ All V3 endpoints use a **discriminated union** with `success` field:
   "code": "NOT_FOUND",  // Machine-readable code
   "retryable": false,
   "metadata": {
-    "timestamp": "2025-12-05T17:30:21Z",
+    "timestamp": "2025-12-09T17:30:21Z",
     "requestId": "123e4567-e89b-12d3-a456-426614174000"
   }
 }
@@ -149,37 +134,6 @@ if (json.success) {
 } else {
   // TypeScript knows json.code, json.title exist
   console.error(`${json.code}: ${json.title}`)
-}
-```
-
-### V2 API Response Envelope
-
-V2 endpoints use a different structure (deprecated pattern):
-
-**Success:**
-```typescript
-{
-  "data": { /* book or result data */ },
-  "metadata": {
-    "timestamp": "2025-12-05T17:30:21Z",
-    "source": "google_books",
-    "cached": true
-  },
-  "error": null
-}
-```
-
-**Error:**
-```typescript
-{
-  "data": null,
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "Book not found",
-    "statusCode": 404,
-    "retryable": false
-  },
-  "metadata": { "timestamp": "2025-12-05T17:30:21Z" }
 }
 ```
 
@@ -218,9 +172,8 @@ interface Book {
 
 ### Retry Logic
 
-**V3 API (using `success` discriminator):**
 ```typescript
-async function fetchV3WithRetry(url: string, options = {}) {
+async function fetchWithRetry(url: string, options = {}) {
   const response = await fetch(url, options)
   const json = await response.json()
 
@@ -232,36 +185,13 @@ async function fetchV3WithRetry(url: string, options = {}) {
 
     if (json.retryable && json.retryAfterMs) {
       await new Promise(resolve => setTimeout(resolve, json.retryAfterMs))
-      return fetchV3WithRetry(url, options)
+      return fetchWithRetry(url, options)
     }
 
     throw new Error(json.title || json.detail)
   }
 
   return json.data  // Success - return just the data
-}
-```
-
-**V2 API (using `error` field):**
-```typescript
-async function fetchV2WithRetry(url: string, options = {}) {
-  const response = await fetch(url, options)
-  const { data, error } = await response.json()
-
-  if (error) {
-    if (error.code === 'CIRCUIT_OPEN') {
-      throw new Error('Service unavailable, try again in 60 seconds')
-    }
-
-    if (error.retryable && error.retryAfterMs) {
-      await new Promise(resolve => setTimeout(resolve, error.retryAfterMs))
-      return fetchV2WithRetry(url, options)
-    }
-
-    throw new Error(error.message)
-  }
-
-  return data
 }
 ```
 
@@ -276,16 +206,16 @@ For long-running operations like CSV imports:
 const formData = new FormData()
 formData.append('file', csvFile)
 
-const response = await fetch('https://api.oooefam.net/api/v2/imports', {
+const response = await fetch('https://api.oooefam.net/v3/jobs/imports', {
   method: 'POST',
   body: formData
 })
 const { data } = await response.json()
-const importId = data.id
+const jobId = data.jobId
 
 // 2. Connect to SSE stream
 const eventSource = new EventSource(
-  `https://api.oooefam.net/api/v2/imports/${importId}/stream`
+  `https://api.oooefam.net/v3/jobs/imports/${jobId}/stream`
 )
 
 eventSource.onmessage = (event) => {
@@ -303,7 +233,7 @@ eventSource.onmessage = (event) => {
 eventSource.onerror = () => {
   console.error('SSE connection failed, falling back to polling')
   eventSource.close()
-  // Fall back to polling: GET /api/v2/imports/:id
+  // Fall back to polling: GET /v3/jobs/imports/:jobId
 }
 ```
 
@@ -378,9 +308,8 @@ curl "https://api.oooefam.net/health"
 ## 📚 Additional Resources
 
 **Documentation:**
-- [Full API Specification](docs/openapi.yaml) - OpenAPI 3.1 spec
-- [Architecture Overview](ARCHITECTURE_OVERVIEW.md) - System design
-- [V3 Migration Guide](docs/V3_MIGRATION_COMPLETE.md) - V2 → V3 migration
+- [V3 Frontend Handoff](docs/V3_FRONTEND_HANDOFF.md) - Complete V3 integration guide
+- [Cache Architecture](docs/CACHE_ARCHITECTURE.md) - Caching strategy and TTLs
 
 **Interactive Docs:**
 - V3 Swagger UI: https://api.oooefam.net/v3/docs
@@ -394,12 +323,12 @@ curl "https://api.oooefam.net/health"
 
 ## 🎯 Best Practices
 
-1. **Always check `data.error` before accessing `data.data`**
+1. **Always check `success` field before accessing `data`**
 2. **Implement exponential backoff for retryable errors**
 3. **Use SSE for real-time progress (falls back gracefully)**
 4. **Cache responses client-side (5-10 minutes)**
 5. **Monitor `metadata.cached` for debugging cache issues**
-6. **Use V3 endpoints for new features** (V2 will sunset eventually)
+6. **Use V3 endpoints for all new features**
 
 ---
 
@@ -412,7 +341,7 @@ curl "https://api.oooefam.net/health"
 
 **Integration Questions:**
 - See interactive docs at /v3/docs
-- Check openapi.yaml for contract details
+- Check `/v3/openapi.json` for contract details
 - Contact: @jukasdrj
 
 ---
@@ -421,3 +350,7 @@ curl "https://api.oooefam.net/health"
 **Uptime:** 99.9%+
 **Error Rate:** <0.1%
 **Avg Response Time:** 145ms (P95)
+
+---
+
+**Last Updated:** December 9, 2025

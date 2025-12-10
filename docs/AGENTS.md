@@ -58,7 +58,7 @@ This document provides a high-level overview of specialized AI agents available 
 
 ## API Contract Enforcement
 
-**CRITICAL:** All agents must reference `docs/openapi.yaml` as the authoritative source of truth.
+**CRITICAL:** All agents must reference `/v3/openapi.json` as the authoritative source of truth (auto-generated from Zod schemas).
 
 ### cf-code-reviewer Checks:
 - ✅ New endpoints match documented response format
@@ -72,7 +72,7 @@ This document provides a high-level overview of specialized AI agents available 
 - ✅ Data quality metrics (ISBN match rate, cover availability)
 - ✅ Contract violations (wrong response format, missing fields)
 
-**TypeScript SDK:** `packages/api-client/` - Auto-generated from OpenAPI spec
+**TypeScript Types:** Generated from `/v3/openapi.json` using `openapi-typescript`
 
 ---
 
@@ -190,5 +190,5 @@ npm run test:safe
 
 ---
 
-**Last Updated:** November 30, 2025  
+**Last Updated:** December 9, 2025
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer)
