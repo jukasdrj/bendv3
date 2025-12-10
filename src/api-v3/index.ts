@@ -51,7 +51,32 @@ export function createV3Router() {
   const app = new OpenAPIHono<{
     Bindings: Env
     Variables: { ctx: RequestContext }
-  }>()
+  }>({
+    // Transform Zod validation errors to RFC 9457 Problem Details format
+    defaultHook: (result, c) => {
+      if (!result.success) {
+        const ctx = c.get('ctx')
+        const zodError = result.error
+
+        // Extract field-level errors from Zod issues (RFC 9457 format)
+        const errors = zodError.issues.map(issue => ({
+          field: issue.path.join('.'),
+          message: issue.message,
+          code: issue.code
+        }))
+
+        // Return RFC 9457 Problem Details response
+        return c.json(
+          createProblemDetails('INVALID_REQUEST', 'Validation failed', {
+            requestId: ctx?.requestId,
+            instance: c.req.url,
+            errors
+          }),
+          400
+        )
+      }
+    }
+  })
 
   // Initialize OpenAPI metadata BEFORE defining routes
   // This is required for getOpenAPIDocument() to work properly
@@ -378,14 +403,40 @@ for semantic search.`,
       // Process ISBNs in parallel batches to prevent timeout
       const CONCURRENCY = 10 // Process 10 ISBNs at a time
 
+      // Helper to validate cached data has correct V3 EnrichedBook structure
+      // Detects stale cache entries from old works/editions/authors format
+      const isValidEnrichedBook = (data: unknown): data is EnrichedBook => {
+        if (!data || typeof data !== 'object') return false
+        const obj = data as Record<string, unknown>
+        // V3 EnrichedBook must have these flat fields (not nested works/editions)
+        return (
+          typeof obj.isbn === 'string' &&
+          typeof obj.title === 'string' &&
+          Array.isArray(obj.authors) &&
+          typeof obj.provider === 'string' &&
+          typeof obj.quality === 'number' && // Required by EnrichedBook
+          'vectorized' in obj && // Required for cache hit condition
+          !('works' in obj) && // Reject old nested format
+          !('editions' in obj)
+        )
+      }
+
       const processSingleISBN = async (isbn: string) => {
         try {
           // Check cache first
           const cacheKey = `book:isbn:${isbn}`
           const cached = await c.env.CACHE.get<EnrichedBook>(cacheKey, 'json')
 
-          if (cached && (!includeEmbedding || cached.vectorized)) {
+          // Validate cached data has correct V3 structure (not stale nested format)
+          if (cached && isValidEnrichedBook(cached) && (!includeEmbedding || cached.vectorized)) {
             return { success: true, book: cached }
+          }
+
+          // If cache had invalid format, log and proactively delete stale entry
+          if (cached && !isValidEnrichedBook(cached)) {
+            console.warn(`[V3 Enrich] Stale cache format detected for ${isbn}, refreshing`)
+            // Non-blocking deletion of stale cache entry
+            c.executionCtx.waitUntil(c.env.CACHE.delete(cacheKey))
           }
 
           // Fetch from external APIs
