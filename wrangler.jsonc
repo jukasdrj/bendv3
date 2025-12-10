@@ -135,18 +135,11 @@
   ],
   "r2_buckets": [
     {
-      "binding": "API_CACHE_COLD",
-      "bucket_name": "personal-library-data"
-    },
-    {
-      "binding": "LIBRARY_DATA",
-      "bucket_name": "personal-library-data"
-    },
-    {
       "binding": "BOOKSHELF_IMAGES",
       "bucket_name": "bookshelf-images"
     },
     {
+      "//": "bendv3 CDN cache for user-facing cover serving (separate from Alexandria's canonical bookstrack-covers-processed)",
       "binding": "BOOK_COVERS",
       "bucket_name": "bookstrack-covers"
     }
@@ -298,7 +291,6 @@
   },
   "triggers": {
     "crons": [
-      "0 2 * * *",
       "*/15 * * * *",
       "0 3 * * *",
       "0 0 * * SUN",
@@ -306,7 +298,7 @@
       "0 * * * *"
     ]
   },
-  "//": "Cron schedule: 0 2 * * * = daily 2am (archival), */15 * * * * = every 15min (alerts), 0 3 * * * = daily 3am (cover harvest), 0 0 * * SUN = Sunday midnight (weekly recommendations), 0 */6 * * * = every 6 hours (static popular books cache warm-up), 0 * * * * = hourly (analytics-driven cache warm-up)",
+  "//": "Cron schedule: */15 * * * * = every 15min (alerts), 0 3 * * * = daily 3am (cover harvest), 0 0 * * SUN = Sunday midnight (weekly recommendations), 0 */6 * * * = every 6 hours (static popular books cache warm-up), 0 * * * * = hourly (analytics-driven cache warm-up)",
   "//": "========================================================================",
   "//": "Cloudflare Workflows (Issue #71 - Launch Blocker)",
   "//": "Book import pipeline with automatic retries and state persistence",

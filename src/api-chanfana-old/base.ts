@@ -38,7 +38,6 @@ export class BendRoute extends OpenAPIRoute {
       // Storage
       cache: c.env.CACHE,
       db: c.env.DB,
-      r2: c.env.LIBRARY_DATA,
 
       // Durable Objects
       jobManager: c.env.JOB_STATE_MANAGER_DO,

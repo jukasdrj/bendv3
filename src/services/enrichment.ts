@@ -48,8 +48,6 @@ interface WorkerEnv {
   ALEXANDRIA_CLIENT_SECRET?: string; // Cloudflare Access service token
 
   // R2 Buckets
-  API_CACHE_COLD: R2Bucket;
-  LIBRARY_DATA: R2Bucket;
   BOOKSHELF_IMAGES: R2Bucket;
 
   // Workers AI
@@ -220,48 +218,74 @@ export async function enrichMultipleBooks(
     const editions: EditionDTO[] = [];
     const authorsMap = new Map<string, AuthorDTO>();
 
-    data.results.forEach((book) => {
+    data.results.forEach((book: any) => {
       // Map to WorkDTO (canonical contract)
+      // Alexandria returns: title, author (string), isbn, publishers, pages, work_title, openlibrary_edition, openlibrary_work
       const work: WorkDTO = {
-        title: book.title,
-        openLibraryWorkKey: book.work_key || undefined,
-        googleBooksId: book.google_books_id || undefined,
-        goodreadsId: book.goodreads_id || undefined,
-        isbndbWorkId: book.isbndb_work_id || undefined,
+        // Required fields
+        title: book.title || book.work_title || 'Unknown',
+        subjectTags: book.subjects ? (typeof book.subjects === 'string' ? JSON.parse(book.subjects) : book.subjects) : [],
+
+        // External IDs - Legacy
+        // Alexandria returns openlibrary_work as full URL, extract the key
+        openLibraryWorkID: book.openlibrary_work ? book.openlibrary_work.split('/works/')[1] : undefined,
+        googleBooksVolumeID: book.google_books_id || undefined,
+        goodreadsID: book.goodreads_id || undefined,
+        isbndbID: book.isbndb_work_id || undefined,
+
+        // Optional metadata
         description: book.description || undefined,
-        firstPublishedYear: book.first_published_year || undefined,
-        coverImageURL: book.coverUrl || undefined, // Fixed: Use camelCase coverUrl from Alexandria
-        subjects: book.subjects ? JSON.parse(book.subjects) : undefined,
-        // Provenance: Alexandria is the source (it handled the smart lookup)
-        dataProvider: 'alexandria' as DataProvider,
+        firstPublicationYear: book.first_published_year || undefined,
+        coverImageURL: book.coverUrl || undefined,
+
+        // Required arrays (empty if not provided)
+        goodreadsWorkIDs: [],
+        amazonASINs: [],
+        librarythingIDs: [],
+        googleBooksVolumeIDs: [],
+
+        // Quality metrics (required)
+        isbndbQuality: book.isbndb_quality || 0,
+        reviewStatus: 'verified' as const, // Default for Alexandria data
+
+        // Provenance
+        primaryProvider: 'alexandria' as DataProvider,
       };
       works.push(work);
 
       // Map to EditionDTO (canonical contract)
-      if (book.isbn_13 || book.isbn_10) {
+      // Alexandria returns 'isbn' (single field), not isbn_13/isbn_10 separately
+      const isbn = book.isbn_13 || book.isbn_10 || book.isbn;
+      if (isbn) {
         const edition: EditionDTO = {
-          isbn: book.isbn_13 || book.isbn_10!,
-          isbn13: book.isbn_13 || undefined,
-          isbn10: book.isbn_10 || undefined,
+          isbn: isbn,
+          isbns: [isbn], // Required array of all ISBNs
           title: book.title,
-          publishedDate: book.published_date || undefined,
-          pageCount: book.page_count || undefined,
+          publicationDate: book.published_date || book.publish_date || undefined,
+          pageCount: book.page_count || book.pages || undefined,
           language: book.language || 'en',
-          publisher: book.publisher || undefined,
-          coverImageURL: book.coverUrl || undefined, // Fixed: Use camelCase coverUrl from Alexandria
-          binding: book.binding || undefined,
-          msrp: book.msrp || undefined,
-          dimensions: book.dimensions || undefined,
-          dataProvider: 'alexandria' as DataProvider,
+          publisher: book.publisher || book.publishers || undefined,
+          coverImageURL: book.coverUrl || undefined,
+          format: 'paperback' as const, // Default format (required by EditionDTO)
+          // External IDs
+          openLibraryEditionID: book.openlibrary_edition ? book.openlibrary_edition.split('/books/')[1] : undefined,
+          // Required arrays (empty if not provided)
+          amazonASINs: [],
+          googleBooksVolumeIDs: [],
+          librarythingIDs: [],
+          // Quality metrics
           isbndbQuality: book.isbndb_quality || 0,
+          primaryProvider: 'alexandria' as DataProvider,
         };
         editions.push(edition);
       }
 
       // Map authors (deduplicated)
-      if (book.authors && book.authors.length > 0) {
-        book.authors.forEach((authorName) => {
-          if (!authorsMap.has(authorName)) {
+      // Alexandria returns 'author' as a single string OR 'authors' as array
+      const authorList = book.authors || (book.author ? [book.author] : []);
+      if (authorList.length > 0) {
+        authorList.forEach((authorName: string) => {
+          if (authorName && !authorsMap.has(authorName)) {
             authorsMap.set(authorName, {
               name: authorName,
               gender: 'Unknown' as const, // Alexandria doesn't track gender

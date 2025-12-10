@@ -105,10 +105,8 @@ export interface Env {
   ALERT_TO_EMAIL?: string;
 
   // R2 Buckets
-  API_CACHE_COLD: R2Bucket;
-  LIBRARY_DATA: R2Bucket;
-  BOOKSHELF_IMAGES: R2Bucket;
-  BOOK_COVERS: R2Bucket;
+  BOOKSHELF_IMAGES: R2Bucket;     // User-uploaded bookshelf photos
+  BOOK_COVERS: R2Bucket;          // User-facing CDN cache (separate from Alexandria canonical)
 
   // Workers AI Binding
   AI: Ai;

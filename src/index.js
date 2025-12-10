@@ -19,7 +19,6 @@ import { LatencyTestDO } from "./durable-objects/latency-test-do.js";
 import { BookImportWorkflow } from "./workflows/import-book.ts";
 import honoRouter from "./router.ts";
 import { processAuthorBatch } from "./consumers/author-warming-consumer.js";
-import { handleScheduledArchival } from "./handlers/scheduled-archival.js";
 import { handleScheduledAlerts } from "./handlers/scheduled-alerts.js";
 import { handleScheduledHarvest } from "./handlers/scheduled-harvest.js";
 import { handleRecommendationsCron } from "./cron/recommendations-cron.ts";
@@ -55,11 +54,6 @@ export default {
 
     try {
       switch (cronName) {
-        case "0 2 * * *": // Daily at 2 AM UTC
-          console.log("[Cron] Running daily archival job");
-          await handleScheduledArchival(env, ctx);
-          break;
-
         case "*/15 * * * *": // Every 15 minutes
           console.log("[Cron] Running alert monitoring job");
           await handleScheduledAlerts(env, ctx);

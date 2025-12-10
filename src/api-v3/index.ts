@@ -12,8 +12,8 @@
 
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import { swaggerUI } from '@hono/swagger-ui'
-import type { Env } from '../types'
-import { requestContext, rateLimitHeaders, type RequestContext } from '../middleware/request-context'
+import type { Env } from '../types/env'
+import { requestContext, type RequestContext } from '../middleware/request-context'
 import {
   SearchRequestSchema,
   SearchResponseSchema,
@@ -116,7 +116,7 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
     }
   })
 
-  app.openapi(searchRoute, rateLimitHeaders, async (c) => {
+  app.openapi(searchRoute, async (c) => {
     const ctx = c.get('ctx')
     const { q, mode = 'text', page = 1, limit = 20 } = c.req.valid('query')
 
@@ -167,22 +167,22 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
       // Convert ALL results to V3 Book format first
       const allBooks = cleanWorks.map((work, idx) => {
         const edition = result.editions?.[idx]
+        // Match authors by OpenLibrary ID or name match in title
         const workAuthors = authors.filter(a =>
-          work.authorIDs?.includes(a.openLibraryID || '') ||
           work.title.toLowerCase().includes(a.name.toLowerCase())
         )
 
         return {
-          isbn: edition?.isbn13 || edition?.isbn10 || '',
-          isbn10: edition?.isbn10,
+          isbn: edition?.isbn || edition?.isbns?.[0] || '',
+          isbn10: undefined, // Not available in canonical EditionDTO
           title: work.title,
-          subtitle: work.subtitle,
+          subtitle: undefined, // Not available in canonical WorkDTO
           authors: workAuthors.map(a => a.name),
           publisher: edition?.publisher,
           publishedDate: edition?.publicationDate,
           description: work.description,
           pageCount: edition?.pageCount,
-          categories: work.subjects,
+          categories: work.subjectTags, // Fixed: use subjectTags instead of subjects
           language: edition?.language || 'en',
           coverUrl: work.coverImageURL || edition?.coverImageURL,
           thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
@@ -304,7 +304,7 @@ for semantic search.`,
     }
   })
 
-  app.openapi(enrichRoute, rateLimitHeaders, async (c) => {
+  app.openapi(enrichRoute, async (c) => {
     const ctx = c.get('ctx')
     const body = c.req.valid('json')
 
@@ -393,21 +393,22 @@ for semantic search.`,
           }
 
           // Convert to V3 format
-          const work = result.works[0]
+          // Safe: we already checked result.works.length > 0 above
+          const work = result.works[0]!
           const edition = result.editions?.[0]
           const authors = result.authors || []
 
           const book = {
-            isbn: edition?.isbn13 || isbn,
-            isbn10: edition?.isbn10,
+            isbn: edition?.isbn || isbn,
+            isbn10: undefined, // Not available in canonical EditionDTO
             title: work.title,
-            subtitle: work.subtitle,
+            subtitle: undefined, // Not available in canonical WorkDTO
             authors: authors.map(a => a.name),
             publisher: edition?.publisher,
             publishedDate: edition?.publicationDate,
             description: work.description,
             pageCount: edition?.pageCount,
-            categories: work.subjects,
+            categories: work.subjectTags, // Fixed: use subjectTags instead of subjects
             language: edition?.language || 'en',
             coverUrl: work.coverImageURL || edition?.coverImageURL,
             thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
@@ -564,10 +565,23 @@ for semantic search.`,
 
   app.openapi(getBookRoute, async (c) => {
     const ctx = c.get('ctx')
-    const { isbn } = c.req.valid('param')
+    // Use direct param access - c.req.valid('param') has type issues with @hono/zod-openapi
+    const isbn = c.req.param('isbn') || ''
     const ifNoneMatch = c.req.header('If-None-Match')
 
-    console.log(`[V3 Books] GET /v3/books/${isbn}`)
+    console.log(`[V3 Books] GET /v3/books/${isbn} - route matched, isbn param: "${isbn}"`)
+
+    // Validate ISBN exists
+    if (!isbn || isbn.trim() === '') {
+      console.error('[V3 Books] ISBN param is empty')
+      return c.json(
+        createProblemDetails('MISSING_PARAMETER', 'ISBN parameter is required', {
+          requestId: ctx.requestId,
+          instance: c.req.url
+        }),
+        400
+      )
+    }
 
     try {
       // Call service with correct signature
@@ -586,20 +600,21 @@ for semantic search.`,
       }
 
       // Convert EnrichmentResult to V3 Book format
-      const work = enrichmentResult.works[0]
+      // Safe: we already checked enrichmentResult.works.length > 0 above
+      const work = enrichmentResult.works[0]!
       const edition = enrichmentResult.editions?.[0]
 
       const book = {
-        isbn: edition?.isbn13 || isbn,
-        isbn10: edition?.isbn10,
+        isbn: edition?.isbn || isbn,
+        isbn10: undefined, // Not available in canonical EditionDTO
         title: work.title,
-        subtitle: work.subtitle,
+        subtitle: undefined, // Not available in canonical WorkDTO
         authors: enrichmentResult.authors?.map(a => a.name) || [],
         publisher: edition?.publisher,
         publishedDate: edition?.publicationDate,
         description: work.description,
         pageCount: edition?.pageCount,
-        categories: work.subjects,
+        categories: work.subjectTags, // Fixed: use subjectTags instead of subjects
         language: edition?.language || 'en',
         coverUrl: work.coverImageURL || edition?.coverImageURL,
         thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
