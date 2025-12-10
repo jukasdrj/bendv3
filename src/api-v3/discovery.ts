@@ -16,42 +16,32 @@ import { SuccessResponseSchema } from '@bookstrack/schemas'
 import { createProblemDetails } from '@bookstrack/schemas/errors'
 
 // ============================================================================
-// Capabilities Schemas
+// Capabilities Schemas (iOS-compatible flat format)
 // ============================================================================
 
-const FeatureSchema = z.object({
-  name: z.string().describe('Feature identifier'),
-  enabled: z.boolean().describe('Whether feature is available'),
-  version: z.string().describe('Feature version'),
-  endpoints: z.array(z.string()).describe('Related API endpoints'),
-  rateLimit: z.object({
-    requests: z.number().int().describe('Max requests per window'),
-    windowMs: z.number().int().describe('Rate limit window in milliseconds')
-  }).optional().describe('Rate limit configuration'),
-  notes: z.string().optional().describe('Additional notes or warnings')
-}).openapi('Feature')
+// iOS app expects this exact flat structure - no wrapper
+const CapabilitiesFeaturesSchema = z.object({
+  semantic_search: z.boolean().describe('Semantic search enabled'),
+  similar_books: z.boolean().describe('Similar books search enabled'),
+  weekly_recommendations: z.boolean().describe('Weekly recommendations enabled'),
+  sse_streaming: z.boolean().describe('SSE streaming enabled'),
+  batch_enrichment: z.boolean().describe('Batch enrichment enabled'),
+  csv_import: z.boolean().describe('CSV import enabled')
+}).openapi('CapabilitiesFeatures')
 
-const LimitsSchema = z.object({
-  maxBatchSize: z.number().int().describe('Maximum items per batch request'),
-  maxCsvRows: z.number().int().describe('Maximum rows in CSV import'),
-  maxImageSizeMb: z.number().int().describe('Maximum image size for scans'),
-  maxConcurrentJobs: z.number().int().describe('Max concurrent async jobs per user')
-}).openapi('Limits')
+const CapabilitiesLimitsSchema = z.object({
+  semantic_search_rpm: z.number().int().describe('Semantic search requests per minute'),
+  text_search_rpm: z.number().int().describe('Text search requests per minute'),
+  csv_max_rows: z.number().int().describe('Maximum rows in CSV import'),
+  batch_max_photos: z.number().int().describe('Maximum photos in batch scan')
+}).openapi('CapabilitiesLimits')
 
-const DeprecationSchema = z.object({
-  endpoint: z.string().describe('Deprecated endpoint path'),
-  sunsetDate: z.string().describe('Sunset date (ISO 8601)'),
-  replacement: z.string().describe('Replacement endpoint or migration guide')
-}).openapi('Deprecation')
-
-const CapabilitiesDataSchema = z.object({
-  apiVersion: z.string().describe('Current API version'),
-  features: z.array(FeatureSchema).describe('Available API features'),
-  limits: LimitsSchema.describe('API limits and quotas'),
-  deprecations: z.array(DeprecationSchema).describe('Deprecated endpoints')
-}).openapi('CapabilitiesData')
-
-const CapabilitiesResponseSchema = SuccessResponseSchema(CapabilitiesDataSchema)
+// Direct response schema (no wrapper) for iOS compatibility
+const CapabilitiesResponseSchema = z.object({
+  features: CapabilitiesFeaturesSchema.describe('Available API features'),
+  limits: CapabilitiesLimitsSchema.describe('API limits and quotas'),
+  version: z.string().describe('API version')
+}).openapi('CapabilitiesResponse')
 
 // ============================================================================
 // Recommendations Schemas
@@ -144,99 +134,31 @@ export function registerDiscoveryRoutes(
   app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>
 ) {
   // GET /v3/capabilities
+  // Returns iOS-compatible flat format (no wrapper)
   app.openapi(capabilitiesRoute, async (c) => {
     const ctx = c.get('ctx')
 
     try {
+      // iOS app expects this exact flat structure
       const capabilities = {
-        apiVersion: '3.0.0',
-        features: [
-          {
-            name: 'book-search',
-            enabled: true,
-            version: '3.0',
-            endpoints: ['/v3/books/search', '/v3/books/:isbn'],
-            rateLimit: { requests: 100, windowMs: 60000 },
-            notes: 'Supports text, semantic, and similar search modes'
-          },
-          {
-            name: 'book-enrichment',
-            enabled: true,
-            version: '3.0',
-            endpoints: ['/v3/books/enrich'],
-            rateLimit: { requests: 50, windowMs: 60000 },
-            notes: 'Supports sync and async modes with optional embedding generation'
-          },
-          {
-            name: 'csv-import',
-            enabled: true,
-            version: '3.0',
-            endpoints: [
-              '/v3/jobs/imports',
-              '/v3/jobs/imports/:jobId',
-              '/v3/jobs/imports/:jobId/stream'
-            ],
-            rateLimit: { requests: 10, windowMs: 60000 },
-            notes: 'SSE streaming for real-time progress'
-          },
-          {
-            name: 'bookshelf-scan',
-            enabled: true,
-            version: '3.0',
-            endpoints: [
-              '/v3/jobs/scans',
-              '/v3/jobs/scans/:jobId',
-              '/v3/jobs/scans/:jobId/stream'
-            ],
-            rateLimit: { requests: 5, windowMs: 60000 },
-            notes: 'Powered by Gemini 2.0 Flash vision model'
-          },
-          {
-            name: 'batch-enrichment',
-            enabled: true,
-            version: '3.0',
-            endpoints: [
-              '/v3/jobs/enrichment/:jobId',
-              '/v3/jobs/enrichment/:jobId/stream',
-              '/v3/jobs/enrichment/:jobId/results'
-            ],
-            rateLimit: { requests: 10, windowMs: 60000 },
-            notes: 'Async enrichment with SSE progress updates'
-          },
-          {
-            name: 'recommendations',
-            enabled: true,
-            version: '3.0',
-            endpoints: ['/v3/recommendations/weekly'],
-            notes: 'Global weekly recommendations, updated Sundays'
-          }
-        ],
-        limits: {
-          maxBatchSize: 50,
-          maxCsvRows: 5000,
-          maxImageSizeMb: 10,
-          maxConcurrentJobs: 3
+        features: {
+          semantic_search: true,
+          similar_books: true,
+          weekly_recommendations: true,
+          sse_streaming: true,
+          batch_enrichment: true,
+          csv_import: true
         },
-        deprecations: [
-          // No active deprecations - V1 and V2 already sunset
-        ]
+        limits: {
+          semantic_search_rpm: 10,
+          text_search_rpm: 60,
+          csv_max_rows: 1000,
+          batch_max_photos: 50
+        },
+        version: '3.2.0'
       }
 
-      return c.json({
-        success: true,
-        data: capabilities,
-        metadata: {
-          timestamp: new Date().toISOString(),
-          requestId: ctx.requestId,
-          cached: false,
-          processingTimeMs: Date.now() - ctx.startTime
-        },
-        _links: {
-          self: { href: '/v3/capabilities', rel: 'self', method: 'GET' },
-          docs: { href: '/v3/docs', rel: 'related', method: 'GET' },
-          openapi: { href: '/v3/openapi.json', rel: 'describedby', method: 'GET' }
-        }
-      }, 200)
+      return c.json(capabilities, 200)
     } catch (error: any) {
       console.error('[V3 Capabilities] Error:', error)
       return c.json(
