@@ -541,10 +541,9 @@ for semantic search.`,
     request: {
       params: z.object({
         isbn: ISBNSchema
-      }),
-      headers: z.object({
-        'If-None-Match': z.string().optional().describe('ETag for conditional request')
-      }).optional()
+      })
+      // Note: If-None-Match header is read directly via c.req.header('If-None-Match')
+      // Removed headers validation - causes TypeError in @hono/zod-openapi when header is missing
     },
     responses: {
       200: {
