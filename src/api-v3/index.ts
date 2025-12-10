@@ -28,7 +28,8 @@ import {
 import { createProblemDetails } from '@bookstrack/schemas/errors'
 import { findBooksByTitle, findBookByISBN } from '../services/book-service'
 import { normalizeTitle } from '../utils/normalization'
-import { extractUniqueAuthors, removeAuthorsFromWorks, enrichAuthorsWithCulturalData } from '../utils/response-transformer'
+// Note: extractUniqueAuthors, removeAuthorsFromWorks, enrichAuthorsWithCulturalData removed
+// Alexandria now returns per-work embedded authors array, no client-side matching needed
 import { enrichMultipleBooks } from '../services/enrichment'
 import { generateBookEmbedding, storeEmbedding } from '../services/embedding-service'
 import { registerImportRoutes } from './jobs/imports'
@@ -185,25 +186,21 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
         }, 200)
       }
 
-      // Extract unique authors and enrich with cultural data
-      const baseAuthors = extractUniqueAuthors(result.works)
-      const authors = await enrichAuthorsWithCulturalData(baseAuthors, c.env)
-      const cleanWorks = removeAuthorsFromWorks(result.works)
-
-      // Convert ALL results to V3 Book format first
-      const allBooks = cleanWorks.map((work, idx) => {
+      // Convert results to V3 Book format
+      // Alexandria now returns per-work embedded authors array
+      const allBooks = result.works.map((work: any, idx: number) => {
         const edition = result.editions?.[idx]
-        // Match authors by OpenLibrary ID or name match in title
-        const workAuthors = authors.filter(a =>
-          work.title.toLowerCase().includes(a.name.toLowerCase())
-        )
+
+        // Use embedded authors from Alexandria (per-work array)
+        // Falls back to result-level authors for backward compatibility
+        const workAuthors = work.authors || result.authors || []
 
         return {
           isbn: edition?.isbn || edition?.isbns?.[0] || '',
           isbn10: undefined, // Not available in canonical EditionDTO
           title: work.title,
           subtitle: undefined, // Not available in canonical WorkDTO
-          authors: workAuthors.map(a => a.name),
+          authors: workAuthors.map((a: any) => a.name),
           publisher: edition?.publisher,
           publishedDate: edition?.publicationDate,
           description: work.description,

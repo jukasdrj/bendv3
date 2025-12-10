@@ -214,14 +214,27 @@ export async function enrichMultipleBooks(
 
     // Map Alexandria BookResult[] to BooksTrack canonical types
     // Alexandria stores data in normalized form (work/edition/author tables)
-    const works: WorkDTO[] = [];
+    // Works include embedded authors for per-work author support
+    const works: (WorkDTO & { authors?: AuthorDTO[] })[] = [];
     const editions: EditionDTO[] = [];
     const authorsMap = new Map<string, AuthorDTO>();
 
     data.results.forEach((book: any) => {
-      // Map to WorkDTO (canonical contract)
-      // Alexandria returns: title, author (string), isbn, publishers, pages, work_title, openlibrary_edition, openlibrary_work
-      const work: WorkDTO = {
+      // Extract per-work authors first (needed for embedding in work)
+      // Alexandria returns 'authors' as array of {name, key, openlibrary} objects
+      let workAuthorDTOs: AuthorDTO[] = [];
+      if (book.authors && Array.isArray(book.authors)) {
+        workAuthorDTOs = book.authors
+          .map((a: any) => typeof a === 'string' ? a : a.name)
+          .filter(Boolean)
+          .map((name: string) => ({ name, gender: 'Unknown' as const }));
+      } else if (book.author) {
+        workAuthorDTOs = [{ name: book.author, gender: 'Unknown' as const }];
+      }
+
+      // Map to WorkDTO (canonical contract) with embedded authors
+      // Alexandria returns: title, authors[], isbn, publishers, pages, work_title, openlibrary_edition, openlibrary_work
+      const work: WorkDTO & { authors?: AuthorDTO[] } = {
         // Required fields
         title: book.title || book.work_title || 'Unknown',
         subjectTags: book.subjects ? (typeof book.subjects === 'string' ? JSON.parse(book.subjects) : book.subjects) : [],
@@ -250,6 +263,9 @@ export async function enrichMultipleBooks(
 
         // Provenance
         primaryProvider: 'alexandria' as DataProvider,
+
+        // Per-work embedded authors (for V3 API search results)
+        authors: workAuthorDTOs,
       };
       works.push(work);
 
@@ -280,19 +296,12 @@ export async function enrichMultipleBooks(
         editions.push(edition);
       }
 
-      // Map authors (deduplicated)
-      // Alexandria returns 'author' as a single string OR 'authors' as array
-      const authorList = book.authors || (book.author ? [book.author] : []);
-      if (authorList.length > 0) {
-        authorList.forEach((authorName: string) => {
-          if (authorName && !authorsMap.has(authorName)) {
-            authorsMap.set(authorName, {
-              name: authorName,
-              gender: 'Unknown' as const, // Alexandria doesn't track gender
-            });
-          }
-        });
-      }
+      // Add per-work authors to deduplicated authors map (for result.authors)
+      workAuthorDTOs.forEach((author) => {
+        if (author.name && !authorsMap.has(author.name)) {
+          authorsMap.set(author.name, author);
+        }
+      });
     });
 
     // Apply maxResults filtering (client-side, since Alexandria doesn't support it yet)

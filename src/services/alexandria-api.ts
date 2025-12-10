@@ -292,9 +292,17 @@ function normalizeAlexandriaResponse(
   const edition = normalizeAlexandriaToEdition(result)
 
   // Extract authors from result
-  const authors: AuthorDTO[] = result.author
-    ? [normalizeAlexandriaToAuthor(result.author)]
-    : []
+  // Prefer new per-work embedded authors array, fallback to legacy single author string
+  let authors: AuthorDTO[]
+  if (result.authors && result.authors.length > 0) {
+    // New format: per-work embedded authors array from Alexandria
+    authors = result.authors.map(a => normalizeAlexandriaToAuthor(a.name))
+  } else if (result.author) {
+    // Legacy format: single author string
+    authors = [normalizeAlexandriaToAuthor(result.author)]
+  } else {
+    authors = []
+  }
 
   // Attach authors to work (temporary for enrichment pipeline)
   const workWithAuthors: WorkDTOWithAuthors = {

@@ -15,11 +15,21 @@ import { getPlaceholderCover } from "../../utils/book-metadata.js";
 import { extractYear } from "../../utils/date-utils.js";
 
 /**
+ * Alexandria author object (new per-work embedded format)
+ */
+export interface AlexandriaAuthor {
+  name: string;
+  key?: string;           // e.g., "/authors/OL2660370A"
+  openlibrary?: string;   // e.g., "https://openlibrary.org/authors/OL2660370A"
+}
+
+/**
  * Alexandria ISBN lookup result structure
  */
 export interface AlexandriaResult {
   title?: string;
-  author?: string;
+  author?: string;                    // Legacy: single author string
+  authors?: AlexandriaAuthor[];       // New: per-work embedded authors array
   isbn: string;
   publish_date?: string;
   publishers?: string[];
