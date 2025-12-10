@@ -37,6 +37,7 @@ import { registerEnrichmentRoutes } from './jobs/enrichment'
 import { registerDiscoveryRoutes } from './discovery'
 import {
   getJobStateManagerDO,
+  getWebSocketConnectionDO,
   generateAuthToken,
   buildStreamUrl,
   createJobLinks
@@ -336,8 +337,9 @@ for semantic search.`,
       // Initialize job state
       await doStub.initializeJobState(jobId, 'enrichment', isbns.length)
 
-      // Store auth token (1 hour expiry)
-      await doStub.setAuthToken(authToken, Date.now() + 3600000)
+      // Store auth token in WebSocketConnectionDO (handles SSE/WebSocket auth)
+      const wsDoStub = getWebSocketConnectionDO(jobId, c.env)
+      await wsDoStub.setAuthToken(authToken, 'enrichment')
 
       // Schedule enrichment processing via DO alarm
       c.executionCtx.waitUntil(

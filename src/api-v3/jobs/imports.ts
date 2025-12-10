@@ -31,6 +31,7 @@ import {
 } from '@bookstrack/schemas'
 import {
   getJobStateManagerDO,
+  getWebSocketConnectionDO,
   generateAuthToken,
   buildStreamUrl,
   createJobLinks,
@@ -142,8 +143,9 @@ Returns immediately with jobId for progress tracking via SSE stream.
       // Initialize job state (totalCount unknown until parsed)
       await doStub.initializeJobState(jobId, 'csv_import', 0)
 
-      // Store auth token in DO (1 hour expiry)
-      await doStub.setAuthToken(authToken, Date.now() + 3600000)
+      // Store auth token in WebSocketConnectionDO (handles SSE/WebSocket auth)
+      const wsDoStub = getWebSocketConnectionDO(jobId, c.env)
+      await wsDoStub.setAuthToken(authToken, 'csv_import')
 
       // Schedule CSV processing via DO alarm (avoids Worker CPU limits)
       const csvText = await file.text()

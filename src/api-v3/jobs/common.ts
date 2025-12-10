@@ -13,6 +13,7 @@ import type { DurableObjectStub } from '@cloudflare/workers-types'
  * JobStateManagerDO Interface
  *
  * Type-safe interface for JobStateManagerDO methods
+ * Note: Auth token management is handled by WebSocketConnectionDO (separation of concerns)
  */
 export interface JobStateManagerDO {
   initializeJobState(jobId: string, type: string, totalCount: number): Promise<void>
@@ -20,11 +21,20 @@ export interface JobStateManagerDO {
   getJobState(): Promise<any>
   complete(results?: any): Promise<void>
   sendError(error: { code: string; message: string; retryable?: boolean }): Promise<void>
-  setAuthToken(token: string, expiresAt: number): Promise<void>
-  validateAuthToken(token: string | undefined): Promise<{ valid: boolean; expired?: boolean }>
   scheduleCSVProcessing?(csvText: string, jobId: string): Promise<void>
   scheduleBookshelfScan?(images: any[], jobId: string): Promise<void>
   scheduleEnrichment?(isbns: string[], includeEmbedding: boolean, jobId: string): Promise<void>
+}
+
+/**
+ * WebSocketConnectionDO Interface
+ *
+ * Type-safe interface for WebSocketConnectionDO auth methods
+ * This DO handles connection-level authentication (SSE/WebSocket streams)
+ */
+export interface WebSocketConnectionDO {
+  setAuthToken(token: string, pipeline?: string | null): Promise<{ success: boolean }>
+  validateAuthToken(token: string | undefined): Promise<{ valid: boolean; expired?: boolean }>
 }
 
 /**
@@ -51,6 +61,30 @@ export function getJobStateManagerDO(
 }
 
 /**
+ * Get WebSocketConnectionDO stub by job ID
+ *
+ * Uses idFromName for deterministic DO routing (same jobId → same DO instance)
+ * This DO handles auth token management for SSE/WebSocket streams
+ *
+ * @param jobId - Unique job identifier (UUID)
+ * @param env - Cloudflare Workers environment bindings
+ * @returns Durable Object stub for WebSocket connection management
+ *
+ * @example
+ * ```typescript
+ * const wsDoStub = getWebSocketConnectionDO('550e8400-e29b-41d4-a716-446655440000', env)
+ * await wsDoStub.setAuthToken(token, 'csv_import')
+ * ```
+ */
+export function getWebSocketConnectionDO(
+  jobId: string,
+  env: Env
+): DurableObjectStub & WebSocketConnectionDO {
+  const doId = env.WEBSOCKET_CONNECTION_DO.idFromName(jobId)
+  return env.WEBSOCKET_CONNECTION_DO.get(doId) as DurableObjectStub & WebSocketConnectionDO
+}
+
+/**
  * Generate cryptographically secure authentication token
  *
  * Used for SSE stream authentication (Bearer token)
@@ -63,7 +97,8 @@ export function getJobStateManagerDO(
  * const token = generateAuthToken()
  * // => "a1b2c3d4e5f6..."
  *
- * await doStub.setAuthToken(token, Date.now() + 3600000) // 1 hour expiry
+ * const wsDoStub = getWebSocketConnectionDO(jobId, env)
+ * await wsDoStub.setAuthToken(token, 'csv_import')
  * ```
  */
 export function generateAuthToken(): string {

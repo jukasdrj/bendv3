@@ -31,6 +31,7 @@ import {
 } from '@bookstrack/schemas'
 import {
   getJobStateManagerDO,
+  getWebSocketConnectionDO,
   generateAuthToken,
   buildStreamUrl,
   createJobLinks,
@@ -311,8 +312,9 @@ Returns immediately with jobId for progress tracking via SSE stream.
       // Initialize job state
       await doStub.initializeJobState(jobId, 'bookshelf_scan', photoFiles.length)
 
-      // Store auth token in DO (1 hour expiry)
-      await doStub.setAuthToken(authToken, Date.now() + 3600000)
+      // Store auth token in WebSocketConnectionDO (handles SSE/WebSocket auth)
+      const wsDoStub = getWebSocketConnectionDO(jobId, c.env)
+      await wsDoStub.setAuthToken(authToken, 'bookshelf_scan')
 
       // Schedule bookshelf scan processing via DO alarm
       c.executionCtx.waitUntil(doStub.scheduleBookshelfScan!(processedImages, jobId))
