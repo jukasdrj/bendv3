@@ -177,12 +177,20 @@ export class JobStateManagerDO extends DurableObject {
       return { success: false };
     }
 
+    // FIX: DO storage has 128KB limit per value. Large payloads (e.g., 12+ enriched books)
+    // can exceed this limit. Store only metadata in DO; full results are already in KV.
+    // Extract summary stats without the full books array to stay under 128KB limit.
+    const { books, ...resultSummary } = payload;
+
     const completedState = {
       ...jobState,
       status: "completed",
       progress: 1.0,
       completedTime: Date.now(),
-      result: payload,
+      // Store only summary (totalDetected, totalUnique, approved, needsReview, resultsUrl)
+      // Full books array is stored in KV at `scan-results:{jobId}` or `import-results:{jobId}`
+      result: resultSummary,
+      bookCount: books?.length || 0,
     };
 
     await this.storage.put("jobState", completedState);
@@ -919,12 +927,13 @@ export class JobStateManagerDO extends DurableObject {
               },
             };
           },
-          async (index) => {
+          async (completed) => {
             // Progress callback for enrichment
-            const enrichmentProgress = 0.5 + (index / deduplicatedBooks.length) * 0.45;
+            // Note: `completed` is already 1-indexed from enrichBooksParallel (1, 2, 3...N)
+            const enrichmentProgress = 0.5 + (completed / deduplicatedBooks.length) * 0.45;
             await reporter.updateProgress("ai_scan", {
               progress: enrichmentProgress,
-              status: `Enriching book ${index + 1} of ${deduplicatedBooks.length}...`,
+              status: `Enriching book ${completed} of ${deduplicatedBooks.length}...`,
               processedCount: photoCount,
             });
           },

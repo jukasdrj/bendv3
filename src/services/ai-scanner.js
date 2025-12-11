@@ -195,17 +195,18 @@ export async function processBookshelfScan(
           },
         };
       },
-      async (index) => {
+      async (completed) => {
         // Progress callback - update DO for real-time WebSocket updates
+        // Note: `completed` is already 1-indexed from enrichBooksParallel (1, 2, 3...N)
         const enrichmentProgress =
           PROGRESS_STAGES.ENRICHMENT_START +
-          (index / detectedBooks.length) * PROGRESS_STAGES.ENRICHMENT_DELTA;
+          (completed / detectedBooks.length) * PROGRESS_STAGES.ENRICHMENT_DELTA;
 
         await doStub.updateProgress("ai_scan", {
           progress: enrichmentProgress,
-          status: `Enriching book ${index + 1} of ${detectedBooks.length}...`,
-          processedCount: 1 + index,
-          currentItem: detectedBooks[index]?.title || "Unknown",
+          status: `Enriching book ${completed} of ${detectedBooks.length}...`,
+          processedCount: completed,
+          currentItem: detectedBooks[completed - 1]?.title || "Unknown",
         });
       },
       10, // maxConcurrency
