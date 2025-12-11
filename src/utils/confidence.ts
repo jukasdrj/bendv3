@@ -66,34 +66,37 @@ export function getConfidenceThreshold(env: Env): number {
 }
 
 /**
- * Categorizes a list of books into 'approved' and 'needs review' based on a confidence threshold.
- * The threshold is retrieved from the provided environment object using `getConfidenceThreshold`.
+ * Categorizes a list of books into high, medium, and low confidence buckets.
  *
- * Books with a confidence score greater than or equal to the threshold are placed in the 'approved' array.
- * Books with a confidence score less than the threshold are placed in the 'review' array.
+ * Thresholds:
+ * - high: confidence >= 0.8
+ * - medium: 0.5 <= confidence < 0.8
+ * - low: confidence < 0.5
  *
  * @template T - A type extending `BookWithConfidence` to preserve original book object types.
  * @param {T[]} books - An array of book objects, each expected to have a 'confidence' property.
- * @param {Env} env - The environment object from which to retrieve the confidence threshold.
- * @returns {{ approved: T[]; review: T[] }} An object containing two arrays:
- *   `approved` for books meeting or exceeding the threshold, and `review` for books below it.
+ * @returns {{ high: T[]; medium: T[]; low: T[] }} An object containing three arrays by confidence level.
  */
 export function categorizeBooks<T extends BookWithConfidence>(
   books: T[],
-  env: Env,
-): { approved: T[]; review: T[] } {
-  const threshold = getConfidenceThreshold(env);
+): { high: T[]; medium: T[]; low: T[] } {
+  const HIGH_THRESHOLD = 0.8;
+  const MEDIUM_THRESHOLD = 0.5;
 
-  const approved: T[] = [];
-  const review: T[] = [];
+  const high: T[] = [];
+  const medium: T[] = [];
+  const low: T[] = [];
 
   for (const book of books) {
-    if (book.confidence >= threshold) {
-      approved.push(book);
+    const confidence = book.confidence ?? 0;
+    if (confidence >= HIGH_THRESHOLD) {
+      high.push(book);
+    } else if (confidence >= MEDIUM_THRESHOLD) {
+      medium.push(book);
     } else {
-      review.push(book);
+      low.push(book);
     }
   }
 
-  return { approved, review };
+  return { high, medium, low };
 }
