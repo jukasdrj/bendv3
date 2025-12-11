@@ -219,6 +219,7 @@ export class JobStateManagerDO extends DurableObject {
     });
 
     // Broadcast to SSE clients (Issue #003: Include books array for iOS persistence)
+    // Note: `books` was destructured from payload earlier to avoid DO storage limit
     await this.broadcastSSEUpdate('completed', {
       jobId: jobState.jobId,
       status: 'completed',
@@ -226,8 +227,8 @@ export class JobStateManagerDO extends DurableObject {
       processedCount: jobState.processedCount || completedState.totalCount,
       totalCount: completedState.totalCount,
       completedAt: new Date(completedState.completedTime).toISOString(),
-      // Include books array from payload for iOS to persist without extra fetch
-      books: payload.books || [],
+      // Include books array for iOS to persist without extra fetch
+      books: books || [],
     });
 
     // Fix Issue #157: Flush pending updates before job completes
