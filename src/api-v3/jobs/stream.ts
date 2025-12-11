@@ -64,6 +64,9 @@ interface JobStateManagerDO {
     eventType: string
     data: any
   }>>
+}
+
+interface WebSocketConnectionDO {
   validateAuthToken(token: string | undefined): Promise<{ valid: boolean; expired?: boolean }>
 }
 
@@ -210,12 +213,12 @@ export async function handleSSEStream(
     }, 401)
   }
 
-  // Get JobStateManagerDO stub for this job
-  const doId = env.JOB_STATE_MANAGER_DO.idFromName(jobId)
-  const doStub = env.JOB_STATE_MANAGER_DO.get(doId) as unknown as JobStateManagerDO
+  // Get WebSocketConnectionDO stub for token validation (tokens are stored here)
+  const wsDoId = env.WEBSOCKET_CONNECTION_DO.idFromName(jobId)
+  const wsDoStub = env.WEBSOCKET_CONNECTION_DO.get(wsDoId) as unknown as WebSocketConnectionDO
 
-  // Validate token with DO
-  const tokenValidation = await doStub.validateAuthToken(token)
+  // Validate token with WebSocketConnectionDO (where tokens are stored)
+  const tokenValidation = await wsDoStub.validateAuthToken(token)
   if (!tokenValidation.valid) {
     return c.json({
       success: false,
@@ -230,6 +233,10 @@ export async function handleSSEStream(
       }
     }, 401)
   }
+
+  // Get JobStateManagerDO stub for job state operations
+  const doId = env.JOB_STATE_MANAGER_DO.idFromName(jobId)
+  const doStub = env.JOB_STATE_MANAGER_DO.get(doId) as unknown as JobStateManagerDO
 
   // Last-Event-ID support for reconnection (SSE standard)
   const lastEventId = request.headers.get('Last-Event-ID')
@@ -300,6 +307,9 @@ export async function handleSSEStream(
       const shouldSkipInitial = resumeFromTimestamp !== null && currentTimestamp - resumeFromTimestamp < 10000
 
       if (!shouldSkipInitial) {
+        // FIX: Use proper SSE event type ('initialized', 'progress', 'completed', 'failed')
+        // state.status is now always the enum value, state.statusMessage has the human-readable text
+        const eventType = state.status === 'processing' ? 'progress' : state.status
         const progressEvent: SSEProgressEvent = {
           jobId: state.jobId,
           status: state.status,
@@ -310,7 +320,7 @@ export async function handleSSEStream(
         }
         await writeEvent({
           id: `${currentTimestamp}-initial`,
-          event: state.status,
+          event: eventType,
           data: JSON.stringify(progressEvent)
         })
       }

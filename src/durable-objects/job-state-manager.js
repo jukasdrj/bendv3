@@ -95,10 +95,13 @@ export class JobStateManagerDO extends DurableObject {
     }
 
     // Update cached state (not storage read)
+    // FIX: Don't overwrite status enum with message string - use 'processing' during progress updates
+    // The payload.status is a human-readable message, not the job status enum
     this.jobState = {
       ...this.jobState,
       progress: payload.progress ?? this.jobState.progress,
-      status: payload.status ?? this.jobState.status,
+      status: 'processing', // Always 'processing' during progress updates
+      statusMessage: payload.status || `Processing ${payload.processedCount || 0}/${this.jobState.totalCount}`, // Store message separately
       processedCount: payload.processedCount ?? this.jobState.processedCount,
       lastUpdateTime: Date.now(),
     };
@@ -145,12 +148,15 @@ export class JobStateManagerDO extends DurableObject {
     });
 
     // Broadcast to SSE clients
+    // FIX: 'status' should be the enum value ('processing'), 'message' is the human-readable text
     await this.broadcastSSEUpdate('progress', {
       jobId: this.jobState.jobId,
-      status: payload.status || 'processing',
+      status: 'processing',
+      message: payload.status || `Processing ${payload.processedCount || 0}/${this.jobState.totalCount}`,
       progress: payload.progress,
       processedCount: payload.processedCount,
       totalCount: this.jobState.totalCount,
+      timestamp: new Date().toISOString(),
     });
 
     return { success: true };
@@ -404,16 +410,19 @@ export class JobStateManagerDO extends DurableObject {
    *
    * V3 API: Now supports multiple images (1-5 photos per scan job)
    *
-   * @param {Array<{index: number, buffer: ArrayBuffer, type: string}>} images - Array of processed images
+   * FIX: Images are now stored in R2 (not DO storage) to avoid 128KB limit.
+   * This method receives R2 keys instead of raw image buffers.
+   *
+   * @param {string[]} r2Keys - Array of R2 object keys where images are stored
    * @param {string} jobId - Job identifier
    * @returns {Promise<{success: boolean}>}
    */
-  async scheduleBookshelfScan(images, jobId) {
-    // Store multiple images with metadata
-    await this.storage.put("scanImages", images);
+  async scheduleBookshelfScan(r2Keys, jobId) {
+    // Store R2 keys (small strings, well under 128KB limit)
+    await this.storage.put("scanImageR2Keys", r2Keys);
     await this.storage.put("processingType", "bookshelf_scan");
     await this.storage.setAlarm(Date.now()); // Trigger immediately
-    console.log(`[JobStateManager] Scheduled bookshelf scan for job ${jobId} (${images.length} photos)`);
+    console.log(`[JobStateManager] Scheduled bookshelf scan for job ${jobId} (${r2Keys.length} photos in R2)`);
     return { success: true };
   }
 
@@ -773,12 +782,12 @@ export class JobStateManagerDO extends DurableObject {
         "[JobStateManager] Alarm triggered for bookshelf scan processing",
       );
 
-      const scanImages = await this.storage.get("scanImages");
+      const scanImageR2Keys = await this.storage.get("scanImageR2Keys");
       const jobState = await this.storage.get("jobState");
 
-      if (!scanImages || !jobState) {
+      if (!scanImageR2Keys || !jobState) {
         console.error(
-          "[JobStateManager] Missing scan images or job state in alarm handler",
+          "[JobStateManager] Missing scan image R2 keys or job state in alarm handler",
         );
         return;
       }
@@ -787,17 +796,190 @@ export class JobStateManagerDO extends DurableObject {
       const reporter = new ProgressReporter(jobState.jobId, this.env);
 
       try {
-        // Import batch scan processing from V2 handler
-        const { processBatchPhotos } = await import("../handlers/batch-scan-handler.js");
+        // V3: Load images from R2 storage (fixes 128KB DO storage limit)
+        const scanImages = [];
+        for (let i = 0; i < scanImageR2Keys.length; i++) {
+          const r2Key = scanImageR2Keys[i];
+          console.log(`[JobStateManager] Loading image from R2: ${r2Key}`);
+          const r2Object = await this.env.BOOKSHELF_IMAGES.get(r2Key);
+          if (r2Object) {
+            const buffer = await r2Object.arrayBuffer();
+            scanImages.push({
+              index: i,
+              buffer,
+              type: r2Object.httpMetadata?.contentType || 'image/jpeg'
+            });
+            console.log(`[JobStateManager] Loaded image ${i}: ${(buffer.byteLength / 1_000_000).toFixed(2)}MB`);
+          } else {
+            console.warn(`[JobStateManager] R2 object not found: ${r2Key}`);
+          }
+        }
 
-        // Process all photos (V3: batch processing)
-        // This function handles R2 upload, Gemini Vision, deduplication, and enrichment
-        await processBatchPhotos(
-          jobState.jobId,
-          scanImages,
-          this.env,
-          reporter, // Use reporter interface for progress updates
+        if (scanImages.length === 0) {
+          throw new Error("No images found in R2 storage");
+        }
+
+        // Process each photo through AI scanner service
+        // For batch scans, we process photos sequentially and aggregate results
+        const allDetectedBooks = [];
+        const photoCount = scanImages.length;
+
+        console.log(`[JobStateManager] Processing ${photoCount} photos for job ${jobState.jobId}`);
+
+        // Update progress: starting scan
+        await reporter.updateProgress("ai_scan", {
+          progress: 0.1,
+          status: `Starting scan of ${photoCount} photo${photoCount > 1 ? 's' : ''}...`,
+          processedCount: 0,
+        });
+
+        for (let i = 0; i < scanImages.length; i++) {
+          const image = scanImages[i];
+          const photoProgress = (i + 1) / photoCount;
+
+          // Update progress for each photo
+          await reporter.updateProgress("ai_scan", {
+            progress: 0.1 + (photoProgress * 0.4), // 10% - 50% for AI processing
+            status: `Processing photo ${i + 1} of ${photoCount}...`,
+            processedCount: i,
+          });
+
+          try {
+            // Use Gemini Vision to detect books in this photo
+            const { scanImageWithGemini } = await import("../providers/gemini-provider.js");
+            const scanResult = await scanImageWithGemini(image.buffer, this.env);
+
+            console.log(`[JobStateManager] Photo ${i + 1}: detected ${scanResult.books?.length || 0} books`);
+
+            if (scanResult.books && scanResult.books.length > 0) {
+              // Tag each book with photo index for deduplication
+              scanResult.books.forEach(book => {
+                book.photoIndex = i;
+                allDetectedBooks.push(book);
+              });
+            }
+          } catch (photoError) {
+            console.error(`[JobStateManager] Photo ${i + 1} processing failed:`, photoError);
+            // Continue with other photos even if one fails
+          }
+        }
+
+        console.log(`[JobStateManager] Total books detected across all photos: ${allDetectedBooks.length}`);
+
+        // Deduplicate by ISBN (if available) or title+author
+        const deduplicatedBooks = [];
+        const seenKeys = new Set();
+
+        for (const book of allDetectedBooks) {
+          const key = book.isbn || `${book.title?.toLowerCase()}-${book.author?.toLowerCase()}`;
+          if (key && !seenKeys.has(key)) {
+            seenKeys.add(key);
+            deduplicatedBooks.push(book);
+          }
+        }
+
+        console.log(`[JobStateManager] After deduplication: ${deduplicatedBooks.length} unique books`);
+
+        // Update progress: starting enrichment
+        await reporter.updateProgress("ai_scan", {
+          progress: 0.5,
+          status: `Enriching ${deduplicatedBooks.length} detected books...`,
+          processedCount: photoCount,
+        });
+
+        // Enrich books with metadata
+        const { enrichBooksParallel } = await import("../services/parallel-enrichment.js");
+        const { enrichMultipleBooks } = await import("../services/enrichment.ts");
+        const { categorizeBooks } = await import("../utils/confidence.js");
+        const { getCacheTTL } = await import("../config/cache-ttl.js");
+
+        const enrichedBooks = await enrichBooksParallel(
+          deduplicatedBooks,
+          async (book) => {
+            const enrichmentResult = await enrichMultipleBooks(
+              { title: book.title || "", author: book.author || "" },
+              this.env,
+              { maxResults: 20 },
+              null // No executionCtx in DO alarm context
+            );
+
+            const work = enrichmentResult.works?.[0] || null;
+            const editions = enrichmentResult.editions || [];
+            const authors = enrichmentResult.authors || [];
+
+            return {
+              ...book,
+              enrichment: {
+                status: work ? "success" : "not_found",
+                work,
+                editions,
+                authors,
+                provider: "alexandria",
+                cachedResult: false,
+              },
+            };
+          },
+          async (index) => {
+            // Progress callback for enrichment
+            const enrichmentProgress = 0.5 + (index / deduplicatedBooks.length) * 0.45;
+            await reporter.updateProgress("ai_scan", {
+              progress: enrichmentProgress,
+              status: `Enriching book ${index + 1} of ${deduplicatedBooks.length}...`,
+              processedCount: photoCount,
+            });
+          },
+          10 // maxConcurrency
         );
+
+        // Categorize books by confidence
+        const categorized = categorizeBooks(enrichedBooks);
+
+        // Build results
+        const books = enrichedBooks.map((b) => ({
+          title: b.title,
+          author: b.author,
+          isbn: b.isbn || null,
+          confidence: b.confidence,
+          boundingBox: b.boundingBox,
+          enrichmentStatus: b.enrichment?.status || "pending",
+          coverUrl: b.enrichment?.work?.coverImageURL || null,
+          publisher: b.enrichment?.editions?.[0]?.publisher || null,
+          publicationYear: b.enrichment?.editions?.[0]?.publicationYear || null,
+        }));
+
+        // Store results in KV
+        const resultsKey = `scan-results:${jobState.jobId}`;
+        const fullResults = {
+          totalDetected: allDetectedBooks.length,
+          totalUnique: deduplicatedBooks.length,
+          approved: categorized.high.length,
+          needsReview: categorized.medium.length + categorized.low.length,
+          books,
+          metadata: {
+            modelUsed: "gemini-2.0-flash",
+            photoCount,
+            timestamp: Date.now(),
+          },
+        };
+
+        await this.env.CACHE.put(resultsKey, JSON.stringify(fullResults), {
+          expirationTtl: getCacheTTL('hot', this.env),
+        });
+
+        console.log(`[JobStateManager] Stored results in KV: ${resultsKey}`);
+
+        // Complete the job
+        await reporter.complete("ai_scan", {
+          totalDetected: allDetectedBooks.length,
+          totalUnique: deduplicatedBooks.length,
+          approved: categorized.high.length,
+          needsReview: categorized.medium.length + categorized.low.length,
+          resultsUrl: `/v3/jobs/scans/${jobState.jobId}/results`,
+          books, // Include books for SSE completion event
+        });
+
+        console.log(`[JobStateManager] Bookshelf scan complete for job ${jobState.jobId}`);
+
       } catch (error) {
         console.error(
           "[JobStateManager] Bookshelf scan processing failed in alarm:",
@@ -816,8 +998,8 @@ export class JobStateManagerDO extends DurableObject {
         });
       }
 
-      // Clean up temporary storage
-      await this.storage.delete("scanImages");
+      // Clean up temporary storage (R2 keys, not images - R2 cleanup handled by cancel endpoint)
+      await this.storage.delete("scanImageR2Keys");
       await this.storage.delete("processingType");
     } else if (processingType === "enrichment") {
       // Batch enrichment processing path

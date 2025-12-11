@@ -163,6 +163,10 @@ export const SSEProgressEventSchema = z
     progress: z.number().min(0).max(1),
     processedCount: z.number().int().min(0),
     totalCount: z.number().int().min(0),
+    message: z.string().optional().openapi({
+      description: 'Human-readable progress message',
+      example: 'Processing photo 1 of 3...'
+    }),
     timestamp: z.string().datetime()
   })
   .openapi('SSEProgressEvent')

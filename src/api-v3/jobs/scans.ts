@@ -337,8 +337,21 @@ Returns immediately with jobId for progress tracking via SSE stream.
       const wsDoStub = getWebSocketConnectionDO(jobId, c.env)
       await wsDoStub.setAuthToken(authToken, 'bookshelf_scan')
 
+      // Upload images to R2 storage first (DO storage has 128KB limit per value)
+      // Images will be read from R2 in the alarm handler
+      const r2Keys: string[] = []
+      for (const img of processedImages) {
+        const r2Key = `bookshelf-scans/${jobId}/photo-${img.index}.jpg`
+        await c.env.BOOKSHELF_IMAGES.put(r2Key, img.buffer, {
+          httpMetadata: { contentType: img.type }
+        })
+        r2Keys.push(r2Key)
+        console.log(`[V3 Scan] Uploaded photo ${img.index} to R2: ${r2Key} (${(img.buffer.byteLength / 1_000_000).toFixed(2)}MB)`)
+      }
+
       // Schedule bookshelf scan processing via DO alarm
-      c.executionCtx.waitUntil(doStub.scheduleBookshelfScan!(processedImages, jobId))
+      // Pass R2 keys instead of raw image buffers to avoid DO storage 128KB limit
+      c.executionCtx.waitUntil(doStub.scheduleBookshelfScan!(r2Keys, jobId))
 
       const streamUrl = buildStreamUrl(c.req.url, 'scans', jobId)
 

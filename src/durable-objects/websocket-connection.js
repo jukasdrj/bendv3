@@ -395,6 +395,38 @@ export class WebSocketConnectionDO extends DurableObject {
   }
 
   /**
+   * RPC Method: Validate authentication token for SSE streams
+   *
+   * Used by V3 SSE stream handlers to validate Bearer tokens without
+   * consuming them (SSE connections don't consume tokens like WebSocket).
+   *
+   * @param {string | undefined} providedToken - Token from Authorization header
+   * @returns {Promise<{valid: boolean, expired?: boolean}>}
+   */
+  async validateAuthToken(providedToken) {
+    if (!providedToken) {
+      return { valid: false };
+    }
+
+    const storedToken = await this.storage.get("authToken");
+    const expiration = await this.storage.get("authTokenExpiration");
+
+    if (!storedToken) {
+      return { valid: false };
+    }
+
+    if (storedToken !== providedToken) {
+      return { valid: false };
+    }
+
+    if (Date.now() > expiration) {
+      return { valid: false, expired: true };
+    }
+
+    return { valid: true };
+  }
+
+  /**
    * RPC Method: Refresh authentication token (for POST /api/refresh-token)
    *
    * Allows clients to extend token expiration before it expires.
