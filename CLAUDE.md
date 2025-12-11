@@ -122,11 +122,11 @@ npm run deploy                 # Deploy to production
 - `/cache-check` - KV cache performance
 - `/rewind` - Undo last change and revert conversation
 
-**MCP Tools (Zen):**
-- `mcp__zen__debug` - Deep debugging (Grok-4)
-- `mcp__zen__codereview` - Architecture review
-- `mcp__zen__secaudit` - Security audit
-- `mcp__zen__chat` - Collaborative thinking
+**MCP Tools (PAL):**
+- `mcp__pal__debug` - Deep debugging (Grok-4)
+- `mcp__pal__codereview` - Architecture review
+- `mcp__pal__secaudit` - Security audit
+- `mcp__pal__chat` - Collaborative thinking
 
 ---
 

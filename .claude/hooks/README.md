@@ -2,6 +2,35 @@
 
 Automated checks and agent triggers for Cloudflare Workers development.
 
+**Claude Code Version:** 2.0.62 - 2.0.65 compatible
+
+---
+
+## What's New (v2.0.62-2.0.65)
+
+### Async Agent & Bash Support (v2.0.64)
+- Agents and bash commands can run asynchronously with `run_in_background: true`
+- Use **TaskOutput** tool to retrieve results (replaces AgentOutputTool/BashOutputTool)
+- Background tasks can send wake messages to main agent
+
+### Session Management (v2.0.64)
+- **Named sessions:** `/rename <name>` to name, `/resume <name>` to continue
+- **Usage stats:** `/stats` shows favorite model, usage graph, streak
+- **Instant auto-compacting** for long sessions
+
+### UI Improvements (v2.0.62-65)
+- **(Recommended)** indicator on multiple-choice questions
+- `Alt+P` / `Option+P` to switch models while typing
+- VSCode: Copy button on code blocks, ARM64 Windows support
+
+### Settings (v2.0.62)
+- `attribution` setting replaces `includeCoAuthoredBy`
+- `fileSuggestion` for custom `@` file search
+
+### Rules Directory (v2.0.64)
+- `.claude/rules/` for persistent project rules
+- See https://code.claude.com/docs/en/memory
+
 ---
 
 ## Available Hooks
@@ -355,9 +384,15 @@ fi
 
 ## Hook Evolution
 
+### Recent Updates (v2.0.64+)
+- [x] TaskOutput tool support (replaces AgentOutputTool/BashOutputTool)
+- [x] Background agent execution support
+- [x] Named session awareness in session-start hook
+- [x] Rules directory integration
+
 ### Future Enhancements
 - [ ] Add performance regression detection
-- [ ] Integrate with Zen MCP for deep analysis
+- [ ] Integrate with PAL MCP for deep analysis
 - [ ] Auto-fix formatting violations
 - [ ] Parallel hook execution for speed
 - [ ] Hook telemetry (track trigger frequency)
@@ -371,6 +406,24 @@ fi
 
 ---
 
-**Last Updated:** December 1, 2025
+## Environment Variables
+
+### Hook Configuration
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTO_INVOKE_AGENTS` | `true` | Auto-run agents on trigger |
+| `AUTO_INVOKE_CRITICAL` | `true` | Always auto-run for critical ops |
+| `MIN_LINES_FOR_REVIEW` | `10` | Minimum lines changed to trigger review |
+| `RUN_AGENTS_IN_BACKGROUND` | `false` | Run agents async (v2.0.64+) |
+
+### Shell Customization (v2.0.65)
+| Variable | Description |
+|----------|-------------|
+| `CLAUDE_CODE_SHELL` | Override automatic shell detection |
+
+---
+
+**Last Updated:** December 11, 2025
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer)
 **Location:** `.claude/hooks/`
+**Claude Code Version:** 2.0.62 - 2.0.65

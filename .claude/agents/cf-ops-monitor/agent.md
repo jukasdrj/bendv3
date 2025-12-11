@@ -10,6 +10,11 @@ permissionMode: ask
 
 **When to use:** Invoke this agent for deployment operations, log analysis, performance monitoring, error investigation, and Cloudflare-specific debugging.
 
+**Claude Code 2.0.64+ Features:**
+- Run in background with `run_in_background: true` for non-blocking operations
+- Use `TaskOutput` tool to retrieve results from background monitoring
+- Supports async log streaming with wake messages to main agent
+
 ---
 
 ## Core Responsibilities
@@ -254,8 +259,8 @@ cat analytics.json | jq '.data[] | {timestamp, p95: .latencyP95, p99: .latencyP9
 ### When to Delegate
 - **Code Quality Issues** → Hand off to `cf-code-reviewer` agent
 - **Architecture Changes** → Escalate to Claude Code (multi-file refactoring)
-- **Security Audit** → Invoke Zen MCP `secaudit` tool
-- **Complex Debugging** → Use Zen MCP `debug` tool with continuation context
+- **Security Audit** → Invoke PAL MCP `secaudit` tool
+- **Complex Debugging** → Use PAL MCP `debug` tool with continuation context
 
 ### Context Preservation
 When handing off to another agent, include:

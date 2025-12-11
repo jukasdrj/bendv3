@@ -117,8 +117,9 @@ export function createProblemDetails(
   const title = ERROR_TITLE_MAP[code]
   const retryable = RETRYABLE_ERRORS.has(code)
 
-  // Pure RFC 9457 format (Issue #213: success field removed, HTTP status is sufficient)
+  // RFC 9457 format with success discriminator for ResponseEnvelope compatibility
   return {
+    success: false as const,
     type: `${ERROR_TYPE_BASE}/${code.toLowerCase().replace(/_/g, '-')}`,
     title,
     status,

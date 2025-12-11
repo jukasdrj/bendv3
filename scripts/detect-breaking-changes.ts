@@ -11,7 +11,8 @@
  *
  * Usage:
  *   npm run detect-breaking-changes
- *   npm run detect-breaking-changes -- --base-spec=./spec-v1.yaml --current-spec=./spec-v2.yaml
+ *   npm run detect-breaking-changes -- --base-spec=./docs/v3-openapi-baseline.json --current-spec=./current-spec.json
+ *   echo '{"openapi": "3.1.0", ...}' | npm run detect-breaking-changes -- --base-spec=./baseline.json --current-spec=-
  *
  * Exit codes:
  *   0 - No breaking changes detected
@@ -24,6 +25,7 @@ import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import * as readline from 'readline'
 
 const execAsync = promisify(exec)
 
@@ -39,8 +41,8 @@ interface BreakingChange {
  */
 function parseArgs(): { baseSpec: string; currentSpec: string } {
   const args = process.argv.slice(2)
-  let baseSpec = 'docs/openapi.yaml'
-  let currentSpec = 'docs/openapi.yaml'
+  let baseSpec = 'docs/v3-openapi-baseline.json'
+  let currentSpec = 'docs/v3-openapi-current.json'
 
   for (const arg of args) {
     if (arg.startsWith('--base-spec=')) {
@@ -51,6 +53,30 @@ function parseArgs(): { baseSpec: string; currentSpec: string } {
   }
 
   return { baseSpec, currentSpec }
+}
+
+/**
+ * Read spec from stdin (for piped input)
+ */
+async function readStdin(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: string[] = []
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal: false
+    })
+
+    rl.on('line', (line) => {
+      chunks.push(line)
+    })
+
+    rl.on('close', () => {
+      resolve(chunks.join('\n'))
+    })
+
+    rl.on('error', reject)
+  })
 }
 
 /**
@@ -118,21 +144,34 @@ async function main() {
 
   const { baseSpec, currentSpec } = parseArgs()
 
-  // Check if current spec exists
-  if (!existsSync(currentSpec)) {
-    console.error(`❌ Current spec not found: ${currentSpec}`)
-    process.exit(2)
-  }
-
   try {
-    // Get base branch spec
-    const baseBranch = await getDefaultBranch()
-    console.log(`📥 Fetching base spec from ${baseBranch} branch: ${baseSpec}`)
-    const baseSpecContent = await getBaseBranchSpec(baseSpec)
+    // Read base spec
+    let baseSpecContent: string
+    if (baseSpec === '-') {
+      console.log('📥 Reading base spec from stdin...')
+      baseSpecContent = await readStdin()
+    } else if (!existsSync(baseSpec)) {
+      // Try to get from git
+      const baseBranch = await getDefaultBranch()
+      console.log(`📥 Fetching base spec from ${baseBranch} branch: ${baseSpec}`)
+      baseSpecContent = await getBaseBranchSpec(baseSpec)
+    } else {
+      console.log(`📥 Reading base spec: ${baseSpec}`)
+      baseSpecContent = await readFile(baseSpec, 'utf-8')
+    }
 
     // Read current spec
-    console.log(`📥 Reading current spec: ${currentSpec}`)
-    const currentSpecContent = await readFile(currentSpec, 'utf-8')
+    let currentSpecContent: string
+    if (currentSpec === '-') {
+      console.log('📥 Reading current spec from stdin...')
+      currentSpecContent = await readStdin()
+    } else if (!existsSync(currentSpec)) {
+      console.error(`❌ Current spec not found: ${currentSpec}`)
+      process.exit(2)
+    } else {
+      console.log(`📥 Reading current spec: ${currentSpec}`)
+      currentSpecContent = await readFile(currentSpec, 'utf-8')
+    }
 
     // Compare specs
     console.log('🔬 Comparing OpenAPI specs...\n')
@@ -140,13 +179,13 @@ async function main() {
     const diffResult = await openApiDiff.diffSpecs({
       sourceSpec: {
         content: baseSpecContent,
-        location: 'main:' + baseSpec,
-        format: baseSpec.endsWith('.yaml') ? 'openapi3' : 'openapi3'
+        location: baseSpec === '-' ? 'stdin' : baseSpec,
+        format: 'openapi3'
       },
       destinationSpec: {
         content: currentSpecContent,
-        location: currentSpec,
-        format: currentSpec.endsWith('.yaml') ? 'openapi3' : 'openapi3'
+        location: currentSpec === '-' ? 'stdin' : currentSpec,
+        format: 'openapi3'
       }
     })
 

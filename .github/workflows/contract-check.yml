@@ -6,7 +6,8 @@ on:
       - main
       - bendv3
     paths:
-      - 'docs/openapi.yaml'
+      - 'docs/v3-openapi-baseline.json'
+      - 'src/api-v3/**/*.ts'
       - 'src/**/*.ts'
       - 'src/**/*.js'
   push:
@@ -14,7 +15,8 @@ on:
       - main
       - bendv3
     paths:
-      - 'docs/openapi.yaml'
+      - 'docs/v3-openapi-baseline.json'
+      - 'src/api-v3/**/*.ts'
 
 jobs:
   detect-breaking-changes:
@@ -36,18 +38,46 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Check if OpenAPI spec exists
-        id: check_spec
+      - name: Start Wrangler dev server
         run: |
-          if [ -f "docs/openapi.yaml" ]; then
-            echo "spec_exists=true" >> $GITHUB_OUTPUT
+          npx wrangler dev --port 8788 --local &
+          WRANGLER_PID=$!
+          echo "WRANGLER_PID=$WRANGLER_PID" >> $GITHUB_ENV
+
+          # Wait for server to be ready (max 30 seconds)
+          echo "Waiting for dev server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8788/health > /dev/null; then
+              echo "Dev server is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 1
+          done
+
+      - name: Generate V3 OpenAPI spec
+        run: |
+          curl -f http://localhost:8788/v3/openapi.json > docs/v3-openapi-current.json
+          echo "Generated V3 OpenAPI spec:"
+          ls -lh docs/v3-openapi-current.json
+
+      - name: Check if baseline spec exists
+        id: check_baseline
+        run: |
+          if [ -f "docs/v3-openapi-baseline.json" ]; then
+            echo "baseline_exists=true" >> $GITHUB_OUTPUT
           else
-            echo "spec_exists=false" >> $GITHUB_OUTPUT
+            echo "baseline_exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️  No baseline spec found - this is expected on first run"
+            echo "   Run: cp docs/v3-openapi-current.json docs/v3-openapi-baseline.json"
           fi
 
       - name: Detect breaking changes
-        if: steps.check_spec.outputs.spec_exists == 'true'
-        run: npm run detect-breaking-changes
+        if: steps.check_baseline.outputs.baseline_exists == 'true'
+        run: |
+          npm run detect-breaking-changes -- \
+            --base-spec=docs/v3-openapi-baseline.json \
+            --current-spec=docs/v3-openapi-current.json
         continue-on-error: true
         id: breaking_changes
 
@@ -62,24 +92,33 @@ jobs:
               repo: context.repo.repo,
               body: `## ⚠️ Breaking Changes Detected
 
-            This PR introduces breaking changes to the API contract.
+            This PR introduces breaking changes to the V3 API contract.
 
             **Action Required:**
             - Review the breaking changes in the workflow logs
             - Either:
-              1. Bump the major version (e.g., 1.x.x → 2.0.0) in \`docs/openapi.yaml\`
+              1. Update the baseline: \`cp docs/v3-openapi-current.json docs/v3-openapi-baseline.json\`
               2. Revert the breaking changes
-            
+
             **What qualifies as a breaking change:**
             - Removing an endpoint
             - Removing a required field from a response
             - Changing a field type (e.g., string → number)
             - Renaming a field without aliasing
             - Removing an enum value
-            
-            See [docs/openapi.yaml](docs/openapi.yaml) for the API contract.
+
+            **Note:** V3 API spec is auto-generated from Zod schemas in \`src/api-v3/\`
             `
             })
+
+      - name: Cleanup Wrangler dev server
+        if: always()
+        run: |
+          if [ -n "$WRANGLER_PID" ]; then
+            kill $WRANGLER_PID || true
+          fi
+          # Also kill any remaining wrangler processes
+          pkill -f "wrangler dev" || true
 
       - name: Fail if breaking changes detected
         if: steps.breaking_changes.outcome == 'failure' && !contains(github.event.head_commit.message, '[skip-breaking-check]') && !contains(github.event.pull_request.title, '[skip-breaking-check]')
@@ -87,11 +126,12 @@ jobs:
           echo "❌ Breaking changes detected. Please review the output above."
           exit 1
 
-      - name: Skip check if no spec exists
-        if: steps.check_spec.outputs.spec_exists == 'false'
+      - name: Skip check if no baseline exists
+        if: steps.check_baseline.outputs.baseline_exists == 'false'
         run: |
-          echo "⏭️  Skipping breaking change detection (OpenAPI spec not found)"
-          echo "   This is expected before Sprint 1 of the OpenAPI migration"
+          echo "⏭️  Skipping breaking change detection (baseline spec not found)"
+          echo "   To enable contract checks, create a baseline:"
+          echo "   cp docs/v3-openapi-current.json docs/v3-openapi-baseline.json"
           exit 0
 
   validate-spec:
@@ -111,23 +151,38 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Check if OpenAPI spec exists
-        id: check_spec
+      - name: Start Wrangler dev server
         run: |
-          if [ -f "docs/openapi.yaml" ]; then
-            echo "spec_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "spec_exists=false" >> $GITHUB_OUTPUT
-          fi
+          npx wrangler dev --port 8788 --local &
+          WRANGLER_PID=$!
+          echo "WRANGLER_PID=$WRANGLER_PID" >> $GITHUB_ENV
+
+          # Wait for server to be ready (max 30 seconds)
+          echo "Waiting for dev server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8788/health > /dev/null; then
+              echo "Dev server is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 1
+          done
+
+      - name: Generate V3 OpenAPI spec
+        run: |
+          curl -f http://localhost:8788/v3/openapi.json > docs/v3-openapi-current.json
+          echo "Generated V3 OpenAPI spec:"
+          cat docs/v3-openapi-current.json | jq '.info.version, .openapi, (.paths | keys | length)'
 
       - name: Validate OpenAPI spec format
-        if: steps.check_spec.outputs.spec_exists == 'true'
-        run: npx @stoplight/spectral-cli lint docs/openapi.yaml --ruleset .spectral.yaml
+        run: npx @stoplight/spectral-cli lint docs/v3-openapi-current.json --ruleset .spectral.yaml
         continue-on-error: true
 
-      - name: Skip validation if no spec exists
-        if: steps.check_spec.outputs.spec_exists == 'false'
+      - name: Cleanup Wrangler dev server
+        if: always()
         run: |
-          echo "⏭️  Skipping OpenAPI validation (spec not found)"
-          echo "   This is expected before Sprint 1 of the OpenAPI migration"
-          exit 0
+          if [ -n "$WRANGLER_PID" ]; then
+            kill $WRANGLER_PID || true
+          fi
+          # Also kill any remaining wrangler processes
+          pkill -f "wrangler dev" || true

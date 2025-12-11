@@ -8,6 +8,7 @@
 
 import type { Env } from '../../types/env'
 import type { DurableObjectStub } from '@cloudflare/workers-types'
+import type { Job, JobType, JobStatus } from '@bookstrack/schemas'
 
 /**
  * JobStateManagerDO Interface
@@ -182,11 +183,12 @@ export function buildStreamUrl(baseUrl: string, jobType: string, jobId: string):
  * Create HATEOAS links for job resources
  *
  * Provides hypermedia links for job status, stream, and cancel
+ * All hrefs are full URLs per LinkSchema (z.string().url())
  *
  * @param jobType - Job type (imports, scans, enrichment)
  * @param jobId - Unique job identifier
- * @param streamUrl - SSE stream URL
- * @returns HATEOAS _links object
+ * @param streamUrl - SSE stream URL (used to derive base URL)
+ * @returns HATEOAS _links object conforming to LinkSchema
  *
  * @example
  * ```typescript
@@ -199,22 +201,90 @@ export function buildStreamUrl(baseUrl: string, jobType: string, jobId: string):
  * ```
  */
 export function createJobLinks(jobType: string, jobId: string, streamUrl: string) {
+  // Extract base URL from streamUrl (e.g., https://api.oooefam.net)
+  const url = new URL(streamUrl)
+  const baseUrl = `${url.protocol}//${url.host}`
+
   return {
     self: {
-      href: `/v3/jobs/${jobType}/${jobId}`,
+      href: `${baseUrl}/v3/jobs/${jobType}/${jobId}`,
       rel: 'self',
-      method: 'GET'
+      method: 'GET' as const
     },
     stream: {
       href: streamUrl,
       rel: 'related',
-      method: 'GET',
-      type: 'text/event-stream'
+      method: 'GET' as const
     },
     cancel: {
-      href: `/v3/jobs/${jobType}/${jobId}`,
+      href: `${baseUrl}/v3/jobs/${jobType}/${jobId}`,
       rel: 'related',
-      method: 'DELETE'
+      method: 'DELETE' as const
     }
+  }
+}
+
+/**
+ * Map pipeline type from DO storage to JobType enum
+ *
+ * DO stores: 'csv_import', 'ai_scan', 'batch_enrichment'
+ * Schema expects: 'csv_import', 'bookshelf_scan', 'batch_enrichment'
+ */
+function mapPipelineToJobType(pipeline: string): JobType {
+  const mapping: Record<string, JobType> = {
+    csv_import: 'csv_import',
+    ai_scan: 'bookshelf_scan',
+    batch_enrichment: 'batch_enrichment',
+    enrichment: 'batch_enrichment'
+  }
+  return mapping[pipeline] || 'csv_import'
+}
+
+/**
+ * Map DO status to JobStatus enum
+ *
+ * DO stores: 'initialized', 'processing', 'completed', 'failed'
+ * Schema expects: 'queued', 'processing', 'completed', 'failed', 'canceled'
+ */
+function mapStatus(status: string): JobStatus {
+  if (status === 'initialized') return 'queued'
+  return status as JobStatus
+}
+
+/**
+ * Transform DO job state to schema-compliant Job object
+ *
+ * Handles:
+ * - pipeline → type mapping
+ * - status normalization (initialized → queued)
+ * - Unix timestamp → ISO 8601 string conversion
+ *
+ * @param state - Raw state from JobStateManagerDO.getJobState()
+ * @returns Schema-compliant Job object
+ *
+ * @example
+ * ```typescript
+ * const state = await doStub.getJobState()
+ * const job = mapDOStateToJob(state)
+ * return c.json({ success: true, data: job })
+ * ```
+ */
+export function mapDOStateToJob(state: any): Job {
+  return {
+    jobId: state.jobId,
+    type: mapPipelineToJobType(state.pipeline || state.type),
+    status: mapStatus(state.status),
+    progress: state.progress ?? 0,
+    processedCount: state.processedCount ?? 0,
+    totalCount: state.totalCount ?? 0,
+    startTime: typeof state.startTime === 'number'
+      ? new Date(state.startTime).toISOString()
+      : state.startTime,
+    completedTime: state.completedTime
+      ? (typeof state.completedTime === 'number'
+          ? new Date(state.completedTime).toISOString()
+          : state.completedTime)
+      : undefined,
+    error: state.error
   }
 }

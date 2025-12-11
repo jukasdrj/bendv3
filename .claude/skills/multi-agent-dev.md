@@ -5,6 +5,26 @@ description: Coordinates PM (Sonnet 4.5) → Dev (Haiku) → Review (Grok-4) wor
 
 # Multi-Agent Development Coordination
 
+**Claude Code Version:** 2.0.62 - 2.0.65 compatible
+
+## What's New (v2.0.64+)
+
+### Async Agent Execution
+- Run implementation and review agents in background with `run_in_background: true`
+- Use **TaskOutput** tool to retrieve results (replaces AgentOutputTool)
+- Continue orchestration while agents work asynchronously
+
+### Session Management
+- Use `/rename <name>` to name complex multi-agent sessions
+- Resume with `/resume <name>` or `claude --resume <name>`
+- Full conversation context preserved across resume
+
+### UI Improvements (v2.0.62)
+- When using AskUserQuestion, put **(Recommended)** option first
+- Model switching with `Alt+P` / `Option+P` while typing
+
+---
+
 ## Skill Purpose
 This skill coordinates a three-agent development workflow where **Sonnet 4.5** (you) drives product management and orchestration, **Haiku** handles rapid implementation, and **Grok-4** performs comprehensive code review. Use this skill for structured feature development, bug fixes, and refactoring tasks that benefit from specialized agent roles.
 
@@ -44,7 +64,7 @@ Trigger this skill when the user:
 - Performance-optimized implementations
 
 **Delegation Best Practices:**
-- Use `mcp__zen__chat` tool with `model="haiku"`
+- Use `mcp__pal__chat` tool with `model="haiku"`
 - Provide absolute file paths in `absolute_file_paths` parameter
 - Include clear acceptance criteria in the prompt
 - Specify coding standards and patterns to follow
@@ -53,7 +73,7 @@ Trigger this skill when the user:
 
 **Example Invocation:**
 ```javascript
-mcp__zen__chat({
+mcp__pal__chat({
   model: "haiku",
   prompt: "Implement a function to parse ISO date strings into Date objects. Requirements: handle timezone offsets, throw clear errors for invalid formats, include JSDoc. Follow the patterns in utils/dateHelpers.ts",
   absolute_file_paths: ["/path/to/utils/dateHelpers.ts"],
@@ -73,7 +93,7 @@ mcp__zen__chat({
 - Actionable feedback with severity levels (critical/high/medium/low)
 
 **Delegation Best Practices:**
-- Use `mcp__zen__codereview` tool with `model="grok-4"`
+- Use `mcp__pal__codereview` tool with `model="grok-4"`
 - Provide all relevant files in `relevant_files` parameter (absolute paths)
 - Set `review_type` based on change scope:
   - `full`: comprehensive analysis (new features, major refactors)
@@ -86,7 +106,7 @@ mcp__zen__chat({
 
 **Example Invocation:**
 ```javascript
-mcp__zen__codereview({
+mcp__pal__codereview({
   model: "grok-4",
   step: "Review the date parsing implementation for security vulnerabilities, edge cases, and performance issues. Check for proper error handling and input validation.",
   findings: "",
@@ -271,7 +291,7 @@ mcp__zen__codereview({
 
 ### Step 2: Implementation (Haiku)
 ```javascript
-mcp__zen__chat({
+mcp__pal__chat({
   model: "haiku",
   prompt: "Add pagination to GET /api/users endpoint. Requirements:
   - Accept query params: page (default 1), limit (default 20, max 100)
@@ -293,7 +313,7 @@ mcp__zen__chat({
 
 ### Step 3: Review (Grok-4)
 ```javascript
-mcp__zen__codereview({
+mcp__pal__codereview({
   model: "grok-4",
   step: "Review pagination implementation for security (SQL injection, DOS via large limits), performance (query optimization), and correctness (off-by-one errors, edge cases).",
   findings: "",
@@ -335,14 +355,14 @@ mcp__zen__codereview({
 
 ### Scenario: Refactoring
 1. **Sonnet**: Identify code smells, define refactoring goals
-2. **Grok-4**: Analyze current code for issues (use `mcp__zen__refactor`)
+2. **Grok-4**: Analyze current code for issues (use `mcp__pal__refactor`)
 3. **Haiku**: Implement refactoring following expert recommendations
 4. **Grok-4**: Review refactored code
 5. **Sonnet**: Validate behavior unchanged, update docs
 
 ### Scenario: Security Audit
 1. **Sonnet**: Define audit scope, identify critical paths
-2. **Grok-4**: Security-focused review (use `mcp__zen__secaudit`)
+2. **Grok-4**: Security-focused review (use `mcp__pal__secaudit`)
 3. **Haiku**: Implement fixes for vulnerabilities
 4. **Grok-4**: Re-audit after fixes
 5. **Sonnet**: Document findings, create remediation plan
@@ -384,7 +404,54 @@ This skill should evolve based on your experience:
 
 ---
 
-**Version**: 1.0
-**Last Updated**: 2025-11-18
+## Async Workflow Pattern (v2.0.64+)
+
+### Parallel Implementation & Review
+```javascript
+// Launch implementation in background
+const implTask = Task({
+  subagent_type: "general-purpose",
+  model: "haiku",
+  prompt: "Implement the pagination feature...",
+  run_in_background: true
+})
+
+// Continue working on documentation while Haiku codes
+// ...
+
+// Retrieve implementation when ready
+const implResult = TaskOutput({
+  task_id: implTask.id,
+  block: true
+})
+
+// Launch review in background
+const reviewTask = Task({
+  subagent_type: "general-purpose",
+  prompt: "Review this implementation...",
+  run_in_background: true
+})
+
+// Continue other work while review happens
+// ...
+
+// Get review results
+const reviewResult = TaskOutput({
+  task_id: reviewTask.id,
+  block: true
+})
+```
+
+### Benefits of Async Workflow
+- Reduced wall-clock time for complex features
+- Ability to handle multiple tasks in parallel
+- Non-blocking monitoring and review operations
+- Better resource utilization
+
+---
+
+**Version**: 2.0
+**Last Updated**: 2025-12-11
 **Maintained By**: Justin (user)
 **Project**: BooksTrack Backend (Cloudflare Workers)
+**Claude Code Version**: 2.0.62 - 2.0.65

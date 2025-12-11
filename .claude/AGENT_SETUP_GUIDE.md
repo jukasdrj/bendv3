@@ -28,7 +28,7 @@ your-project/
 │   │   │   └── SKILL.md             # Orchestration agent
 │   │   ├── cloudflare-agent/        # (Optional: platform-specific)
 │   │   │   └── SKILL.md
-│   │   └── zen-mcp-master/
+│   │   └── pal-mcp-master/
 │   │       └── SKILL.md             # Deep analysis agent
 │   │
 │   └── hooks/                        # Automation triggers
@@ -128,7 +128,7 @@ if [[ "$TOOL_NAME" == "Bash" ]] && echo "$TOOL_COMMAND" | grep -qE "deploy|publi
 
 # Code changes detection
 elif [[ "$TOOL_NAME" =~ ^(Write|Edit)$ ]] && echo "$TOOL_PATH" | grep -qE "src/|lib/"; then
-  INVOKE_AGENT="zen-mcp-master"
+  INVOKE_AGENT="pal-mcp-master"
   AGENT_CONTEXT="Code changes detected. Consider code review (codereview tool)..."
 
 # Multiple file changes
@@ -208,7 +208,7 @@ User Request
 project-manager (orchestrator)
      ↓
      ├─→ deployment-agent (platform-specific)
-     └─→ zen-mcp-master (analysis: 14 Zen MCP tools)
+     └─→ pal-mcp-master (analysis: 14 PAL MCP tools)
 ```
 
 ---
@@ -230,7 +230,7 @@ project-manager (orchestrator)
 ## Core Responsibilities
 
 1. **Analyze** user requests to identify required specialists
-2. **Delegate** to appropriate agents (deployment-agent, zen-mcp-master)
+2. **Delegate** to appropriate agents (deployment-agent, pal-mcp-master)
 3. **Coordinate** multi-agent workflows
 4. **Maintain** context across handoffs
 
@@ -245,14 +245,14 @@ User: "Deploy to production"
 ### Code Review + Deploy
 ```
 User: "Review code and deploy"
-→ Phase 1: zen-mcp-master (codereview)
+→ Phase 1: pal-mcp-master (codereview)
 → Phase 2: deployment-agent (deploy + monitor)
 ```
 
 ## Available Agents
 
 - **deployment-agent**: Platform-specific deployment and monitoring
-- **zen-mcp-master**: Deep technical analysis (14 Zen MCP tools)
+- **pal-mcp-master**: Deep technical analysis (14 PAL MCP tools)
 
 ---
 
@@ -327,16 +327,16 @@ User: "Review code and deploy"
 
 ---
 
-### Agent 3: zen-mcp-master ✅ RECOMMENDED
+### Agent 3: pal-mcp-master ✅ RECOMMENDED
 
-**Purpose:** Deep technical analysis using Zen MCP tools
+**Purpose:** Deep technical analysis using PAL MCP tools
 
-**Location:** `.claude/skills/zen-mcp-master/SKILL.md`
+**Location:** `.claude/skills/pal-mcp-master/SKILL.md`
 
 **Copy from BooksTrack repo:** This agent is universal and works for all projects.
 
 ```bash
-cp bookstrack-backend/.claude/skills/zen-mcp-master/SKILL.md your-project/.claude/skills/zen-mcp-master/
+cp bookstrack-backend/.claude/skills/pal-mcp-master/SKILL.md your-project/.claude/skills/pal-mcp-master/
 ```
 
 **Available Tools:**
@@ -538,7 +538,7 @@ chmod +x .claude/hooks/pre-commit.sh
 
 ---
 
-## Advanced: Zen MCP Configuration
+## Advanced: PAL MCP Configuration
 
 ### Model Selection Strategy
 
@@ -578,7 +578,7 @@ chmod +x .claude/hooks/pre-commit.sh
 
 Begin with:
 - `project-manager` (orchestration)
-- `zen-mcp-master` (analysis)
+- `pal-mcp-master` (analysis)
 - Skip deployment agent if not needed yet
 
 ### 2. Add Platform Agent When Ready
@@ -594,7 +594,7 @@ Start with basic triggers:
 ```bash
 # Simple: Any code change
 if [[ "$TOOL_NAME" =~ ^(Write|Edit)$ ]]; then
-  INVOKE_AGENT="zen-mcp-master"
+  INVOKE_AGENT="pal-mcp-master"
 fi
 ```
 
@@ -602,7 +602,7 @@ Then add specificity:
 ```bash
 # Advanced: Specific file patterns
 if echo "$TOOL_PATH" | grep -q "src/handlers/"; then
-  INVOKE_AGENT="zen-mcp-master"
+  INVOKE_AGENT="pal-mcp-master"
   AGENT_CONTEXT="Handler modified. Consider API review..."
 fi
 ```
@@ -630,9 +630,9 @@ Claude: Reviews code manually
 **After (automated):**
 ```
 User: Edits code
-Hook: "🤖 Agent Suggestion: zen-mcp-master"
-User: "/skill zen-mcp-master"
-Agent: Comprehensive codereview with 14 Zen tools
+Hook: "🤖 Agent Suggestion: pal-mcp-master"
+User: "/skill pal-mcp-master"
+Agent: Comprehensive codereview with 14 PAL tools
 ```
 
 ### From Old Agent Names
@@ -659,7 +659,7 @@ Copy these files from BooksTrack to your project:
 ```
 ✅ .claude/settings.json                 (customize matchers)
 ✅ .claude/skills/project-manager/       (customize workflows)
-✅ .claude/skills/zen-mcp-master/        (copy as-is)
+✅ .claude/skills/pal-mcp-master/        (copy as-is)
 ⚠️  .claude/skills/deployment-agent/     (rename & customize)
 ✅ .claude/hooks/post-tool-use.sh        (customize triggers)
 ⚠️  .claude/hooks/pre-commit.sh          (customize checks)
@@ -677,7 +677,7 @@ Legend:
 ### Minimum Setup (15 minutes)
 
 1. Create `.claude/settings.json` with PostToolUse hook
-2. Copy `project-manager/` and `zen-mcp-master/` skills
+2. Copy `project-manager/` and `pal-mcp-master/` skills
 3. Create `post-tool-use.sh` hook with basic triggers
 4. Test with `/skill project-manager`
 
@@ -693,7 +693,7 @@ Legend:
 
 - **Autonomous agents** suggest themselves after tool use
 - **project-manager** coordinates complex workflows
-- **zen-mcp-master** provides 14 specialized analysis tools
+- **pal-mcp-master** provides 14 specialized analysis tools
 - **deployment-agent** handles platform-specific operations
 - **Git hooks** prevent sensitive file commits
 
@@ -702,4 +702,4 @@ Legend:
 **Last Updated:** November 14, 2025
 **Source Project:** BooksTrack Backend
 **License:** Use freely in your projects
-**Maintained By:** AI Team (project-manager, cloudflare-agent, zen-mcp-master, Claude Code)
+**Maintained By:** AI Team (project-manager, cloudflare-agent, pal-mcp-master, Claude Code)

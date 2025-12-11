@@ -262,7 +262,57 @@ export function registerDiscoveryRoutes(
         }
       }
 
-      // No recommendations available
+      // Fallback: fetch recent books with covers as recommendations
+      if (c.env.DB) {
+        const fallbackResult = await c.env.DB.prepare(`
+          SELECT
+            b.isbn,
+            b.title,
+            b.cover_medium_url,
+            json_extract(b.canonical_metadata, '$.authors[0].name') as author
+          FROM books b
+          WHERE b.cover_medium_url IS NOT NULL
+          ORDER BY b.updated_at DESC
+          LIMIT ?
+        `).bind(limit).all<{
+          isbn: string
+          title: string
+          cover_medium_url: string | null
+          author: string | null
+        }>()
+
+        if (fallbackResult.results && fallbackResult.results.length > 0) {
+          const fallbackRecommendations = fallbackResult.results.map(row => ({
+            isbn: row.isbn,
+            title: row.title,
+            author: row.author || 'Unknown Author',
+            coverUrl: row.cover_medium_url || undefined,
+            reason: 'Recently added to our collection'
+          }))
+
+          return c.json({
+            success: true,
+            data: {
+              weekOf,
+              recommendations: fallbackRecommendations,
+              count: fallbackRecommendations.length,
+              totalAvailable: fallbackRecommendations.length
+            },
+            metadata: {
+              timestamp: new Date().toISOString(),
+              requestId: ctx.requestId,
+              source: 'fallback' as const,
+              cached: false,
+              processingTimeMs: Date.now() - ctx.startTime
+            },
+            _links: {
+              self: { href: `/v3/recommendations/weekly?limit=${limit}`, rel: 'self', method: 'GET' }
+            }
+          }, 200)
+        }
+      }
+
+      // No recommendations and no fallback available
       return c.json(
         createProblemDetails('NOT_FOUND', 'No recommendations available for this week', {
           requestId: ctx.requestId,

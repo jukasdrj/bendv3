@@ -2,6 +2,11 @@
 
 # BooksTrack Backend Post-Tool-Use Hook
 # Automatically triggers relevant agents based on tool usage patterns
+#
+# Claude Code 2.0.64+ Features:
+# - Agents can run asynchronously via run_in_background parameter
+# - Use TaskOutput tool to retrieve results from background agents
+# - Supports instant auto-compacting for long sessions
 
 set -e
 
@@ -17,6 +22,10 @@ AUTO_INVOKE_CRITICAL=${AUTO_INVOKE_CRITICAL:-true}
 
 # Minimum lines changed to trigger code review (avoid spam on trivial edits)
 MIN_LINES_FOR_REVIEW=${MIN_LINES_FOR_REVIEW:-10}
+
+# Run agents in background (Claude Code 2.0.64+)
+# When true, agents run asynchronously and can send wake messages
+RUN_AGENTS_IN_BACKGROUND=${RUN_AGENTS_IN_BACKGROUND:-false}
 
 # ============================================================================
 # INPUT PARSING
@@ -109,12 +118,21 @@ if [ -n "$INVOKE_AGENT" ]; then
 
     # Invoke each agent in the list
     for agent in $(echo "$INVOKE_AGENT" | tr ',' ' '); do
-      echo "   ⚡ Launching agent: @$agent"
+      if [ "$RUN_AGENTS_IN_BACKGROUND" = true ]; then
+        echo "   ⚡ Launching agent (background): @$agent"
+        echo "   📋 Use TaskOutput tool to retrieve results when ready"
+      else
+        echo "   ⚡ Launching agent: @$agent"
+      fi
       echo "<user-prompt-submit-hook>@$agent</user-prompt-submit-hook>"
     done
 
     echo ""
-    echo "   💡 Tip: Set AUTO_INVOKE_AGENTS=false in your shell to disable auto-invoke"
+    if [ "$RUN_AGENTS_IN_BACKGROUND" = true ]; then
+      echo "   💡 Background mode: Agent runs async, use TaskOutput to check results"
+    else
+      echo "   💡 Tip: Set AUTO_INVOKE_AGENTS=false in your shell to disable auto-invoke"
+    fi
     echo ""
   else
     # SUGGESTION MODE: Only notify user

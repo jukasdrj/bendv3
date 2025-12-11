@@ -56,7 +56,7 @@ const GEMINI_MODEL = 'gemini-2.0-flash-exp'
 export async function handleRecommendationsCron(env: Env): Promise<void> {
   console.log('[RecommendationsCron] Starting weekly recommendations generation')
 
-  const weekOf = getCurrentWeekMonday()
+  const weekOf = getCurrentWeekSunday()
   const startTime = Date.now()
 
   try {
@@ -132,14 +132,16 @@ export async function handleRecommendationsCron(env: Env): Promise<void> {
 // ============================================================================
 
 /**
- * Get Monday of current week in ISO format
+ * Get Sunday of current week in ISO format
+ * Aligned with API endpoint which uses Sunday-based weeks
  */
-function getCurrentWeekMonday(): string {
+function getCurrentWeekSunday(): string {
   const now = new Date()
-  const day = now.getUTCDay()
-  const diff = now.getUTCDate() - day + (day === 0 ? -6 : 1)
-  const monday = new Date(now.setUTCDate(diff))
-  return monday.toISOString().split('T')[0]!
+  const dayOfWeek = now.getUTCDay()
+  const weekStart = new Date(now)
+  weekStart.setUTCDate(now.getUTCDate() - dayOfWeek)
+  weekStart.setUTCHours(0, 0, 0, 0)
+  return weekStart.toISOString().split('T')[0]!
 }
 
 /**

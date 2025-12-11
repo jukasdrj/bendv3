@@ -1,6 +1,6 @@
-# Zen MCP Cost Optimization Guide
+# PAL MCP Cost Optimization Guide
 
-**Quick Reference:** How to minimize API costs when using Zen MCP tools
+**Quick Reference:** How to minimize API costs when using PAL MCP tools
 
 ---
 
@@ -16,11 +16,11 @@
 ## 💰 **Cost Hierarchy (Cheapest to Most Expensive)**
 
 ### **Claude Code Orchestration** (Anthropic billing)
-1. ✅ **Haiku** - Best for Zen MCP work (external models do heavy lifting)
+1. ✅ **Haiku** - Best for PAL MCP work (external models do heavy lifting)
 2. ✅ **Sonnet** - Good balance for complex synthesis
 3. ❌ **Opus/OpusPlan** - AVOID! Maxes out quota quickly
 
-### **External Models via Zen MCP** (Direct API billing)
+### **External Models via PAL MCP** (Direct API billing)
 1. ✅ **Grok 4** (X.AI) - **CHEAPEST** - Use as default
 2. ⚠️ **Gemini 2.5 Pro** (Google AI) - More expensive, use when Grok insufficient
 3. ❌ **Multi-model consensus** - Most expensive, critical decisions only
@@ -34,10 +34,10 @@
 # DEFAULT (cheapest)
 claude --model haiku
 # Then call:
-mcp zen codereview --model "grok-4" --thinking-mode medium
+mcp pal codereview --model "grok-4" --thinking-mode medium
 
 # If Grok misses issues:
-mcp zen codereview --model "gemini-2.5-pro" --thinking-mode medium
+mcp pal codereview --model "gemini-2.5-pro" --thinking-mode medium
 ```
 
 ### **For Debugging:**
@@ -45,33 +45,33 @@ mcp zen codereview --model "gemini-2.5-pro" --thinking-mode medium
 # DEFAULT (cheapest)
 claude --model haiku
 # Then call:
-mcp zen debug --model "grok-4" --thinking-mode high
+mcp pal debug --model "grok-4" --thinking-mode high
 
 # For complex race conditions or multi-system issues:
-mcp zen debug --model "gemini-2.5-pro" --thinking-mode high
+mcp pal debug --model "gemini-2.5-pro" --thinking-mode high
 ```
 
 ### **For Planning:**
 ```bash
 # SIMPLE FEATURES (< 3 files)
 claude --model haiku
-# No Zen MCP needed - Claude Code direct
+# No PAL MCP needed - Claude Code direct
 
 # COMPLEX FEATURES (3-10 files)
 claude --model sonnet
-# Or with Zen MCP:
-mcp zen planner --model "grok-4" --thinking-mode medium
+# Or with PAL MCP:
+mcp pal planner --model "grok-4" --thinking-mode medium
 
 # MAJOR REFACTORS (> 10 files)
 claude --model sonnet
-mcp zen planner --model "grok-4" --thinking-mode high
+mcp pal planner --model "grok-4" --thinking-mode high
 ```
 
 ### **For Consensus (Use Sparingly!):**
 ```bash
 # CRITICAL DECISIONS ONLY
 claude --model sonnet  # Never use Opus for consensus orchestration!
-mcp zen consensus \
+mcp pal consensus \
   --models "grok-4,gemini-2.5-pro" \  # Max 2 models
   --prompt "Critical architectural decision..."
 ```
@@ -87,7 +87,7 @@ mcp zen consensus \
 # Claude Code in OpusPlan mode
 claude --model opusplan
 
-mcp zen codereview \
+mcp pal codereview \
   --model "gemini-2.5-pro" \
   --thinking-mode high
 
@@ -102,7 +102,7 @@ mcp zen codereview \
 # Claude Code in Haiku mode
 claude --model haiku
 
-mcp zen codereview \
+mcp pal codereview \
   --model "grok-4" \
   --thinking-mode medium
 
@@ -122,7 +122,7 @@ mcp zen codereview \
 # Claude Code in Opus mode
 claude --model opus
 
-mcp zen consensus \
+mcp pal consensus \
   --models "gemini-2.5-pro,o3-pro,grok-4"
 
 # Cost:
@@ -138,7 +138,7 @@ mcp zen consensus \
 # Claude Code in Sonnet mode
 claude --model sonnet
 
-mcp zen consensus \
+mcp pal consensus \
   --models "grok-4,gemini-2.5-pro"  # Only 2 models!
 
 # Cost:
@@ -154,10 +154,10 @@ mcp zen consensus \
 # Try single model first!
 claude --model haiku
 
-mcp zen codereview --model "grok-4"
+mcp pal codereview --model "grok-4"
 
 # If insufficient, escalate to Gemini
-mcp zen codereview --model "gemini-2.5-pro"
+mcp pal codereview --model "gemini-2.5-pro"
 
 # Only use consensus as last resort
 # Cost: ~85% cheaper than multi-model consensus
@@ -167,17 +167,17 @@ mcp zen codereview --model "gemini-2.5-pro"
 
 ## 🚨 **Common Mistakes**
 
-### **Mistake 1: Running Opus/OpusPlan for Zen MCP Work**
+### **Mistake 1: Running Opus/OpusPlan for PAL MCP Work**
 ❌ **DON'T:**
 ```bash
 claude --model opus  # Expensive orchestration!
-mcp zen codereview --model "grok-4"
+mcp pal codereview --model "grok-4"
 ```
 
 ✅ **DO:**
 ```bash
 claude --model haiku  # Cheap orchestration
-mcp zen codereview --model "grok-4"
+mcp pal codereview --model "grok-4"
 ```
 
 **Why:** Grok does the heavy analysis. Haiku just packages the request/response.
@@ -187,12 +187,12 @@ mcp zen codereview --model "grok-4"
 ### **Mistake 2: Using Gemini as Default**
 ❌ **DON'T:**
 ```bash
-mcp zen debug --model "gemini-2.5-pro"  # More expensive!
+mcp pal debug --model "gemini-2.5-pro"  # More expensive!
 ```
 
 ✅ **DO:**
 ```bash
-mcp zen debug --model "grok-4"  # Cheaper!
+mcp pal debug --model "grok-4"  # Cheaper!
 ```
 
 **When to use Gemini:**
@@ -206,13 +206,13 @@ mcp zen debug --model "grok-4"  # Cheaper!
 ❌ **DON'T:**
 ```bash
 # For routine code review
-mcp zen consensus --models "grok-4,gemini-2.5-pro,..."
+mcp pal consensus --models "grok-4,gemini-2.5-pro,..."
 ```
 
 ✅ **DO:**
 ```bash
 # Single model first
-mcp zen codereview --model "grok-4"
+mcp pal codereview --model "grok-4"
 
 # Consensus ONLY for critical decisions
 # - Security vulnerabilities
@@ -260,7 +260,7 @@ When starting a new Claude Code session:
 
 - [ ] Check current model: `/model`
 - [ ] If Opus/OpusPlan → Switch to Haiku or Sonnet
-- [ ] For Zen MCP work → Use Haiku (cheapest orchestration)
+- [ ] For PAL MCP work → Use Haiku (cheapest orchestration)
 - [ ] For complex synthesis → Use Sonnet
 - [ ] Default external model → `grok-4`
 - [ ] Thinking mode → `medium` (unless complex issue)
@@ -290,17 +290,17 @@ If you're still seeing high Opus usage:
    grep -r "claude-opus" ~/.claude/projects/*/
    ```
 
-4. **Verify Zen MCP calls:**
+4. **Verify PAL MCP calls:**
    ```bash
    # Should see "grok-4" as model, NOT "gemini-2.5-pro"
-   grep -r "mcp__zen" ~/.claude/projects/*/ | grep "model"
+   grep -r "mcp__pal" ~/.claude/projects/*/ | grep "model"
    ```
 
 ---
 
 ## 📚 **Additional Resources**
 
-- Zen MCP Model Pricing: `mcp zen listmodels`
+- PAL MCP Model Pricing: `mcp pal listmodels`
 - Claude Code Model Selector: `/model`
 - Usage Tracking: `/usage`
 - Cost Analysis: Review `.claude/projects/*/` session logs

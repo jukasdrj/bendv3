@@ -1,5 +1,12 @@
 {
-  "includeCoAuthoredBy": true,
+  "attribution": {
+    "pr": "🤖 Generated with [Claude Code](https://claude.ai/claude-code)",
+    "commit": "🤖 Generated with [Claude Code](https://claude.ai/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
+  },
+  "fileSuggestion": {
+    "type": "command",
+    "command": "fd --type f --hidden --exclude .git --exclude node_modules --exclude .wrangler"
+  },
   "hooks": {
     "SessionStart": [
       {

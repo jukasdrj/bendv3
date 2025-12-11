@@ -35,7 +35,8 @@ import {
   generateAuthToken,
   buildStreamUrl,
   createJobLinks,
-  validateTokenFormat
+  validateTokenFormat,
+  mapDOStateToJob
 } from './common'
 import { handleSSEStream } from './stream'
 import { deleteR2Objects } from '../../utils/r2-utils'
@@ -177,6 +178,26 @@ Returns immediately with jobId for progress tracking via SSE stream.
     const ctx = c.get('ctx')
 
     try {
+      // Validate Content-Type before parsing (defensive check for iOS compatibility)
+      const contentType = c.req.header('content-type') || ''
+      if (!contentType.includes('multipart/form-data')) {
+        return c.json(
+          createProblemDetails(
+            'INVALID_REQUEST',
+            `Expected Content-Type: multipart/form-data with photos[] field. Received: ${contentType || 'none'}`,
+            {
+              requestId: ctx.requestId,
+              instance: c.req.url,
+              receivedContentType: contentType || null,
+              expectedContentType: 'multipart/form-data',
+              expectedField: 'photos[]',
+              hint: 'Use FormData with photos[] field containing image files'
+            }
+          ),
+          400
+        )
+      }
+
       // Parse multipart/form-data
       const formData = await c.req.formData()
       const photoFiles = formData.getAll('photos[]')
@@ -405,17 +426,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
         )
       }
 
-      const job: Job = {
-        jobId: state.jobId,
-        type: state.type,
-        status: state.status,
-        progress: state.progress,
-        processedCount: state.processedCount,
-        totalCount: state.totalCount,
-        startTime: state.startTime,
-        completedTime: state.completedTime,
-        error: state.error
-      }
+      const job = mapDOStateToJob(state)
 
       return c.json(
         {

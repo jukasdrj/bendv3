@@ -20,11 +20,11 @@
     "lint:check": "echo 'Placeholder: Add ESLint when needed'",
     "detect-breaking-changes": "tsx scripts/detect-breaking-changes.ts",
     "update-wrangler": "npm install wrangler@latest",
-    "generate:openapi": "wrangler dev --local --port 8788 & sleep 3 && curl http://localhost:8788/v3/openapi.json > docs/openapi-v3.json && pkill -f 'wrangler dev'",
+    "generate:openapi": "bash scripts/generate-openapi-baseline.sh",
     "docs:v3": "echo 'V3 API Docs: Start dev server (npm run dev) and visit http://localhost:8787/v3/docs'"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20251210.0",
+    "@cloudflare/workers-types": "^4.20251211.0",
     "@stoplight/spectral-cli": "^6.15.0",
     "@vitest/coverage-v8": "^4.0.15",
     "@vitest/ui": "^4.0.15",

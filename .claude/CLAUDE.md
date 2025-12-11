@@ -728,18 +728,18 @@ User: "Add rate limiting to the batch enrichment endpoint"
 Sonnet 4.5 (you):
 1. Clarify requirements (per-IP? per-user? rate limits?)
 2. Design approach (KV-based sliding window)
-3. Delegate implementation to Haiku via mcp__zen__chat
+3. Delegate implementation to Haiku via mcp__pal__chat
 4. Review Haiku's output
-5. Request Grok-4 security review via mcp__zen__codereview
+5. Request Grok-4 security review via mcp__pal__codereview
 6. Address critical findings
 7. Deliver to user
 ```
 
-**Available via Zen MCP:**
-- `mcp__zen__chat(model="haiku")` - Fast implementation
-- `mcp__zen__codereview(model="grok-4")` - Expert review
-- `mcp__zen__debug(model="grok-4")` - Deep debugging
-- `mcp__zen__secaudit(model="grok-4")` - Security audit
+**Available via PAL MCP:**
+- `mcp__pal__chat(model="haiku")` - Fast implementation
+- `mcp__pal__codereview(model="grok-4")` - Expert review
+- `mcp__pal__debug(model="grok-4")` - Deep debugging
+- `mcp__pal__secaudit(model="grok-4")` - Security audit
 
 ---
 
@@ -809,7 +809,7 @@ Sonnet 4.5 (you):
 - **Jules (@jules on GitHub):** PR reviews, code explanations
 
 #### Level 4: Deep Analysis
-- **Zen MCP Tools:**
+- **PAL MCP Tools:**
   - `debug` - Complex bug investigation
   - `secaudit` - Security vulnerability assessment
   - `codereview` - Architectural code review
@@ -825,20 +825,20 @@ Sonnet 4.5 (you):
 2. **cf-code-reviewer** validates Workers patterns and security
 3. **Claude Code** refactors to match project architecture
 4. **cf-ops-monitor** deploys and monitors health
-5. **Zen MCP** performs deep security audit (if sensitive changes)
+5. **PAL MCP** performs deep security audit (if sensitive changes)
 6. **Jules** reviews PR before human approval
 
 **Incident Response Workflow:**
 1. **cf-ops-monitor** detects error spike via `wrangler tail`
 2. **cf-ops-monitor** auto-rollback if error rate > 5%
-3. **Claude Code** investigates root cause with Zen MCP `debug`
+3. **Claude Code** investigates root cause with PAL MCP `debug`
 4. **cf-code-reviewer** validates fix before re-deploy
 5. **cf-ops-monitor** deploys fix and monitors recovery
 
 **New Feature Workflow:**
 1. **Claude Code** implements feature across multiple files
 2. **cf-code-reviewer** validates code quality and patterns
-3. **Zen MCP** `codereview` for architecture alignment
+3. **PAL MCP** `codereview` for architecture alignment
 4. **cf-ops-monitor** deploys to production with monitoring
 5. **Jules** documents feature in PR review
 
@@ -904,5 +904,5 @@ For historical issue tracking, see git commit history and closed GitHub issues.
 ---
 
 **Last Updated:** December 1, 2025
-**Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer, Jules, Zen MCP)
+**Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer, Jules, PAL MCP)
 **Human Owner:** @jukasdrj

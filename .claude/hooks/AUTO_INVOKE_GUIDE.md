@@ -349,16 +349,16 @@ echo "$(date +%s)" > "$LAST_INVOKE_FILE"
 
 ---
 
-## Integration with Zen MCP
+## Integration with PAL MCP
 
-Auto-invoked agents can escalate to Zen MCP tools:
+Auto-invoked agents can escalate to PAL MCP tools:
 
 ```bash
 # cf-code-reviewer finds security issue
-# → Escalates to: mcp zen secaudit
+# → Escalates to: mcp pal secaudit
 
 # cf-ops-monitor detects error spike
-# → Escalates to: mcp zen debug
+# → Escalates to: mcp pal debug
 ```
 
 This creates a **multi-tier AI assistant** that handles routine tasks automatically and escalates complex issues to more powerful models.

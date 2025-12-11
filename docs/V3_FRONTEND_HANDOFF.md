@@ -240,8 +240,8 @@ const eventSource = new EventSource(
 POST /v3/jobs/scans
 Content-Type: multipart/form-data
 
-files[]=@shelf1.jpg
-files[]=@shelf2.jpg
+photos[]=@shelf1.jpg
+photos[]=@shelf2.jpg
 
 Response (202 Accepted):
 {
@@ -260,7 +260,7 @@ Response (202 Accepted):
 ```javascript
 const formData = new FormData()
 Array.from(imageInputs.files).forEach(file => {
-  formData.append('files[]', file)
+  formData.append('photos[]', file)
 })
 
 const response = await fetch('/v3/jobs/scans', {

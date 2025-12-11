@@ -7,9 +7,33 @@ description: Documentation for BooksTrack autonomous agents
 
 This directory contains specialized AI agents that work autonomously to manage Cloudflare Workers deployments and code quality.
 
+**Claude Code Version:** 2.0.62 - 2.0.65 compatible
+
 ---
 
-## Multi-Agent Development Workflow (NEW!)
+## What's New (v2.0.62-2.0.65)
+
+### Async Agent Execution (v2.0.64)
+- Agents can run in background with `run_in_background: true`
+- Use **TaskOutput** tool to retrieve results (replaces AgentOutputTool)
+- Background agents send wake messages when complete
+
+### Session Features (v2.0.64)
+- **Named sessions:** `/rename <name>` to name, `/resume <name>` to continue
+- Resume agents maintain full conversation context
+- **Usage stats:** `/stats` shows your Claude Code usage patterns
+
+### UI Improvements (v2.0.62)
+- **(Recommended)** indicator on first option in multiple-choice questions
+- Agents should put recommended option first in AskUserQuestion
+
+### Rules Directory (v2.0.64)
+- Project rules in `.claude/rules/` load automatically
+- See: `.claude/rules/README.md`
+
+---
+
+## Multi-Agent Development Workflow
 
 BooksTrack now supports a **three-agent development workflow** for complex features:
 
@@ -21,13 +45,13 @@ BooksTrack now supports a **three-agent development workflow** for complex featu
    - Task decomposition
    - Quality validation
 
-2. **Haiku (Implementation Specialist)** via Zen MCP
+2. **Haiku (Implementation Specialist)** via PAL MCP
    - Rapid code generation
    - Feature implementation
    - Test coverage
    - Following established patterns
 
-3. **Grok-4 (Quality Reviewer)** via Zen MCP
+3. **Grok-4 (Quality Reviewer)** via PAL MCP
    - Security & vulnerability analysis
    - Performance optimization
    - Code smell detection
@@ -41,9 +65,9 @@ User: "Implement pagination for the book search endpoint with Haiku, then have G
 
 Sonnet:
 1. Clarifies requirements (page/limit params, max limits, response format)
-2. Delegates to Haiku with complete context via mcp__zen__chat
+2. Delegates to Haiku with complete context via mcp__pal__chat
 3. Reviews Haiku's implementation
-4. Delegates to Grok-4 for security/performance review via mcp__zen__codereview
+4. Delegates to Grok-4 for security/performance review via mcp__pal__codereview
 5. Addresses critical findings
 6. Delivers final implementation to user
 ```
@@ -114,12 +138,12 @@ Sonnet:
 - **Major refactors:** `cf-code-reviewer` validates, then `cf-ops-monitor` deploys
 - **Incident response:** `cf-ops-monitor` detects issue, `cf-code-reviewer` validates fix
 
-### Escalation to Zen MCP
+### Escalation to PAL MCP
 For complex issues requiring deep analysis:
-- Security vulnerabilities → `@zen secaudit`
-- Complex bugs → `@zen debug`
-- Architecture review → `@zen codereview`
-- Multi-stage reasoning → `@zen thinkdeep`
+- Security vulnerabilities → `@pal secaudit`
+- Complex bugs → `@pal debug`
+- Architecture review → `@pal codereview`
+- Multi-stage reasoning → `@pal thinkdeep`
 
 ---
 
@@ -171,7 +195,7 @@ Location: `.claude/hooks/pre-commit.sh`
 └───────────┬───────────┘         └───────────┬───────────────┘
             │                                  │
             │         ┌────────────────────┐   │
-            └────────►│   Zen MCP Tools    │◄──┘
+            └────────►│   PAL MCP Tools    │◄──┘
                       │  - debug           │
                       │  - secaudit        │
                       │  - codereview      │
@@ -291,7 +315,7 @@ This is the legal contract with frontend teams. Any API changes must honor this 
 ### When to Use Agents
 - ✅ **cf-ops-monitor:** Production deployments, live debugging, metrics analysis
 - ✅ **cf-code-reviewer:** Pre-PR reviews, refactoring validation, pattern enforcement, **API contract compliance**
-- ✅ **Zen MCP:** Deep investigations, security audits, complex architectural decisions
+- ✅ **PAL MCP:** Deep investigations, security audits, complex architectural decisions
 
 ### When NOT to Use Agents
 - ❌ Simple one-line changes (use Claude Code directly)
@@ -301,7 +325,7 @@ This is the legal contract with frontend teams. Any API changes must honor this 
 ### Agent Response Time
 - **cf-code-reviewer:** ~30 seconds for single file review
 - **cf-ops-monitor:** ~2 minutes for deployment + monitoring
-- **Zen MCP tools:** ~1-5 minutes depending on complexity
+- **PAL MCP tools:** ~1-5 minutes depending on complexity
 
 ---
 
@@ -346,5 +370,34 @@ echo $CLAUDE_TOOL_PATH
 
 ---
 
-**Last Updated:** December 1, 2025
+## Background Execution (v2.0.64+)
+
+### Running Agents in Background
+```javascript
+// Launch agent in background
+Task({
+  subagent_type: "cf-ops-monitor",
+  prompt: "Monitor deployment health for 5 minutes",
+  run_in_background: true
+})
+
+// Continue working...
+
+// Later, retrieve results
+TaskOutput({
+  task_id: "<agent-id>",
+  block: true  // Wait for completion
+})
+```
+
+### Best Practices
+- Use background mode for long-running monitoring tasks
+- Use foreground mode for interactive code reviews
+- TaskOutput with `block: false` checks status without waiting
+- Agent IDs shown with `/tasks` command
+
+---
+
+**Last Updated:** December 11, 2025
 **Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer)
+**Claude Code Version:** 2.0.62 - 2.0.65

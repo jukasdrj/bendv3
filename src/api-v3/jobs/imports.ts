@@ -35,7 +35,8 @@ import {
   generateAuthToken,
   buildStreamUrl,
   createJobLinks,
-  validateTokenFormat
+  validateTokenFormat,
+  mapDOStateToJob
 } from './common'
 import { handleSSEStream } from './stream'
 
@@ -104,6 +105,26 @@ Returns immediately with jobId for progress tracking via SSE stream.
     const ctx = c.get('ctx')
 
     try {
+      // Validate Content-Type before parsing
+      const contentType = c.req.header('content-type') || ''
+      if (!contentType.includes('multipart/form-data')) {
+        return c.json(
+          createProblemDetails(
+            'INVALID_REQUEST',
+            `Expected Content-Type: multipart/form-data with file field. Received: ${contentType || 'none'}`,
+            {
+              requestId: ctx.requestId,
+              instance: c.req.url,
+              receivedContentType: contentType || null,
+              expectedContentType: 'multipart/form-data',
+              expectedField: 'file',
+              hint: 'Use FormData with file field containing CSV data'
+            }
+          ),
+          400
+        )
+      }
+
       const formData = await c.req.formData()
       const file = formData.get('file') as File | null
 
@@ -239,17 +260,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
         )
       }
 
-      const job: Job = {
-        jobId: state.jobId,
-        type: state.type,
-        status: state.status,
-        progress: state.progress,
-        processedCount: state.processedCount,
-        totalCount: state.totalCount,
-        startTime: state.startTime,
-        completedTime: state.completedTime,
-        error: state.error
-      }
+      const job = mapDOStateToJob(state)
 
       return c.json(
         {
@@ -524,18 +535,7 @@ Results cached in KV for 1 hour after completion.`,
       })
 
       const canceledState = await doStub.getJobState()
-
-      const job: Job = {
-        jobId: canceledState.jobId,
-        type: canceledState.type,
-        status: canceledState.status,
-        progress: canceledState.progress,
-        processedCount: canceledState.processedCount,
-        totalCount: canceledState.totalCount,
-        startTime: canceledState.startTime,
-        completedTime: canceledState.completedTime,
-        error: canceledState.error
-      }
+      const job = mapDOStateToJob(canceledState)
 
       return c.json(
         {

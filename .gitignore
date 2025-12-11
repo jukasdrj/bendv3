@@ -53,6 +53,10 @@ test-results/
 .cache/
 .temp/
 
+# OpenAPI generated specs (temporary)
+docs/v3-openapi-current.json
+docs/openapi-v3.json
+
 # Development only
 scripts/dev/output/
 .wrangler-fixes-backup-*/

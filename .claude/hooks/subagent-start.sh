@@ -2,6 +2,11 @@
 
 # BooksTrack Backend Subagent Start Hook
 # Executes when subagents are launched (Claude Code v2.0.43+)
+#
+# Claude Code 2.0.64+ Features:
+# - Agents can run asynchronously with run_in_background parameter
+# - Use TaskOutput tool to retrieve results (replaces AgentOutputTool)
+# - Background agents can send wake messages to main agent
 
 set -e
 
@@ -12,10 +17,12 @@ INPUT=$(cat)
 if command -v jq &> /dev/null; then
   AGENT_TYPE=$(echo "$INPUT" | jq -r '.subagent_type // "unknown"')
   AGENT_ID=$(echo "$INPUT" | jq -r '.subagent_id // "unknown"')
+  RUN_IN_BACKGROUND=$(echo "$INPUT" | jq -r '.run_in_background // "false"')
 else
   # Fallback if jq not available
   AGENT_TYPE="unknown"
   AGENT_ID="unknown"
+  RUN_IN_BACKGROUND="false"
 fi
 
 # Map agent types to friendly names
@@ -33,11 +40,23 @@ case "$AGENT_TYPE" in
   *"cf-code-reviewer"*)
     AGENT_NAME="✅ CF Code Reviewer"
     ;;
+  *"Explore"*)
+    AGENT_NAME="🔎 Codebase Explorer"
+    ;;
+  *"Plan"*)
+    AGENT_NAME="📋 Implementation Planner"
+    ;;
 esac
 
 echo ""
-echo "🤖 Launching subagent: $AGENT_NAME"
-echo "   Agent ID: $AGENT_ID"
+if [ "$RUN_IN_BACKGROUND" = "true" ]; then
+  echo "🤖 Launching subagent (background): $AGENT_NAME"
+  echo "   Agent ID: $AGENT_ID"
+  echo "   📋 Use TaskOutput tool to retrieve results when ready"
+else
+  echo "🤖 Launching subagent: $AGENT_NAME"
+  echo "   Agent ID: $AGENT_ID"
+fi
 echo ""
 
 # Optional: Could add context-specific setup here

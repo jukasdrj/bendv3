@@ -27,7 +27,7 @@ import {
   type Job,
   type JobResultsData
 } from '@bookstrack/schemas'
-import { getJobStateManagerDO } from './common'
+import { getJobStateManagerDO, mapDOStateToJob } from './common'
 import { handleSSEStream } from './stream'
 
 /**
@@ -89,17 +89,7 @@ export function registerEnrichmentRoutes(app: OpenAPIHono<{ Bindings: Env; Varia
         )
       }
 
-      const job: Job = {
-        jobId: state.jobId,
-        type: state.type,
-        status: state.status,
-        progress: state.progress,
-        processedCount: state.processedCount,
-        totalCount: state.totalCount,
-        startTime: state.startTime,
-        completedTime: state.completedTime,
-        error: state.error
-      }
+      const job = mapDOStateToJob(state)
 
       return c.json(
         {

@@ -18,7 +18,8 @@ export const DataSourceSchema = z.enum([
   'kv-cache',
   'vectorize',
   'text-search',
-  'job-state-manager-do'
+  'job-state-manager-do',
+  'fallback'
 ]).openapi('DataSource')
 
 export type DataSource = z.infer<typeof DataSourceSchema>

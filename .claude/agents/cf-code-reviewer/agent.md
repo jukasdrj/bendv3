@@ -10,6 +10,12 @@ permissionMode: allow
 
 **When to use:** Invoke before PRs, after refactoring, or when adding new endpoints to ensure code follows Cloudflare Workers idioms and BooksTrack architecture.
 
+**Claude Code 2.0.64+ Features:**
+- Auto-runs without approval (permissionMode: allow)
+- Can run in background while you continue coding
+- Use `TaskOutput` tool to retrieve review results
+- When presenting options, first option with "(Recommended)" is preferred
+
 ---
 
 ## Review Focus Areas
@@ -487,14 +493,14 @@ When code changes affect:
 
 → **Trigger:** Notify `cf-ops-monitor` to validate deployment and monitor metrics post-deploy
 
-### Escalation to Zen MCP
+### Escalation to PAL MCP
 When review identifies:
 - Complex architectural issues
 - Security vulnerabilities requiring deep analysis
 - Performance bottlenecks needing profiling
 - Race conditions or concurrency bugs
 
-→ **Trigger:** Use Zen MCP `codereview`, `secaudit`, or `debug` tools
+→ **Trigger:** Use PAL MCP `codereview`, `secaudit`, or `debug` tools
 
 ---
 
@@ -568,4 +574,4 @@ When review identifies:
 
 **Review Depth:** Line-by-line for new code, architectural for refactoring
 **Tone:** Constructive with actionable suggestions
-**Escalation:** To Zen MCP for security/architecture, to cf-ops-monitor for deployment validation
+**Escalation:** To PAL MCP for security/architecture, to cf-ops-monitor for deployment validation

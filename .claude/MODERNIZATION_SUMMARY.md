@@ -21,15 +21,15 @@ Implemented a comprehensive Sonnet 4.5 → Haiku → Grok-4 workflow for structu
   - Task decomposition
   - Quality validation
 
-- **Haiku (via Zen MCP)**: Implementation specialist
-  - Rapid code generation with `mcp__zen__chat(model="haiku")`
+- **Haiku (via PAL MCP)**: Implementation specialist
+  - Rapid code generation with `mcp__pal__chat(model="haiku")`
   - Feature implementation following patterns
   - Test coverage and documentation
 
-- **Grok-4 (via Zen MCP)**: Quality & security reviewer
-  - Comprehensive reviews with `mcp__zen__codereview(model="grok-4")`
-  - Security audits with `mcp__zen__secaudit(model="grok-4")`
-  - Deep debugging with `mcp__zen__debug(model="grok-4")`
+- **Grok-4 (via PAL MCP)**: Quality & security reviewer
+  - Comprehensive reviews with `mcp__pal__codereview(model="grok-4")`
+  - Security audits with `mcp__pal__secaudit(model="grok-4")`
+  - Deep debugging with `mcp__pal__debug(model="grok-4")`
 
 **Benefits:**
 - Faster implementation (Haiku's speed)
@@ -72,7 +72,7 @@ This aligns with Claude Code v2.0.43's new permission system.
 
 **Rationale:**
 - `plan-feature.md` → Superseded by natural planning and multi-agent workflow
-- `debug-issue.md` → Zen MCP `debug` tool is superior
+- `debug-issue.md` → PAL MCP `debug` tool is superior
 - `code-review.md` → `cf-code-reviewer` agent handles this better
 
 ---
@@ -105,7 +105,7 @@ This aligns with Claude Code v2.0.43's new permission system.
 - Added multi-agent workflow section at the top
 - Updated invocation syntax (`@agent` instead of `/skill agent`)
 - Added permission mode documentation
-- Clarified Zen MCP integration
+- Clarified PAL MCP integration
 
 ---
 
@@ -115,7 +115,7 @@ This aligns with Claude Code v2.0.43's new permission system.
 **Changes:**
 - Added "Multi-Agent Development Workflow" section
 - Updated agent descriptions with permission modes
-- Added Zen MCP tool examples
+- Added PAL MCP tool examples
 - Clarified when to use each workflow
 
 ---
@@ -164,7 +164,7 @@ This aligns with Claude Code v2.0.43's new permission system.
 ├── settings.json
 ├── settings.local.json
 ├── WRANGLER_COMMAND_STANDARDS.md
-└── ZEN_MCP_COST_GUIDE.md
+└── PAL_MCP_COST_GUIDE.md
 ```
 
 ### After
@@ -198,7 +198,7 @@ This aligns with Claude Code v2.0.43's new permission system.
 ├── settings.json ✨ Updated (SubagentStart)
 ├── settings.local.json
 ├── WRANGLER_COMMAND_STANDARDS.md
-└── ZEN_MCP_COST_GUIDE.md
+└── PAL_MCP_COST_GUIDE.md
 ```
 
 ---
@@ -213,12 +213,12 @@ Sonnet (you):
 1. Clarifies: "Per-IP or per-user? What rate (10/min, 100/min)?"
 2. User responds: "Per-IP, 10 requests per minute"
 3. Designs approach: KV-based sliding window
-4. Delegates to Haiku via mcp__zen__chat:
+4. Delegates to Haiku via mcp__pal__chat:
    - Provide relevant files
    - Specify implementation pattern
    - Request tests
 5. Reviews Haiku's output
-6. Delegates to Grok-4 via mcp__zen__codereview:
+6. Delegates to Grok-4 via mcp__pal__codereview:
    - Security focus (DOS protection, bypass attempts)
    - Performance review (KV read/write efficiency)
 7. Addresses critical findings from Grok-4
@@ -230,14 +230,14 @@ Sonnet (you):
 User: "The bookshelf scan is timing out for large images"
 
 Sonnet (you):
-1. Investigates using mcp__zen__debug(model="grok-4"):
+1. Investigates using mcp__pal__debug(model="grok-4"):
    - Analyzes scan handler
    - Identifies 30-second Gemini timeout issue
-2. Delegates fix to Haiku via mcp__zen__chat:
+2. Delegates fix to Haiku via mcp__pal__chat:
    - Add timeout handling
    - Implement retry logic with exponential backoff
    - Add image size pre-check
-3. Quick review with mcp__zen__codereview(model="grok-4", review_type="quick")
+3. Quick review with mcp__pal__codereview(model="grok-4", review_type="quick")
 4. Delivers fix to user
 ```
 
@@ -247,7 +247,7 @@ User: "Audit the authentication flow for vulnerabilities"
 
 Sonnet (you):
 1. Scopes audit: Keycloak integration, JWT validation, session management
-2. Uses mcp__zen__secaudit(model="grok-4"):
+2. Uses mcp__pal__secaudit(model="grok-4"):
    - OWASP Top 10 analysis
    - Token expiry validation
    - CSRF protection
@@ -292,8 +292,8 @@ You: 1. Write code manually
 ```
 User: "Implement pagination with Haiku and Grok-4 review"
 You: 1. Clarify requirements
-     2. Delegate to Haiku via mcp__zen__chat
-     3. Delegate to Grok-4 via mcp__zen__codereview
+     2. Delegate to Haiku via mcp__pal__chat
+     3. Delegate to Grok-4 via mcp__pal__codereview
      4. Integrate and deliver
 ```
 
@@ -372,5 +372,5 @@ You: 1. Clarify requirements
 
 ---
 
-**Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer, Zen MCP agents)
+**Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer, PAL MCP agents)
 **Human Owner:** @jukasdrj
