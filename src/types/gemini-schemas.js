@@ -22,6 +22,12 @@
  * - BoundingBox coordinates: 0.0-1.0 (normalized)
  * - Format enum: hardcover|paperback|mass-market|unknown
  * - ISBN format: 10 or 13 digits (when present)
+ *
+ * ISBN Validation Rules:
+ * - ISBN-10: exactly 10 characters (9 digits + check digit, which may be X)
+ * - ISBN-13: exactly 13 digits starting with 978 or 979
+ * - All hyphens/spaces must be removed before returning
+ * - Invalid/malformed ISBNs should be null, not returned
  */
 export const BOOKSHELF_RESPONSE_SCHEMA = {
   type: "array",
@@ -39,8 +45,9 @@ export const BOOKSHELF_RESPONSE_SCHEMA = {
       },
       isbn: {
         type: "string",
-        description: "ISBN-10 or ISBN-13 if visible",
+        description: "ISBN-10 (10 chars, may end in X) or ISBN-13 (13 digits starting with 978/979). Must be valid format or null.",
         nullable: true,
+        // Note: Gemini API doesn't support regex patterns in schema, validation is prompt-based
       },
       format: {
         type: "string",
@@ -73,6 +80,12 @@ export const BOOKSHELF_RESPONSE_SCHEMA = {
  * - DateRead format: YYYY-MM-DD (when present)
  * - ISBN format: 10 or 13 digits (when present)
  *
+ * ISBN Validation Rules:
+ * - ISBN-10: exactly 10 characters (9 digits + check digit, which may be X)
+ * - ISBN-13: exactly 13 digits starting with 978 or 979
+ * - All hyphens/spaces must be removed before returning
+ * - Invalid/malformed ISBNs should be null, not returned
+ *
  * Note: Schema guarantees no books will be returned without title+author,
  * eliminating the need for manual filtering loops in csv-import.js
  */
@@ -92,8 +105,9 @@ export const CSV_BOOK_SCHEMA = {
       },
       isbn: {
         type: "string",
-        description: "ISBN-10 or ISBN-13",
+        description: "ISBN-10 (10 chars, may end in X) or ISBN-13 (13 digits starting with 978/979). Must be valid format or null.",
         nullable: true,
+        // Note: Gemini API doesn't support regex patterns in schema, validation is prompt-based
       },
       publicationYear: {
         type: "integer",

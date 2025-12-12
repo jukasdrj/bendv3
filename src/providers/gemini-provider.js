@@ -95,7 +95,14 @@ Your task is to identify every book in the provided image and extract its title,
 - Skip decorative items or any non-book objects.
 - Assign a confidence score (0.0-1.0) based on the clarity of the extracted text.
 - Provide a bounding box with normalized coordinates (0.0-1.0) for each book spine.
-- Adhere strictly to the JSON output format defined in the schema.`,
+- Adhere strictly to the JSON output format defined in the schema.
+
+ISBN VALIDATION (if ISBN is visible on spine):
+- Return ONLY valid ISBN-10 (exactly 10 characters) or ISBN-13 (exactly 13 digits starting with 978 or 979)
+- Remove all hyphens, spaces, and separators
+- ISBN-10 may end with 'X' (checksum) - this is valid
+- If ISBN appears incomplete or malformed, return null instead
+- NEVER return ISBNs with wrong digit counts - prefer null over invalid data`,
             },
           ],
         },

@@ -130,6 +130,13 @@ OUTPUT SCHEMA: Return ONLY a valid JSON array with this structure:
 RULES:
 1.  PRIORITIZE ISBN: If ISBN13 exists, use it for the 'isbn' field. If not, use ISBN10.
 1a. AUTHOR EXTRACTION IS CRITICAL: If the author column is empty but the title contains "by [Author Name]", extract the author from the title. Multiple authors should be preserved as a comma-separated string.
+1b. ISBN VALIDATION IS CRITICAL:
+    - Return ONLY valid ISBN-10 (exactly 10 characters) or ISBN-13 (exactly 13 digits starting with 978 or 979)
+    - Remove all hyphens, spaces, and other separators before validation
+    - ISBN-10 may end with 'X' (checksum digit) - convert to ISBN-13 by: prefix "978", drop the X, recalculate check digit
+    - If ISBN has wrong digit count (e.g., 11 or 12 digits), return null instead
+    - If ISBN contains non-numeric characters (except trailing X for ISBN-10), return null
+    - NEVER return malformed ISBNs - prefer null over invalid data
 2.  ALTERNATIVE IDs: If no ISBN is present, look for other identifiers:
     -   Look for Goodreads Book Ids in a "Book Id" column and map to "goodreadsId".
     -   Look for OpenLibrary work IDs (e.g., 'OL...W') in any column, often in URLs, and map to "openLibraryId".
