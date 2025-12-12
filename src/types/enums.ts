@@ -50,3 +50,16 @@ export type ApiErrorCode =
   | "NOT_FOUND"
   | "RATE_LIMIT_EXCEEDED"
   | "INTERNAL_ERROR";
+
+/**
+ * Enrichment queue source types
+ *
+ * Tracks where enrichment requests originate from for analytics and prioritization.
+ * Used by both producer (enrichment-queue.ts) and consumer (enrichment-queue-consumer.ts).
+ */
+export type EnrichmentSource =
+  | "user_add"           // User manually added a book
+  | "csv_import"         // CSV file import
+  | "scan_import"        // Barcode scan
+  | "batch_enrichment"   // Background batch job
+  | "background";        // Generic background processing

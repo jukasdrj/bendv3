@@ -84,7 +84,7 @@ export async function handleTestEnrichmentPipeline(c: Context<{ Bindings: Env }>
         await env.ENRICHMENT_QUEUE.send({
           entity_type: 'edition',
           isbn: book.isbn,
-          source: 'pipeline_test',
+          source: 'batch_enrichment',
           priority: 9, // Highest priority for testing
           timestamp: new Date().toISOString(),
         })

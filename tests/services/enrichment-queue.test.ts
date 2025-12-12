@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { queueEnrichment, queueEnrichmentBatch } from '../../src/services/enrichment-queue'
+import type { EnrichmentSource } from '../../src/types/enums'
 
 describe('Enrichment Queue Service', () => {
   let mockEnv: any
@@ -124,10 +125,11 @@ describe('Enrichment Queue Service', () => {
     })
 
     it('should handle all source types', async () => {
-      const sources: Array<'user_add' | 'scan' | 'import' | 'background'> = [
+      const sources: EnrichmentSource[] = [
         'user_add',
-        'scan',
-        'import',
+        'csv_import',
+        'scan_import',
+        'batch_enrichment',
         'background',
       ]
 
@@ -168,7 +170,7 @@ describe('Enrichment Queue Service', () => {
       const isbns = ['9780316769174', '', '9780451524935'] // Middle one is invalid
       const options = {
         priority: 'high' as const,
-        source: 'import' as const,
+        source: 'csv_import' as const,
       }
 
       const result = await queueEnrichmentBatch(isbns, options, mockEnv)
@@ -208,7 +210,7 @@ describe('Enrichment Queue Service', () => {
       const isbns = ['9780316769174', '9780439708180']
       const options = {
         priority: 'high' as const,
-        source: 'scan' as const,
+        source: 'scan_import' as const,
         work_key: 'OL123W',
       }
 
@@ -217,7 +219,7 @@ describe('Enrichment Queue Service', () => {
       expect(mockEnv.ENRICHMENT_QUEUE.send).toHaveBeenCalledTimes(2)
       mockEnv.ENRICHMENT_QUEUE.send.mock.calls.forEach((call: any) => {
         expect(call[0].priority).toBe('high')
-        expect(call[0].source).toBe('scan')
+        expect(call[0].source).toBe('scan_import')
         expect(call[0].work_key).toBe('OL123W')
       })
     })

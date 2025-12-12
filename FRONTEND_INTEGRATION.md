@@ -52,8 +52,8 @@ All endpoints are public and rate-limited by IP. No API keys needed.
 - **Response Envelope:** Documented below (see "Response Format" section)
 
 **Previous API Versions:**
-- ⛔ **V1 API:** Removed December 2025 - See [docs/archive/v1-api-2026-03/](docs/archive/v1-api-2026-03/)
-- ⛔ **V2 API:** Removed March 2026 - See archive for historical reference
+- ⛔ **V1 API:** Removed December 2025 (Files Deleted)
+- ⛔ **V2 API:** Removed March 2026 (Files Deleted)
 
 ---
 

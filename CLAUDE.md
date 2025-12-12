@@ -26,13 +26,13 @@
 | Path | Status | Documentation |
 |------|--------|---------------|
 | `/v3/*` | 🚀 CURRENT | `/v3/openapi.json` (auto-generated) |
-| `/api/v2/*` | ⛔ REMOVED | Sunset March 2026 - See archive |
-| `/v1/*` | ⛔ REMOVED | Sunset December 2025 - See archive |
+| `/api/v2/*` | ⛔ REMOVED | Sunset March 2026 |
+| `/v1/*` | ⛔ REMOVED | Sunset December 2025 |
 | `/search/*` | ⛔ REMOVED | Legacy routes removed |
 
 **Migration Guides:**
-- **V2 → V3:** See [docs/archive/v2-api-2026-03/README.md](docs/archive/v2-api-2026-03/README.md)
-- **V1 → V3:** See [docs/archive/v1-api-2026-03/README.md](docs/archive/v1-api-2026-03/README.md)
+- **V2 → V3:** Migration Complete. Legacy docs removed.
+- **V1 → V3:** Migration Complete. Legacy docs removed.
 
 ### Key V3 Endpoints (Production-Ready)
 - ✅ `GET /v3/books/:isbn` - Get book by ISBN with full metadata

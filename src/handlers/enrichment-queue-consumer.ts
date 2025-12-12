@@ -26,6 +26,7 @@ import { enrichMultipleBooks } from "../services/enrichment.js"
 import { BookRepository } from "../repositories/book-repository.js"
 import type { Env } from "../types/env.js"
 import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js"
+import type { EnrichmentSource } from "../types/enums.js"
 import type {
   MessageBatch,
   ExecutionContext,
@@ -37,7 +38,7 @@ import type {
 interface EnrichmentQueueMessage {
   entity_type: "edition" | "work" | "author"
   isbn: string
-  source: "csv_import" | "batch_enrichment" | "scan_import"
+  source: EnrichmentSource
   priority: number // 1-10, higher = more important
   user_data?: {
     title?: string

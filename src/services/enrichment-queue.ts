@@ -10,6 +10,8 @@
  * @see Cover & Queue Architecture Implementation Plan (Dec 3, 2025)
  */
 
+import type { EnrichmentSource } from '../types/enums.js'
+
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
@@ -21,7 +23,7 @@ export interface EnrichmentRequest {
   isbn: string
   work_key?: string
   priority?: 'high' | 'normal' | 'low'
-  source?: 'user_add' | 'scan' | 'import' | 'background'
+  source?: EnrichmentSource
 }
 
 /**
@@ -139,7 +141,7 @@ export async function queueEnrichment(
  * // High-priority user import
  * const result = await queueEnrichmentBatch(
  *   csvISBNs,
- *   { priority: 'high', source: 'import' },
+ *   { priority: 'high', source: 'csv_import' },
  *   env
  * )
  */
