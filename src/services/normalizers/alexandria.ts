@@ -37,6 +37,8 @@ export interface AlexandriaResult {
   work_title?: string;
   openlibrary_edition?: string; // e.g., "https://openlibrary.org/books/OL..."
   openlibrary_work?: string;    // e.g., "https://openlibrary.org/works/OL..."
+  coverUrl?: string;            // Pre-cached cover URL from Alexandria enrichment
+  coverSource?: 'r2' | 'external' | 'external-fallback' | 'enriched-cached' | null;
 }
 
 /**
@@ -45,17 +47,20 @@ export interface AlexandriaResult {
 export function normalizeAlexandriaToWork(result: AlexandriaResult): WorkDTO {
   const workOLID = extractOLID(result.openlibrary_work);
   const editionOLID = extractOLID(result.openlibrary_edition);
-  
+
+  // Prefer pre-cached coverUrl from Alexandria, fallback to OpenLibrary OLID-based URL
+  const coverImageURL = result.coverUrl
+    || (editionOLID ? `https://covers.openlibrary.org/b/olid/${editionOLID}-L.jpg` : null)
+    || getPlaceholderCover();
+
   return {
     // Required fields
     title: result.work_title || result.title || "Unknown",
     subjectTags: [], // Alexandria doesn't return subjects yet - enrichment needed
-    
+
     // Optional metadata
     firstPublicationYear: extractYear(result.publish_date),
-    coverImageURL: editionOLID 
-      ? `https://covers.openlibrary.org/b/olid/${editionOLID}-L.jpg`
-      : getPlaceholderCover(),
+    coverImageURL,
     
     // Provenance
     synthetic: false,
@@ -80,21 +85,24 @@ export function normalizeAlexandriaToWork(result: AlexandriaResult): WorkDTO {
  */
 export function normalizeAlexandriaToEdition(result: AlexandriaResult): EditionDTO {
   const editionOLID = extractOLID(result.openlibrary_edition);
-  
+
+  // Prefer pre-cached coverUrl from Alexandria, fallback to OpenLibrary OLID-based URL
+  const coverImageURL = result.coverUrl
+    || (editionOLID ? `https://covers.openlibrary.org/b/olid/${editionOLID}-L.jpg` : null)
+    || getPlaceholderCover();
+
   return {
     // Identifiers
     isbn: result.isbn,
     isbns: [result.isbn].filter(Boolean),
-    
+
     // Core metadata
     title: result.title,
     publisher: result.publishers?.[0],
     publicationDate: result.publish_date,
     pageCount: result.pages ? parseInt(result.pages, 10) : undefined,
     format: "Paperback" as const, // Default - Alexandria doesn't provide format
-    coverImageURL: editionOLID
-      ? `https://covers.openlibrary.org/b/olid/${editionOLID}-L.jpg`
-      : getPlaceholderCover(),
+    coverImageURL,
     
     // Provenance
     primaryProvider: "alexandria" as any,
