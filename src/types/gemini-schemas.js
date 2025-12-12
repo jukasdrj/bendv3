@@ -64,6 +64,9 @@ export const BOOKSHELF_RESPONSE_SCHEMA = {
       },
     },
     required: ["title"],
+    // propertyOrdering ensures consistent key order in output (Gemini 2.5+ feature)
+    // Order: primary identifiers → physical attributes → metadata
+    propertyOrdering: ["title", "author", "isbn", "format", "confidence"],
   },
 };
 
@@ -149,5 +152,19 @@ export const CSV_BOOK_SCHEMA = {
       },
     },
     required: ["title", "author"],
+    // propertyOrdering ensures consistent key order in output (Gemini 2.5+ feature)
+    // Order: primary identifiers → publication metadata → user-specific data
+    propertyOrdering: [
+      "title",
+      "author",
+      "isbn",
+      "publicationYear",
+      "publisher",
+      "pageCount",
+      "genre",
+      "rating",
+      "dateRead",
+      "notes",
+    ],
   },
 };
