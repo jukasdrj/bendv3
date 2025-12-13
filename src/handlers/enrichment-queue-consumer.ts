@@ -39,7 +39,7 @@ interface EnrichmentQueueMessage {
   entity_type: "edition" | "work" | "author"
   isbn: string
   source: EnrichmentSource
-  priority: number // 1-10, higher = more important
+  priority: number // 1-10, higher = more important (matches Alexandria QueueEnrichmentSchema)
   user_data?: {
     title?: string
     author?: string

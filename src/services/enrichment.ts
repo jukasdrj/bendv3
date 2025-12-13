@@ -222,13 +222,17 @@ export async function enrichMultipleBooks(
     data.results.forEach((book: any) => {
       // Extract per-work authors first (needed for embedding in work)
       // Alexandria returns 'authors' as array of {name, key, openlibrary} objects
+      // NOTE: Alexandria sometimes returns OpenLibrary paths as 'name' (e.g., "/authors/OL23919A")
+      // We filter these out as they are not valid author names
       let workAuthorDTOs: AuthorDTO[] = [];
       if (book.authors && Array.isArray(book.authors)) {
         workAuthorDTOs = book.authors
           .map((a: any) => typeof a === 'string' ? a : a.name)
           .filter(Boolean)
+          // Filter out OpenLibrary author paths (not valid names)
+          .filter((name: string) => !name.startsWith('/authors/'))
           .map((name: string) => ({ name, gender: 'Unknown' as const }));
-      } else if (book.author) {
+      } else if (book.author && !book.author.startsWith('/authors/')) {
         workAuthorDTOs = [{ name: book.author, gender: 'Unknown' as const }];
       }
 
@@ -250,6 +254,7 @@ export async function enrichMultipleBooks(
         description: book.description || undefined,
         firstPublicationYear: book.first_published_year || undefined,
         coverImageURL: book.coverUrl || undefined,
+        coverSource: book.coverSource || undefined,
 
         // Required arrays (empty if not provided)
         goodreadsWorkIDs: [],
@@ -282,6 +287,7 @@ export async function enrichMultipleBooks(
           language: book.language || 'en',
           publisher: book.publisher || book.publishers || undefined,
           coverImageURL: book.coverUrl || undefined,
+          coverSource: book.coverSource || undefined,
           format: 'paperback' as const, // Default format (required by EditionDTO)
           // External IDs
           openLibraryEditionID: book.openlibrary_edition ? book.openlibrary_edition.split('/books/')[1] : undefined,

@@ -33,6 +33,7 @@ export interface WorkDTO {
   firstPublicationYear?: number;
   description?: string;
   coverImageURL?: string; // Cover image URL (placeholder used if missing)
+  coverSource?: 'r2' | 'external' | 'external-fallback' | null; // Source of cover image (matches Alexandria BookResult)
 
   // Provenance
   synthetic?: boolean; // True if Work was inferred from Edition data
@@ -83,6 +84,7 @@ export interface EditionDTO {
   pageCount?: number;
   format: EditionFormat;
   coverImageURL?: string; // Cover image URL (placeholder used if missing)
+  coverSource?: 'r2' | 'external' | 'external-fallback' | null; // Source of cover image (matches Alexandria BookResult)
   editionTitle?: string;
   editionDescription?: string; // Note: Can't use 'description' in Swift (@Model macro reserves it)
   language?: string;

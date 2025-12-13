@@ -19,6 +19,18 @@ export const ProviderSchema = z.enum([
 export type Provider = z.infer<typeof ProviderSchema>
 
 /**
+ * Cover source enumeration - indicates where the cover image came from
+ * @see alexandria-worker/types.ts BookResult.coverSource
+ */
+export const CoverSourceSchema = z.enum([
+  'r2',                // Stored in Alexandria R2 bucket
+  'external',          // Direct external URL (ISBNdb, Google Books)
+  'external-fallback', // Fallback external URL
+]).openapi('CoverSource')
+
+export type CoverSource = z.infer<typeof CoverSourceSchema>
+
+/**
  * Core book metadata schema
  * Matches the canonical book object from Alexandria/Google Books
  */
@@ -35,6 +47,7 @@ export const BookSchema = z.object({
   categories: z.array(z.string()).optional().describe('Book categories/genres'),
   language: z.string().optional().describe('ISO 639-1 language code (e.g., "en")'),
   coverUrl: z.string().url().optional().describe('Cover image URL'),
+  coverSource: CoverSourceSchema.optional().describe('Source of the cover image (r2, external, external-fallback)'),
   thumbnailUrl: z.string().url().optional().describe('Thumbnail image URL'),
   workKey: z.string().optional().describe('OpenLibrary work key (e.g., OL82563W)'),
   editionKey: z.string().optional().describe('OpenLibrary edition key (e.g., OL7353617M)'),

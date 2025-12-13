@@ -40,9 +40,11 @@ export {
 // Book domain
 export {
   ProviderSchema,
+  CoverSourceSchema,
   BookSchema,
   ISBNSchema,
   type Provider,
+  type CoverSource,
   type Book,
   type ISBN
 } from './book'

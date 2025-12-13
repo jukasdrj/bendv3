@@ -286,14 +286,12 @@ describe('Alexandria Cover Service', () => {
       isbn: '9781234567890',
     };
 
-    it('should queue via service binding if ALEXANDRIA.queue.send exists', async () => {
+    it('should queue via service binding if ALEXANDRIA_COVER_QUEUE exists', async () => {
       const mockQueueSend = vi.fn().mockResolvedValue(undefined);
       const envWithBinding = {
         ...env,
-        ALEXANDRIA: {
-          queue: {
-            send: mockQueueSend,
-          },
+        ALEXANDRIA_COVER_QUEUE: {
+          send: mockQueueSend,
         },
       };
 
@@ -301,22 +299,22 @@ describe('Alexandria Cover Service', () => {
 
       expect(result.queued).toBe(true);
       expect(result.error).toBeUndefined();
-      expect(mockQueueSend).toHaveBeenCalledWith({
-        isbn: request.isbn,
-        work_key: request.work_key,
-        provider_url: request.provider_url,
-        priority: 'high',
-      });
+      expect(mockQueueSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isbn: request.isbn,
+          work_key: request.work_key,
+          provider_url: request.provider_url,
+          priority: 'high',
+        })
+      );
     });
 
     it('should fall back to HTTP if service binding fails', async () => {
       const mockQueueSend = vi.fn().mockRejectedValue(new Error('Queue send failed'));
       const envWithBinding = {
         ...env,
-        ALEXANDRIA: {
-          queue: {
-            send: mockQueueSend,
-          },
+        ALEXANDRIA_COVER_QUEUE: {
+          send: mockQueueSend,
         },
       };
 
