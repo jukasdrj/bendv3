@@ -1,0 +1,90 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "//": "Test-specific Wrangler configuration",
+  "//": "Simplified bindings without migrations for vitest-pool-workers",
+  "name": "api-worker-test",
+  "main": "src/index.js",
+  "compatibility_date": "2025-11-14",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "vars": {
+    "TEST_MODE": "true",
+    "WORKFLOW_ROLLOUT_PERCENT": "100",
+    "ENABLE_WORKFLOW_IMPORT": "true",
+    "CACHE_HOT_TTL": "7200",
+    "CACHE_COLD_TTL": "1209600",
+    "MAX_RESULTS_DEFAULT": "40",
+    "RATE_LIMIT_MS": "50",
+    "CONCURRENCY_LIMIT": "10",
+    "AGGRESSIVE_CACHING": "true",
+    "LOG_LEVEL": "error",
+    "ENABLE_PERFORMANCE_LOGGING": "false",
+    "ENABLE_CACHE_ANALYTICS": "false",
+    "ENABLE_PROVIDER_METRICS": "false",
+    "ENABLE_RATE_LIMIT_TRACKING": "false",
+    "STRUCTURED_LOGGING": "true",
+    "OPENLIBRARY_BASE_URL": "https://openlibrary.org",
+    "USER_AGENT": "BooksTracker-Test/1.0",
+    "AI_PROVIDER": "gemini",
+    "MAX_IMAGE_SIZE_MB": "10",
+    "REQUEST_TIMEOUT_MS": "5000",
+    "CONFIDENCE_THRESHOLD": "0.7",
+    "MAX_SCAN_FILE_SIZE": "10485760",
+    "ENABLE_HIBERNATION_WEBSOCKET": "true",
+    "ENABLE_D1_WRITES": "true",
+    "D1_READ_PERCENTAGE": "100",
+    "ENABLE_ALEXANDRIA_RPC": "true"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "test-cache"
+    },
+    {
+      "binding": "RECOMMENDATIONS_CACHE",
+      "id": "test-recommendations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BOOKSHELF_IMAGES",
+      "bucket_name": "test-bookshelf-images"
+    },
+    {
+      "binding": "BOOK_COVERS",
+      "bucket_name": "test-covers"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "test-bookstrack",
+      "database_id": "test-db-id"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "RATE_LIMITER_DO",
+        "class_name": "RateLimiterDO"
+      },
+      {
+        "name": "WEBSOCKET_CONNECTION_DO",
+        "class_name": "WebSocketConnectionDO"
+      },
+      {
+        "name": "JOB_STATE_MANAGER_DO",
+        "class_name": "JobStateManagerDO"
+      },
+      {
+        "name": "CACHE_METRICS_DO",
+        "class_name": "CacheMetricsDO"
+      },
+      {
+        "name": "LATENCY_TEST_DO",
+        "class_name": "LatencyTestDO"
+      }
+    ]
+  }
+}

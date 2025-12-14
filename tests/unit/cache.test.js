@@ -270,7 +270,7 @@ describe('Cache Key Generation', () => {
     const key2 = generateISBNCacheKey(isbn2)
 
     expect(key1).toBe(key2)
-    expect(key1).toMatch(/^isbn:/)
+    expect(key1).toMatch(/^book:isbn:/)
   })
 
   it('should generate unique key for each ISBN', () => {

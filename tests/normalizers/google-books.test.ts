@@ -73,7 +73,7 @@ describe('normalizeGoogleBooksToEdition', () => {
     expect(edition.publisher).toBe('Penguin');
     expect(edition.publicationDate).toBe('2021-01-05');
     expect(edition.pageCount).toBe(328);
-    expect(edition.format).toBe('Hardcover'); // default
+    expect(edition.format).toBe('Other'); // Google Books doesn't provide format data
     expect(edition.coverImageURL).toBe('https://books.google.com/covers/1984.jpg&zoom=3');
     expect(edition.primaryProvider).toBe('google-books');
   });

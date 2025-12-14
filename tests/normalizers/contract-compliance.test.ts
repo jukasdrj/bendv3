@@ -54,7 +54,7 @@ describe('Google Books Normalizer Contract Compliance', () => {
     expect(edition.librarythingIDs).toBeInstanceOf(Array);
     
     // Required scalar fields must NEVER be null
-    expect(edition.format).toBe('Hardcover');
+    expect(edition.format).toBe('Other'); // Google Books doesn't provide format data
     expect(edition.isbndbQuality).toBe(0);
     
     // Should include the Google Books ID

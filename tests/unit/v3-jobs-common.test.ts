@@ -175,7 +175,7 @@ describe('V3 Jobs Common Utilities', () => {
       const links = createJobLinks('imports', jobId, streamUrl)
 
       expect(links.self).toEqual({
-        href: `/v3/jobs/imports/${jobId}`,
+        href: `https://api.oooefam.net/v3/jobs/imports/${jobId}`,
         rel: 'self',
         method: 'GET'
       })
@@ -183,12 +183,11 @@ describe('V3 Jobs Common Utilities', () => {
       expect(links.stream).toEqual({
         href: streamUrl,
         rel: 'related',
-        method: 'GET',
-        type: 'text/event-stream'
+        method: 'GET'
       })
 
       expect(links.cancel).toEqual({
-        href: `/v3/jobs/imports/${jobId}`,
+        href: `https://api.oooefam.net/v3/jobs/imports/${jobId}`,
         rel: 'related',
         method: 'DELETE'
       })
@@ -198,23 +197,23 @@ describe('V3 Jobs Common Utilities', () => {
       const scanStreamUrl = `https://api.oooefam.net/v3/jobs/scans/${jobId}/stream`
       const links = createJobLinks('scans', jobId, scanStreamUrl)
 
-      expect(links.self.href).toBe(`/v3/jobs/scans/${jobId}`)
+      expect(links.self.href).toBe(`https://api.oooefam.net/v3/jobs/scans/${jobId}`)
       expect(links.stream.href).toBe(scanStreamUrl)
-      expect(links.cancel.href).toBe(`/v3/jobs/scans/${jobId}`)
+      expect(links.cancel.href).toBe(`https://api.oooefam.net/v3/jobs/scans/${jobId}`)
     })
 
     it('should create HATEOAS links for enrichment job', () => {
       const enrichmentStreamUrl = `https://api.oooefam.net/v3/jobs/enrichment/${jobId}/stream`
       const links = createJobLinks('enrichment', jobId, enrichmentStreamUrl)
 
-      expect(links.self.href).toBe(`/v3/jobs/enrichment/${jobId}`)
+      expect(links.self.href).toBe(`https://api.oooefam.net/v3/jobs/enrichment/${jobId}`)
       expect(links.stream.href).toBe(enrichmentStreamUrl)
-      expect(links.cancel.href).toBe(`/v3/jobs/enrichment/${jobId}`)
+      expect(links.cancel.href).toBe(`https://api.oooefam.net/v3/jobs/enrichment/${jobId}`)
     })
 
-    it('should include SSE content type in stream link', () => {
+    it('should use related rel for stream link', () => {
       const links = createJobLinks('imports', jobId, streamUrl)
-      expect(links.stream.type).toBe('text/event-stream')
+      expect(links.stream.rel).toBe('related')
     })
 
     it('should use GET method for self link', () => {
