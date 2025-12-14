@@ -1,75 +1,25 @@
-import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config'
-
 /**
- * Vitest Configuration for Cloudflare Workers
+ * Vitest Configuration - IDE Entry Point
  *
- * Uses @cloudflare/vitest-pool-workers for smoke tests (true Workers runtime).
- * Legacy tests continue running in Node environment until migrated.
+ * Dual-pool architecture for Cloudflare Workers testing:
+ *
+ * Workers Pool (vitest.workers.config.ts) - 196 tests:
+ *   - tests/smoke/**     - Quick validation tests
+ *   - tests/normalizers/** - Pure data transformation tests
+ *   - tests/utils/**     - Pure utility function tests
+ *   - tests/workers/**   - Future migrated tests
+ *
+ * Node Pool (vitest.node.config.ts) - 1280 tests:
+ *   - All other tests (vi.spyOn compatible)
+ *
+ * Commands:
+ *   npm run test:workers  - Workers pool only (2.5s)
+ *   npm run test:node     - Node pool only (19s)
+ *   npm run test          - Both pools sequentially
+ *   npm run test:smoke    - Quick validation (same as test:workers)
+ *   TEST_SAFE_MODE=true npm test  - Sequential execution for debugging
  *
  * @see https://developers.cloudflare.com/workers/testing/vitest-integration/
- * @see https://hono.dev/examples/cloudflare-vitest
+ * @see GitHub Issue #216 - Test Migration to @cloudflare/vitest-pool-workers
  */
-export default defineWorkersConfig({
-  test: {
-    // Use globals for describe, it, expect without importing
-    globals: true,
-
-    // Global setup files - run BEFORE all tests
-    setupFiles: ['./tests/setup.js'],
-
-    // Include all test files (both JavaScript and TypeScript)
-    include: ['tests/**/*.test.{js,ts}'],
-
-    // Exclude node_modules, archive, and other non-test directories
-    exclude: ['node_modules', 'dist', '.idea', '.git', 'tests/archive/**'],
-
-    // Reporter configuration
-    reporters: ['verbose'],
-
-    // Test timeout (10 seconds default)
-    testTimeout: 10000,
-
-    // Cloudflare Workers pool configuration
-    poolOptions: {
-      workers: {
-        // Use test-specific wrangler config (no migrations)
-        wrangler: {
-          configPath: './wrangler.test.jsonc',
-        },
-        // Miniflare options for additional test-specific bindings
-        miniflare: {
-          bindings: {
-            TEST_MODE: 'true',
-          },
-        },
-        // Only run smoke tests in Workers pool for now
-        // Legacy tests need migration before they can run in Workers runtime
-        isolatedStorage: true,
-      },
-    },
-
-    // Sequential fallback for low-resource mode (use with npm run test:safe)
-    fileParallelism: process.env.TEST_SAFE_MODE === 'true' ? false : true,
-
-    // Coverage configuration (uses Istanbul for Workers compatibility)
-    coverage: {
-      provider: 'istanbul',
-      reporter: ['text', 'json', 'html', 'lcov'],
-      reportOnFailure: true,
-      exclude: [
-        'node_modules/',
-        'tests/',
-        '**/*.test.{js,ts}',
-        '**/*.spec.{js,ts}',
-        'dist/',
-        '.wrangler/',
-      ],
-      thresholds: {
-        lines: 75,
-        functions: 75,
-        branches: 75,
-        statements: 75,
-      },
-    },
-  },
-})
+export { default } from './vitest.workers.config'

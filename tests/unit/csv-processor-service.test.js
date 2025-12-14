@@ -5,42 +5,31 @@
  * This service is now independent of Durable Objects.
  *
  * Related: Issue #68 - Refactor Monolithic ProgressWebSocketDO
+ * Related: Issue #217 - Dependency injection for workerd-compatible testing
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-// Mock dependencies at the top level (before any imports)
-let mockParseCSVWithGemini = vi.fn();
-let mockValidateCSV = vi.fn();
-
-vi.mock("../../src/providers/gemini-csv-provider.js", () => ({
-  parseCSVWithGemini: (...args) => mockParseCSVWithGemini(...args),
-}));
-
-vi.mock("../../src/utils/csv-validator.js", () => ({
-  validateCSV: (...args) => mockValidateCSV(...args),
-}));
-
-// Import the service AFTER setting up mocks
+// Import the service directly - no vi.mock needed with dependency injection
 import { processCSVImport } from "../../src/services/csv-processor.js";
 
 describe("CSV Processor Service", () => {
   let mockProgressReporter;
   let mockEnv;
-  const testJobId = "test-job-id"; // Add jobId constant for all tests
+  let mockDeps;
+  const testJobId = "test-job-id";
 
   beforeEach(() => {
     // Reset all mocks before each test
     vi.clearAllMocks();
 
-    // Default mock implementations
-    mockParseCSVWithGemini.mockResolvedValue([
-      { title: "Test Book", author: "Test Author" },
-    ]);
-
-    mockValidateCSV.mockReturnValue({
-      valid: true,
-    });
+    // Create mock dependencies (Issue #217 - workerd-compatible testing)
+    mockDeps = {
+      validateCSV: vi.fn().mockReturnValue({ valid: true }),
+      parseCSVWithGemini: vi.fn().mockResolvedValue([
+        { title: "Test Book", author: "Test Author" },
+      ]),
+    };
 
     // Mock progress reporter interface
     mockProgressReporter = {
@@ -67,7 +56,7 @@ describe("CSV Processor Service", () => {
     it("should wait for client ready before processing", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       expect(mockProgressReporter.waitForReady).toHaveBeenCalledWith(15000);
     });
@@ -81,7 +70,7 @@ describe("CSV Processor Service", () => {
       const csvText = "title,author\nTest Book,Test Author";
 
       // Should not throw
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       expect(mockProgressReporter.updateProgress).toHaveBeenCalled();
     });
@@ -94,7 +83,7 @@ describe("CSV Processor Service", () => {
 
       const csvText = "title,author\nTest Book,Test Author";
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       expect(mockProgressReporter.updateProgress).toHaveBeenCalled();
     });
@@ -104,7 +93,7 @@ describe("CSV Processor Service", () => {
     it("should report validation progress", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       expect(mockProgressReporter.updateProgress).toHaveBeenCalledWith(
         "csv_import",
@@ -118,7 +107,7 @@ describe("CSV Processor Service", () => {
     it("should report Gemini upload progress", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       expect(mockProgressReporter.updateProgress).toHaveBeenCalledWith(
         "csv_import",
@@ -132,12 +121,12 @@ describe("CSV Processor Service", () => {
     it("should report parsed books count", async () => {
       const csvText = "title,author\nBook 1,Author 1\nBook 2,Author 2";
 
-      mockParseCSVWithGemini.mockResolvedValue([
+      mockDeps.parseCSVWithGemini.mockResolvedValue([
         { title: "Book 1", author: "Author 1" },
         { title: "Book 2", author: "Author 2" },
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       expect(mockProgressReporter.updateProgress).toHaveBeenCalledWith(
         "csv_import",
@@ -153,14 +142,14 @@ describe("CSV Processor Service", () => {
   describe("Error Handling", () => {
     it("should send error for invalid CSV", async () => {
       // Mock CSV validator to fail
-      mockValidateCSV.mockReturnValue({
+      mockDeps.validateCSV.mockReturnValue({
         valid: false,
         error: "Missing required columns",
       });
 
       const csvText = "invalid,csv\ndata";
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       expect(mockProgressReporter.sendError).toHaveBeenCalledWith(
         "csv_import",
@@ -174,11 +163,11 @@ describe("CSV Processor Service", () => {
     it("should handle Gemini API errors", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockParseCSVWithGemini.mockRejectedValue(
+      mockDeps.parseCSVWithGemini.mockRejectedValue(
         new Error("Gemini API rate limit exceeded"),
       );
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       expect(mockProgressReporter.sendError).toHaveBeenCalledWith(
         "csv_import",
@@ -192,9 +181,9 @@ describe("CSV Processor Service", () => {
     it("should handle empty Gemini response", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockParseCSVWithGemini.mockResolvedValue([]);
+      mockDeps.parseCSVWithGemini.mockResolvedValue([]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       expect(mockProgressReporter.sendError).toHaveBeenCalledWith(
         "csv_import",
@@ -212,7 +201,7 @@ describe("CSV Processor Service", () => {
 
       mockEnv.CACHE.get.mockResolvedValue(cachedBooks);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       expect(mockEnv.CACHE.get).toHaveBeenCalled();
       // ISSUE #133: Summary-only completion (booksCount instead of books array)
@@ -220,7 +209,7 @@ describe("CSV Processor Service", () => {
         "csv_import",
         expect.objectContaining({
           booksCount: 1,
-          resultsUrl: expect.stringContaining("/v1/csv/results/"),
+          resultsUrl: expect.stringContaining("/v3/jobs/imports/"),
         }),
       );
     });
@@ -230,7 +219,7 @@ describe("CSV Processor Service", () => {
 
       mockEnv.CACHE.get.mockResolvedValue(null); // Cache miss
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       expect(mockEnv.CACHE.put).toHaveBeenCalledWith(
         expect.any(String),
@@ -246,20 +235,20 @@ describe("CSV Processor Service", () => {
     it("should filter out books without title", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockParseCSVWithGemini.mockResolvedValue([
+      mockDeps.parseCSVWithGemini.mockResolvedValue([
         { title: "Valid Book", author: "Valid Author" },
         { author: "No Title Author" }, // Missing title
         { title: "Another Book", author: "Another Author" },
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       // ISSUE #133: Summary-only completion
       expect(mockProgressReporter.complete).toHaveBeenCalledWith(
         "csv_import",
         expect.objectContaining({
           booksCount: 2, // 2 valid books (1 filtered out)
-          resultsUrl: expect.stringContaining("/v1/csv/results/"),
+          resultsUrl: expect.stringContaining("/v3/jobs/imports/"),
         }),
       );
 
@@ -275,12 +264,12 @@ describe("CSV Processor Service", () => {
     it("should filter out books without author", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockParseCSVWithGemini.mockResolvedValue([
+      mockDeps.parseCSVWithGemini.mockResolvedValue([
         { title: "Valid Book", author: "Valid Author" },
         { title: "No Author Book" }, // Missing author
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       // ISSUE #133: Summary-only completion
       expect(mockProgressReporter.complete).toHaveBeenCalledWith(
@@ -302,7 +291,7 @@ describe("CSV Processor Service", () => {
     it("should trim whitespace from book data", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockParseCSVWithGemini.mockResolvedValue([
+      mockDeps.parseCSVWithGemini.mockResolvedValue([
         {
           title: "  Spaced Book  ",
           author: "  Spaced Author  ",
@@ -310,7 +299,7 @@ describe("CSV Processor Service", () => {
         },
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       // ISSUE #133: Summary-only completion
       expect(mockProgressReporter.complete).toHaveBeenCalledWith(
@@ -320,36 +309,34 @@ describe("CSV Processor Service", () => {
         }),
       );
 
-      // Verify trimmed data in KV storage
+      // Verify trimmed data in KV storage (canonical BookSchema format)
       const kvPutCall = mockEnv.CACHE.put.mock.calls.find((call) =>
         call[0].startsWith("csv-results:"),
       );
       const storedResults = JSON.parse(kvPutCall[1]);
-      expect(storedResults.books[0]).toEqual({
-        title: "Spaced Book",
-        author: "Spaced Author",
-        isbn: "1234567890",
-      });
+      expect(storedResults.books[0].title).toBe("Spaced Book");
+      expect(storedResults.books[0].authors).toEqual(["Spaced Author"]);
+      expect(storedResults.books[0].isbn).toBe("1234567890");
     });
 
     it("should handle optional ISBN field", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockParseCSVWithGemini.mockResolvedValue([
+      mockDeps.parseCSVWithGemini.mockResolvedValue([
         { title: "Book With ISBN", author: "Author", isbn: "1234567890" },
         { title: "Book Without ISBN", author: "Author" },
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
-      // ISSUE #133: Verify ISBN handling in KV storage
+      // ISSUE #133: Verify ISBN handling in KV storage (canonical BookSchema format)
       const kvPutCall = mockEnv.CACHE.put.mock.calls.find((call) =>
         call[0].startsWith("csv-results:"),
       );
       const storedResults = JSON.parse(kvPutCall[1]);
 
       expect(storedResults.books[0].isbn).toBe("1234567890");
-      expect(storedResults.books[1].isbn).toBeUndefined();
+      expect(storedResults.books[1].isbn).toBe(""); // Empty string for missing ISBN in canonical format
     });
   });
 
@@ -357,45 +344,46 @@ describe("CSV Processor Service", () => {
     it("should complete with validated books", async () => {
       const csvText = "title,author\nBook 1,Author 1\nBook 2,Author 2";
 
-      mockParseCSVWithGemini.mockResolvedValue([
+      mockDeps.parseCSVWithGemini.mockResolvedValue([
         { title: "Book 1", author: "Author 1" },
         { title: "Book 2", author: "Author 2" },
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       // ISSUE #133: Summary-only completion via WebSocket
       expect(mockProgressReporter.complete).toHaveBeenCalledWith(
         "csv_import",
         expect.objectContaining({
           booksCount: 2,
-          resultsUrl: expect.stringContaining("/v1/csv/results/"),
+          resultsUrl: expect.stringContaining("/v3/jobs/imports/"),
           successRate: "2/2",
         }),
       );
 
-      // Verify full results stored in KV
+      // Verify full results stored in KV (canonical BookSchema format)
       const kvPutCall = mockEnv.CACHE.put.mock.calls.find((call) =>
         call[0].startsWith("csv-results:"),
       );
       const storedResults = JSON.parse(kvPutCall[1]);
-      expect(storedResults.books).toEqual([
-        { title: "Book 1", author: "Author 1", isbn: undefined },
-        { title: "Book 2", author: "Author 2", isbn: undefined },
-      ]);
+      expect(storedResults.books).toHaveLength(2);
+      expect(storedResults.books[0].title).toBe("Book 1");
+      expect(storedResults.books[0].authors).toEqual(["Author 1"]);
+      expect(storedResults.books[1].title).toBe("Book 2");
+      expect(storedResults.books[1].authors).toEqual(["Author 2"]);
       expect(storedResults.errors).toEqual([]);
     });
 
     it("should include success rate in completion", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockParseCSVWithGemini.mockResolvedValue([
+      mockDeps.parseCSVWithGemini.mockResolvedValue([
         { title: "Book 1", author: "Author 1" },
         { title: "Book 2", author: "Author 2" },
         { title: "Book 3" }, // Missing author, will be filtered
       ]);
 
-      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId);
+      await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
       expect(mockProgressReporter.complete).toHaveBeenCalledWith(
         "csv_import",

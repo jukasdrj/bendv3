@@ -55,7 +55,7 @@ export type ApiErrorCode =
  * Enrichment queue source types
  *
  * Tracks where enrichment requests originate from for analytics and prioritization.
- * Used by both producer (enrichment-queue.ts) and consumer (enrichment-queue-consumer.ts).
+ * Used by enrichment-queue.ts producer (consumer is in Alexandria worker).
  */
 export type EnrichmentSource =
   | "user_add"           // User manually added a book

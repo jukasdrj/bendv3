@@ -94,9 +94,10 @@ export default {
   /**
    * Queue consumer handler - routes messages to appropriate processors
    *
-   * Supports multiple queues:
+   * Supports queues:
    * - author-warming-queue: Author cache warming
-   * - enrichment-queue: Alexandria enrichment for CSV imports
+   *
+   * Note: Enrichment is handled by Alexandria (producer sends to alexandria-enrichment-queue)
    */
   async queue(batch, env, ctx) {
     const queueName = batch.queue;
@@ -108,19 +109,9 @@ export default {
           await processAuthorBatch(batch, env, ctx);
           break;
 
-        case "enrichment-queue": {
-          // Dynamic import to avoid loading enrichment code when not needed
-          const { processEnrichmentBatch } = await import("./handlers/enrichment-queue-consumer.js");
-          await processEnrichmentBatch(batch, env, ctx);
-          break;
-        }
-
         default:
-          console.warn(`[Queue] Unknown queue: ${queueName}, acknowledging messages`);
-          // Acknowledge unknown messages to prevent infinite retries
-          for (const message of batch.messages) {
-            message.ack();
-          }
+          console.warn(`[Queue] Unknown queue: ${queueName}, acknowledging all messages`);
+          batch.ackAll();
       }
     } catch (error) {
       console.error(`[Queue] Error processing ${queueName} batch:`, error);

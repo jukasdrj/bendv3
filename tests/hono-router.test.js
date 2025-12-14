@@ -1,11 +1,10 @@
 /**
- * Hono Router Tests - Phase 1 MVP
+ * Hono Router Tests
  *
  * These tests validate:
- * 1. Feature flag toggle works correctly
- * 2. Hono routes return expected responses
- * 3. Performance comparison between manual and Hono routing
- * 4. Both routers produce identical business logic results
+ * 1. Hono routes return expected responses
+ * 2. Health check and metrics endpoints work correctly
+ * 3. Error handling and CORS configuration
  */
 
 import { describe, it, expect } from 'vitest'
@@ -24,14 +23,11 @@ const mockCtx = {
 }
 
 const mockEnv = {
-  ENABLE_HONO_ROUTER: 'false', // Will be overridden per test
   CACHE_HOT_TTL: '7200',
   CACHE_COLD_TTL: '1209600',
   MAX_RESULTS_DEFAULT: '40',
   LOG_LEVEL: 'DEBUG',
   ENABLE_PERFORMANCE_LOGGING: 'true',
-  ENABLE_UNIFIED_ENVELOPE: 'true',
-  ENABLE_REFACTORED_DOS: 'false',
 
   // Mock KV namespace
   CACHE: {
@@ -87,37 +83,8 @@ const mockEnv = {
   AUTHOR_WARMING_QUEUE: { send: async () => {} }
 }
 
-describe('Hono Router - Feature Flag', () => {
-  it('should use manual router when feature flag is disabled', async () => {
-    const request = new Request('http://localhost/health')
-    const env = { ...mockEnv, ENABLE_HONO_ROUTER: 'false' }
-
-    const response = await worker.fetch(request, env, mockCtx)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.status).toBe('ok')
-    // Manual router doesn't set X-Router header
-    expect(response.headers.get('X-Router')).toBeNull()
-  })
-
-  it('should use Hono router when feature flag is enabled', async () => {
-    const request = new Request('http://localhost/health')
-    const env = { ...mockEnv, ENABLE_HONO_ROUTER: 'true' }
-
-    const response = await worker.fetch(request, env, mockCtx)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.status).toBe('ok')
-    expect(data.router).toBe('hono')
-    // Hono router sets X-Router header
-    expect(response.headers.get('X-Router')).toBe('hono')
-  })
-})
-
 describe('Hono Router - Route Functionality', () => {
-  const env = { ...mockEnv, ENABLE_HONO_ROUTER: 'true' }
+  const env = { ...mockEnv }
 
   it('should handle /health endpoint', async () => {
     const request = new Request('http://localhost/health')
@@ -163,7 +130,7 @@ describe('Hono Router - Route Functionality', () => {
 })
 
 describe('Hono Router - Analytics Headers', () => {
-  const env = { ...mockEnv, ENABLE_HONO_ROUTER: 'true' }
+  const env = { ...mockEnv }
 
   it('should include X-Router header in all responses', async () => {
     const request = new Request('http://localhost/health')
@@ -182,50 +149,8 @@ describe('Hono Router - Analytics Headers', () => {
   })
 })
 
-describe('Hono Router - Performance Benchmarks', () => {
-  it('should compare routing overhead: manual vs Hono', async () => {
-    const iterations = 100
-    const testUrl = 'http://localhost/health'
-
-    // Benchmark 1: Manual routing
-    const manualStart = performance.now()
-    for (let i = 0; i < iterations; i++) {
-      const request = new Request(testUrl)
-      await worker.fetch(request, { ...mockEnv, ENABLE_HONO_ROUTER: 'false' }, mockCtx)
-    }
-    const manualTime = performance.now() - manualStart
-
-    // Benchmark 2: Hono routing
-    const honoStart = performance.now()
-    for (let i = 0; i < iterations; i++) {
-      const request = new Request(testUrl)
-      await worker.fetch(request, { ...mockEnv, ENABLE_HONO_ROUTER: 'true' }, mockCtx)
-    }
-    const honoTime = performance.now() - honoStart
-
-    // Log results (not a strict assertion - just informational)
-    const manualAvg = (manualTime / iterations).toFixed(2)
-    const honoAvg = (honoTime / iterations).toFixed(2)
-    const percentDiff = (((manualTime - honoTime) / manualTime) * 100).toFixed(1)
-
-    console.log(`
-┌─────────────────────────────────────────────────┐
-│ Routing Performance Comparison (${iterations} iterations)  │
-├─────────────────────────────────────────────────┤
-│ Manual Router:  ${manualTime.toFixed(2)}ms (${manualAvg}ms/req)     │
-│ Hono Router:    ${honoTime.toFixed(2)}ms (${honoAvg}ms/req)       │
-│ Difference:     ${Math.abs(manualTime - honoTime).toFixed(2)}ms (${percentDiff}% ${manualTime > honoTime ? 'faster' : 'slower'})  │
-└─────────────────────────────────────────────────┘
-    `)
-
-    // Both should complete successfully
-    expect(manualTime).toBeGreaterThan(0)
-    expect(honoTime).toBeGreaterThan(0)
-  })
-})
-
 describe('Hono Router - WebSocket Routing', () => {
-  const env = { ...mockEnv, ENABLE_HONO_ROUTER: 'true' }
+  const env = { ...mockEnv }
 
   it('should route WebSocket upgrade requests to Durable Object', async () => {
     const request = new Request('http://localhost/ws/progress?jobId=test-123', {
@@ -266,7 +191,7 @@ describe('Hono Router - WebSocket Routing', () => {
 })
 
 describe('Hono Router - Error Handling', () => {
-  const env = { ...mockEnv, ENABLE_HONO_ROUTER: 'true' }
+  const env = { ...mockEnv }
 
   it('should handle global errors with 500 response', async () => {
     // Simulate an error by calling a non-existent handler
@@ -291,7 +216,7 @@ describe('Hono Router - Error Handling', () => {
   it('should catch route errors with global onError handler', async () => {
     // Test the /test/error route that intentionally throws an error
     const request = new Request('http://localhost/test/error')
-    const env = { ...mockEnv, ENABLE_HONO_ROUTER: 'true', LOG_LEVEL: 'DEBUG' }
+    const env = { ...mockEnv, LOG_LEVEL: 'DEBUG' }
 
     const response = await worker.fetch(request, env, mockCtx)
     const data = await response.json()
@@ -326,43 +251,9 @@ describe('Hono Router - Error Handling', () => {
   })
 })
 
-describe('Hono Router - Response Consistency', () => {
-  it('should produce identical JSON for /health between routers', async () => {
-    const request = new Request('http://localhost/health')
-
-    // Manual router
-    const manualResponse = await worker.fetch(request, {
-      ...mockEnv,
-      ENABLE_HONO_ROUTER: 'false'
-    }, mockCtx)
-    const manualData = await manualResponse.json()
-
-    // Hono router
-    const honoResponse = await worker.fetch(request, {
-      ...mockEnv,
-      ENABLE_HONO_ROUTER: 'true'
-    }, mockCtx)
-    const honoData = await honoResponse.json()
-
-    // Both should have same status and worker info
-    expect(honoData.status).toBe(manualData.status)
-    expect(honoData.worker).toBe(manualData.worker)
-    expect(honoData.version).toBe(manualData.version)
-
-    // Hono should add router identifier
-    expect(honoData.router).toBe('hono')
-    expect(manualData.router).toBeUndefined()
-
-    // Headers should differ only in X-Router
-    expect(honoResponse.headers.get('X-Router')).toBe('hono')
-    expect(manualResponse.headers.get('X-Router')).toBeNull()
-  })
-})
-
 describe('Hono Router - Polling Endpoint (Issue #9)', () => {
   const env = {
     ...mockEnv,
-    ENABLE_HONO_ROUTER: 'true',
     // Mock Durable Object for job state
     PROGRESS_WEBSOCKET_DO: {
       idFromName: () => ({ toString: () => 'test-id' }),

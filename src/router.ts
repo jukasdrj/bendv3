@@ -139,9 +139,8 @@ const createRateLimitMiddleware = (maxRequests) => {
 // ============================================================================
 // P1 WebSocket Reconnection Routes (Issue #238)
 // ============================================================================
-// These routes were missing from Hono router, breaking WebSocket reconnection
-// for users with ENABLE_HONO_ROUTER=true (default). Matches manual router
-// behavior exactly (src/index.js lines 133-430).
+// These routes handle WebSocket reconnection and token refresh.
+// Originally from manual router (archived: docs/archive/manual-router-legacy-2025-11-21.js).
 
 // POST /api/token/refresh - Refresh WebSocket authentication token
 // Rate limited to prevent abuse

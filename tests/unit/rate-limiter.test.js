@@ -426,16 +426,6 @@ describe('Rate Limiter Middleware - Per-Endpoint Limits', () => {
     expect(getRateLimitForEndpoint('/api/scan-bookshelf/batch')).toBe(5)
   })
 
-  it('should return 10 req/min for batch enrichment endpoint', () => {
-    expect(getRateLimitForEndpoint('/v1/enrichment/batch')).toBe(10)
-  })
-
-  it('should return 100 req/min for search endpoints', () => {
-    expect(getRateLimitForEndpoint('/v1/search/isbn')).toBe(100)
-    expect(getRateLimitForEndpoint('/v1/search/title')).toBe(100)
-    expect(getRateLimitForEndpoint('/v1/search/advanced')).toBe(100)
-  })
-
   it('should return default 100 req/min for unknown endpoints', () => {
     expect(getRateLimitForEndpoint('/health')).toBe(100)
     expect(getRateLimitForEndpoint('/metrics')).toBe(100)

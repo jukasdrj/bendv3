@@ -44,9 +44,6 @@ export function getRateLimitForEndpoint(pathname) {
   if (pathname === "/api/import/csv-gemini") return RATE_LIMITS.csvImport;
   if (pathname === "/api/scan-bookshelf/batch")
     return RATE_LIMITS.bookshelfScan;
-  if (pathname === "/v1/enrichment/batch") return RATE_LIMITS.batchEnrichment;
-  if (pathname.startsWith("/v1/search/")) return RATE_LIMITS.default;
-
   return RATE_LIMITS.default;
 }
 

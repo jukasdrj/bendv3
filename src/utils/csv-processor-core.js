@@ -11,13 +11,22 @@
  * Related: Issue #180 - Eliminate code duplication in CSV processing
  */
 
-import { validateCSV } from "./csv-validator.js";
+import { validateCSV as validateCSVImpl } from "./csv-validator.js";
 import {
   buildCSVParserPrompt,
   PROMPT_VERSION,
 } from "../prompts/csv-parser-prompt.js";
 import { generateCSVCacheKey } from "./cache-keys.js";
-import { parseCSVWithGemini } from "../providers/gemini-csv-provider.js";
+import { parseCSVWithGemini as parseCSVWithGeminiImpl } from "../providers/gemini-csv-provider.js";
+
+/**
+ * Default dependencies for CSV processing
+ * Exported for testing with dependency injection (Issue #217)
+ */
+export const defaultDeps = {
+  validateCSV: validateCSVImpl,
+  parseCSVWithGemini: parseCSVWithGeminiImpl,
+};
 
 /**
  * Core CSV processing function
@@ -42,6 +51,7 @@ import { parseCSVWithGemini } from "../providers/gemini-csv-provider.js";
  * @param {number} options.resultsTTL - TTL for KV storage in seconds (default: 3600 = 1 hour)
  * @param {string} options.resultsKeyPrefix - KV key prefix (default: "job-results")
  * @param {Function} options.buildCompletionPayload - Custom completion payload builder (default: summary format)
+ * @param {Object} options.deps - Dependency injection for testing (default: defaultDeps)
  * @returns {Promise<void>}
  */
 export async function processCSVCore(
@@ -55,6 +65,7 @@ export async function processCSVCore(
     resultsTTL = 3600, // Default: 1 hour
     resultsKeyPrefix = "job-results", // IMPORTANT: Must match retrieval endpoint key (csv-results for /v1/csv/results, scan-results for /v1/scan/results)
     buildCompletionPayload = buildDefaultCompletionPayload,
+    deps = defaultDeps, // Dependency injection for testing (Issue #217)
   } = options;
 
   const startTime = Date.now();
@@ -88,7 +99,7 @@ export async function processCSVCore(
       processedCount: 0,
     });
 
-    const validation = validateCSV(csvText);
+    const validation = deps.validateCSV(csvText);
     if (!validation.valid) {
       throw new Error(`Invalid CSV: ${validation.error}`);
     }
@@ -117,7 +128,7 @@ export async function processCSVCore(
       // NOTE: Gemini 2.0 Flash typically responds in <20 seconds for CSV parsing
       // Paid Plan: 30M CPU milliseconds/month, 5-minute max per invocation
       const prompt = buildCSVParserPrompt();
-      parsedBooks = await callGemini(csvText, prompt, env);
+      parsedBooks = await callGemini(csvText, prompt, env, deps);
 
       // Schema guarantees valid array structure and title+author on all books
       // Only check for empty response (edge case: CSV with no parseable books)
@@ -351,7 +362,7 @@ export function buildServiceCompletionPayload({
 }) {
   return {
     booksCount: validatedBooks.length,
-    resultsUrl: `/v1/csv/results/${jobId}`,
+    resultsUrl: `/v3/jobs/imports/${jobId}/results`,
     successRate: `${validatedBooks.length}/${parsedBooks.length}`,
   };
 }
@@ -362,9 +373,10 @@ export function buildServiceCompletionPayload({
  * @param {string} csvText - Raw CSV content
  * @param {string} prompt - Gemini prompt with few-shot examples
  * @param {Object} env - Worker environment bindings
+ * @param {Object} deps - Injected dependencies (Issue #217)
  * @returns {Promise<Array<Object>>} Parsed book data
  */
-async function callGemini(csvText, prompt, env) {
+async function callGemini(csvText, prompt, env, deps) {
   /**
    * GEMINI_API_KEY binding supports two patterns:
    *   1. Secrets Store binding (recommended for production): env.GEMINI_API_KEY is a SecretsStore binding and requires .get() to retrieve the value.
@@ -381,5 +393,5 @@ async function callGemini(csvText, prompt, env) {
     throw new Error("GEMINI_API_KEY not configured");
   }
 
-  return await parseCSVWithGemini(csvText, prompt, apiKey);
+  return await deps.parseCSVWithGemini(csvText, prompt, apiKey);
 }

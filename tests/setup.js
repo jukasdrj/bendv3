@@ -41,7 +41,6 @@ vi.mock('cloudflare:workers', () => ({
 // ============================================================================
 
 // Set test environment variables
-process.env.ENABLE_UNIFIED_ENVELOPE = 'true';
 process.env.NODE_ENV = 'test';
 
 // ============================================================================

@@ -123,16 +123,7 @@ export async function processAuthorBatch(batch, env, ctx) {
       message.ack();
     } catch (error) {
       console.error(`Failed to process author ${message.body.author}:`, error);
-
-      // Retry on rate limits, fail otherwise
-      if (
-        error.message.includes("429") ||
-        error.message.includes("rate limit")
-      ) {
-        message.retry();
-      } else {
-        message.retry(); // Retry up to 3 times
-      }
+      message.retry(); // Retry up to 3 times per queue config, then DLQ
     }
   }
 }

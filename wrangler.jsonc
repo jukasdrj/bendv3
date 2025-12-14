@@ -278,14 +278,6 @@
         "max_retries": 3,
         "dead_letter_queue": "author-warming-dlq",
         "max_concurrency": 5
-      },
-      {
-        "//": "Sprint 3: Process enrichment jobs with embedding generation",
-        "queue": "enrichment-queue",
-        "max_batch_size": 5,
-        "max_batch_timeout": 60,
-        "max_retries": 3,
-        "max_concurrency": 3
       }
     ]
   },
