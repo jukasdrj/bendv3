@@ -263,12 +263,15 @@ describe('JobStateManagerDO', () => {
       const result = await doInstance.complete('csv_import', payload);
 
       expect(result.success).toBe(true);
+      // Implementation extracts books from payload to avoid 128KB DO storage limit
+      // result contains only summary (successRate), bookCount stores count
       expect(mockState.storage.put).toHaveBeenCalledWith(
         'jobState',
         expect.objectContaining({
           status: 'completed',
           progress: 1.0,
-          result: payload
+          result: { successRate: '100/100' },
+          bookCount: 1
         })
       );
     });

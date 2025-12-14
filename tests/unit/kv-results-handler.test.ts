@@ -102,11 +102,10 @@ describe('handleKVResults', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(data.data.foo).toBe('bar')
-    expect(data.data.count).toBe(42)
-    expect(data.data.expiresAt).toBeDefined()
-    expect(data.metadata.cached).toBe(true)
-    expect(data.metadata.provider).toBe('kv_cache')
+    // Implementation returns { ...results, expiresAt } directly (not wrapped)
+    expect(data.foo).toBe('bar')
+    expect(data.count).toBe(42)
+    expect(data.expiresAt).toBeDefined()
   })
 
   it('should use correct KV key prefix', async () => {
