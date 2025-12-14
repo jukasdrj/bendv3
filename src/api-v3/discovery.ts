@@ -215,7 +215,7 @@ export function registerDiscoveryRoutes(
             requestId: ctx.requestId,
             source: 'kv-cache' as const,
             cached: true,
-            processingTimeMs: Date.now() - ctx.startTime
+            processingTime: Date.now() - ctx.startTime
           },
           _links: {
             self: { href: `/v3/recommendations/weekly?limit=${limit}`, rel: 'self', method: 'GET' }
@@ -253,7 +253,7 @@ export function registerDiscoveryRoutes(
               requestId: ctx.requestId,
               source: 'alexandria' as const, // D1 storage
               cached: false,
-              processingTimeMs: Date.now() - ctx.startTime
+              processingTime: Date.now() - ctx.startTime
             },
             _links: {
               self: { href: `/v3/recommendations/weekly?limit=${limit}`, rel: 'self', method: 'GET' }
@@ -303,7 +303,7 @@ export function registerDiscoveryRoutes(
               requestId: ctx.requestId,
               source: 'fallback' as const,
               cached: false,
-              processingTimeMs: Date.now() - ctx.startTime
+              processingTime: Date.now() - ctx.startTime
             },
             _links: {
               self: { href: `/v3/recommendations/weekly?limit=${limit}`, rel: 'self', method: 'GET' }

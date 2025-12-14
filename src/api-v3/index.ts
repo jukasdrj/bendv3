@@ -180,7 +180,7 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
             timestamp: new Date().toISOString(),
             requestId: ctx.requestId,
             cached: false,
-            processingTimeMs: Date.now() - ctx.startTime
+            processingTime: Date.now() - ctx.startTime
           },
           error: null
         }, 200)
@@ -243,7 +243,7 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
           timestamp: new Date().toISOString(),
           requestId: ctx.requestId,
           cached: false,
-          processingTimeMs: Date.now() - ctx.startTime
+          processingTime: Date.now() - ctx.startTime
         },
         error: null,
         _links: {
@@ -555,7 +555,7 @@ for semantic search.`,
         metadata: {
           timestamp: new Date().toISOString(),
           requestId: ctx.requestId,
-          processingTimeMs: Date.now() - ctx.startTime
+          processingTime: Date.now() - ctx.startTime
         }
       }, 200)
 
@@ -700,7 +700,7 @@ for semantic search.`,
           requestId: ctx.requestId,
           source: enrichmentResult.source || 'external',
           cached: enrichmentResult.cached || false,
-          processingTimeMs: duration
+          processingTime: duration
         },
         _links: {
           self: { href: `/v3/books/${isbn}`, rel: 'self', method: 'GET' },
