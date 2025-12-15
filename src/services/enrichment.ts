@@ -205,7 +205,10 @@ export async function enrichMultipleBooks(
       return { works: [], editions: [], authors: [] };
     }
 
-    const data = await response.json();
+    const responseData = await response.json();
+
+    // Alexandria wraps results in "data" envelope: { success: true, data: { results: [...] } }
+    const data = responseData.data || responseData;
 
     if (!data.results || data.results.length === 0) {
       console.log(`enrichMultipleBooks: Alexandria found no results for`, { isbn, title, author });
@@ -390,7 +393,10 @@ export async function enrichSingleBook(
       };
     }
 
-    const data = await response.json();
+    const responseData = await response.json();
+
+    // Alexandria wraps results in "data" envelope: { success: true, data: { results: [...] } }
+    const data = responseData.data || responseData;
 
     if (!data.results || data.results.length === 0) {
       console.log(`enrichSingleBook: Alexandria found no results for`, query);
