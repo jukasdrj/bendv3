@@ -550,7 +550,7 @@ for semantic search.`,
           books: enrichedBooks,
           requested: isbns.length,
           found: enrichedBooks.length,
-          notFound: notFound.length > 0 ? notFound : undefined
+          notFound: notFound  // Always return array, even if empty (iOS requires non-optional)
         },
         metadata: {
           timestamp: new Date().toISOString(),

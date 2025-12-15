@@ -72,7 +72,7 @@ export const EnrichResultDataSchema = z.object({
   books: z.array(EnrichedBookSchema).describe('Enriched books (may be fewer than requested if some not found)'),
   requested: z.number().int().min(1).describe('Number of ISBNs requested'),
   found: z.number().int().min(0).describe('Number of books found'),
-  notFound: z.array(z.string()).optional().describe('ISBNs that were not found')
+  notFound: z.array(z.string()).describe('ISBNs that were not found (empty array if all found)')
 }).openapi('EnrichResultData')
 
 export type EnrichResultData = z.infer<typeof EnrichResultDataSchema>
