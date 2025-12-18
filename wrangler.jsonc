@@ -319,6 +319,7 @@
   "//": "========================================================================",
   "//": "Alexandria Authentication (Worker Secrets - not Secrets Store)",
   "//": "ALEXANDRIA_CLIENT_ID and ALEXANDRIA_CLIENT_SECRET are Worker secrets",
-  "//": "Added via: npx wrangler secret put ALEXANDRIA_CLIENT_ID",
+  "//": "ALEXANDRIA_WEBHOOK_SECRET is shared secret for webhook authentication",
+  "//": "Added via: npx wrangler secret put ALEXANDRIA_WEBHOOK_SECRET",
   "//": "========================================================================"
 }

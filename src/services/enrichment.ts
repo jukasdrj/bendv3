@@ -24,7 +24,7 @@
 
 import { createAlexandriaClient } from "./alexandria-client.js";
 import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js";
-import type { DataProvider } from "../types/enums.js";
+import type { DataProvider, AuthorGender, EditionFormat } from "../types/enums.js";
 import { CircuitBreakerOpenError, ExternalAPIError, RateLimitError } from "../types/errors";
 
 // ========================================================================================
@@ -38,7 +38,7 @@ import { CircuitBreakerOpenError, ExternalAPIError, RateLimitError } from "../ty
 interface WorkerEnv {
   // KV Namespaces
   CACHE: KVNamespace;
-  CACHE: KVNamespace;
+  // CACHE: KVNamespace; (Duplicate removed)
 
   // Secrets
   GOOGLE_BOOKS_API_KEY: string;
@@ -230,11 +230,31 @@ export async function enrichMultipleBooks(
       let workAuthorDTOs: AuthorDTO[] = [];
       if (book.authors && Array.isArray(book.authors)) {
         workAuthorDTOs = book.authors
-          .map((a: any) => typeof a === 'string' ? a : a.name)
-          .filter(Boolean)
-          // Filter out OpenLibrary author paths (not valid names)
-          .filter((name: string) => !name.startsWith('/authors/'))
-          .map((name: string) => ({ name, gender: 'Unknown' as const }));
+          .map((a: any) => {
+            if (typeof a === 'string') {
+              return { name: a, gender: 'Unknown' as const };
+            }
+            
+            // Map enriched fields from Alexandria
+            let gender: AuthorGender = 'Unknown';
+            if (a.gender) {
+              const g = a.gender.toLowerCase();
+              if (g === 'male') gender = 'Male';
+              else if (g === 'female') gender = 'Female';
+              else if (g === 'non-binary') gender = 'Non-binary';
+              else gender = 'Other';
+            }
+
+            return {
+              name: a.name,
+              gender,
+              nationality: a.nationality || undefined,
+              birthYear: a.birth_year || undefined,
+              deathYear: a.death_year || undefined,
+            };
+          })
+          // Filter out invalid names and OpenLibrary paths
+          .filter((a: AuthorDTO) => a.name && !a.name.startsWith('/authors/'));
       } else if (book.author && !book.author.startsWith('/authors/')) {
         workAuthorDTOs = [{ name: book.author, gender: 'Unknown' as const }];
       }
@@ -291,7 +311,7 @@ export async function enrichMultipleBooks(
           publisher: book.publisher || book.publishers || undefined,
           coverImageURL: book.coverUrl || undefined,
           coverSource: book.coverSource || undefined,
-          format: 'paperback' as const, // Default format (required by EditionDTO)
+          format: mapBindingToFormat(book.binding), // Default format (required by EditionDTO)
           // External IDs
           openLibraryEditionID: book.openlibrary_edition ? book.openlibrary_edition.split('/books/')[1] : undefined,
           // Required arrays (empty if not provided)
@@ -416,41 +436,70 @@ export async function enrichSingleBook(
     // Map to WorkDTO (canonical contract)
     const work: WorkDTO = {
       title: book.title,
-      openLibraryWorkKey: book.work_key || undefined,
-      googleBooksId: book.google_books_id || undefined,
-      goodreadsId: book.goodreads_id || undefined,
-      isbndbWorkId: book.isbndb_work_id || undefined,
+      openLibraryWorkID: book.work_key || undefined,
+      googleBooksVolumeID: book.google_books_id || undefined,
+      goodreadsID: book.goodreads_id || undefined,
+      isbndbID: book.isbndb_work_id || undefined,
       description: book.description || undefined,
-      firstPublishedYear: book.first_published_year || undefined,
+      firstPublicationYear: book.first_published_year || undefined,
       coverImageURL: book.coverUrl || undefined, // Fixed: Use camelCase coverUrl from Alexandria
-      subjects: book.subjects ? JSON.parse(book.subjects) : undefined,
+      subjectTags: book.subjects ? JSON.parse(book.subjects) : undefined,
       // Provenance: Alexandria is the source (it handled the smart lookup)
-      dataProvider: 'alexandria' as DataProvider,
+      primaryProvider: 'alexandria' as DataProvider,
+      // Required arrays (empty if not provided)
+      goodreadsWorkIDs: [],
+      amazonASINs: [],
+      librarythingIDs: [],
+      googleBooksVolumeIDs: [],
+      // Quality metrics (required)
+      isbndbQuality: book.isbndb_quality || 0,
+      reviewStatus: 'verified' as const,
     };
 
     // Map to EditionDTO (canonical contract)
     const edition: EditionDTO | null = (book.isbn_13 || book.isbn_10) ? {
       isbn: book.isbn_13 || book.isbn_10!,
-      isbn13: book.isbn_13 || undefined,
-      isbn10: book.isbn_10 || undefined,
+      isbns: [book.isbn_13 || book.isbn_10!],
       title: book.title,
-      publishedDate: book.published_date || undefined,
+      publicationDate: book.published_date || undefined,
       pageCount: book.page_count || undefined,
       language: book.language || 'en',
       publisher: book.publisher || undefined,
       coverImageURL: book.coverUrl || undefined, // Fixed: Use camelCase coverUrl from Alexandria
-      binding: book.binding || undefined,
-      msrp: book.msrp || undefined,
-      dimensions: book.dimensions || undefined,
-      dataProvider: 'alexandria' as DataProvider,
+      format: mapBindingToFormat(book.binding),
+      primaryProvider: 'alexandria' as DataProvider,
       isbndbQuality: book.isbndb_quality || 0,
+       // External IDs
+      openLibraryEditionID: book.openlibrary_edition ? book.openlibrary_edition.split('/books/')[1] : undefined,
+      // Required arrays (empty if not provided)
+      amazonASINs: [],
+      googleBooksVolumeIDs: [],
+      librarythingIDs: [],
     } : null;
 
     // Map authors
-    const authors: AuthorDTO[] = (book.authors || []).map((authorName: string) => ({
-      name: authorName,
-      gender: 'Unknown' as const, // Alexandria doesn't track gender
-    }));
+    const authors: AuthorDTO[] = (book.authors || []).map((a: any) => {
+      if (typeof a === 'string') {
+        return { name: a, gender: 'Unknown' as const };
+      }
+
+      let gender: AuthorGender = 'Unknown';
+      if (a.gender) {
+        const g = a.gender.toLowerCase();
+        if (g === 'male') gender = 'Male';
+        else if (g === 'female') gender = 'Female';
+        else if (g === 'non-binary') gender = 'Non-binary';
+        else gender = 'Other';
+      }
+
+      return {
+        name: a.name,
+        gender,
+        nationality: a.nationality || undefined,
+        birthYear: a.birth_year || undefined,
+        deathYear: a.death_year || undefined,
+      };
+    });
 
     console.log(`enrichSingleBook: Alexandria returned result for "${book.title}"`);
 
@@ -486,6 +535,19 @@ export async function enrichSingleBook(
       }
     };
   }
+}
+
+
+function mapBindingToFormat(binding?: string): EditionFormat {
+  if (!binding) return 'Paperback';
+  const b = binding.toLowerCase();
+  if (b.includes('hard') || b.includes('bound')) return 'Hardcover';
+  if (b.includes('soft') || b.includes('paper')) return 'Paperback';
+  if (b.includes('audio') || b.includes('cd') || b.includes('cassette')) return 'Audiobook';
+  if (b.includes('digital') || b.includes('epub') || b.includes('kindle') || b.includes('ebook')) return 'E-book';
+  if (b.includes('mass')) return 'Mass Market';
+  
+  return 'Paperback';
 }
 
 // ========================================================================================

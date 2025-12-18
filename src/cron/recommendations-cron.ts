@@ -43,7 +43,7 @@ interface GeminiResponse {
 
 const RECOMMENDATIONS_COUNT = 10
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60 // 7 days
-const GEMINI_MODEL = 'gemini-2.0-flash-exp'
+const GEMINI_MODEL = 'gemini-2.5-flash'
 
 // ============================================================================
 // Main Handler

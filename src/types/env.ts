@@ -93,6 +93,7 @@ export interface Env {
   ALEXANDRIA_CLIENT_ID?: string;
   ALEXANDRIA_CLIENT_SECRET?: string;
   ALEXANDRIA_BASE_URL?: string; // Fallback URL for local dev without service bindings
+  ALEXANDRIA_WEBHOOK_SECRET?: string;
 
   // Service Bindings (Hono RPC)
   ALEXANDRIA?: Fetcher; // Service binding for sub-millisecond RPC to Alexandria worker

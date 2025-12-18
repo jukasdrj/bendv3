@@ -36,8 +36,9 @@
  * const response = await client.api.search.$get({ query: { isbn: '...' } })
  * ```
  */
-import type { AlexandriaAppType as AlexandriaApp } from 'alexandria-worker'
-export type AlexandriaAppType = AlexandriaApp
+// import type { AlexandriaAppType as AlexandriaApp } from 'alexandria-worker'
+// export type AlexandriaAppType = AlexandriaApp
+export type AlexandriaAppType = any;
 
 // ============================================================================
 // Request Types
@@ -72,6 +73,21 @@ export type {
   EnrichmentJobStatus,
   ErrorResponse,
 } from 'alexandria-worker/types'
+
+/**
+ * Standard API Response Envelope from Alexandria V3
+ */
+export interface ResponseMeta {
+  requestId: string;
+  timestamp: string;
+  latencyMs?: number;
+}
+
+export interface AlexandriaResponse<T> {
+  success: boolean;
+  data: T;
+  meta: ResponseMeta;
+}
 
 // ============================================================================
 // Constants

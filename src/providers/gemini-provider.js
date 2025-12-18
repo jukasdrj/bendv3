@@ -12,7 +12,7 @@ import { retryWithBackoff } from "../utils/retry.js";
 
 // Configurable model selection (Issue #101: Flash-Lite migration)
 // Override via GEMINI_VISION_MODEL env var if needed (rollback: set to "gemini-2.5-flash")
-const DEFAULT_VISION_MODEL = "gemini-2.5-flash-lite";
+const DEFAULT_VISION_MODEL = "gemini-2.5-flash";
 
 /**
  * Scan bookshelf image using Gemini AI

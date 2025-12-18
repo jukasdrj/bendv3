@@ -182,7 +182,9 @@ async function searchAlexandriaByISBN_Uncached_RPC(
         )
       }
 
-      const data: AlexandriaISBNResponse = await response.json()
+      const jsonResponse: any = await response.json()
+      // Handle V3 Envelope format
+      const data: AlexandriaISBNResponse = jsonResponse.data || jsonResponse
 
       // Alexandria returns 200 with empty results array if ISBN not found
       if (!data.results || data.results.length === 0) {
@@ -255,7 +257,9 @@ async function searchAlexandriaByISBN_Uncached_Fetch(
         )
       }
 
-      const data: AlexandriaISBNResponse = await response.json()
+      const jsonResponse: any = await response.json()
+      // Handle V3 Envelope format: { success: true, data: { ... } }
+      const data: AlexandriaISBNResponse = jsonResponse.data || jsonResponse
 
       // Alexandria returns 200 with empty results array if ISBN not found
       if (!data.results || data.results.length === 0) {

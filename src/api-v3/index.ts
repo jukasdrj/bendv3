@@ -35,6 +35,7 @@ import { generateBookEmbedding, storeEmbedding } from '../services/embedding-ser
 import { registerImportRoutes } from './jobs/imports'
 import { registerScanRoutes } from './jobs/scans'
 import { registerEnrichmentRoutes } from './jobs/enrichment'
+import { registerAlexandriaWebhookRoutes } from './webhooks/alexandria'
 import { registerDiscoveryRoutes } from './discovery'
 import {
   getJobStateManagerDO,
@@ -101,6 +102,7 @@ export function createV3Router() {
   registerImportRoutes(app)
   registerScanRoutes(app)
   registerEnrichmentRoutes(app)
+  registerAlexandriaWebhookRoutes(app)
 
   // ========================================================================
   // 1. GET /v3/books/search - Unified search endpoint
@@ -390,7 +392,7 @@ for semantic search.`,
       const notFound: string[] = []
 
       // Process ISBNs in parallel batches to prevent timeout
-      const CONCURRENCY = 10 // Process 10 ISBNs at a time
+      const CONCURRENCY = 50 // Process up to 50 ISBNs in parallel to stay within timeout
 
       // Helper to validate cached data has correct V3 EnrichedBook structure
       // Detects stale cache entries from old works/editions/authors format
