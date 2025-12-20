@@ -13,14 +13,13 @@
 
 import { fromHono } from 'chanfana'
 import type { Hono } from 'hono'
-
+import { EnrichBook } from './endpoints/books/enrich'
 // Import endpoint classes
 import { GetBookByISBN } from './endpoints/books/get-by-isbn'
 import { SearchBooksByTitle } from './endpoints/books/search-title'
-import { EnrichBook } from './endpoints/books/enrich'
 import { AddBookToLibrary } from './endpoints/library/add-book'
-import { ListUserLibrary } from './endpoints/library/list-library'
 import { RemoveBookFromLibrary } from './endpoints/library/delete-book'
+import { ListUserLibrary } from './endpoints/library/list-library'
 
 /**
  * Mount v3 API routes on existing Hono app

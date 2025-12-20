@@ -1,4 +1,4 @@
-import { DurableObject } from "cloudflare:workers";
+import { DurableObject } from 'cloudflare:workers'
 
 /**
  * Rate Limiter Durable Object
@@ -32,13 +32,13 @@ import { DurableObject } from "cloudflare:workers";
  * ```
  */
 
-const RATE_LIMIT_WINDOW = 60; // 60 seconds
-const DEFAULT_RATE_LIMIT = 10; // Default: 10 requests per window
+const RATE_LIMIT_WINDOW = 60 // 60 seconds
+const DEFAULT_RATE_LIMIT = 10 // Default: 10 requests per window
 
 export class RateLimiterDO extends DurableObject {
   constructor(state, env) {
-    super(state, env);
-    this.state = state;
+    super(state, env)
+    this.state = state
   }
 
   /**
@@ -53,37 +53,37 @@ export class RateLimiterDO extends DurableObject {
    * @returns {Promise<{allowed: boolean, remaining: number, resetAt: number}>}
    */
   async checkAndIncrement(maxRequests = DEFAULT_RATE_LIMIT) {
-    const now = Date.now();
+    const now = Date.now()
 
     // Get current counter state
-    const counters = (await this.state.storage.get("counters")) || {
+    const counters = (await this.state.storage.get('counters')) || {
       count: 0,
       resetAt: now + RATE_LIMIT_WINDOW * 1000,
-    };
+    }
 
     // Check if window expired
     if (now >= counters.resetAt) {
       // Reset to new window
-      counters.count = 0;
-      counters.resetAt = now + RATE_LIMIT_WINDOW * 1000;
+      counters.count = 0
+      counters.resetAt = now + RATE_LIMIT_WINDOW * 1000
     }
 
     // Check if limit exceeded (BEFORE incrementing)
-    const allowed = counters.count < maxRequests;
+    const allowed = counters.count < maxRequests
 
     if (allowed) {
       // Increment counter (atomic with storage transaction)
-      counters.count++;
-      await this.state.storage.put("counters", counters);
+      counters.count++
+      await this.state.storage.put('counters', counters)
     }
 
-    const remaining = Math.max(0, maxRequests - counters.count);
+    const remaining = Math.max(0, maxRequests - counters.count)
 
     return {
       allowed,
       remaining,
       resetAt: counters.resetAt,
-    };
+    }
   }
 
   /**
@@ -93,20 +93,18 @@ export class RateLimiterDO extends DurableObject {
    * UPDATE (Issue #222): Extracts X-Rate-Limit-Max header for endpoint-specific limits.
    */
   async fetch(request) {
-    if (request.method === "POST") {
+    if (request.method === 'POST') {
       // Extract custom rate limit from header (if provided)
-      const maxRequestsHeader = request.headers.get("X-Rate-Limit-Max");
-      const maxRequests = maxRequestsHeader
-        ? parseInt(maxRequestsHeader, 10)
-        : DEFAULT_RATE_LIMIT;
+      const maxRequestsHeader = request.headers.get('X-Rate-Limit-Max')
+      const maxRequests = maxRequestsHeader ? parseInt(maxRequestsHeader, 10) : DEFAULT_RATE_LIMIT
 
-      const result = await this.checkAndIncrement(maxRequests);
+      const result = await this.checkAndIncrement(maxRequests)
       return new Response(JSON.stringify(result), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
-    return new Response("Method not allowed", { status: 405 });
+    return new Response('Method not allowed', { status: 405 })
   }
 }

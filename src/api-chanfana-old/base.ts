@@ -9,8 +9,8 @@
  */
 
 import { OpenAPIRoute } from 'chanfana'
-import type { Env } from '../types/env'
 import type { Context } from 'hono'
+import type { Env } from '../types/env'
 import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
 
 // Extend Hono context to include our environment bindings
@@ -89,7 +89,7 @@ export class BendRoute extends OpenAPIRoute {
       statusCode,
       errorCode,
       { originalError: error.name },
-      c.req.raw
+      c.req.raw,
     )
   }
 
@@ -97,28 +97,15 @@ export class BendRoute extends OpenAPIRoute {
    * Log analytics event
    * Convenience method for tracking API usage
    */
-  protected async logAnalytics(
-    c: AppContext,
-    eventType: string,
-    data: Record<string, any>
-  ) {
+  protected async logAnalytics(c: AppContext, eventType: string, data: Record<string, any>) {
     const analytics = c.env.PERFORMANCE_ANALYTICS
     if (!analytics) return
 
     try {
       await analytics.writeDataPoint({
-        blobs: [
-          eventType,
-          c.req.path,
-          c.req.method,
-        ],
-        doubles: [
-          data.duration || 0,
-          data.statusCode || 200,
-        ],
-        indexes: [
-          data.provider || 'unknown',
-        ],
+        blobs: [eventType, c.req.path, c.req.method],
+        doubles: [data.duration || 0, data.statusCode || 200],
+        indexes: [data.provider || 'unknown'],
       })
     } catch (error) {
       console.error('[Analytics] Failed to log event:', error)
@@ -139,15 +126,15 @@ export class BendRoute extends OpenAPIRoute {
   protected async withTimeout<T>(
     promise: Promise<T>,
     timeoutMs: number = 5000,
-    operation: string = 'operation'
+    operation: string = 'operation',
   ): Promise<T> {
     return Promise.race([
       promise,
       new Promise<T>((_, reject) =>
         setTimeout(
           () => reject(new Error(`Timeout: ${operation} exceeded ${timeoutMs}ms`)),
-          timeoutMs
-        )
+          timeoutMs,
+        ),
       ),
     ])
   }
@@ -187,7 +174,7 @@ export class AuthenticatedRoute extends BendRoute {
         {
           hint: 'This endpoint requires Cloudflare Access authentication',
         },
-        c.req.raw
+        c.req.raw,
       )
     }
 
@@ -202,7 +189,7 @@ export class AuthenticatedRoute extends BendRoute {
    * Subclasses must implement this instead of handle()
    * This ensures auth check always runs first
    */
-  protected async handleAuthenticated(c: AppContext): Promise<Response> {
+  protected async handleAuthenticated(_c: AppContext): Promise<Response> {
     throw new Error('handleAuthenticated must be implemented by subclass')
   }
 

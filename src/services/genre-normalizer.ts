@@ -3,7 +3,7 @@
  * Transforms provider-specific genres into canonical subjectTags
  */
 
-import { levenshteinDistance } from "../utils/string-similarity.js";
+import { levenshteinDistance } from '../utils/string-similarity.js'
 
 /**
  * Canonical genre taxonomy
@@ -11,37 +11,37 @@ import { levenshteinDistance } from "../utils/string-similarity.js";
  */
 const CANONICAL_GENRES: Record<string, string[]> = {
   // Fiction categories
-  "Science Fiction": ["Sci-Fi", "Science Fiction", "SF", "Scifi"],
-  Fantasy: ["Fantasy", "Fantasie"],
-  Mystery: ["Mystery", "Detective", "Whodunit", "Mystrey"],
-  Thriller: ["Thriller", "Suspense"],
-  Romance: ["Romance", "Love Story"],
-  Horror: ["Horror", "Scary"],
-  "Literary Fiction": ["Literary", "Literature", "Literary Fiction"],
-  "Historical Fiction": ["Historical Fiction", "Historical Novel"],
+  'Science Fiction': ['Sci-Fi', 'Science Fiction', 'SF', 'Scifi'],
+  Fantasy: ['Fantasy', 'Fantasie'],
+  Mystery: ['Mystery', 'Detective', 'Whodunit', 'Mystrey'],
+  Thriller: ['Thriller', 'Suspense'],
+  Romance: ['Romance', 'Love Story'],
+  Horror: ['Horror', 'Scary'],
+  'Literary Fiction': ['Literary', 'Literature', 'Literary Fiction'],
+  'Historical Fiction': ['Historical Fiction', 'Historical Novel'],
 
   // Non-fiction categories
-  Biography: ["Biography", "Memoir", "Autobiography"],
-  History: ["History", "Historical"],
-  Science: ["Science", "Popular Science"],
-  Philosophy: ["Philosophy", "Philosophical"],
-  "Self-Help": ["Self-Help", "Self Improvement", "Personal Development"],
-  Business: ["Business", "Economics", "Entrepreneurship"],
-  "True Crime": ["True Crime", "Crime"],
+  Biography: ['Biography', 'Memoir', 'Autobiography'],
+  History: ['History', 'Historical'],
+  Science: ['Science', 'Popular Science'],
+  Philosophy: ['Philosophy', 'Philosophical'],
+  'Self-Help': ['Self-Help', 'Self Improvement', 'Personal Development'],
+  Business: ['Business', 'Economics', 'Entrepreneurship'],
+  'True Crime': ['True Crime', 'Crime'],
 
   // Age groups
-  "Young Adult": ["Young Adult", "YA", "Teen"],
-  "Children's": ["Children's", "Kids", "Juvenile"],
-  "Middle Grade": ["Middle Grade", "MG"],
+  'Young Adult': ['Young Adult', 'YA', 'Teen'],
+  "Children's": ["Children's", 'Kids', 'Juvenile'],
+  'Middle Grade': ['Middle Grade', 'MG'],
 
   // Special categories
-  Classics: ["Classic", "Classics", "Classical"],
-  Contemporary: ["Contemporary", "Modern"],
-  "Graphic Novels": ["Graphic Novel", "Comics", "Manga"],
-  Poetry: ["Poetry", "Poems", "Verse"],
-  Dystopian: ["Dystopian", "Dystopia"],
-  Fiction: ["Fiction"],
-};
+  Classics: ['Classic', 'Classics', 'Classical'],
+  Contemporary: ['Contemporary', 'Modern'],
+  'Graphic Novels': ['Graphic Novel', 'Comics', 'Manga'],
+  Poetry: ['Poetry', 'Poems', 'Verse'],
+  Dystopian: ['Dystopian', 'Dystopia'],
+  Fiction: ['Fiction'],
+}
 
 /**
  * Provider-specific genre mappings
@@ -49,45 +49,41 @@ const CANONICAL_GENRES: Record<string, string[]> = {
  */
 const PROVIDER_MAPPINGS: Record<string, string[]> = {
   // Google Books hierarchical format
-  "Fiction / Science Fiction / General": ["Science Fiction", "Fiction"],
-  "Fiction / Science Fiction / Dystopian": [
-    "Science Fiction",
-    "Dystopian",
-    "Fiction",
-  ],
-  "Fiction / Fantasy / General": ["Fantasy", "Fiction"],
-  "Fiction / Fantasy / Epic": ["Fantasy", "Fiction"],
-  "Fiction / Mystery & Detective / General": ["Mystery", "Fiction"],
-  "Fiction / Thrillers / General": ["Thriller", "Fiction"],
-  "Fiction / Romance / General": ["Romance", "Fiction"],
-  "Fiction / Horror": ["Horror", "Fiction"],
-  "Fiction / Literary": ["Literary Fiction", "Fiction"],
-  "Fiction / Historical / General": ["Historical Fiction", "Fiction"],
+  'Fiction / Science Fiction / General': ['Science Fiction', 'Fiction'],
+  'Fiction / Science Fiction / Dystopian': ['Science Fiction', 'Dystopian', 'Fiction'],
+  'Fiction / Fantasy / General': ['Fantasy', 'Fiction'],
+  'Fiction / Fantasy / Epic': ['Fantasy', 'Fiction'],
+  'Fiction / Mystery & Detective / General': ['Mystery', 'Fiction'],
+  'Fiction / Thrillers / General': ['Thriller', 'Fiction'],
+  'Fiction / Romance / General': ['Romance', 'Fiction'],
+  'Fiction / Horror': ['Horror', 'Fiction'],
+  'Fiction / Literary': ['Literary Fiction', 'Fiction'],
+  'Fiction / Historical / General': ['Historical Fiction', 'Fiction'],
 
   // ISBNDB uses "&" separators
-  "Science Fiction & Fantasy": ["Science Fiction", "Fantasy"],
-  "Mystery & Thriller": ["Mystery", "Thriller"],
-  "Romance & Fiction": ["Romance", "Fiction"],
+  'Science Fiction & Fantasy': ['Science Fiction', 'Fantasy'],
+  'Mystery & Thriller': ['Mystery', 'Thriller'],
+  'Romance & Fiction': ['Romance', 'Fiction'],
 
   // OpenLibrary descriptive subjects
-  "Dystopian fiction": ["Dystopian", "Science Fiction"],
-  "Science fiction": ["Science Fiction"],
-  "Classic Literature": ["Classics", "Literary Fiction"],
-  "Fantasy fiction": ["Fantasy"],
-  "Detective and mystery stories": ["Mystery"],
+  'Dystopian fiction': ['Dystopian', 'Science Fiction'],
+  'Science fiction': ['Science Fiction'],
+  'Classic Literature': ['Classics', 'Literary Fiction'],
+  'Fantasy fiction': ['Fantasy'],
+  'Detective and mystery stories': ['Mystery'],
 
   // Gemini AI free-form genres
-  "Sci-fi dystopia": ["Science Fiction", "Dystopian"],
-  "Post-apocalyptic fiction": ["Science Fiction", "Dystopian"],
-  "Epic fantasy": ["Fantasy"],
-};
+  'Sci-fi dystopia': ['Science Fiction', 'Dystopian'],
+  'Post-apocalyptic fiction': ['Science Fiction', 'Dystopian'],
+  'Epic fantasy': ['Fantasy'],
+}
 
 /**
  * Genre Normalizer Service
  * Transforms provider-specific genres into canonical subjectTags
  */
 export class GenreNormalizer {
-  private readonly fuzzyThreshold = 0.85;
+  private readonly fuzzyThreshold = 0.85
 
   /**
    * Normalize raw genres from any provider to canonical subjectTags
@@ -96,38 +92,40 @@ export class GenreNormalizer {
    * @returns Array of canonical genre tags (sorted, deduplicated)
    */
   normalize(rawGenres: string[], provider: string): string[] {
-    const normalized: Set<string> = new Set();
+    const normalized: Set<string> = new Set()
 
     for (const raw of rawGenres) {
       // 1. Provider-specific preprocessing
-      const cleaned = this.preprocess(raw, provider);
+      const cleaned = this.preprocess(raw, provider)
 
       // 2. Exact mapping lookup
-      const exactMatch = PROVIDER_MAPPINGS[cleaned];
+      const exactMatch = PROVIDER_MAPPINGS[cleaned]
       if (exactMatch) {
-        exactMatch.forEach((tag) => normalized.add(tag));
-        continue;
+        for (const tag of exactMatch) {
+          normalized.add(tag)
+        }
+        continue
       }
 
       // 3. Check canonical genre variations
-      const canonicalMatch = this.findCanonicalMatch(cleaned);
+      const canonicalMatch = this.findCanonicalMatch(cleaned)
       if (canonicalMatch) {
-        normalized.add(canonicalMatch);
-        continue;
+        normalized.add(canonicalMatch)
+        continue
       }
 
       // 4. Fuzzy matching for unmapped genres
-      const fuzzyMatch = this.findFuzzyMatch(cleaned);
+      const fuzzyMatch = this.findFuzzyMatch(cleaned)
       if (fuzzyMatch) {
-        normalized.add(fuzzyMatch);
+        normalized.add(fuzzyMatch)
       } else {
         // Pass through if no match found (user might have custom tags)
-        normalized.add(cleaned);
+        normalized.add(cleaned)
       }
     }
 
     // Sort alphabetically for consistency
-    return Array.from(normalized).sort();
+    return Array.from(normalized).sort()
   }
 
   /**
@@ -138,43 +136,43 @@ export class GenreNormalizer {
    */
   private preprocess(raw: string, provider: string): string {
     // Trim whitespace
-    let cleaned = raw.trim();
+    const cleaned = raw.trim()
 
     // Provider-specific transformations
-    if (provider === "google-books") {
+    if (provider === 'google-books') {
       // Google Books uses hierarchical format "Fiction / Science Fiction / General"
       // We check the full string first in PROVIDER_MAPPINGS
       // If not found, we'll fuzzy match
-      return cleaned;
+      return cleaned
     }
 
-    if (provider === "isbndb") {
+    if (provider === 'isbndb') {
       // ISBNDB uses "&" separators - but we check full string first
-      return cleaned;
+      return cleaned
     }
 
-    if (provider === "openlibrary") {
+    if (provider === 'openlibrary') {
       // OpenLibrary uses lowercase descriptive subjects
       // Capitalize first letter for consistency
-      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase()
     }
 
-    return cleaned;
+    return cleaned
   }
 
   /**
    * Find canonical genre by checking all variations
    */
   private findCanonicalMatch(genre: string): string | null {
-    const lowerGenre = genre.toLowerCase();
+    const lowerGenre = genre.toLowerCase()
 
     for (const [canonical, variations] of Object.entries(CANONICAL_GENRES)) {
       if (variations.some((v) => v.toLowerCase() === lowerGenre)) {
-        return canonical;
+        return canonical
       }
     }
 
-    return null;
+    return null
   }
 
   /**
@@ -182,21 +180,21 @@ export class GenreNormalizer {
    * Returns canonical genre if similarity > threshold (85%)
    */
   private findFuzzyMatch(genre: string): string | null {
-    const lowerGenre = genre.toLowerCase();
-    let bestMatch: string | null = null;
-    let bestSimilarity = 0;
+    const lowerGenre = genre.toLowerCase()
+    let bestMatch: string | null = null
+    let bestSimilarity = 0
 
     for (const canonical of Object.keys(CANONICAL_GENRES)) {
-      const distance = levenshteinDistance(lowerGenre, canonical.toLowerCase());
-      const maxLen = Math.max(lowerGenre.length, canonical.length);
-      const similarity = 1 - distance / maxLen;
+      const distance = levenshteinDistance(lowerGenre, canonical.toLowerCase())
+      const maxLen = Math.max(lowerGenre.length, canonical.length)
+      const similarity = 1 - distance / maxLen
 
       if (similarity > bestSimilarity && similarity >= this.fuzzyThreshold) {
-        bestMatch = canonical;
-        bestSimilarity = similarity;
+        bestMatch = canonical
+        bestSimilarity = similarity
       }
     }
 
-    return bestMatch;
+    return bestMatch
   }
 }

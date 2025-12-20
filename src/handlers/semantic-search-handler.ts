@@ -10,15 +10,9 @@
  * @see docs/SEMANTIC_SEARCH.md
  */
 
+import { findSimilarBooks, semanticSearch } from '../services/embedding-service.js'
 import type { Env } from '../types/env.js'
-import {
-  findSimilarBooks,
-  semanticSearch,
-} from '../services/embedding-service.js'
-import {
-  createErrorResponse,
-  ErrorCodes,
-} from '../utils/response-builder.js'
+import { createErrorResponse, ErrorCodes } from '../utils/response-builder.js'
 
 // ============================================================================
 // Handlers
@@ -33,21 +27,14 @@ import {
  * GET /v1/search/similar?isbn=9780439708180&limit=5
  * Returns: Top 5 books similar to Harry Potter
  */
-export async function handleSimilarBooks(
-  request: Request,
-  env: Env
-): Promise<Response> {
+export async function handleSimilarBooks(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url)
   const isbn = url.searchParams.get('isbn')
   const limitParam = url.searchParams.get('limit')
 
   // Validate ISBN parameter
   if (!isbn) {
-    return createErrorResponse(
-      'Missing required parameter: isbn',
-      400,
-      ErrorCodes.INVALID_REQUEST
-    )
+    return createErrorResponse('Missing required parameter: isbn', 400, ErrorCodes.INVALID_REQUEST)
   }
 
   // Validate ISBN format
@@ -56,7 +43,7 @@ export async function handleSimilarBooks(
     return createErrorResponse(
       'Invalid ISBN format. Must be ISBN-10 or ISBN-13.',
       400,
-      ErrorCodes.INVALID_REQUEST
+      ErrorCodes.INVALID_REQUEST,
     )
   }
 
@@ -75,30 +62,29 @@ export async function handleSimilarBooks(
         return createErrorResponse(
           'Semantic search is not configured. Vectorize binding required.',
           503,
-          'FEATURE_NOT_AVAILABLE'
+          'FEATURE_NOT_AVAILABLE',
         )
       }
     }
 
-    return new Response(JSON.stringify({
-      query: {
-        isbn: cleanIsbn,
-        limit,
+    return new Response(
+      JSON.stringify({
+        query: {
+          isbn: cleanIsbn,
+          limit,
+        },
+        results: similar,
+        count: similar.length,
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
       },
-      results: similar,
-      count: similar.length,
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    })
+    )
   } catch (error) {
     console.error('[SemanticSearch] Similar books error:', error)
 
-    return createErrorResponse(
-      'Failed to find similar books',
-      500,
-      ErrorCodes.INTERNAL_ERROR
-    )
+    return createErrorResponse('Failed to find similar books', 500, ErrorCodes.INTERNAL_ERROR)
   }
 }
 
@@ -112,10 +98,7 @@ export async function handleSimilarBooks(
  * GET /v1/search/semantic?q=fantasy+books+about+wizards&limit=10
  * Returns: Books semantically similar to the query
  */
-export async function handleSemanticSearch(
-  request: Request,
-  env: Env
-): Promise<Response> {
+export async function handleSemanticSearch(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url)
   const q = url.searchParams.get('q')
   const limitParam = url.searchParams.get('limit')
@@ -125,7 +108,7 @@ export async function handleSemanticSearch(
     return createErrorResponse(
       'Missing required parameter: q (search query)',
       400,
-      ErrorCodes.INVALID_REQUEST
+      ErrorCodes.INVALID_REQUEST,
     )
   }
 
@@ -146,29 +129,28 @@ export async function handleSemanticSearch(
         return createErrorResponse(
           'Semantic search is not configured. Vectorize binding required.',
           503,
-          'FEATURE_NOT_AVAILABLE'
+          'FEATURE_NOT_AVAILABLE',
         )
       }
     }
 
-    return new Response(JSON.stringify({
-      query: {
-        q: searchQuery,
-        limit,
+    return new Response(
+      JSON.stringify({
+        query: {
+          q: searchQuery,
+          limit,
+        },
+        results,
+        count: results.length,
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
       },
-      results,
-      count: results.length,
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    })
+    )
   } catch (error) {
     console.error('[SemanticSearch] Search error:', error)
 
-    return createErrorResponse(
-      'Semantic search failed',
-      500,
-      ErrorCodes.INTERNAL_ERROR
-    )
+    return createErrorResponse('Semantic search failed', 500, ErrorCodes.INTERNAL_ERROR)
   }
 }

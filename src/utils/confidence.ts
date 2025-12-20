@@ -9,7 +9,7 @@
  * Assumes `CONFIDENCE_THRESHOLD` is an optional string environment variable.
  */
 interface Env {
-  CONFIDENCE_THRESHOLD?: string;
+  CONFIDENCE_THRESHOLD?: string
 }
 
 /**
@@ -17,7 +17,7 @@ interface Env {
  * This interface is used to type-hint objects processed by `categorizeBooks`.
  */
 interface BookWithConfidence {
-  confidence: number;
+  confidence: number
   // Other properties can be added here if needed for broader context,
   // but `confidence` is the only one strictly required by these functions.
 }
@@ -35,34 +35,26 @@ interface BookWithConfidence {
  * @returns {number} The validated confidence threshold (0.0 to 1.0).
  */
 export function getConfidenceThreshold(env: Env): number {
-  const defaultThreshold = 0.6;
-  const rawThreshold = env.CONFIDENCE_THRESHOLD;
+  const defaultThreshold = 0.6
+  const rawThreshold = env.CONFIDENCE_THRESHOLD
 
-  if (
-    rawThreshold === undefined ||
-    rawThreshold === null ||
-    rawThreshold === ""
-  ) {
-    return defaultThreshold;
+  if (rawThreshold === undefined || rawThreshold === null || rawThreshold === '') {
+    return defaultThreshold
   }
 
-  const parsedThreshold = parseFloat(rawThreshold);
+  const parsedThreshold = parseFloat(rawThreshold)
 
-  if (
-    isNaN(parsedThreshold) ||
-    parsedThreshold < 0.0 ||
-    parsedThreshold > 1.0
-  ) {
+  if (Number.isNaN(parsedThreshold) || parsedThreshold < 0.0 || parsedThreshold > 1.0) {
     // Log a warning for invalid configuration, but don't crash the application.
     // Fallback to default to ensure graceful degradation.
     console.warn(
       `[Confidence Utility] Invalid CONFIDENCE_THRESHOLD '${rawThreshold}' found in environment. ` +
         `Expected a number between 0.0 and 1.0. Falling back to default: ${defaultThreshold}.`,
-    );
-    return defaultThreshold;
+    )
+    return defaultThreshold
   }
 
-  return parsedThreshold;
+  return parsedThreshold
 }
 
 /**
@@ -80,23 +72,23 @@ export function getConfidenceThreshold(env: Env): number {
 export function categorizeBooks<T extends BookWithConfidence>(
   books: T[],
 ): { high: T[]; medium: T[]; low: T[] } {
-  const HIGH_THRESHOLD = 0.8;
-  const MEDIUM_THRESHOLD = 0.5;
+  const HIGH_THRESHOLD = 0.8
+  const MEDIUM_THRESHOLD = 0.5
 
-  const high: T[] = [];
-  const medium: T[] = [];
-  const low: T[] = [];
+  const high: T[] = []
+  const medium: T[] = []
+  const low: T[] = []
 
   for (const book of books) {
-    const confidence = book.confidence ?? 0;
+    const confidence = book.confidence ?? 0
     if (confidence >= HIGH_THRESHOLD) {
-      high.push(book);
+      high.push(book)
     } else if (confidence >= MEDIUM_THRESHOLD) {
-      medium.push(book);
+      medium.push(book)
     } else {
-      low.push(book);
+      low.push(book)
     }
   }
 
-  return { high, medium, low };
+  return { high, medium, low }
 }

@@ -6,11 +6,11 @@
  * CRITICAL: Uses direct function calls instead of RPC to eliminate circular dependencies!
  */
 
-import { enrichMultipleBooks } from "./enrichment.ts";
-import { scanImageWithGemini } from "../providers/gemini-provider.js";
-import { enrichBooksParallel } from "./parallel-enrichment.js";
-import { categorizeBooks } from "../utils/confidence.js";
-import { getCacheTTL } from "../config/cache-ttl.js";
+import { getCacheTTL } from '../config/cache-ttl.js'
+import { scanImageWithGemini } from '../providers/gemini-provider.js'
+import { categorizeBooks } from '../utils/confidence.js'
+import { enrichMultipleBooks } from './enrichment.ts'
+import { enrichBooksParallel } from './parallel-enrichment.js'
 
 /**
  * Debug logging helper - only logs verbose details in DEBUG mode
@@ -20,8 +20,8 @@ import { getCacheTTL } from "../config/cache-ttl.js";
  * @param {Function} logFn - Function to execute for logging
  */
 function debugLog(env, logFn) {
-  if (env.LOG_LEVEL === "DEBUG") {
-    logFn();
+  if (env.LOG_LEVEL === 'DEBUG') {
+    logFn()
   }
 }
 
@@ -36,7 +36,7 @@ const PROGRESS_STAGES = {
   ENRICHMENT_START: 0.7, // Begin parallel enrichment (70%)
   ENRICHMENT_DELTA: 0.25, // Enrichment progress range (70% → 95%)
   FINALIZATION: 1.0, // Complete and send results (100%)
-};
+}
 
 /**
  * Process bookshelf image scan with AI vision
@@ -48,67 +48,62 @@ const PROGRESS_STAGES = {
  * @param {Object} doStub - ProgressWebSocketDO stub for status updates
  * @param {ExecutionContext} ctx - Execution context for waitUntil
  */
-export async function processBookshelfScan(
-  jobId,
-  imageData,
-  request,
-  env,
-  doStub,
-  ctx,
-) {
-  const startTime = Date.now();
+export async function processBookshelfScan(jobId, imageData, _request, env, doStub, ctx) {
+  const startTime = Date.now()
 
   try {
     // Enforce 10MB per-photo limit for single scans (Issue #171) – consistent with batch handler
-    const MAX_IMAGE_SIZE = 10_000_000; // 10MB per photo (matches Gemini API limits and batch enforcement)
+    const MAX_IMAGE_SIZE = 10_000_000 // 10MB per photo (matches Gemini API limits and batch enforcement)
     if (imageData.byteLength > MAX_IMAGE_SIZE) {
-      throw new Error(`Image exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB (actual: ${(imageData.byteLength / 1_000_000).toFixed(1)}MB). Please compress or resize the image.`);
+      throw new Error(
+        `Image exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB (actual: ${(imageData.byteLength / 1_000_000).toFixed(1)}MB). Please compress or resize the image.`,
+      )
     }
 
     console.log(
       `[AI Scanner] Starting scan for job ${jobId}, image size: ${imageData.byteLength} bytes`,
-    );
+    )
 
     // NEW: Check if WebSocket is ready (should have been done in index.js, but double-check)
-    const elapsedMs = Date.now() - startTime;
+    const elapsedMs = Date.now() - startTime
     if (elapsedMs > 6000) {
       console.warn(
         `[AI Scanner] Job ${jobId} started ${elapsedMs}ms after request - possible ready timeout`,
-      );
+      )
     }
 
     // Initialize job state
-    await doStub.initializeJobState("ai_scan", 3); // 3 stages total
+    await doStub.initializeJobState('ai_scan', 3) // 3 stages total
 
     // Stage 1: Image quality analysis (10% progress)
-    await doStub.updateProgress("ai_scan", {
+    await doStub.updateProgress('ai_scan', {
       progress: PROGRESS_STAGES.QUALITY_ANALYSIS,
-      status: "Analyzing image quality...",
+      status: 'Analyzing image quality...',
       processedCount: 0,
-      currentItem: "Image quality check",
-    });
+      currentItem: 'Image quality check',
+    })
     // ISSUE #114: Guard verbose logging - only in DEBUG mode
     debugLog(env, () => {
       console.log(
         `[AI Scanner] Progress pushed: ${PROGRESS_STAGES.QUALITY_ANALYSIS * 100}% (image quality analysis)`,
-      );
-    });
+      )
+    })
 
     // Stage 2: AI processing with Gemini 2.0 Flash
-    await doStub.updateProgress("ai_scan", {
+    await doStub.updateProgress('ai_scan', {
       progress: PROGRESS_STAGES.AI_PROCESSING,
-      status: "Processing with Gemini AI...",
+      status: 'Processing with Gemini AI...',
       processedCount: 1,
-      currentItem: "Gemini AI processing",
-    });
+      currentItem: 'Gemini AI processing',
+    })
 
-    console.log(`[AI Scanner] Job ${jobId} - Using Gemini 2.0 Flash`);
+    console.log(`[AI Scanner] Job ${jobId} - Using Gemini 2.0 Flash`)
 
-    let scanResult;
-    let modelUsed = "unknown"; // Default fallback
+    let scanResult
+    let modelUsed = 'unknown' // Default fallback
     try {
-      scanResult = await scanImageWithGemini(imageData, env);
-      console.log("[AI Scanner] Gemini processing complete");
+      scanResult = await scanImageWithGemini(imageData, env)
+      console.log('[AI Scanner] Gemini processing complete')
 
       /**
        * Extract model name from AI provider metadata for completion response.
@@ -126,26 +121,26 @@ export async function processBookshelfScan(
        *
        * @see ai-scanner-metadata.test.js for test coverage of this fallback
        */
-      modelUsed = scanResult.metadata?.model || "unknown";
-      console.log(`[AI Scanner] Model used: ${modelUsed}`);
+      modelUsed = scanResult.metadata?.model || 'unknown'
+      console.log(`[AI Scanner] Model used: ${modelUsed}`)
     } catch (aiError) {
-      console.error("[AI Scanner] Gemini processing failed:", aiError.message);
-      throw aiError;
+      console.error('[AI Scanner] Gemini processing failed:', aiError.message)
+      throw aiError
     }
 
-    const detectedBooks = scanResult.books;
-    const suggestions = scanResult.suggestions || [];
+    const detectedBooks = scanResult.books
+    const _suggestions = scanResult.suggestions || []
 
     console.log(
       `[AI Scanner] ${detectedBooks.length} books detected (${scanResult.metadata.processingTimeMs}ms)`,
-    );
+    )
 
-    await doStub.updateProgress("ai_scan", {
+    await doStub.updateProgress('ai_scan', {
       progress: PROGRESS_STAGES.DETECTION_COMPLETE,
       status: `Detected ${detectedBooks.length} books, enriching data...`,
       processedCount: 1,
       currentItem: `${detectedBooks.length} books detected`,
-    });
+    })
 
     // Stage 3: Enrichment (70% → 100% progress)
     // OPTIMIZED: Parallel enrichment with 10 concurrent requests
@@ -156,75 +151,71 @@ export async function processBookshelfScan(
         // Issue #205: Migrated from V1 handleSearchAdvanced to enrichMultipleBooks service
         // ISSUE #114: Guard verbose logging - only in DEBUG mode
         debugLog(env, () => {
-          console.log(
-            `[AI Scanner] Enriching book: "${book.title}" by ${book.author || "unknown"}`,
-          );
-        });
+          console.log(`[AI Scanner] Enriching book: "${book.title}" by ${book.author || 'unknown'}`)
+        })
 
         const enrichmentResult = await enrichMultipleBooks(
           {
-            title: book.title || "",
-            author: book.author || "",
+            title: book.title || '',
+            author: book.author || '',
           },
           env,
           { maxResults: 20 },
           ctx, // Pass execution context for waitUntil support
-        );
+        )
 
         // enrichMultipleBooks returns { works, editions, authors }
-        const work = enrichmentResult.works?.[0] || null;
-        const editions = enrichmentResult.editions || [];
-        const authors = enrichmentResult.authors || [];
+        const work = enrichmentResult.works?.[0] || null
+        const editions = enrichmentResult.editions || []
+        const authors = enrichmentResult.authors || []
 
         // ISSUE #114: Guard verbose logging - only in DEBUG mode
         debugLog(env, () => {
           console.log(
-            `[AI Scanner] ✅ Enrichment ${work ? "found" : "not_found"} for "${book.title}": work=${!!work}, editions=${editions.length}, authors=${authors.length}`,
-          );
-        });
+            `[AI Scanner] ✅ Enrichment ${work ? 'found' : 'not_found'} for "${book.title}": work=${!!work}, editions=${editions.length}, authors=${authors.length}`,
+          )
+        })
 
         return {
           ...book,
           enrichment: {
-            status: work ? "success" : "not_found",
+            status: work ? 'success' : 'not_found',
             work,
             editions,
             authors,
-            provider: "alexandria", // enrichMultipleBooks uses Alexandria RPC
+            provider: 'alexandria', // enrichMultipleBooks uses Alexandria RPC
             cachedResult: false, // Alexandria handles its own caching internally
           },
-        };
+        }
       },
       async (completed) => {
         // Progress callback - update DO for real-time WebSocket updates
         // Note: `completed` is already 1-indexed from enrichBooksParallel (1, 2, 3...N)
         const enrichmentProgress =
           PROGRESS_STAGES.ENRICHMENT_START +
-          (completed / detectedBooks.length) * PROGRESS_STAGES.ENRICHMENT_DELTA;
+          (completed / detectedBooks.length) * PROGRESS_STAGES.ENRICHMENT_DELTA
 
-        await doStub.updateProgress("ai_scan", {
+        await doStub.updateProgress('ai_scan', {
           progress: enrichmentProgress,
           status: `Enriching book ${completed} of ${detectedBooks.length}...`,
           processedCount: completed,
-          currentItem: detectedBooks[completed - 1]?.title || "Unknown",
-        });
+          currentItem: detectedBooks[completed - 1]?.title || 'Unknown',
+        })
       },
       10, // maxConcurrency
-    );
+    )
 
-    console.log(
-      `[AI Scanner] Enrichment complete - ${enrichedBooks.length} books enriched`,
-    );
+    console.log(`[AI Scanner] Enrichment complete - ${enrichedBooks.length} books enriched`)
 
     // Categorize books by confidence level
-    const categorized = categorizeBooks(enrichedBooks);
+    const categorized = categorizeBooks(enrichedBooks)
 
     console.log(
       `[AI Scanner] Categorization: ${categorized.high.length} high, ${categorized.medium.length} medium, ${categorized.low.length} low confidence`,
-    );
+    )
 
     // Stage 4: Completion (100%)
-    const totalTime = Date.now() - startTime;
+    const totalTime = Date.now() - startTime
 
     // ISSUE #133: Store full results in KV to avoid multi-MB WebSocket payloads
     // Build unified books array using standard structure
@@ -234,14 +225,14 @@ export async function processBookshelfScan(
       isbn: b.isbn || null,
       confidence: b.confidence,
       boundingBox: b.boundingBox,
-      enrichmentStatus: b.enrichment?.status || "pending",
+      enrichmentStatus: b.enrichment?.status || 'pending',
       coverUrl: b.enrichment?.work?.coverImageURL || null,
       publisher: b.enrichment?.editions?.[0]?.publisher || null,
       publicationYear: b.enrichment?.editions?.[0]?.publicationYear || null,
-    }));
+    }))
 
     // Store complete results in KV with 24-hour expiration
-    const resultsKey = `scan-results:${jobId}`;
+    const resultsKey = `scan-results:${jobId}`
     const fullResults = {
       totalDetected: detectedBooks.length,
       approved: categorized.high.length,
@@ -252,17 +243,17 @@ export async function processBookshelfScan(
         processingTime: totalTime,
         timestamp: Date.now(),
       },
-    };
+    }
 
     await env.CACHE.put(resultsKey, JSON.stringify(fullResults), {
       expirationTtl: getCacheTTL('hot', env), // Use hot TTL (2h) for temporary results
-    });
+    })
 
     debugLog(env, () => {
       console.log(
         `[AI Scanner] 💾 Stored full results in KV: ${resultsKey} (${books.length} books)`,
-      );
-    });
+      )
+    })
 
     // Send summary-only completion via WebSocket (avoid large payloads)
     const completionPayload = {
@@ -274,28 +265,28 @@ export async function processBookshelfScan(
         modelUsed,
         processingTime: totalTime,
       },
-    };
+    }
 
     debugLog(env, () => {
       console.log(
         `[AI Scanner] 📤 Sending summary-only completion:`,
         JSON.stringify(completionPayload),
-      );
-    });
+      )
+    })
 
-    await doStub.complete("ai_scan", completionPayload);
+    await doStub.complete('ai_scan', completionPayload)
 
     console.log(
       `[AI Scanner] Scan complete for job ${jobId}: ${detectedBooks.length} books, ${totalTime}ms`,
-    );
+    )
   } catch (error) {
-    console.error(`[AI Scanner] Job ${jobId} failed:`, error);
+    console.error(`[AI Scanner] Job ${jobId} failed:`, error)
 
     // Send error via Durable Object
-    await doStub.sendError("ai_scan", {
-      message: error.message || "Unknown scan error",
-      code: "AI_SCAN_FAILED",
-    });
+    await doStub.sendError('ai_scan', {
+      message: error.message || 'Unknown scan error',
+      code: 'AI_SCAN_FAILED',
+    })
   }
   // NOTE: No finally block needed! complete() and sendError() handle WebSocket cleanup
 }

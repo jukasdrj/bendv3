@@ -8,59 +8,69 @@
  * @module api-v3/discovery
  */
 
-import { createRoute, z } from '@hono/zod-openapi'
-import type { OpenAPIHono } from '@hono/zod-openapi'
-import type { Env } from '../types/env'
-import type { RequestContext } from '../middleware/request-context'
 import { SuccessResponseSchema } from '@bookstrack/schemas'
 import { createProblemDetails } from '@bookstrack/schemas/errors'
+import type { OpenAPIHono } from '@hono/zod-openapi'
+import { createRoute, z } from '@hono/zod-openapi'
+import type { RequestContext } from '../middleware/request-context'
+import type { Env } from '../types/env'
 
 // ============================================================================
 // Capabilities Schemas (iOS-compatible flat format)
 // ============================================================================
 
 // iOS app expects this exact flat structure - no wrapper
-const CapabilitiesFeaturesSchema = z.object({
-  semantic_search: z.boolean().describe('Semantic search enabled'),
-  similar_books: z.boolean().describe('Similar books search enabled'),
-  weekly_recommendations: z.boolean().describe('Weekly recommendations enabled'),
-  sse_streaming: z.boolean().describe('SSE streaming enabled'),
-  batch_enrichment: z.boolean().describe('Batch enrichment enabled'),
-  csv_import: z.boolean().describe('CSV import enabled')
-}).openapi('CapabilitiesFeatures')
+const CapabilitiesFeaturesSchema = z
+  .object({
+    semantic_search: z.boolean().describe('Semantic search enabled'),
+    similar_books: z.boolean().describe('Similar books search enabled'),
+    weekly_recommendations: z.boolean().describe('Weekly recommendations enabled'),
+    sse_streaming: z.boolean().describe('SSE streaming enabled'),
+    batch_enrichment: z.boolean().describe('Batch enrichment enabled'),
+    csv_import: z.boolean().describe('CSV import enabled'),
+  })
+  .openapi('CapabilitiesFeatures')
 
-const CapabilitiesLimitsSchema = z.object({
-  semantic_search_rpm: z.number().int().describe('Semantic search requests per minute'),
-  text_search_rpm: z.number().int().describe('Text search requests per minute'),
-  csv_max_rows: z.number().int().describe('Maximum rows in CSV import'),
-  batch_max_photos: z.number().int().describe('Maximum photos in batch scan')
-}).openapi('CapabilitiesLimits')
+const CapabilitiesLimitsSchema = z
+  .object({
+    semantic_search_rpm: z.number().int().describe('Semantic search requests per minute'),
+    text_search_rpm: z.number().int().describe('Text search requests per minute'),
+    csv_max_rows: z.number().int().describe('Maximum rows in CSV import'),
+    batch_max_photos: z.number().int().describe('Maximum photos in batch scan'),
+  })
+  .openapi('CapabilitiesLimits')
 
 // Direct response schema (no wrapper) for iOS compatibility
-const CapabilitiesResponseSchema = z.object({
-  features: CapabilitiesFeaturesSchema.describe('Available API features'),
-  limits: CapabilitiesLimitsSchema.describe('API limits and quotas'),
-  version: z.string().describe('API version')
-}).openapi('CapabilitiesResponse')
+const CapabilitiesResponseSchema = z
+  .object({
+    features: CapabilitiesFeaturesSchema.describe('Available API features'),
+    limits: CapabilitiesLimitsSchema.describe('API limits and quotas'),
+    version: z.string().describe('API version'),
+  })
+  .openapi('CapabilitiesResponse')
 
 // ============================================================================
 // Recommendations Schemas
 // ============================================================================
 
-const RecommendationSchema = z.object({
-  isbn: z.string().describe('Book ISBN'),
-  title: z.string().describe('Book title'),
-  author: z.string().describe('Primary author'),
-  coverUrl: z.string().url().optional().describe('Cover image URL'),
-  reason: z.string().describe('Why this book is recommended')
-}).openapi('Recommendation')
+const RecommendationSchema = z
+  .object({
+    isbn: z.string().describe('Book ISBN'),
+    title: z.string().describe('Book title'),
+    author: z.string().describe('Primary author'),
+    coverUrl: z.string().url().optional().describe('Cover image URL'),
+    reason: z.string().describe('Why this book is recommended'),
+  })
+  .openapi('Recommendation')
 
-const RecommendationsDataSchema = z.object({
-  weekOf: z.string().describe('Week start date (ISO 8601)'),
-  recommendations: z.array(RecommendationSchema).describe('Recommended books'),
-  count: z.number().int().describe('Number of recommendations returned'),
-  totalAvailable: z.number().int().describe('Total recommendations available')
-}).openapi('RecommendationsData')
+const RecommendationsDataSchema = z
+  .object({
+    weekOf: z.string().describe('Week start date (ISO 8601)'),
+    recommendations: z.array(RecommendationSchema).describe('Recommended books'),
+    count: z.number().int().describe('Number of recommendations returned'),
+    totalAvailable: z.number().int().describe('Total recommendations available'),
+  })
+  .openapi('RecommendationsData')
 
 const RecommendationsResponseSchema = SuccessResponseSchema(RecommendationsDataSchema)
 
@@ -83,13 +93,13 @@ Clients should call this on app startup to:
   responses: {
     200: {
       description: 'API capabilities',
-      content: { 'application/json': { schema: CapabilitiesResponseSchema } }
+      content: { 'application/json': { schema: CapabilitiesResponseSchema } },
     },
     500: {
       description: 'Server error',
-      content: { 'application/problem+json': { schema: z.any() } }
-    }
-  }
+      content: { 'application/problem+json': { schema: z.any() } },
+    },
+  },
 })
 
 const recommendationsRoute = createRoute({
@@ -103,24 +113,29 @@ Non-personalized curated picks generated every Sunday at midnight UTC.
 Recommendations are cached for performance and updated weekly.`,
   request: {
     query: z.object({
-      limit: z.coerce.number().int().min(1).max(20).default(10)
-        .describe('Number of recommendations (1-20)')
-    })
+      limit: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(20)
+        .default(10)
+        .describe('Number of recommendations (1-20)'),
+    }),
   },
   responses: {
     200: {
       description: 'Weekly recommendations',
-      content: { 'application/json': { schema: RecommendationsResponseSchema } }
+      content: { 'application/json': { schema: RecommendationsResponseSchema } },
     },
     404: {
       description: 'No recommendations available',
-      content: { 'application/problem+json': { schema: z.any() } }
+      content: { 'application/problem+json': { schema: z.any() } },
     },
     500: {
       description: 'Server error',
-      content: { 'application/problem+json': { schema: z.any() } }
-    }
-  }
+      content: { 'application/problem+json': { schema: z.any() } },
+    },
+  },
 })
 
 // ============================================================================
@@ -131,7 +146,7 @@ Recommendations are cached for performance and updated weekly.`,
  * Register discovery routes on the V3 router
  */
 export function registerDiscoveryRoutes(
-  app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>
+  app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>,
 ) {
   // GET /v3/capabilities
   // Returns iOS-compatible flat format (no wrapper)
@@ -147,15 +162,15 @@ export function registerDiscoveryRoutes(
           weekly_recommendations: true,
           sse_streaming: true,
           batch_enrichment: true,
-          csv_import: true
+          csv_import: true,
         },
         limits: {
           semantic_search_rpm: 10,
           text_search_rpm: 60,
           csv_max_rows: 1000,
-          batch_max_photos: 50
+          batch_max_photos: 50,
         },
-        version: '3.2.0'
+        version: '3.2.0',
       }
 
       return c.json(capabilities, 200)
@@ -164,9 +179,9 @@ export function registerDiscoveryRoutes(
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
@@ -187,7 +202,7 @@ export function registerDiscoveryRoutes(
 
       // Try KV cache first
       const cacheKey = `recommendations:weekly:${weekOf}`
-      const cached = await c.env.CACHE.get(cacheKey, 'json') as {
+      const cached = (await c.env.CACHE.get(cacheKey, 'json')) as {
         weekOf: string
         recommendations: Array<{
           isbn: string
@@ -199,28 +214,35 @@ export function registerDiscoveryRoutes(
         generatedAt: string
       } | null
 
-      if (cached && cached.recommendations && cached.recommendations.length > 0) {
+      if (cached?.recommendations && cached.recommendations.length > 0) {
         const recommendations = cached.recommendations.slice(0, limit)
 
-        return c.json({
-          success: true,
-          data: {
-            weekOf: cached.weekOf,
-            recommendations,
-            count: recommendations.length,
-            totalAvailable: cached.recommendations.length
+        return c.json(
+          {
+            success: true,
+            data: {
+              weekOf: cached.weekOf,
+              recommendations,
+              count: recommendations.length,
+              totalAvailable: cached.recommendations.length,
+            },
+            metadata: {
+              timestamp: new Date().toISOString(),
+              requestId: ctx.requestId,
+              source: 'kv-cache' as const,
+              cached: true,
+              processingTime: Date.now() - ctx.startTime,
+            },
+            _links: {
+              self: {
+                href: `/v3/recommendations/weekly?limit=${limit}`,
+                rel: 'self',
+                method: 'GET',
+              },
+            },
           },
-          metadata: {
-            timestamp: new Date().toISOString(),
-            requestId: ctx.requestId,
-            source: 'kv-cache' as const,
-            cached: true,
-            processingTime: Date.now() - ctx.startTime
-          },
-          _links: {
-            self: { href: `/v3/recommendations/weekly?limit=${limit}`, rel: 'self', method: 'GET' }
-          }
-        }, 200)
+          200,
+        )
       }
 
       // Try D1 database
@@ -230,35 +252,44 @@ export function registerDiscoveryRoutes(
            FROM recommendations
            WHERE week_of = ?
            ORDER BY generated_at DESC
-           LIMIT 1`
-        ).bind(weekOf).first<{
-          week_of: string
-          recommendations_json: string
-          generated_at: string
-        }>()
+           LIMIT 1`,
+        )
+          .bind(weekOf)
+          .first<{
+            week_of: string
+            recommendations_json: string
+            generated_at: string
+          }>()
 
-        if (result && result.recommendations_json) {
+        if (result?.recommendations_json) {
           const recommendations = JSON.parse(result.recommendations_json).slice(0, limit)
 
-          return c.json({
-            success: true,
-            data: {
-              weekOf: result.week_of,
-              recommendations,
-              count: recommendations.length,
-              totalAvailable: JSON.parse(result.recommendations_json).length
+          return c.json(
+            {
+              success: true,
+              data: {
+                weekOf: result.week_of,
+                recommendations,
+                count: recommendations.length,
+                totalAvailable: JSON.parse(result.recommendations_json).length,
+              },
+              metadata: {
+                timestamp: new Date().toISOString(),
+                requestId: ctx.requestId,
+                source: 'alexandria' as const, // D1 storage
+                cached: false,
+                processingTime: Date.now() - ctx.startTime,
+              },
+              _links: {
+                self: {
+                  href: `/v3/recommendations/weekly?limit=${limit}`,
+                  rel: 'self',
+                  method: 'GET',
+                },
+              },
             },
-            metadata: {
-              timestamp: new Date().toISOString(),
-              requestId: ctx.requestId,
-              source: 'alexandria' as const, // D1 storage
-              cached: false,
-              processingTime: Date.now() - ctx.startTime
-            },
-            _links: {
-              self: { href: `/v3/recommendations/weekly?limit=${limit}`, rel: 'self', method: 'GET' }
-            }
-          }, 200)
+            200,
+          )
         }
       }
 
@@ -274,41 +305,50 @@ export function registerDiscoveryRoutes(
           WHERE b.cover_medium_url IS NOT NULL
           ORDER BY b.updated_at DESC
           LIMIT ?
-        `).bind(limit).all<{
-          isbn: string
-          title: string
-          cover_medium_url: string | null
-          author: string | null
-        }>()
+        `)
+          .bind(limit)
+          .all<{
+            isbn: string
+            title: string
+            cover_medium_url: string | null
+            author: string | null
+          }>()
 
         if (fallbackResult.results && fallbackResult.results.length > 0) {
-          const fallbackRecommendations = fallbackResult.results.map(row => ({
+          const fallbackRecommendations = fallbackResult.results.map((row) => ({
             isbn: row.isbn,
             title: row.title,
             author: row.author || 'Unknown Author',
             coverUrl: row.cover_medium_url || undefined,
-            reason: 'Recently added to our collection'
+            reason: 'Recently added to our collection',
           }))
 
-          return c.json({
-            success: true,
-            data: {
-              weekOf,
-              recommendations: fallbackRecommendations,
-              count: fallbackRecommendations.length,
-              totalAvailable: fallbackRecommendations.length
+          return c.json(
+            {
+              success: true,
+              data: {
+                weekOf,
+                recommendations: fallbackRecommendations,
+                count: fallbackRecommendations.length,
+                totalAvailable: fallbackRecommendations.length,
+              },
+              metadata: {
+                timestamp: new Date().toISOString(),
+                requestId: ctx.requestId,
+                source: 'fallback' as const,
+                cached: false,
+                processingTime: Date.now() - ctx.startTime,
+              },
+              _links: {
+                self: {
+                  href: `/v3/recommendations/weekly?limit=${limit}`,
+                  rel: 'self',
+                  method: 'GET',
+                },
+              },
             },
-            metadata: {
-              timestamp: new Date().toISOString(),
-              requestId: ctx.requestId,
-              source: 'fallback' as const,
-              cached: false,
-              processingTime: Date.now() - ctx.startTime
-            },
-            _links: {
-              self: { href: `/v3/recommendations/weekly?limit=${limit}`, rel: 'self', method: 'GET' }
-            }
-          }, 200)
+            200,
+          )
         }
       }
 
@@ -316,18 +356,18 @@ export function registerDiscoveryRoutes(
       return c.json(
         createProblemDetails('NOT_FOUND', 'No recommendations available for this week', {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        404
+        404,
       )
     } catch (error: any) {
       console.error('[V3 Recommendations] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })

@@ -8,22 +8,24 @@
  * - Integration with D1 database
  */
 
-import { AuthenticatedRoute, type AppContext } from '../../base'
 import { z } from 'zod'
 import { createErrorResponse, ErrorCodes } from '../../../utils/response-builder'
+import { type AppContext, AuthenticatedRoute } from '../../base'
 
 // Request body schema
 const AddBookRequestSchema = z.object({
-  isbn: z.string()
+  isbn: z
+    .string()
     .regex(/^\d{13}$/, 'Must be 13-digit ISBN')
     .describe('13-digit ISBN (example: 9780439708180)'),
-  status: z.enum(['to-read', 'reading', 'read'])
+  status: z
+    .enum(['to-read', 'reading', 'read'])
     .default('to-read')
     .describe('Reading status (example: reading)'),
-  rating: z.number().int().min(1).max(5)
-    .optional()
-    .describe('Book rating 1-5 stars (example: 5)'),
-  notes: z.string().max(1000)
+  rating: z.number().int().min(1).max(5).optional().describe('Book rating 1-5 stars (example: 5)'),
+  notes: z
+    .string()
+    .max(1000)
     .optional()
     .describe('Personal notes, max 1000 chars (example: Great book!)'),
 })
@@ -43,7 +45,7 @@ export class AddBookToLibrary extends AuthenticatedRoute {
   schema = {
     tags: ['Library'],
     summary: 'Add book to library (Protected)',
-    description: 'Add a book to the authenticated user\'s library',
+    description: "Add a book to the authenticated user's library",
     request: {
       body: {
         content: {
@@ -92,11 +94,12 @@ export class AddBookToLibrary extends AuthenticatedRoute {
 
       // Check if book already in library (with timeout protection)
       const existing = await this.withTimeout(
-        db.prepare('SELECT isbn FROM user_library WHERE user_id = ? AND isbn = ?')
+        db
+          .prepare('SELECT isbn FROM user_library WHERE user_id = ? AND isbn = ?')
           .bind(userId, isbn)
           .first(),
-        5000,  // 5 second timeout
-        'D1 duplicate check query'
+        5000, // 5 second timeout
+        'D1 duplicate check query',
       )
 
       if (existing) {
@@ -106,23 +109,24 @@ export class AddBookToLibrary extends AuthenticatedRoute {
             409,
             ErrorCodes.DUPLICATE,
             { isbn },
-            c.req.raw
+            c.req.raw,
           ),
-          409
+          409,
         )
       }
 
       // Insert into library (with timeout protection)
       const now = new Date().toISOString()
       await this.withTimeout(
-        db.prepare(
-          `INSERT INTO user_library (user_id, isbn, status, rating, notes, added_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`
-        )
+        db
+          .prepare(
+            `INSERT INTO user_library (user_id, isbn, status, rating, notes, added_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          )
           .bind(userId, isbn, status, rating || null, notes || null, now, now)
           .run(),
-        5000,  // 5 second timeout
-        'D1 insert query'
+        5000, // 5 second timeout
+        'D1 insert query',
       )
 
       // Log analytics
@@ -133,16 +137,18 @@ export class AddBookToLibrary extends AuthenticatedRoute {
       })
 
       // Return success response
-      return c.json({
-        success: true,
-        data: {
-          isbn,
-          userId,
-          status,
-          addedAt: now,
+      return c.json(
+        {
+          success: true,
+          data: {
+            isbn,
+            userId,
+            status,
+            addedAt: now,
+          },
         },
-      }, 201)
-
+        201,
+      )
     } catch (error: any) {
       console.error(`[V3 Library] Error adding book:`, error)
       return this.handleError(c, error, 500)

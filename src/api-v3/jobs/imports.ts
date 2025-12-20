@@ -13,30 +13,27 @@
  * @module api-v3/jobs/imports
  */
 
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
-import type { Env } from '../../types/env'
-import type { RequestContext } from '../../middleware/request-context'
 import {
   createProblemDetails,
+  type JobInitData,
   JobInitResponseSchema,
-  JobStatusResponseSchema,
+  type JobResultsData,
   JobResultsResponseSchema,
-  JobStatusSchema,
-  SSEProgressEventSchema,
+  JobStatusResponseSchema,
   SSECompleteEventSchema,
   SSEErrorEventSchema,
-  type JobInitData,
-  type Job,
-  type JobResultsData
+  SSEProgressEventSchema,
 } from '@bookstrack/schemas'
+import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
+import type { RequestContext } from '../../middleware/request-context'
+import type { Env } from '../../types/env'
 import {
-  getJobStateManagerDO,
-  getWebSocketConnectionDO,
-  generateAuthToken,
   buildStreamUrl,
   createJobLinks,
-  validateTokenFormat,
-  mapDOStateToJob
+  generateAuthToken,
+  getJobStateManagerDO,
+  getWebSocketConnectionDO,
+  mapDOStateToJob,
 } from './common'
 import { handleSSEStream } from './stream'
 
@@ -45,7 +42,9 @@ import { handleSSEStream } from './stream'
  *
  * @param app - V3 OpenAPIHono router instance
  */
-export function registerImportRoutes(app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>) {
+export function registerImportRoutes(
+  app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>,
+) {
   // ========================================================================
   // POST /v3/jobs/imports - Initiate CSV import
   // ========================================================================
@@ -74,31 +73,31 @@ Returns immediately with jobId for progress tracking via SSE stream.
               file: z.instanceof(File).openapi({
                 description: 'CSV file (max 8MB)',
                 format: 'binary',
-                type: 'string'
-              })
-            })
-          }
-        }
-      }
+                type: 'string',
+              }),
+            }),
+          },
+        },
+      },
     },
     responses: {
       202: {
         description: 'Import job accepted',
-        content: { 'application/json': { schema: JobInitResponseSchema } }
+        content: { 'application/json': { schema: JobInitResponseSchema } },
       },
       400: {
         description: 'Invalid file (missing, wrong format)',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       413: {
         description: 'File too large (>8MB)',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(createImportRoute, async (c) => {
@@ -118,10 +117,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
               receivedContentType: contentType || null,
               expectedContentType: 'multipart/form-data',
               expectedField: 'file',
-              hint: 'Use FormData with file field containing CSV data'
-            }
+              hint: 'Use FormData with file field containing CSV data',
+            },
           ),
-          400
+          400,
         )
       }
 
@@ -132,9 +131,9 @@ Returns immediately with jobId for progress tracking via SSE stream.
         return c.json(
           createProblemDetails('INVALID_REQUEST', 'Missing file in multipart form data', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          400
+          400,
         )
       }
 
@@ -142,13 +141,17 @@ Returns immediately with jobId for progress tracking via SSE stream.
       const MAX_FILE_SIZE = 8 * 1024 * 1024
       if (file.size > MAX_FILE_SIZE) {
         return c.json(
-          createProblemDetails('FILE_TOO_LARGE', `CSV file exceeds 8MB limit (${file.size} bytes)`, {
-            requestId: ctx.requestId,
-            instance: c.req.url,
-            maxSize: MAX_FILE_SIZE,
-            actualSize: file.size
-          }),
-          413
+          createProblemDetails(
+            'FILE_TOO_LARGE',
+            `CSV file exceeds 8MB limit (${file.size} bytes)`,
+            {
+              requestId: ctx.requestId,
+              instance: c.req.url,
+              maxSize: MAX_FILE_SIZE,
+              actualSize: file.size,
+            },
+          ),
+          413,
         )
       }
 
@@ -170,9 +173,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
 
       // Schedule CSV processing via DO alarm (avoids Worker CPU limits)
       const csvText = await file.text()
-      c.executionCtx.waitUntil(
-        doStub.scheduleCSVProcessing!(csvText, jobId)
-      )
+      c.executionCtx.waitUntil(doStub.scheduleCSVProcessing?.(csvText, jobId))
 
       const streamUrl = buildStreamUrl(c.req.url, 'imports', jobId)
 
@@ -180,7 +181,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
         jobId,
         status: 'queued',
         streamUrl,
-        token: authToken
+        token: authToken,
       }
 
       return c.json(
@@ -189,20 +190,20 @@ Returns immediately with jobId for progress tracking via SSE stream.
           data,
           metadata: {
             timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
+            requestId: ctx.requestId,
           },
-          _links: createJobLinks('imports', jobId, streamUrl)
+          _links: createJobLinks('imports', jobId, streamUrl),
         },
-        202
+        202,
       )
     } catch (error: any) {
       console.error('[V3 Import] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
@@ -223,23 +224,23 @@ Returns immediately with jobId for progress tracking via SSE stream.
 - Rate limit: 30 requests/minute per job`,
     request: {
       params: z.object({
-        jobId: z.string().uuid()
-      })
+        jobId: z.string().uuid(),
+      }),
     },
     responses: {
       200: {
         description: 'Job status',
-        content: { 'application/json': { schema: JobStatusResponseSchema } }
+        content: { 'application/json': { schema: JobStatusResponseSchema } },
       },
       404: {
         description: 'Job not found',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(getImportStatusRoute, async (c) => {
@@ -254,9 +255,9 @@ Returns immediately with jobId for progress tracking via SSE stream.
         return c.json(
           createProblemDetails('NOT_FOUND', 'Import job not found', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
@@ -268,19 +269,19 @@ Returns immediately with jobId for progress tracking via SSE stream.
           data: job,
           metadata: {
             timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
-          }
+            requestId: ctx.requestId,
+          },
         },
-        200
+        200,
       )
     } catch (error: any) {
       console.error('[V3 Import Status] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
@@ -312,18 +313,18 @@ Returns immediately with jobId for progress tracking via SSE stream.
     security: [{ bearerAuth: [] }],
     request: {
       params: z.object({
-        jobId: z.string().uuid()
+        jobId: z.string().uuid(),
       }),
       headers: z.object({
         authorization: z.string().optional().openapi({
           description: 'Bearer token from job creation',
-          example: 'Bearer a1b2c3d4e5f6...'
+          example: 'Bearer a1b2c3d4e5f6...',
         }),
         'last-event-id': z.string().optional().openapi({
           description: 'Last received event ID for reconnection',
-          example: '42'
-        })
-      })
+          example: '42',
+        }),
+      }),
     },
     responses: {
       200: {
@@ -336,21 +337,21 @@ Returns immediately with jobId for progress tracking via SSE stream.
                 SSEProgressEventSchema,
                 SSECompleteEventSchema,
                 SSEErrorEventSchema,
-                z.object({ timestamp: z.string() })
-              ])
-            })
-          }
-        }
+                z.object({ timestamp: z.string() }),
+              ]),
+            }),
+          },
+        },
       },
       401: {
         description: 'Unauthorized (invalid or expired token)',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       404: {
         description: 'Job not found',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(streamImportRoute, async (c) => {
@@ -371,23 +372,23 @@ Returns immediately with jobId for progress tracking via SSE stream.
 Results cached in KV for 1 hour after completion.`,
     request: {
       params: z.object({
-        jobId: z.string().uuid()
-      })
+        jobId: z.string().uuid(),
+      }),
     },
     responses: {
       200: {
         description: 'Job results',
-        content: { 'application/json': { schema: JobResultsResponseSchema } }
+        content: { 'application/json': { schema: JobResultsResponseSchema } },
       },
       404: {
         description: 'Job not found or not completed',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(getImportResultsRoute, async (c) => {
@@ -402,9 +403,9 @@ Results cached in KV for 1 hour after completion.`,
         return c.json(
           createProblemDetails('NOT_FOUND', 'Import job not found', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
@@ -413,9 +414,9 @@ Results cached in KV for 1 hour after completion.`,
           createProblemDetails('NOT_FOUND', `Job not completed (status: ${state.status})`, {
             requestId: ctx.requestId,
             instance: c.req.url,
-            jobStatus: state.status
+            jobStatus: state.status,
           }),
-          404
+          404,
         )
       }
 
@@ -427,16 +428,16 @@ Results cached in KV for 1 hour after completion.`,
         return c.json(
           createProblemDetails('NOT_FOUND', 'Results not found (may have expired)', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
       const data: JobResultsData = {
         jobId: state.jobId,
         status: state.status,
-        results
+        results,
       }
 
       return c.json(
@@ -445,19 +446,19 @@ Results cached in KV for 1 hour after completion.`,
           data,
           metadata: {
             timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
-          }
+            requestId: ctx.requestId,
+          },
         },
-        200
+        200,
       )
     } catch (error: any) {
       console.error('[V3 Import Results] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
@@ -475,27 +476,27 @@ Results cached in KV for 1 hour after completion.`,
 **Note:** Jobs may not stop immediately (graceful shutdown).`,
     request: {
       params: z.object({
-        jobId: z.string().uuid()
-      })
+        jobId: z.string().uuid(),
+      }),
     },
     responses: {
       200: {
         description: 'Job canceled',
-        content: { 'application/json': { schema: JobStatusResponseSchema } }
+        content: { 'application/json': { schema: JobStatusResponseSchema } },
       },
       404: {
         description: 'Job not found',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       409: {
         description: 'Job already completed or failed',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(cancelImportRoute, async (c) => {
@@ -510,9 +511,9 @@ Results cached in KV for 1 hour after completion.`,
         return c.json(
           createProblemDetails('NOT_FOUND', 'Import job not found', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
@@ -522,16 +523,16 @@ Results cached in KV for 1 hour after completion.`,
           createProblemDetails('CONFLICT', `Cannot cancel ${state.status} job`, {
             requestId: ctx.requestId,
             instance: c.req.url,
-            jobStatus: state.status
+            jobStatus: state.status,
           }),
-          409
+          409,
         )
       }
 
       // Cancel job via DO
       await doStub.sendError({
         code: 'CANCELED',
-        message: 'Job canceled by user'
+        message: 'Job canceled by user',
       })
 
       const canceledState = await doStub.getJobState()
@@ -543,19 +544,19 @@ Results cached in KV for 1 hour after completion.`,
           data: job,
           metadata: {
             timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
-          }
+            requestId: ctx.requestId,
+          },
         },
-        200
+        200,
       )
     } catch (error: any) {
       console.error('[V3 Import Cancel] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })

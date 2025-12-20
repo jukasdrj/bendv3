@@ -17,52 +17,52 @@
  * @returns {Promise<any>} Result of the successful call or throws the last error.
  */
 export async function retryWithBackoff(asyncFn, maxRetries = 3, initialDelay = 1000) {
-  let lastError;
+  let lastError
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await asyncFn();
+      return await asyncFn()
     } catch (error) {
-      lastError = error;
+      lastError = error
 
       // Extract HTTP status from error message
-      let status = null;
-      if (error.message && error.message.includes('Gemini API error:')) {
-        const match = error.message.match(/Gemini API error: (\d+)/);
-        status = match ? parseInt(match[1], 10) : null;
+      let status = null
+      if (error.message?.includes('Gemini API error:')) {
+        const match = error.message.match(/Gemini API error: (\d+)/)
+        status = match ? parseInt(match[1], 10) : null
       }
 
       // Retry only on transient errors (rate limit, server errors)
-      const retryableStatuses = [429, 500, 502, 503, 504];
-      const shouldRetry = status && retryableStatuses.includes(status);
+      const retryableStatuses = [429, 500, 502, 503, 504]
+      const shouldRetry = status && retryableStatuses.includes(status)
 
       if (!shouldRetry) {
         // Non-retryable error (client error, auth issue, etc.) - fail immediately
-        throw error;
+        throw error
       }
 
       if (attempt === maxRetries) {
         // Max retries exhausted - throw last error
-        console.error(`[Retry] Max retries (${maxRetries}) reached for status ${status}`);
-        throw error;
+        console.error(`[Retry] Max retries (${maxRetries}) reached for status ${status}`)
+        throw error
       }
 
       // Calculate delay with exponential backoff (1s, 2s, 4s) + random jitter (0-500ms)
       // Jitter prevents thundering herd when multiple requests fail simultaneously
-      const backoffDelay = initialDelay * (2 ** attempt);
-      const jitter = Math.random() * 500;
-      const totalDelay = backoffDelay + jitter;
+      const backoffDelay = initialDelay * 2 ** attempt
+      const jitter = Math.random() * 500
+      const totalDelay = backoffDelay + jitter
 
       console.log(
         `[Retry] Attempt ${attempt + 1}/${maxRetries + 1} failed (HTTP ${status}). ` +
-        `Retrying in ${Math.round(totalDelay)}ms...`
-      );
+          `Retrying in ${Math.round(totalDelay)}ms...`,
+      )
 
       // Use Promise-based setTimeout (Cloudflare Workers compatible)
-      await new Promise(resolve => setTimeout(resolve, totalDelay));
+      await new Promise((resolve) => setTimeout(resolve, totalDelay))
     }
   }
 
   // Fallback (should never reach here due to throw in loop)
-  throw lastError;
+  throw lastError
 }

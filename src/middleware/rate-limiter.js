@@ -19,7 +19,7 @@
  * ```
  */
 
-const RATE_LIMIT_WINDOW = 60; // 60 seconds
+const _RATE_LIMIT_WINDOW = 60 // 60 seconds
 
 /**
  * Rate limit configuration per endpoint type
@@ -31,7 +31,7 @@ const RATE_LIMITS = {
   aiScan: 5, // /api/batch-scan (AI photo scanning)
   csvImport: 5, // /api/import/csv-gemini (AI parsing)
   bookshelfScan: 5, // /api/scan-bookshelf/batch (AI scanning)
-};
+}
 
 /**
  * Determine the rate limit for a specific endpoint path.
@@ -40,11 +40,10 @@ const RATE_LIMITS = {
  * @returns {number} - Max requests per minute for this endpoint
  */
 export function getRateLimitForEndpoint(pathname) {
-  if (pathname === "/api/batch-scan") return RATE_LIMITS.aiScan;
-  if (pathname === "/api/import/csv-gemini") return RATE_LIMITS.csvImport;
-  if (pathname === "/api/scan-bookshelf/batch")
-    return RATE_LIMITS.bookshelfScan;
-  return RATE_LIMITS.default;
+  if (pathname === '/api/batch-scan') return RATE_LIMITS.aiScan
+  if (pathname === '/api/import/csv-gemini') return RATE_LIMITS.csvImport
+  if (pathname === '/api/scan-bookshelf/batch') return RATE_LIMITS.bookshelfScan
+  return RATE_LIMITS.default
 }
 
 /**
@@ -63,47 +62,46 @@ export function getRateLimitForEndpoint(pathname) {
  */
 export async function checkRateLimit(request, env, maxRequests = null) {
   // Extract client IP (Cloudflare provides this in CF-Connecting-IP header)
-  const clientIP = request.headers.get("CF-Connecting-IP") || "unknown";
+  const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown'
 
   // Determine rate limit for this endpoint
-  const pathname = new URL(request.url).pathname;
-  const limitForEndpoint =
-    maxRequests !== null ? maxRequests : getRateLimitForEndpoint(pathname);
+  const pathname = new URL(request.url).pathname
+  const limitForEndpoint = maxRequests !== null ? maxRequests : getRateLimitForEndpoint(pathname)
 
   try {
     // Get Durable Object stub for this IP's rate limit counter
     // One DO per IP ensures all requests from same IP are serialized
-    const rateLimiterId = env.RATE_LIMITER_DO.idFromName(clientIP);
-    const rateLimiterStub = env.RATE_LIMITER_DO.get(rateLimiterId);
+    const rateLimiterId = env.RATE_LIMITER_DO.idFromName(clientIP)
+    const rateLimiterStub = env.RATE_LIMITER_DO.get(rateLimiterId)
 
     // Check rate limit (atomic operation - no race condition)
     // Pass the endpoint-specific limit to the Durable Object
     const response = await rateLimiterStub.fetch(
-      new Request("http://localhost/check", {
-        method: "POST",
+      new Request('http://localhost/check', {
+        method: 'POST',
         headers: {
-          "X-Rate-Limit-Max": limitForEndpoint.toString(),
+          'X-Rate-Limit-Max': limitForEndpoint.toString(),
         },
       }),
-    );
+    )
 
-    const { allowed, remaining, resetAt } = await response.json();
+    const { allowed, remaining, resetAt } = await response.json()
 
     if (!allowed) {
       // Rate limit exceeded
-      const retryAfterSeconds = Math.ceil((resetAt - Date.now()) / 1000);
-      const retryAfter = Math.max(1, retryAfterSeconds); // Ensure positive value
+      const retryAfterSeconds = Math.ceil((resetAt - Date.now()) / 1000)
+      const retryAfter = Math.max(1, retryAfterSeconds) // Ensure positive value
       console.warn(
         `[Rate Limit] Blocked request from IP: ${clientIP} (limit exceeded, endpoint: ${pathname}, limit: ${limitForEndpoint})`,
-      );
+      )
 
       return new Response(
         JSON.stringify({
           error: `Rate limit exceeded. Please try again in ${retryAfter} seconds.`,
-          code: "RATE_LIMIT_EXCEEDED",
+          code: 'RATE_LIMIT_EXCEEDED',
           details: {
             retryAfter,
-            clientIP: clientIP.substring(0, 8) + "...", // Partial IP for privacy
+            clientIP: `${clientIP.substring(0, 8)}...`, // Partial IP for privacy
             requestsRemaining: remaining,
             requestsLimit: limitForEndpoint,
             endpoint: pathname,
@@ -112,22 +110,22 @@ export async function checkRateLimit(request, env, maxRequests = null) {
         {
           status: 429,
           headers: {
-            "Content-Type": "application/json",
-            "Retry-After": retryAfter.toString(),
-            "X-RateLimit-Limit": limitForEndpoint.toString(),
-            "X-RateLimit-Remaining": remaining.toString(),
-            "X-RateLimit-Reset": resetAt.toString(),
+            'Content-Type': 'application/json',
+            'Retry-After': retryAfter.toString(),
+            'X-RateLimit-Limit': limitForEndpoint.toString(),
+            'X-RateLimit-Remaining': remaining.toString(),
+            'X-RateLimit-Reset': resetAt.toString(),
           },
         },
-      );
+      )
     }
 
     // Request allowed - return null
-    return null;
+    return null
   } catch (error) {
     // If rate limiter fails, log error but allow request (fail open)
-    console.error("[Rate Limit] Error checking rate limit:", error);
-    console.warn("[Rate Limit] Failing open - allowing request despite error");
-    return null;
+    console.error('[Rate Limit] Error checking rate limit:', error)
+    console.warn('[Rate Limit] Failing open - allowing request despite error')
+    return null
   }
 }

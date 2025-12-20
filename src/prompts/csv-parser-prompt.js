@@ -1,6 +1,6 @@
 // src/prompts/csv-parser-prompt.js
 
-export const PROMPT_VERSION = "v1";
+export const PROMPT_VERSION = 'v1'
 
 export function buildCSVParserPrompt() {
   return `You are a book data parser. Parse this CSV file and return a JSON array of books.
@@ -153,5 +153,5 @@ RULES:
 12. If a row is malformed or empty, skip it and continue processing
 13. Do NOT include any text outside the JSON array
 
-IMPORTANT: Cultural inference (authorGender, authorCulturalRegion) is AI-generated and may be inaccurate. When uncertain, prefer "unknown" over guessing.`;
+IMPORTANT: Cultural inference (authorGender, authorCulturalRegion) is AI-generated and may be inaccurate. When uncertain, prefer "unknown" over guessing.`
 }

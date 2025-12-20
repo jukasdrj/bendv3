@@ -1,6 +1,6 @@
-import { searchByTitle } from "../handlers/book-search.js";
-import { searchByAuthor } from "../handlers/author-search.js";
-import { enrichBooksParallel } from "../services/parallel-enrichment.js";
+import { searchByAuthor } from '../handlers/author-search.js'
+import { searchByTitle } from '../handlers/book-search.js'
+import { enrichBooksParallel } from '../services/parallel-enrichment.js'
 
 /**
  * Author Warming Consumer - Processes queued authors
@@ -20,20 +20,16 @@ import { enrichBooksParallel } from "../services/parallel-enrichment.js";
 export async function processAuthorBatch(batch, env, ctx) {
   for (const message of batch.messages) {
     try {
-      const { author, depth, source, jobId } = message.body;
+      const { author, depth, source, jobId } = message.body
 
       // 1. Check if already processed
-      const processed = await env.CACHE.get(
-        `warming:processed:author:${author.toLowerCase()}`,
-      );
+      const processed = await env.CACHE.get(`warming:processed:author:${author.toLowerCase()}`)
       if (processed) {
-        const data = JSON.parse(processed);
+        const data = JSON.parse(processed)
         if (depth <= data.depth) {
-          console.log(
-            `Skipping ${author}: already processed at depth ${data.depth}`,
-          );
-          message.ack();
-          continue;
+          console.log(`Skipping ${author}: already processed at depth ${data.depth}`)
+          message.ack()
+          continue
         }
       }
 
@@ -44,57 +40,45 @@ export async function processAuthorBatch(batch, env, ctx) {
         {
           limit: 100,
           offset: 0,
-          sortBy: "publicationYear",
+          sortBy: 'publicationYear',
         },
         env,
         ctx,
-      );
+      )
 
-      if (
-        !authorResult.success ||
-        !authorResult.works ||
-        authorResult.works.length === 0
-      ) {
-        console.warn(`No works found for ${author}, skipping`);
-        message.ack();
-        continue;
+      if (!authorResult.success || !authorResult.works || authorResult.works.length === 0) {
+        console.warn(`No works found for ${author}, skipping`)
+        message.ack()
+        continue
       }
 
-      console.log(
-        `Cached author "${author}": ${authorResult.works.length} works`,
-      );
+      console.log(`Cached author "${author}": ${authorResult.works.length} works`)
 
       // 3. STEP 2: Extract titles and warm each one in parallel using enrichBooksParallel
       // This ensures canonical DTO format, correct cache keys, and 5x faster warming
-      console.log(
-        `Warming ${authorResult.works.length} titles for author "${author}"...`,
-      );
+      console.log(`Warming ${authorResult.works.length} titles for author "${author}"...`)
 
       // Use configurable concurrency (default: 5) to prevent API throttling
-      const concurrency = env.CACHE_WARMING_CONCURRENCY || 5;
+      const concurrency = env.CACHE_WARMING_CONCURRENCY || 5
 
       const results = await enrichBooksParallel(
         authorResult.works,
         async (work) => {
           // Use searchByTitle to get full orchestrated data (Google + OpenLibrary)
           // This will automatically cache with correct key: search:title:maxresults=20&title={normalized}
-          await searchByTitle(work.title, { maxResults: 20 }, env, ctx);
-          return { ...work, warmed: true };
+          await searchByTitle(work.title, { maxResults: 20 }, env, ctx)
+          return { ...work, warmed: true }
         },
         async (completed, total, work, isError) => {
           if (!isError) {
-            console.log(
-              `(${completed}/${total}) Warmed cache for "${work.title}"`,
-            );
+            console.log(`(${completed}/${total}) Warmed cache for "${work.title}"`)
           }
         },
         concurrency,
-      );
+      )
 
-      const titlesWarmed = results.filter((r) => r.warmed).length;
-      console.log(
-        `Finished warming ${titlesWarmed} titles for author "${author}"`,
-      );
+      const titlesWarmed = results.filter((r) => r.warmed).length
+      console.log(`Finished warming ${titlesWarmed} titles for author "${author}"`)
 
       // 4. Mark author as processed
       await env.CACHE.put(
@@ -107,23 +91,23 @@ export async function processAuthorBatch(batch, env, ctx) {
           jobId: jobId,
         }),
         { expirationTtl: 90 * 24 * 60 * 60 }, // 90 days
-      );
+      )
 
       // 5. Analytics
       if (env.CACHE_ANALYTICS) {
         ctx.waitUntil(
           env.CACHE_ANALYTICS.writeDataPoint({
-            blobs: ["warming", author, source],
+            blobs: ['warming', author, source],
             doubles: [authorResult.works.length, titlesWarmed],
-            indexes: ["cache-warming"],
+            indexes: ['cache-warming'],
           }),
-        );
+        )
       }
 
-      message.ack();
+      message.ack()
     } catch (error) {
-      console.error(`Failed to process author ${message.body.author}:`, error);
-      message.retry(); // Retry up to 3 times per queue config, then DLQ
+      console.error(`Failed to process author ${message.body.author}:`, error)
+      message.retry() // Retry up to 3 times per queue config, then DLQ
     }
   }
 }

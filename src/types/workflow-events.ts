@@ -13,17 +13,17 @@
  * These represent the different stages of book import workflow execution.
  */
 export type WorkflowStatus =
-  | 'started'           // Workflow instance created
-  | 'validating'        // ISBN validation in progress
+  | 'started' // Workflow instance created
+  | 'validating' // ISBN validation in progress
   | 'fetching_metadata' // Fetching from book providers
-  | 'metadata_fetched'  // Metadata successfully retrieved
-  | 'uploading_cover'   // Downloading and uploading cover to R2
-  | 'cover_uploaded'    // Cover successfully uploaded
+  | 'metadata_fetched' // Metadata successfully retrieved
+  | 'uploading_cover' // Downloading and uploading cover to R2
+  | 'cover_uploaded' // Cover successfully uploaded
   | 'generating_embedding' // Generating text embeddings (optional)
-  | 'embedding_generated'  // Embeddings created
-  | 'saving_to_database'   // Saving to D1/KV
-  | 'completed'         // Workflow finished successfully
-  | 'failed'            // Workflow failed with error
+  | 'embedding_generated' // Embeddings created
+  | 'saving_to_database' // Saving to D1/KV
+  | 'completed' // Workflow finished successfully
+  | 'failed' // Workflow failed with error
 
 /**
  * Progress event sent from Workflow to WebSocket clients

@@ -5,7 +5,7 @@
  * Ensures orphaned objects don't accumulate and cost money.
  */
 
-import { deletePayloadFromR2, cleanupJobR2Objects } from './r2-hibernation.js'
+import { cleanupJobR2Objects, deletePayloadFromR2 } from './r2-hibernation.js'
 
 const CLEANUP_DELAY_MS = 24 * 60 * 60 * 1000 // 24 hours
 
@@ -18,16 +18,14 @@ const CLEANUP_DELAY_MS = 24 * 60 * 60 * 1000 // 24 hours
  * @param {string} r2Key - R2 object key
  * @param {number} delayMs - Delay before cleanup (default: 24 hours)
  */
-export async function scheduleCleanup(env, r2Key, delayMs = CLEANUP_DELAY_MS) {
+export async function scheduleCleanup(_env, r2Key, delayMs = CLEANUP_DELAY_MS) {
   // R2 doesn't support programmatic lifecycle rules per object
   // Instead, we rely on:
   // 1. Immediate cleanup on success/failure
   // 2. Manual Cloudflare Lifecycle Rule (configured in dashboard)
   // 3. Periodic cleanup job (future: use Queue or Cron)
 
-  console.log(
-    `[R2 Lifecycle] Scheduled cleanup for ${r2Key} in ${delayMs / 1000}s`
-  )
+  console.log(`[R2 Lifecycle] Scheduled cleanup for ${r2Key} in ${delayMs / 1000}s`)
 
   // Store cleanup task in metadata (for monitoring)
   const expiryTime = Date.now() + delayMs
@@ -60,10 +58,7 @@ export async function forceCleanup(env, jobId, r2Key = null) {
 
     console.log(`[R2 Lifecycle] Force cleanup completed for job ${jobId}`)
   } catch (error) {
-    console.error(
-      `[R2 Lifecycle] Force cleanup failed for job ${jobId}:`,
-      error
-    )
+    console.error(`[R2 Lifecycle] Force cleanup failed for job ${jobId}:`, error)
     // Don't throw - cleanup is best effort
   }
 }
@@ -82,10 +77,7 @@ export async function cleanupOnSuccess(env, r2Key) {
     await deletePayloadFromR2(env, r2Key)
     console.log(`[R2 Lifecycle] Success cleanup completed for ${r2Key}`)
   } catch (error) {
-    console.error(
-      `[R2 Lifecycle] Success cleanup failed for ${r2Key}:`,
-      error
-    )
+    console.error(`[R2 Lifecycle] Success cleanup failed for ${r2Key}:`, error)
     // Don't throw - cleanup is best effort
   }
 }
@@ -99,10 +91,7 @@ export async function cleanupOnSuccess(env, r2Key) {
  * @param {number} thresholdMs - Age threshold (default: 24 hours)
  * @returns {Promise<Array>} List of orphaned R2 keys
  */
-export async function getOrphanedObjects(
-  env,
-  thresholdMs = CLEANUP_DELAY_MS
-) {
+export async function getOrphanedObjects(env, thresholdMs = CLEANUP_DELAY_MS) {
   const bucket = env.BOOKSHELF_IMAGES
   const cutoffTime = Date.now() - thresholdMs
   const orphaned = []
@@ -149,10 +138,7 @@ export async function getOrphanedObjects(
  * @param {number} thresholdMs - Age threshold (default: 24 hours)
  * @returns {Promise<{deleted: number, failed: number}>}
  */
-export async function cleanupOrphanedObjects(
-  env,
-  thresholdMs = CLEANUP_DELAY_MS
-) {
+export async function cleanupOrphanedObjects(env, thresholdMs = CLEANUP_DELAY_MS) {
   console.log('[R2 Lifecycle] Starting orphaned object cleanup')
 
   const orphaned = await getOrphanedObjects(env, thresholdMs)
@@ -174,15 +160,10 @@ export async function cleanupOrphanedObjects(
       console.log(`[R2 Lifecycle] Deleted orphaned object: ${obj.key}`)
     } catch (error) {
       failed++
-      console.error(
-        `[R2 Lifecycle] Failed to delete orphaned object ${obj.key}:`,
-        error
-      )
+      console.error(`[R2 Lifecycle] Failed to delete orphaned object ${obj.key}:`, error)
     }
   }
 
-  console.log(
-    `[R2 Lifecycle] Cleanup complete: ${deleted} deleted, ${failed} failed`
-  )
+  console.log(`[R2 Lifecycle] Cleanup complete: ${deleted} deleted, ${failed} failed`)
   return { deleted, failed }
 }

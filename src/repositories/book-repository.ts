@@ -12,7 +12,7 @@
  * - Fallback strategy: Try primary source → Fallback to secondary
  */
 
-import type { BookRecord, AuthorRecord, BookAuthorRelation } from '../types/database.js'
+import type { BookRecord } from '../types/database.js'
 
 export class BookRepository {
   private env: any
@@ -29,10 +29,12 @@ export class BookRepository {
    * @returns BookRecord or null if not found in both sources
    */
   async findByISBN(isbn: string): Promise<BookRecord | null> {
-    const readPercentage = parseInt(this.env.D1_READ_PERCENTAGE || '0')
+    const readPercentage = parseInt(this.env.D1_READ_PERCENTAGE || '0', 10)
     const shouldReadFromD1 = this.shouldRouteToD1(isbn, readPercentage)
 
-    console.log(`[BookRepository] findByISBN(${isbn}): D1_READ_PERCENTAGE=${readPercentage}, routing to ${shouldReadFromD1 ? 'D1' : 'KV'}`)
+    console.log(
+      `[BookRepository] findByISBN(${isbn}): D1_READ_PERCENTAGE=${readPercentage}, routing to ${shouldReadFromD1 ? 'D1' : 'KV'}`,
+    )
 
     if (shouldReadFromD1) {
       // D1-first strategy
@@ -68,7 +70,7 @@ export class BookRepository {
    * @throws Never throws - D1 write failures are logged but don't fail the request
    */
   async save(book: BookRecord): Promise<void> {
-    const startTime = Date.now()
+    const _startTime = Date.now()
     let d1WriteTime = 0
     let kvWriteTime = 0
     let d1Success = false
@@ -91,7 +93,10 @@ export class BookRepository {
         }
       } catch (error) {
         d1WriteTime = Date.now() - d1StartTime
-        console.error(`[BookRepository] ❌ D1 write failed for ${book.isbn} (${d1WriteTime}ms):`, error)
+        console.error(
+          `[BookRepository] ❌ D1 write failed for ${book.isbn} (${d1WriteTime}ms):`,
+          error,
+        )
 
         // Emit failure metrics (kvWriteTime will be updated after KV write)
         this.emitDualWriteMetrics({
@@ -157,7 +162,10 @@ export class BookRepository {
       }
 
       if (mismatches.length > 0) {
-        console.warn(`[BookRepository] ⚠️  Validation mismatches for ${isbn}:`, mismatches.join(', '))
+        console.warn(
+          `[BookRepository] ⚠️  Validation mismatches for ${isbn}:`,
+          mismatches.join(', '),
+        )
       } else {
         console.log(`[BookRepository] ✅ Validation passed for ${isbn}`)
       }
@@ -185,15 +193,18 @@ export class BookRepository {
     errorMessage?: string
   }): void {
     // Emit to console for Cloudflare Logs
-    console.log('[BookRepository:Metrics]', JSON.stringify({
-      metric: 'dual_write',
-      isbn: metrics.isbn,
-      kv_write_ms: metrics.kvWriteTime,
-      d1_write_ms: metrics.d1WriteTime,
-      success: metrics.success,
-      error: metrics.errorMessage || null,
-      timestamp: new Date().toISOString(),
-    }))
+    console.log(
+      '[BookRepository:Metrics]',
+      JSON.stringify({
+        metric: 'dual_write',
+        isbn: metrics.isbn,
+        kv_write_ms: metrics.kvWriteTime,
+        d1_write_ms: metrics.d1WriteTime,
+        success: metrics.success,
+        error: metrics.errorMessage || null,
+        timestamp: new Date().toISOString(),
+      }),
+    )
 
     // Future: Emit to analytics service (e.g., Cloudflare Analytics Engine)
     // this.env.ANALYTICS?.writeDataPoint({
@@ -238,9 +249,9 @@ export class BookRepository {
    */
   private async findInD1(isbn: string): Promise<BookRecord | null> {
     try {
-      const result = await this.env.DB.prepare(
-        'SELECT * FROM books WHERE isbn = ?'
-      ).bind(isbn).first()
+      const result = await this.env.DB.prepare('SELECT * FROM books WHERE isbn = ?')
+        .bind(isbn)
+        .first()
 
       if (!result) return null
 
@@ -281,11 +292,9 @@ export class BookRepository {
     const cacheKey = `book:isbn:${book.isbn}`
 
     // Store full canonical metadata in KV (backward compatible)
-    await this.env.CACHE.put(
-      cacheKey,
-      JSON.stringify(book.canonicalMetadata),
-      { expirationTtl: this.kvCacheTTL }
-    )
+    await this.env.CACHE.put(cacheKey, JSON.stringify(book.canonicalMetadata), {
+      expirationTtl: this.kvCacheTTL,
+    })
   }
 
   /**
@@ -321,23 +330,25 @@ export class BookRepository {
         cover_large_url = excluded.cover_large_url,
         canonical_metadata = excluded.canonical_metadata,
         provider_metadata = excluded.provider_metadata
-    `).bind(
-      book.isbn,
-      book.title,
-      book.subtitle,
-      book.description,
-      book.publisher,
-      book.publicationDate,
-      book.language,
-      book.pageCount,
-      book.coverSmallUrl,
-      book.coverMediumUrl,
-      book.coverLargeUrl,
-      JSON.stringify(book.canonicalMetadata),
-      book.providerMetadata ? JSON.stringify(book.providerMetadata) : null,
-      now, // created_at (only used on INSERT)
-      now  // updated_at (set on INSERT, then auto-updated by trigger on UPDATE)
-    ).run()
+    `)
+      .bind(
+        book.isbn,
+        book.title,
+        book.subtitle,
+        book.description,
+        book.publisher,
+        book.publicationDate,
+        book.language,
+        book.pageCount,
+        book.coverSmallUrl,
+        book.coverMediumUrl,
+        book.coverLargeUrl,
+        JSON.stringify(book.canonicalMetadata),
+        book.providerMetadata ? JSON.stringify(book.providerMetadata) : null,
+        now, // created_at (only used on INSERT)
+        now, // updated_at (set on INSERT, then auto-updated by trigger on UPDATE)
+      )
+      .run()
 
     // Extract and save authors
     if (book.canonicalMetadata.authors && book.canonicalMetadata.authors.length > 0) {
@@ -373,13 +384,9 @@ export class BookRepository {
           native_name = COALESCE(excluded.native_name, authors.native_name),
           romanized_name = COALESCE(excluded.romanized_name, authors.romanized_name)
         RETURNING id
-      `).bind(
-        authorName,
-        normalizedName,
-        authorRole,
-        nativeName,
-        romanizedName
-      ).first()
+      `)
+        .bind(authorName, normalizedName, authorRole, nativeName, romanizedName)
+        .first()
 
       const authorId = authorResult?.id
 
@@ -392,7 +399,9 @@ export class BookRepository {
       await this.env.DB.prepare(`
         INSERT OR IGNORE INTO book_authors (isbn, author_id, author_order)
         VALUES (?, ?, ?)
-      `).bind(isbn, authorId, i).run()
+      `)
+        .bind(isbn, authorId, i)
+        .run()
     }
   }
 
@@ -418,7 +427,7 @@ export class BookRepository {
     if (percentage === 100) return true
 
     const hash = this.hashString(isbn)
-    return (hash % 100) < percentage
+    return hash % 100 < percentage
   }
 
   /**
@@ -454,7 +463,9 @@ export class BookRepository {
         WHERE a.normalized_name LIKE ?
         ORDER BY b.publication_date DESC
         LIMIT ?
-      `).bind(`%${normalizedName}%`, limit).all()
+      `)
+        .bind(`%${normalizedName}%`, limit)
+        .all()
 
       return results.results.map((row: any) => ({
         isbn: row.isbn,
@@ -469,9 +480,7 @@ export class BookRepository {
         coverMediumUrl: row.cover_medium_url,
         coverLargeUrl: row.cover_large_url,
         canonicalMetadata: JSON.parse(row.canonical_metadata),
-        providerMetadata: row.provider_metadata
-          ? JSON.parse(row.provider_metadata)
-          : null,
+        providerMetadata: row.provider_metadata ? JSON.parse(row.provider_metadata) : null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }))
@@ -495,7 +504,7 @@ export class BookRepository {
     userId: string,
     rating: number,
     year: number,
-    limit = 100
+    limit = 100,
   ): Promise<Array<BookRecord & { rating: number; addedAt: number }>> {
     const yearStart = new Date(year, 0, 1).getTime() / 1000 // Unix epoch
     const yearEnd = new Date(year + 1, 0, 1).getTime() / 1000
@@ -511,7 +520,9 @@ export class BookRepository {
           AND ul.added_at < ?
         ORDER BY ul.added_at DESC
         LIMIT ?
-      `).bind(userId, rating, yearStart, yearEnd, limit).all()
+      `)
+        .bind(userId, rating, yearStart, yearEnd, limit)
+        .all()
 
       return results.results.map((row: any) => ({
         isbn: row.isbn,
@@ -526,9 +537,7 @@ export class BookRepository {
         coverMediumUrl: row.cover_medium_url,
         coverLargeUrl: row.cover_large_url,
         canonicalMetadata: JSON.parse(row.canonical_metadata),
-        providerMetadata: row.provider_metadata
-          ? JSON.parse(row.provider_metadata)
-          : null,
+        providerMetadata: row.provider_metadata ? JSON.parse(row.provider_metadata) : null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         rating: row.rating,

@@ -45,7 +45,7 @@ export function isValidJSON(value: unknown): boolean {
  */
 export function validateBookMetadata(
   canonicalMetadata: unknown,
-  providerMetadata?: unknown
+  providerMetadata?: unknown,
 ): ValidationResult {
   // canonical_metadata is required and must be valid JSON
   if (!canonicalMetadata) {

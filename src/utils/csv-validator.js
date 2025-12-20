@@ -1,7 +1,7 @@
 // src/utils/csv-validator.js
 
-export const MAX_ROWS = 10000;
-const SAMPLE_VALIDATION_ROWS = 10;
+export const MAX_ROWS = 10000
+const SAMPLE_VALIDATION_ROWS = 10
 
 /**
  * Counts columns in a CSV line, respecting quoted fields and escaped quotes.
@@ -11,27 +11,27 @@ const SAMPLE_VALIDATION_ROWS = 10;
  * @returns {number} Number of columns in the line
  */
 function countColumns(line) {
-  let count = 1;
-  let inQuotes = false;
+  let count = 1
+  let inQuotes = false
 
   for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    const nextChar = line[i + 1];
+    const char = line[i]
+    const nextChar = line[i + 1]
 
     if (char === '"') {
       // Check for escaped quote ("") per RFC 4180
       if (inQuotes && nextChar === '"') {
-        i++; // Skip next quote
-        continue;
+        i++ // Skip next quote
+        continue
       }
-      inQuotes = !inQuotes;
+      inQuotes = !inQuotes
     }
-    if (char === "," && !inQuotes) {
-      count++;
+    if (char === ',' && !inQuotes) {
+      count++
     }
   }
 
-  return count;
+  return count
 }
 
 /**
@@ -58,18 +58,18 @@ export function validateCSV(csvText) {
   if (!csvText || csvText.trim().length === 0) {
     return {
       valid: false,
-      error: "CSV file is empty",
-    };
+      error: 'CSV file is empty',
+    }
   }
 
-  const lines = csvText.split("\n").filter((line) => line.trim());
+  const lines = csvText.split('\n').filter((line) => line.trim())
 
   // Must have at least header + 1 data row
   if (lines.length < 2) {
     return {
       valid: false,
-      error: "CSV must have at least a header and one data row",
-    };
+      error: 'CSV must have at least a header and one data row',
+    }
   }
 
   // Check row limit
@@ -78,41 +78,41 @@ export function validateCSV(csvText) {
     return {
       valid: false,
       error: `CSV exceeds maximum of ${MAX_ROWS} rows`,
-    };
+    }
   }
 
   // Validate header exists
-  const header = lines[0];
-  const columnCount = countColumns(header);
+  const header = lines[0]
+  const columnCount = countColumns(header)
 
   if (columnCount < 2) {
     return {
       valid: false,
-      error: "CSV must have at least 2 columns",
-    };
+      error: 'CSV must have at least 2 columns',
+    }
   }
 
   // Check for unclosed quotes
-  let quoteCount = 0;
+  let quoteCount = 0
   for (const char of csvText) {
-    if (char === '"') quoteCount++;
+    if (char === '"') quoteCount++
   }
   if (quoteCount % 2 !== 0) {
     return {
       valid: false,
-      error: "CSV has unclosed quotes",
-    };
+      error: 'CSV has unclosed quotes',
+    }
   }
 
   // Sample check: validate first N rows have consistent column count
-  const sampleSize = Math.min(SAMPLE_VALIDATION_ROWS, lines.length - 1);
+  const sampleSize = Math.min(SAMPLE_VALIDATION_ROWS, lines.length - 1)
   for (let i = 1; i <= sampleSize; i++) {
-    const cols = countColumns(lines[i]);
+    const cols = countColumns(lines[i])
     if (cols !== columnCount) {
       return {
         valid: false,
         error: `CSV has inconsistent column count (row ${i + 1})`,
-      };
+      }
     }
   }
 
@@ -120,5 +120,5 @@ export function validateCSV(csvText) {
     valid: true,
     rowCount: lines.length - 1, // Exclude header
     columnCount,
-  };
+  }
 }

@@ -25,8 +25,8 @@
  * Cost: ~400 API calls/day (static) + ~100 API calls/day (analytics) = ~500/day
  */
 
-import { findBookByISBN } from '../services/book-service.ts'
 import { getPopularISBNs } from '../config/popular-books.js'
+import { findBookByISBN } from '../services/book-service.ts'
 
 /**
  * Get top accessed cache keys from last 24 hours
@@ -58,12 +58,12 @@ async function getPopularCacheKeys(env, limit = 100) {
           console.warn(`Failed to read access key ${key.name}:`, error.message)
           return null
         }
-      })
+      }),
     )
 
     // Filter out nulls and books with low access counts
     const validData = accessData.filter(
-      (d) => d !== null && d.count > 10 // Only books with >10 accesses/day
+      (d) => d !== null && d.count > 10, // Only books with >10 accesses/day
     )
 
     // Sort by access count descending
@@ -71,7 +71,9 @@ async function getPopularCacheKeys(env, limit = 100) {
 
     // Return top N cache keys
     const result = sorted.slice(0, limit).map((d) => d.cacheKey)
-    console.log(`Found ${result.length} popular books to warm (out of ${validData.length} with >10 accesses)`)
+    console.log(
+      `Found ${result.length} popular books to warm (out of ${validData.length} with >10 accesses)`,
+    )
 
     return result
   } catch (error) {
@@ -95,7 +97,7 @@ async function warmStaticPopularBooks(env) {
     warmed: 0,
     alreadyCached: 0,
     errors: 0,
-    duration: 0
+    duration: 0,
   }
 
   try {
@@ -131,7 +133,7 @@ async function warmStaticPopularBooks(env) {
 
     stats.duration = Date.now() - startTime
     console.log(
-      `✅ Static popular books warming complete: ${stats.warmed}/${stats.total} warmed (${stats.alreadyCached} already cached), ${stats.errors} errors in ${stats.duration}ms`
+      `✅ Static popular books warming complete: ${stats.warmed}/${stats.total} warmed (${stats.alreadyCached} already cached), ${stats.errors} errors in ${stats.duration}ms`,
     )
 
     return { success: true, stats }
@@ -157,7 +159,7 @@ async function warmAnalyticsDrivenBooks(env) {
     warmed: 0,
     skipped: 0,
     errors: 0,
-    duration: 0
+    duration: 0,
   }
 
   try {
@@ -199,7 +201,7 @@ async function warmAnalyticsDrivenBooks(env) {
 
     stats.duration = Date.now() - startTime
     console.log(
-      `✅ Analytics-driven warming complete: ${stats.warmed}/${stats.total} warmed, ${stats.errors} errors in ${stats.duration}ms`
+      `✅ Analytics-driven warming complete: ${stats.warmed}/${stats.total} warmed, ${stats.errors} errors in ${stats.duration}ms`,
     )
 
     return { success: true, stats }
@@ -220,7 +222,7 @@ async function warmAnalyticsDrivenBooks(env) {
  * @param {boolean} options.staticOnly - If true, only warm static popular books (for 6-hour cron)
  * @returns {Promise<Object>} Stats object with warming results
  */
-export async function handleScheduledCacheWarming(env, ctx, options = {}) {
+export async function handleScheduledCacheWarming(env, _ctx, options = {}) {
   const startTime = Date.now()
   const { staticOnly = false } = options
 
@@ -229,7 +231,7 @@ export async function handleScheduledCacheWarming(env, ctx, options = {}) {
   const results = {
     static: null,
     analytics: null,
-    totalDuration: 0
+    totalDuration: 0,
   }
 
   try {
@@ -250,7 +252,7 @@ export async function handleScheduledCacheWarming(env, ctx, options = {}) {
       (results.static?.stats?.errors || 0) + (results.analytics?.stats?.errors || 0)
 
     console.log(
-      `✅ Overall cache warming complete: ${totalWarmed} books warmed, ${totalErrors} errors in ${results.totalDuration}ms`
+      `✅ Overall cache warming complete: ${totalWarmed} books warmed, ${totalErrors} errors in ${results.totalDuration}ms`,
     )
 
     return { success: true, results }

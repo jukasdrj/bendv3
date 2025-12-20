@@ -502,7 +502,14 @@
       },
       "CapabilitiesFeatures": {
         "type": "object",
-        "required": ["semantic_search", "similar_books", "weekly_recommendations", "sse_streaming", "batch_enrichment", "csv_import"],
+        "required": [
+          "semantic_search",
+          "similar_books",
+          "weekly_recommendations",
+          "sse_streaming",
+          "batch_enrichment",
+          "csv_import"
+        ],
         "properties": {
           "semantic_search": {
             "type": "boolean",

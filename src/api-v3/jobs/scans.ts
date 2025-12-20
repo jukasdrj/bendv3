@@ -13,33 +13,32 @@
  * @module api-v3/jobs/scans
  */
 
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
-import type { Env } from '../../types/env'
-import type { RequestContext } from '../../middleware/request-context'
 import {
   createProblemDetails,
+  type Job,
+  type JobInitData,
   JobInitResponseSchema,
-  JobStatusResponseSchema,
+  type JobResultsData,
   JobResultsResponseSchema,
+  JobStatusResponseSchema,
   JobStatusSchema,
-  SSEProgressEventSchema,
   SSECompleteEventSchema,
   SSEErrorEventSchema,
-  type JobInitData,
-  type Job,
-  type JobResultsData
+  SSEProgressEventSchema,
 } from '@bookstrack/schemas'
+import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
+import type { RequestContext } from '../../middleware/request-context'
+import type { Env } from '../../types/env'
+import { deleteR2Objects } from '../../utils/r2-utils'
 import {
-  getJobStateManagerDO,
-  getWebSocketConnectionDO,
-  generateAuthToken,
   buildStreamUrl,
   createJobLinks,
-  validateTokenFormat,
-  mapDOStateToJob
+  generateAuthToken,
+  getJobStateManagerDO,
+  getWebSocketConnectionDO,
+  mapDOStateToJob,
 } from './common'
 import { handleSSEStream } from './stream'
-import { deleteR2Objects } from '../../utils/r2-utils'
 
 // Constants from V2 handler
 const MAX_PHOTOS_PER_BATCH = 5
@@ -55,20 +54,20 @@ const BoundingBoxSchema = z
   .object({
     x: z.number().min(0).max(1).openapi({
       description: 'Normalized X coordinate (0-1)',
-      example: 0.1
+      example: 0.1,
     }),
     y: z.number().min(0).max(1).openapi({
       description: 'Normalized Y coordinate (0-1)',
-      example: 0.2
+      example: 0.2,
     }),
     width: z.number().min(0).max(1).openapi({
       description: 'Normalized width (0-1)',
-      example: 0.15
+      example: 0.15,
     }),
     height: z.number().min(0).max(1).openapi({
       description: 'Normalized height (0-1)',
-      example: 0.25
-    })
+      example: 0.25,
+    }),
   })
   .openapi('BoundingBox')
 
@@ -84,7 +83,7 @@ const DetectedBookSchema = z
     isbn: z.string().optional(),
     confidence: z.number().min(0).max(1).openapi({
       description: 'Detection confidence (0-1)',
-      example: 0.95
+      example: 0.95,
     }),
     boundingBox: BoundingBoxSchema.optional(),
     enrichmentStatus: z
@@ -92,12 +91,12 @@ const DetectedBookSchema = z
       .optional()
       .openapi({
         description: 'Enrichment status from external APIs',
-        example: 'success'
+        example: 'success',
       }),
     coverUrl: z.string().url().optional(),
     publisher: z.string().optional(),
     publicationYear: z.number().int().optional(),
-    enrichment: z.any().optional() // Full enrichment data
+    enrichment: z.any().optional(), // Full enrichment data
   })
   .openapi('DetectedBook')
 
@@ -106,7 +105,9 @@ const DetectedBookSchema = z
  *
  * @param app - V3 OpenAPIHono router instance
  */
-export function registerScanRoutes(app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>) {
+export function registerScanRoutes(
+  app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>,
+) {
   // ========================================================================
   // POST /v3/jobs/scans - Initiate bookshelf scan
   // ========================================================================
@@ -144,34 +145,38 @@ Returns immediately with jobId for progress tracking via SSE stream.
         content: {
           'multipart/form-data': {
             schema: z.object({
-              'photos[]': z.array(z.instanceof(File)).min(1).max(MAX_PHOTOS_PER_BATCH).openapi({
-                description: `Array of photo files (1-${MAX_PHOTOS_PER_BATCH} photos)`,
-                format: 'binary',
-                type: 'array'
-              })
-            })
-          }
-        }
-      }
+              'photos[]': z
+                .array(z.instanceof(File))
+                .min(1)
+                .max(MAX_PHOTOS_PER_BATCH)
+                .openapi({
+                  description: `Array of photo files (1-${MAX_PHOTOS_PER_BATCH} photos)`,
+                  format: 'binary',
+                  type: 'array',
+                }),
+            }),
+          },
+        },
+      },
     },
     responses: {
       202: {
         description: 'Scan job accepted',
-        content: { 'application/json': { schema: JobInitResponseSchema } }
+        content: { 'application/json': { schema: JobInitResponseSchema } },
       },
       400: {
         description: 'Invalid request (missing photos, wrong format)',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       413: {
         description: 'File too large (photo >10MB or batch >50MB)',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(createScanRoute, async (c) => {
@@ -191,10 +196,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
               receivedContentType: contentType || null,
               expectedContentType: 'multipart/form-data',
               expectedField: 'photos[]',
-              hint: 'Use FormData with photos[] field containing image files'
-            }
+              hint: 'Use FormData with photos[] field containing image files',
+            },
           ),
-          400
+          400,
         )
       }
 
@@ -212,10 +217,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
             {
               requestId: ctx.requestId,
               instance: c.req.url,
-              availableFields: availableKeys
-            }
+              availableFields: availableKeys,
+            },
           ),
-          400
+          400,
         )
       }
 
@@ -228,10 +233,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
               requestId: ctx.requestId,
               instance: c.req.url,
               maxPhotos: MAX_PHOTOS_PER_BATCH,
-              receivedPhotos: photoFiles.length
-            }
+              receivedPhotos: photoFiles.length,
+            },
           ),
-          400
+          400,
         )
       }
 
@@ -241,9 +246,9 @@ Returns immediately with jobId for progress tracking via SSE stream.
         return c.json(
           createProblemDetails('INTERNAL_ERROR', 'Storage not configured', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          500
+          500,
         )
       }
 
@@ -263,10 +268,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
               {
                 requestId: ctx.requestId,
                 instance: c.req.url,
-                photoIndex: i
-              }
+                photoIndex: i,
+              },
             ),
-            400
+            400,
           )
         }
 
@@ -285,18 +290,22 @@ Returns immediately with jobId for progress tracking via SSE stream.
                 instance: c.req.url,
                 photoIndex: i,
                 maxSize: MAX_IMAGE_SIZE,
-                actualSize
-              }
+                actualSize,
+              },
             ),
-            413
+            413,
           )
         }
 
         totalBatchSize += actualSize
-        processedImages.push({ index: i, buffer: imageBuffer, type: (file as File).type || 'image/jpeg' })
+        processedImages.push({
+          index: i,
+          buffer: imageBuffer,
+          type: (file as File).type || 'image/jpeg',
+        })
 
         console.log(
-          `[V3 Scan] Photo ${i}: ${(actualSize / 1_000_000).toFixed(2)}MB, type: ${(file as File).type}`
+          `[V3 Scan] Photo ${i}: ${(actualSize / 1_000_000).toFixed(2)}MB, type: ${(file as File).type}`,
         )
       }
 
@@ -310,15 +319,15 @@ Returns immediately with jobId for progress tracking via SSE stream.
               requestId: ctx.requestId,
               instance: c.req.url,
               maxBatchSize: MAX_BATCH_SIZE,
-              actualBatchSize: totalBatchSize
-            }
+              actualBatchSize: totalBatchSize,
+            },
           ),
-          413
+          413,
         )
       }
 
       console.log(
-        `[V3 Scan] Processing ${photoFiles.length} photos, total size: ${(totalBatchSize / 1_000_000).toFixed(2)}MB`
+        `[V3 Scan] Processing ${photoFiles.length} photos, total size: ${(totalBatchSize / 1_000_000).toFixed(2)}MB`,
       )
 
       // Generate job ID and auth token
@@ -343,15 +352,17 @@ Returns immediately with jobId for progress tracking via SSE stream.
       for (const img of processedImages) {
         const r2Key = `bookshelf-scans/${jobId}/photo-${img.index}.jpg`
         await c.env.BOOKSHELF_IMAGES.put(r2Key, img.buffer, {
-          httpMetadata: { contentType: img.type }
+          httpMetadata: { contentType: img.type },
         })
         r2Keys.push(r2Key)
-        console.log(`[V3 Scan] Uploaded photo ${img.index} to R2: ${r2Key} (${(img.buffer.byteLength / 1_000_000).toFixed(2)}MB)`)
+        console.log(
+          `[V3 Scan] Uploaded photo ${img.index} to R2: ${r2Key} (${(img.buffer.byteLength / 1_000_000).toFixed(2)}MB)`,
+        )
       }
 
       // Schedule bookshelf scan processing via DO alarm
       // Pass R2 keys instead of raw image buffers to avoid DO storage 128KB limit
-      c.executionCtx.waitUntil(doStub.scheduleBookshelfScan!(r2Keys, jobId))
+      c.executionCtx.waitUntil(doStub.scheduleBookshelfScan?.(r2Keys, jobId))
 
       const streamUrl = buildStreamUrl(c.req.url, 'scans', jobId)
 
@@ -359,7 +370,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
         jobId,
         status: 'queued',
         streamUrl,
-        token: authToken
+        token: authToken,
       }
 
       return c.json(
@@ -368,20 +379,20 @@ Returns immediately with jobId for progress tracking via SSE stream.
           data,
           metadata: {
             timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
+            requestId: ctx.requestId,
           },
-          _links: createJobLinks('scans', jobId, streamUrl)
+          _links: createJobLinks('scans', jobId, streamUrl),
         },
-        202
+        202,
       )
     } catch (error: any) {
       console.error('[V3 Scan] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
@@ -402,23 +413,23 @@ Returns immediately with jobId for progress tracking via SSE stream.
 - Rate limit: 30 requests/minute per job`,
     request: {
       params: z.object({
-        jobId: z.string().uuid()
-      })
+        jobId: z.string().uuid(),
+      }),
     },
     responses: {
       200: {
         description: 'Job status',
-        content: { 'application/json': { schema: JobStatusResponseSchema } }
+        content: { 'application/json': { schema: JobStatusResponseSchema } },
       },
       404: {
         description: 'Job not found',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(getScanStatusRoute, async (c) => {
@@ -433,9 +444,9 @@ Returns immediately with jobId for progress tracking via SSE stream.
         return c.json(
           createProblemDetails('NOT_FOUND', 'Scan job not found', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
@@ -447,19 +458,19 @@ Returns immediately with jobId for progress tracking via SSE stream.
           data: job,
           metadata: {
             timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
-          }
+            requestId: ctx.requestId,
+          },
         },
-        200
+        200,
       )
     } catch (error: any) {
       console.error('[V3 Scan Status] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
@@ -491,18 +502,18 @@ Returns immediately with jobId for progress tracking via SSE stream.
     security: [{ bearerAuth: [] }],
     request: {
       params: z.object({
-        jobId: z.string().uuid()
+        jobId: z.string().uuid(),
       }),
       headers: z.object({
         authorization: z.string().optional().openapi({
           description: 'Bearer token from job creation',
-          example: 'Bearer a1b2c3d4e5f6...'
+          example: 'Bearer a1b2c3d4e5f6...',
         }),
         'last-event-id': z.string().optional().openapi({
           description: 'Last received event ID for reconnection',
-          example: '42'
-        })
-      })
+          example: '42',
+        }),
+      }),
     },
     responses: {
       200: {
@@ -515,21 +526,21 @@ Returns immediately with jobId for progress tracking via SSE stream.
                 SSEProgressEventSchema,
                 SSECompleteEventSchema,
                 SSEErrorEventSchema,
-                z.object({ timestamp: z.string() })
-              ])
-            })
-          }
-        }
+                z.object({ timestamp: z.string() }),
+              ]),
+            }),
+          },
+        },
       },
       401: {
         description: 'Unauthorized (invalid or expired token)',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       404: {
         description: 'Job not found',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(streamScanRoute, async (c) => {
@@ -556,8 +567,8 @@ Results include:
 Results cached in KV for 2 hours after completion.`,
     request: {
       params: z.object({
-        jobId: z.string().uuid()
-      })
+        jobId: z.string().uuid(),
+      }),
     },
     responses: {
       200: {
@@ -568,21 +579,21 @@ Results cached in KV for 2 hours after completion.`,
               data: z.object({
                 jobId: z.string().uuid(),
                 status: JobStatusSchema,
-                results: z.array(DetectedBookSchema)
-              })
-            })
-          }
-        }
+                results: z.array(DetectedBookSchema),
+              }),
+            }),
+          },
+        },
       },
       404: {
         description: 'Job not found or not completed',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(getScanResultsRoute, async (c) => {
@@ -597,9 +608,9 @@ Results cached in KV for 2 hours after completion.`,
         return c.json(
           createProblemDetails('NOT_FOUND', 'Scan job not found', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
@@ -608,9 +619,9 @@ Results cached in KV for 2 hours after completion.`,
           createProblemDetails('NOT_FOUND', `Job not completed (status: ${state.status})`, {
             requestId: ctx.requestId,
             instance: c.req.url,
-            jobStatus: state.status
+            jobStatus: state.status,
           }),
-          404
+          404,
         )
       }
 
@@ -622,16 +633,16 @@ Results cached in KV for 2 hours after completion.`,
         return c.json(
           createProblemDetails('NOT_FOUND', 'Results not found (may have expired after 2 hours)', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
       const data: JobResultsData = {
         jobId: state.jobId,
         status: state.status,
-        results
+        results,
       }
 
       return c.json(
@@ -640,19 +651,19 @@ Results cached in KV for 2 hours after completion.`,
           data,
           metadata: {
             timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
-          }
+            requestId: ctx.requestId,
+          },
         },
-        200
+        200,
       )
     } catch (error: any) {
       console.error('[V3 Scan Results] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
@@ -675,27 +686,27 @@ Results cached in KV for 2 hours after completion.`,
 **Note:** Jobs may not stop immediately (graceful shutdown).`,
     request: {
       params: z.object({
-        jobId: z.string().uuid()
-      })
+        jobId: z.string().uuid(),
+      }),
     },
     responses: {
       200: {
         description: 'Job canceled (includes R2 cleanup status)',
-        content: { 'application/json': { schema: JobStatusResponseSchema } }
+        content: { 'application/json': { schema: JobStatusResponseSchema } },
       },
       404: {
         description: 'Job not found',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       409: {
         description: 'Job already completed or failed',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(cancelScanRoute, async (c) => {
@@ -710,9 +721,9 @@ Results cached in KV for 2 hours after completion.`,
         return c.json(
           createProblemDetails('NOT_FOUND', 'Scan job not found', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
@@ -722,16 +733,16 @@ Results cached in KV for 2 hours after completion.`,
           createProblemDetails('CONFLICT', `Cannot cancel ${state.status} job`, {
             requestId: ctx.requestId,
             instance: c.req.url,
-            jobStatus: state.status
+            jobStatus: state.status,
           }),
-          409
+          409,
         )
       }
 
       // Cancel job via DO
       await doStub.sendError({
         code: 'CANCELED',
-        message: 'Job canceled by user'
+        message: 'Job canceled by user',
       })
 
       // Cleanup R2 storage (delete all photos for this job)
@@ -763,7 +774,7 @@ Results cached in KV for 2 hours after completion.`,
         totalCount: canceledState.totalCount,
         startTime: canceledState.startTime,
         completedTime: canceledState.completedTime,
-        error: canceledState.error
+        error: canceledState.error,
       }
 
       return c.json(
@@ -772,19 +783,19 @@ Results cached in KV for 2 hours after completion.`,
           data: job,
           metadata: {
             timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
-          }
+            requestId: ctx.requestId,
+          },
         },
-        200
+        200,
       )
     } catch (error: any) {
       console.error('[V3 Scan Cancel] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })

@@ -9,9 +9,8 @@
  */
 
 import { z } from 'zod'
-import { BendRoute, type AppContext } from '../../base'
+import { type AppContext, BendRoute } from '../../base'
 import { BookSchema } from '../../schemas/book'
-import { createErrorResponse, ErrorCodes } from '../../../utils/response-builder'
 
 export class SearchBooksByTitle extends BendRoute {
   schema = {
@@ -20,16 +19,14 @@ export class SearchBooksByTitle extends BendRoute {
     description: 'Search for books using title query with pagination support',
     request: {
       query: z.object({
-        q: z.string()
+        q: z
+          .string()
           .min(1)
           .max(200)
           .describe('Search query for book title (example: Harry Potter)'),
-        page: z.coerce.number()
-          .int()
-          .min(1)
-          .default(1)
-          .describe('Page number (example: 1)'),
-        limit: z.coerce.number()
+        page: z.coerce.number().int().min(1).default(1).describe('Page number (example: 1)'),
+        limit: z.coerce
+          .number()
           .int()
           .min(1)
           .max(100)
@@ -99,7 +96,7 @@ export class SearchBooksByTitle extends BendRoute {
       // Note: This returns a Response object, so we need to extract the data
       const response = await searchBooksByTitle(
         new Request(`http://localhost?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`),
-        services.env
+        services.env,
       )
 
       const result = await response.json()
@@ -124,22 +121,24 @@ export class SearchBooksByTitle extends BendRoute {
 
       console.log(`[V3 Books] Found ${books.length} books in ${duration}ms`)
 
-      return c.json({
-        success: true,
-        data: {
-          books,
-          total,
-          page,
-          limit,
-          hasMore,
+      return c.json(
+        {
+          success: true,
+          data: {
+            books,
+            total,
+            page,
+            limit,
+            hasMore,
+          },
+          metadata: {
+            query,
+            cached: result.metadata?.cached || false,
+            timestamp: new Date().toISOString(),
+          },
         },
-        metadata: {
-          query,
-          cached: result.metadata?.cached || false,
-          timestamp: new Date().toISOString(),
-        },
-      }, 200)
-
+        200,
+      )
     } catch (error: any) {
       console.error(`[V3 Books] Search error:`, error)
       return this.handleError(c, error, 500)

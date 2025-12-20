@@ -9,9 +9,8 @@
  * - JOIN with book metadata (optional)
  */
 
-import { AuthenticatedRoute, type AppContext } from '../../base'
 import { z } from 'zod'
-import { createErrorResponse, ErrorCodes } from '../../../utils/response-builder'
+import { type AppContext, AuthenticatedRoute } from '../../base'
 
 // Library item schema
 const LibraryItemSchema = z.object({
@@ -27,18 +26,16 @@ export class ListUserLibrary extends AuthenticatedRoute {
   schema = {
     tags: ['Library'],
     summary: 'List user library (Protected)',
-    description: 'Get all books in the authenticated user\'s library with optional filtering',
+    description: "Get all books in the authenticated user's library with optional filtering",
     request: {
       query: z.object({
-        status: z.enum(['to-read', 'reading', 'read', 'all'])
+        status: z
+          .enum(['to-read', 'reading', 'read', 'all'])
           .default('all')
           .describe('Filter by reading status (example: reading)'),
-        page: z.coerce.number()
-          .int()
-          .min(1)
-          .default(1)
-          .describe('Page number (example: 1)'),
-        limit: z.coerce.number()
+        page: z.coerce.number().int().min(1).default(1).describe('Page number (example: 1)'),
+        limit: z.coerce
+          .number()
           .int()
           .min(1)
           .max(100)
@@ -86,7 +83,9 @@ export class ListUserLibrary extends AuthenticatedRoute {
       // Get authenticated user ID
       const userId = this.getUserId(c)
 
-      console.log(`[V3 Library] GET /v3/library - User: ${userId}, Status: ${status}, Page: ${page}`)
+      console.log(
+        `[V3 Library] GET /v3/library - User: ${userId}, Status: ${status}, Page: ${page}`,
+      )
 
       // Access D1 database
       const services = this.getServices(c)
@@ -123,25 +122,32 @@ export class ListUserLibrary extends AuthenticatedRoute {
       // Execute queries with timeout protection
       const [booksResult, countResult] = await Promise.all([
         this.withTimeout(
-          db.prepare(query).bind(...params).all(),
+          db
+            .prepare(query)
+            .bind(...params)
+            .all(),
           5000,
-          'D1 library list query'
+          'D1 library list query',
         ),
         this.withTimeout(
-          db.prepare(countQuery).bind(userId, ...(status !== 'all' ? [status] : [])).first(),
+          db
+            .prepare(countQuery)
+            .bind(userId, ...(status !== 'all' ? [status] : []))
+            .first(),
           5000,
-          'D1 library count query'
+          'D1 library count query',
         ),
       ])
 
-      const books = booksResult.results?.map((row: any) => ({
-        isbn: row.isbn,
-        status: row.status,
-        rating: row.rating,
-        notes: row.notes,
-        addedAt: row.added_at,
-        updatedAt: row.updated_at,
-      })) || []
+      const books =
+        booksResult.results?.map((row: any) => ({
+          isbn: row.isbn,
+          status: row.status,
+          rating: row.rating,
+          notes: row.notes,
+          addedAt: row.added_at,
+          updatedAt: row.updated_at,
+        })) || []
 
       const total = (countResult as any)?.total || 0
       const hasMore = page * limit < total
@@ -157,22 +163,24 @@ export class ListUserLibrary extends AuthenticatedRoute {
 
       console.log(`[V3 Library] Found ${books.length} books (total: ${total}) in ${duration}ms`)
 
-      return c.json({
-        success: true,
-        data: {
-          books,
-          total,
-          page,
-          limit,
-          hasMore,
+      return c.json(
+        {
+          success: true,
+          data: {
+            books,
+            total,
+            page,
+            limit,
+            hasMore,
+          },
+          metadata: {
+            userId,
+            filter: status,
+            timestamp: new Date().toISOString(),
+          },
         },
-        metadata: {
-          userId,
-          filter: status,
-          timestamp: new Date().toISOString(),
-        },
-      }, 200)
-
+        200,
+      )
     } catch (error: any) {
       console.error(`[V3 Library] List error:`, error)
       return this.handleError(c, error, 500)

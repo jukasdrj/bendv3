@@ -13,12 +13,12 @@
  * Related: Issue #217 - Dependency injection for workerd-compatible testing
  */
 
+import { getCacheTTL } from '../config/cache-ttl.js'
 import {
-  processCSVCore,
   buildServiceCompletionPayload,
   defaultDeps,
-} from "../utils/csv-processor-core.js";
-import { getCacheTTL } from "../config/cache-ttl.js";
+  processCSVCore,
+} from '../utils/csv-processor-core.js'
 
 /**
  * Process CSV import with progress tracking
@@ -40,8 +40,8 @@ export async function processCSVImport(csvText, progressReporter, env, jobId, de
   // Use shared CSV processing core with service-specific options
   await processCSVCore(csvText, jobId, progressReporter, env, {
     resultsTTL: getCacheTTL('hot', env), // Use hot TTL (2h) for temporary results
-    resultsKeyPrefix: "csv-results", // Service-specific prefix
+    resultsKeyPrefix: 'csv-results', // Service-specific prefix
     buildCompletionPayload: buildServiceCompletionPayload, // Custom completion format
     deps, // Pass through for testing (Issue #217)
-  });
+  })
 }

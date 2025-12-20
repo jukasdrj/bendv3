@@ -1,6 +1,7 @@
 // src/services/kv-cache.js
-import { getCached, setCached } from "../utils/cache.js";
-import { getAllCacheTTLs } from "../config/cache-ttl.js";
+
+import { getAllCacheTTLs } from '../config/cache-ttl.js'
+import { getCached, setCached } from '../utils/cache.js'
 
 /**
  * KV Cache Service with centralized TTL configuration
@@ -17,10 +18,10 @@ import { getAllCacheTTLs } from "../config/cache-ttl.js";
  */
 export class KVCacheService {
   constructor(env, ctx = null) {
-    this.env = env;
-    this.ctx = ctx;
+    this.env = env
+    this.ctx = ctx
     // Get TTLs from centralized configuration
-    this.ttls = getAllCacheTTLs(env);
+    this.ttls = getAllCacheTTLs(env)
   }
 
   /**
@@ -29,22 +30,22 @@ export class KVCacheService {
    * @param {string} endpoint - Endpoint type ('title', 'isbn', 'author')
    * @returns {Promise<Object|null>} Cached data with metadata or null
    */
-  async get(cacheKey, endpoint) {
+  async get(cacheKey, _endpoint) {
     try {
-      const result = await getCached(cacheKey, this.env, this.ctx);
+      const result = await getCached(cacheKey, this.env, this.ctx)
       if (result) {
         return {
           data: result.data,
-          source: "KV",
+          source: 'KV',
           age: result.cacheMetadata.age,
-          latency: "30-50ms",
-        };
+          latency: '30-50ms',
+        }
       }
     } catch (error) {
-      console.error(`KV cache get failed for ${cacheKey}:`, error);
+      console.error(`KV cache get failed for ${cacheKey}:`, error)
     }
 
-    return null;
+    return null
   }
 
   /**
@@ -53,22 +54,22 @@ export class KVCacheService {
    * @returns {number} Quality score 0.0 to 1.0
    */
   assessDataQuality(data) {
-    const items = data.items || [];
-    if (items.length === 0) return 0;
+    const items = data.items || []
+    if (items.length === 0) return 0
 
-    let score = 0;
+    let score = 0
     for (const item of items) {
-      const volumeInfo = item.volumeInfo;
-      const hasISBN = volumeInfo?.industryIdentifiers?.length > 0;
-      const hasCover = volumeInfo?.imageLinks?.thumbnail;
-      const hasDescription = volumeInfo?.description?.length > 100;
+      const volumeInfo = item.volumeInfo
+      const hasISBN = volumeInfo?.industryIdentifiers?.length > 0
+      const hasCover = volumeInfo?.imageLinks?.thumbnail
+      const hasDescription = volumeInfo?.description?.length > 100
 
-      if (hasISBN) score += 0.4;
-      if (hasCover) score += 0.4;
-      if (hasDescription) score += 0.2;
+      if (hasISBN) score += 0.4
+      if (hasCover) score += 0.4
+      if (hasDescription) score += 0.2
     }
 
-    return score / items.length; // Average quality across all items
+    return score / items.length // Average quality across all items
   }
 
   /**
@@ -78,9 +79,9 @@ export class KVCacheService {
    * @returns {number} Adjusted TTL in seconds
    */
   adjustTTLByQuality(baseTTL, quality) {
-    if (quality > 0.8) return baseTTL * 2; // High quality → 2x TTL
-    if (quality < 0.4) return baseTTL * 0.5; // Low quality → 0.5x TTL
-    return baseTTL; // Medium quality → unchanged
+    if (quality > 0.8) return baseTTL * 2 // High quality → 2x TTL
+    if (quality < 0.4) return baseTTL * 0.5 // Low quality → 0.5x TTL
+    return baseTTL // Medium quality → unchanged
   }
 
   /**
@@ -93,19 +94,19 @@ export class KVCacheService {
    */
   async set(cacheKey, data, endpoint, options = {}) {
     try {
-      const baseTTL = options.ttl || this.ttls[endpoint] || this.ttls.title;
+      const baseTTL = options.ttl || this.ttls[endpoint] || this.ttls.title
 
       // Smart TTL adjustment based on data quality
-      const quality = this.assessDataQuality(data);
-      const adjustedTTL = this.adjustTTLByQuality(baseTTL, quality);
+      const quality = this.assessDataQuality(data)
+      const adjustedTTL = this.adjustTTLByQuality(baseTTL, quality)
 
       // For TTL effectiveness tracking, use original base TTL as "hot" TTL
       // This allows us to measure if extended TTLs are actually useful
-      const hotTTL = baseTTL;
+      const hotTTL = baseTTL
 
-      await setCached(cacheKey, data, adjustedTTL, this.env, this.ctx, hotTTL);
+      await setCached(cacheKey, data, adjustedTTL, this.env, this.ctx, hotTTL)
     } catch (error) {
-      console.error(`KV cache set failed for ${cacheKey}:`, error);
+      console.error(`KV cache set failed for ${cacheKey}:`, error)
       // Don't throw - cache failures shouldn't break user requests
     }
   }

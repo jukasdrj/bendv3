@@ -6,12 +6,7 @@
  */
 
 import { createRoute } from '@hono/zod-openapi'
-import {
-  HealthQuerySchema,
-  HealthSuccessResponseSchema,
-  HealthDataSchema,
-  HealthResponseMetadataSchema
-} from '../../schemas/health'
+import { HealthQuerySchema, HealthSuccessResponseSchema } from '../../schemas/health'
 
 /**
  * GET /health - Health Check
@@ -55,7 +50,7 @@ Use it for:
 - CI/CD pipeline verification
   `,
   request: {
-    query: HealthQuerySchema
+    query: HealthQuerySchema,
   },
   responses: {
     200: {
@@ -68,14 +63,14 @@ Use it for:
               status: 'ok',
               worker: 'api-worker',
               version: '2.1.0',
-              router: 'hono'
+              router: 'hono',
             },
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
-            }
-          }
-        }
-      }
-    }
-  }
+              timestamp: '2025-11-28T12:00:00.000Z',
+            },
+          },
+        },
+      },
+    },
+  },
 })

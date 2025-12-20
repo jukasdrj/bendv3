@@ -2,21 +2,21 @@
  * OpenLibrary API → Canonical DTO Normalizers
  */
 
-import type { WorkDTO, EditionDTO, AuthorDTO } from "../../types/canonical.js";
-import { GenreNormalizer } from "../genre-normalizer.js";
-import { getPlaceholderCover } from "../../utils/book-metadata.js";
-import { extractYear } from "../../utils/date-utils.js";
+import type { AuthorDTO, EditionDTO, WorkDTO } from '../../types/canonical.js'
+import { getPlaceholderCover } from '../../utils/book-metadata.js'
+import { extractYear } from '../../utils/date-utils.js'
+import { GenreNormalizer } from '../genre-normalizer.js'
 
 // Create genre normalizer instance (reused across all normalizations)
-const genreNormalizer = new GenreNormalizer();
+const genreNormalizer = new GenreNormalizer()
 
 /**
  * Normalize OpenLibrary search result to WorkDTO
  */
 export function normalizeOpenLibraryToWork(doc: any): WorkDTO {
   return {
-    title: doc.title || "Unknown",
-    subjectTags: genreNormalizer.normalize(doc.subject || [], "openlibrary"),
+    title: doc.title || 'Unknown',
+    subjectTags: genreNormalizer.normalize(doc.subject || [], 'openlibrary'),
     originalLanguage: doc.language?.[0],
     firstPublicationYear: extractYear(doc.first_publish_year),
     description: undefined, // OpenLibrary search doesn't include descriptions
@@ -24,16 +24,16 @@ export function normalizeOpenLibraryToWork(doc: any): WorkDTO {
       ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
       : getPlaceholderCover(),
     synthetic: false,
-    primaryProvider: "openlibrary",
-    contributors: ["openlibrary"],
+    primaryProvider: 'openlibrary',
+    contributors: ['openlibrary'],
     openLibraryWorkID: extractWorkId(doc.key), // Canonical field
     goodreadsWorkIDs: doc.id_goodreads || [],
     amazonASINs: doc.id_amazon || [],
     librarythingIDs: doc.id_librarything || [],
     googleBooksVolumeIDs: doc.id_google || [],
     isbndbQuality: 0,
-    reviewStatus: "verified",
-  };
+    reviewStatus: 'verified',
+  }
 }
 
 /**
@@ -41,9 +41,9 @@ export function normalizeOpenLibraryToWork(doc: any): WorkDTO {
  * Note: OpenLibrary search results are often Work-level, not Edition-level
  */
 export function normalizeOpenLibraryToEdition(doc: any): EditionDTO {
-  const isbn13 = doc.isbn?.find((isbn: string) => isbn.length === 13);
-  const isbn10 = doc.isbn?.find((isbn: string) => isbn.length === 10);
-  const isbns = [isbn13, isbn10].filter(Boolean) as string[];
+  const isbn13 = doc.isbn?.find((isbn: string) => isbn.length === 13)
+  const isbn10 = doc.isbn?.find((isbn: string) => isbn.length === 10)
+  const isbns = [isbn13, isbn10].filter(Boolean) as string[]
 
   return {
     isbn: isbn13 || isbn10,
@@ -57,15 +57,15 @@ export function normalizeOpenLibraryToEdition(doc: any): EditionDTO {
       ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
       : getPlaceholderCover(),
     language: doc.language?.[0],
-    primaryProvider: "openlibrary",
-    contributors: ["openlibrary"],
+    primaryProvider: 'openlibrary',
+    contributors: ['openlibrary'],
     openLibraryID: extractEditionId(doc.key),
     openLibraryEditionID: extractEditionId(doc.key),
     amazonASINs: doc.id_amazon || [],
     googleBooksVolumeIDs: doc.id_google || [],
     librarythingIDs: doc.id_librarything || [],
     isbndbQuality: 0,
-  };
+  }
 }
 
 /**
@@ -77,8 +77,8 @@ export function normalizeOpenLibraryToEdition(doc: any): EditionDTO {
 export function normalizeOpenLibraryToAuthor(authorName: string): AuthorDTO {
   return {
     name: authorName,
-    gender: "Unknown", // Enriched via Wikidata in enrichment service
-  };
+    gender: 'Unknown', // Enriched via Wikidata in enrichment service
+  }
 }
 
 /**
@@ -86,9 +86,9 @@ export function normalizeOpenLibraryToAuthor(authorName: string): AuthorDTO {
  * Example: "/works/OL45804W" → "OL45804W"
  */
 function extractWorkId(key?: string): string | undefined {
-  if (!key) return undefined;
-  const match = key.match(/\/works\/([^\/]+)/);
-  return match ? match[1] : undefined;
+  if (!key) return undefined
+  const match = key.match(/\/works\/([^/]+)/)
+  return match ? match[1] : undefined
 }
 
 /**
@@ -96,16 +96,16 @@ function extractWorkId(key?: string): string | undefined {
  * Example: "/books/OL7353617M" → "OL7353617M"
  */
 function extractEditionId(key?: string): string | undefined {
-  if (!key) return undefined;
-  const match = key.match(/\/books\/([^\/]+)/);
-  return match ? match[1] : undefined;
+  if (!key) return undefined
+  const match = key.match(/\/books\/([^/]+)/)
+  return match ? match[1] : undefined
 }
 
 /**
  * Infer format from OpenLibrary data
  * OpenLibrary doesn't always provide format explicitly
  */
-function inferFormat(doc: any): "Paperback" | "Hardcover" | "E-book" {
+function inferFormat(_doc: any): 'Paperback' | 'Hardcover' | 'E-book' {
   // Default to Paperback (most common format)
-  return "Paperback";
+  return 'Paperback'
 }

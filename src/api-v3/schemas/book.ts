@@ -16,21 +16,33 @@ import { z } from 'zod'
  */
 export const BookSchema = z.object({
   isbn: z.string().length(13).describe('13-digit ISBN (example: 9780439708180)'),
-  isbn10: z.string().length(10).optional().describe('10-digit ISBN if available (example: 0439708184)'),
+  isbn10: z
+    .string()
+    .length(10)
+    .optional()
+    .describe('10-digit ISBN if available (example: 0439708184)'),
   title: z.string().min(1).describe('Book title (example: Harry Potter and the Sorcerers Stone)'),
   subtitle: z.string().optional().describe('Book subtitle'),
   authors: z.array(z.string()).describe('List of author names (example: J.K. Rowling)'),
   publisher: z.string().optional().describe('Publisher name (example: Scholastic Inc.)'),
-  publishedDate: z.string().optional().describe('Publication date in ISO 8601 or partial format (example: 1998-09-01)'),
+  publishedDate: z
+    .string()
+    .optional()
+    .describe('Publication date in ISO 8601 or partial format (example: 1998-09-01)'),
   description: z.string().optional().describe('Book description/synopsis'),
   pageCount: z.number().int().positive().optional().describe('Number of pages (example: 309)'),
-  categories: z.array(z.string()).optional().describe('Book categories/genres (example: Fiction, Fantasy)'),
+  categories: z
+    .array(z.string())
+    .optional()
+    .describe('Book categories/genres (example: Fiction, Fantasy)'),
   language: z.string().optional().describe('ISO 639-1 language code (example: en)'),
   coverUrl: z.string().url().optional().describe('Cover image URL'),
   thumbnailUrl: z.string().url().optional().describe('Thumbnail image URL'),
   workKey: z.string().optional().describe('OpenLibrary work key (example: OL82563W)'),
   editionKey: z.string().optional().describe('OpenLibrary edition key (example: OL7353617M)'),
-  provider: z.enum(['alexandria', 'google_books', 'open_library', 'isbndb']).describe('Data source provider (example: alexandria)'),
+  provider: z
+    .enum(['alexandria', 'google_books', 'open_library', 'isbndb'])
+    .describe('Data source provider (example: alexandria)'),
   quality: z.number().min(0).max(100).describe('Data quality score 0-100 (example: 95)'),
 })
 

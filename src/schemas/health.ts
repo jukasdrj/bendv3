@@ -44,21 +44,25 @@ export const HealthQuerySchema = z.object({}).strict()
  * }
  * ```
  */
-export const HealthDataSchema = z.object({
-  status: z.literal('ok').describe('Health status indicator'),
-  worker: z.string().describe('Worker service name'),
-  version: z.string().describe('API version'),
-  router: z.literal('hono').describe('Router framework')
-}).strict()
+export const HealthDataSchema = z
+  .object({
+    status: z.literal('ok').describe('Health status indicator'),
+    worker: z.string().describe('Worker service name'),
+    version: z.string().describe('API version'),
+    router: z.literal('hono').describe('Router framework'),
+  })
+  .strict()
 
 /**
  * Health Check Response Metadata Schema
  *
  * Includes timestamp for health check responses.
  */
-export const HealthResponseMetadataSchema = z.object({
-  timestamp: z.string().datetime().describe('ISO 8601 timestamp')
-}).strict()
+export const HealthResponseMetadataSchema = z
+  .object({
+    timestamp: z.string().datetime().describe('ISO 8601 timestamp'),
+  })
+  .strict()
 
 /**
  * Health Check Success Response Schema
@@ -66,10 +70,12 @@ export const HealthResponseMetadataSchema = z.object({
  * Complete ResponseEnvelope for successful health checks.
  * Uses generic ResponseEnvelopeSchema factory with HealthDataSchema.
  */
-export const HealthSuccessResponseSchema = z.object({
-  data: HealthDataSchema,
-  metadata: HealthResponseMetadataSchema.optional()
-}).strict()
+export const HealthSuccessResponseSchema = z
+  .object({
+    data: HealthDataSchema,
+    metadata: HealthResponseMetadataSchema.optional(),
+  })
+  .strict()
 
 // ============================================================================
 // RESPONSE SCHEMAS (Full Envelope)

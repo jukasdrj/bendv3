@@ -9,7 +9,7 @@
  * - covers: prefers edition.coverImageURL with placeholder fallback
  */
 
-import { generateSearchLinks, getPlaceholderCover } from "./book-metadata.js";
+import { generateSearchLinks, getPlaceholderCover } from './book-metadata.js'
 
 /**
  * Transform a normalized Work object to Google Books format
@@ -27,17 +27,16 @@ import { generateSearchLinks, getPlaceholderCover } from "./book-metadata.js";
  */
 export function transformWorkToGoogleFormat(work) {
   // Get primary edition (first one with most metadata)
-  const primaryEdition =
-    work.editions && work.editions.length > 0 ? work.editions[0] : null;
+  const primaryEdition = work.editions && work.editions.length > 0 ? work.editions[0] : null
 
   // Extract and normalize authors from work or fall back to edition
-  const { authors, authorsDetailed } = extractAuthors(work, primaryEdition);
+  const { authors, authorsDetailed } = extractAuthors(work, primaryEdition)
 
   // Build industry identifiers from primary edition
-  const industryIdentifiers = buildIndustryIdentifiers(primaryEdition);
+  const industryIdentifiers = buildIndustryIdentifiers(primaryEdition)
 
   // Get cover image URL with placeholder fallback
-  const coverImageURL = primaryEdition?.coverImageURL || getPlaceholderCover();
+  const coverImageURL = primaryEdition?.coverImageURL || getPlaceholderCover()
 
   // Build volumeInfo object with canonical field mapping
   const volumeInfo = {
@@ -57,16 +56,16 @@ export function transformWorkToGoogleFormat(work) {
       thumbnail: coverImageURL,
       smallThumbnail: coverImageURL,
     },
-  };
+  }
 
   // Generate volume ID with fallback hierarchy
   const volumeId =
     work.id ||
     work.openLibraryWorkKey ||
-    `synthetic-${work.title.replace(/\s+/g, "-").toLowerCase()}`;
+    `synthetic-${work.title.replace(/\s+/g, '-').toLowerCase()}`
 
   // Extract ISBN for search links (prefer ISBN-13)
-  const isbn = primaryEdition?.isbn13 || primaryEdition?.isbn10 || null;
+  const isbn = primaryEdition?.isbn13 || primaryEdition?.isbn10 || null
 
   // Generate HATEOAS search links
   const searchLinks = generateSearchLinks(
@@ -74,14 +73,14 @@ export function transformWorkToGoogleFormat(work) {
     work.title,
     authors[0], // Primary author
     volumeId,
-  );
+  )
 
   return {
-    kind: "books#volume",
+    kind: 'books#volume',
     id: volumeId,
     volumeInfo: volumeInfo,
     searchLinks: searchLinks,
-  };
+  }
 }
 
 /**
@@ -93,45 +92,43 @@ export function transformWorkToGoogleFormat(work) {
  * @returns {Object} { authors: string[], authorsDetailed: Object[] }
  */
 function extractAuthors(work, primaryEdition) {
-  let authors = [];
-  let authorsDetailed = [];
+  let authors = []
+  let authorsDetailed = []
 
   // Try work.authors first (preferred source)
   if (work.authors) {
     if (Array.isArray(work.authors)) {
       authors = work.authors.map((a) => {
-        if (typeof a === "string") return a;
-        if (a && a.name) return a.name;
-        return String(a);
-      });
+        if (typeof a === 'string') return a
+        if (a?.name) return a.name
+        return String(a)
+      })
 
       // Preserve full AuthorDTO objects for cultural diversity fields
       authorsDetailed = work.authors
-        .filter((a) => typeof a === "object" && a !== null)
-        .map((a) => buildAuthorDetails(a));
-    } else if (typeof work.authors === "string") {
-      authors = [work.authors];
-      authorsDetailed = [{ name: work.authors, gender: "Unknown" }];
+        .filter((a) => typeof a === 'object' && a !== null)
+        .map((a) => buildAuthorDetails(a))
+    } else if (typeof work.authors === 'string') {
+      authors = [work.authors]
+      authorsDetailed = [{ name: work.authors, gender: 'Unknown' }]
     }
   }
 
   // Fallback to edition.authors if work has no authors
   if (authors.length === 0 && primaryEdition?.authors) {
     authors = Array.isArray(primaryEdition.authors)
-      ? primaryEdition.authors.map((a) =>
-          typeof a === "string" ? a : a.name || String(a),
-        )
-      : [String(primaryEdition.authors)];
+      ? primaryEdition.authors.map((a) => (typeof a === 'string' ? a : a.name || String(a)))
+      : [String(primaryEdition.authors)]
 
     // Also try to preserve detailed author info from edition
     if (Array.isArray(primaryEdition.authors)) {
       authorsDetailed = primaryEdition.authors
-        .filter((a) => typeof a === "object" && a !== null)
-        .map((a) => buildAuthorDetails(a));
+        .filter((a) => typeof a === 'object' && a !== null)
+        .map((a) => buildAuthorDetails(a))
     }
   }
 
-  return { authors, authorsDetailed };
+  return { authors, authorsDetailed }
 }
 
 /**
@@ -142,7 +139,7 @@ function extractAuthors(work, primaryEdition) {
 function buildAuthorDetails(author) {
   return {
     name: author.name,
-    gender: author.gender || "Unknown",
+    gender: author.gender || 'Unknown',
     ...(author.culturalRegion && { culturalRegion: author.culturalRegion }),
     ...(author.nationality && { nationality: author.nationality }),
     ...(author.birthYear && { birthYear: author.birthYear }),
@@ -152,7 +149,7 @@ function buildAuthorDetails(author) {
     ...(author.googleBooksID && { googleBooksID: author.googleBooksID }),
     ...(author.goodreadsID && { goodreadsID: author.goodreadsID }),
     ...(author.bookCount && { bookCount: author.bookCount }),
-  };
+  }
 }
 
 /**
@@ -161,21 +158,21 @@ function buildAuthorDetails(author) {
  * @returns {Array} Array of ISBN identifiers
  */
 function buildIndustryIdentifiers(primaryEdition) {
-  const identifiers = [];
+  const identifiers = []
 
   if (primaryEdition?.isbn13) {
     identifiers.push({
-      type: "ISBN_13",
+      type: 'ISBN_13',
       identifier: primaryEdition.isbn13,
-    });
+    })
   }
 
   if (primaryEdition?.isbn10) {
     identifiers.push({
-      type: "ISBN_10",
+      type: 'ISBN_10',
       identifier: primaryEdition.isbn10,
-    });
+    })
   }
 
-  return identifiers;
+  return identifiers
 }

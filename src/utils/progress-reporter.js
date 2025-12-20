@@ -24,15 +24,15 @@ export class ProgressReporter {
    * @param {Object} env - Worker environment bindings
    */
   constructor(jobId, env) {
-    this.jobId = jobId;
-    this.env = env;
+    this.jobId = jobId
+    this.env = env
 
     // Get Durable Object stubs
-    const wsDoId = env.WEBSOCKET_CONNECTION_DO.idFromName(jobId);
-    this.wsStub = env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
+    const wsDoId = env.WEBSOCKET_CONNECTION_DO.idFromName(jobId)
+    this.wsStub = env.WEBSOCKET_CONNECTION_DO.get(wsDoId)
 
-    const stateDoId = env.JOB_STATE_MANAGER_DO.idFromName(jobId);
-    this.stateStub = env.JOB_STATE_MANAGER_DO.get(stateDoId);
+    const stateDoId = env.JOB_STATE_MANAGER_DO.idFromName(jobId)
+    this.stateStub = env.JOB_STATE_MANAGER_DO.get(stateDoId)
   }
 
   /**
@@ -42,7 +42,7 @@ export class ProgressReporter {
    * @returns {Promise<{success: boolean}>}
    */
   async setAuthToken(token) {
-    return await this.wsStub.setAuthToken(token);
+    return await this.wsStub.setAuthToken(token)
   }
 
   /**
@@ -53,11 +53,7 @@ export class ProgressReporter {
    * @returns {Promise<{success: boolean}>}
    */
   async initialize(pipeline, totalCount) {
-    return await this.stateStub.initializeJobState(
-      this.jobId,
-      pipeline,
-      totalCount,
-    );
+    return await this.stateStub.initializeJobState(this.jobId, pipeline, totalCount)
   }
 
   /**
@@ -67,7 +63,7 @@ export class ProgressReporter {
    * @returns {Promise<{timedOut: boolean, disconnected: boolean}>}
    */
   async waitForReady(timeoutMs = 5000) {
-    return await this.wsStub.waitForReady(timeoutMs);
+    return await this.wsStub.waitForReady(timeoutMs)
   }
 
   /**
@@ -78,7 +74,7 @@ export class ProgressReporter {
    * @returns {Promise<{success: boolean}>}
    */
   async updateProgress(pipeline, payload) {
-    return await this.stateStub.updateProgress(pipeline, payload);
+    return await this.stateStub.updateProgress(pipeline, payload)
   }
 
   /**
@@ -89,7 +85,7 @@ export class ProgressReporter {
    * @returns {Promise<{success: boolean}>}
    */
   async complete(pipeline, payload) {
-    return await this.stateStub.complete(pipeline, payload);
+    return await this.stateStub.complete(pipeline, payload)
   }
 
   /**
@@ -100,7 +96,7 @@ export class ProgressReporter {
    * @returns {Promise<{success: boolean}>}
    */
   async sendError(pipeline, payload) {
-    return await this.stateStub.sendError(pipeline, payload);
+    return await this.stateStub.sendError(pipeline, payload)
   }
 
   /**
@@ -110,7 +106,7 @@ export class ProgressReporter {
    * @returns {Promise<{success: boolean}>}
    */
   async cancelJob(reason) {
-    return await this.stateStub.cancelJob(reason);
+    return await this.stateStub.cancelJob(reason)
   }
 
   /**
@@ -119,7 +115,7 @@ export class ProgressReporter {
    * @returns {Promise<boolean>}
    */
   async isCanceled() {
-    return await this.stateStub.isCanceled();
+    return await this.stateStub.isCanceled()
   }
 
   /**
@@ -128,7 +124,7 @@ export class ProgressReporter {
    * @returns {Promise<Object|null>}
    */
   async getJobState() {
-    return await this.stateStub.getJobState();
+    return await this.stateStub.getJobState()
   }
 
   /**
@@ -138,6 +134,6 @@ export class ProgressReporter {
    * @returns {Promise<{success: boolean}>}
    */
   async closeConnection(reason) {
-    return await this.wsStub.closeConnection(reason);
+    return await this.wsStub.closeConnection(reason)
   }
 }

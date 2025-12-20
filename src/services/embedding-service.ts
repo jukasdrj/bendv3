@@ -68,7 +68,7 @@ const MAX_TEXT_LENGTH = 512 // Max characters for embedding input
  */
 export async function generateBookEmbedding(
   book: BookEmbeddingInput,
-  env: Env
+  env: Env,
 ): Promise<EmbeddingResult | null> {
   if (!env.AI) {
     console.log('[EmbeddingService] Workers AI not available')
@@ -88,9 +88,9 @@ export async function generateBookEmbedding(
   try {
     console.log(`[EmbeddingService] Generating embedding for ISBN ${book.isbn}`)
 
-    const response = await env.AI.run(EMBEDDING_MODEL, {
+    const response = (await env.AI.run(EMBEDDING_MODEL, {
       text: [text],
-    }) as TextEmbeddingsResponse
+    })) as TextEmbeddingsResponse
 
     const embedding = response.data[0]
 
@@ -117,10 +117,7 @@ export async function generateBookEmbedding(
  *
  * Used for semantic search - embed the user's query and find similar books.
  */
-export async function generateQueryEmbedding(
-  query: string,
-  env: Env
-): Promise<number[] | null> {
+export async function generateQueryEmbedding(query: string, env: Env): Promise<number[] | null> {
   if (!env.AI) {
     console.log('[EmbeddingService] Workers AI not available')
     return null
@@ -129,9 +126,9 @@ export async function generateQueryEmbedding(
   const text = query.substring(0, MAX_TEXT_LENGTH)
 
   try {
-    const response = await env.AI.run(EMBEDDING_MODEL, {
+    const response = (await env.AI.run(EMBEDDING_MODEL, {
       text: [text],
-    }) as TextEmbeddingsResponse
+    })) as TextEmbeddingsResponse
 
     return response.data[0] ?? null
   } catch (error) {
@@ -148,7 +145,7 @@ export async function generateQueryEmbedding(
  */
 export async function generateBatchEmbeddings(
   books: BookEmbeddingInput[],
-  env: Env
+  env: Env,
 ): Promise<Map<string, number[]>> {
   if (!env.AI) {
     console.log('[EmbeddingService] Workers AI not available')
@@ -172,14 +169,14 @@ export async function generateBatchEmbeddings(
     })
 
     try {
-      const response = await env.AI.run(EMBEDDING_MODEL, {
+      const response = (await env.AI.run(EMBEDDING_MODEL, {
         text: texts,
-      }) as TextEmbeddingsResponse
+      })) as TextEmbeddingsResponse
 
       for (let j = 0; j < batch.length; j++) {
         const embedding = response.data[j]
         if (embedding && embedding.length > 0) {
-          results.set(batch[j]!.isbn, embedding)
+          results.set(batch[j]?.isbn, embedding)
         }
       }
     } catch (error) {
@@ -200,7 +197,7 @@ export async function generateBatchEmbeddings(
 export async function storeEmbedding(
   result: EmbeddingResult,
   metadata: VectorMetadata,
-  env: Env
+  env: Env,
 ): Promise<boolean> {
   // Check if Vectorize binding exists
   const vectorize = (env as unknown as { BOOK_VECTORS?: VectorizeIndex }).BOOK_VECTORS
@@ -238,7 +235,7 @@ export async function storeEmbedding(
 export async function findSimilarBooks(
   isbn: string,
   limit: number,
-  env: Env
+  env: Env,
 ): Promise<Array<{ isbn: string; score: number; title?: string; author?: string }>> {
   const vectorize = (env as unknown as { BOOK_VECTORS?: VectorizeIndex }).BOOK_VECTORS
 
@@ -284,7 +281,7 @@ export async function findSimilarBooks(
 export async function semanticSearch(
   query: string,
   limit: number,
-  env: Env
+  env: Env,
 ): Promise<Array<{ isbn: string; score: number; title?: string; author?: string }>> {
   const vectorize = (env as unknown as { BOOK_VECTORS?: VectorizeIndex }).BOOK_VECTORS
 

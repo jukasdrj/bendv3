@@ -1,5 +1,5 @@
-import { parseCSVWithGemini } from "../providers/gemini-csv-provider.js";
-import { buildCSVParserPrompt } from "../prompts/csv-parser-prompt.js";
+import { buildCSVParserPrompt } from '../prompts/csv-parser-prompt.js'
+import { parseCSVWithGemini } from '../providers/gemini-csv-provider.js'
 
 /**
  * POST /api/warming/upload - Cache warming via CSV upload
@@ -9,82 +9,80 @@ import { buildCSVParserPrompt } from "../prompts/csv-parser-prompt.js";
  * @param {ExecutionContext} ctx - Execution context
  * @returns {Response} Job ID and estimates
  */
-export async function handleWarmingUpload(request, env, ctx) {
+export async function handleWarmingUpload(request, env, _ctx) {
   try {
-    const body = await request.json();
+    const body = await request.json()
 
     // Validate required fields
     if (!body.csv) {
       return new Response(
         JSON.stringify({
-          error: "Missing required field: csv (base64-encoded CSV file)",
+          error: 'Missing required field: csv (base64-encoded CSV file)',
         }),
         {
           status: 400,
-          headers: { "Content-Type": "application/json" },
+          headers: { 'Content-Type': 'application/json' },
         },
-      );
+      )
     }
 
     // Validate maxDepth
-    const maxDepth = body.maxDepth || 2;
+    const maxDepth = body.maxDepth || 2
     if (maxDepth < 1 || maxDepth > 3) {
       return new Response(
         JSON.stringify({
-          error: "maxDepth must be 1-3",
+          error: 'maxDepth must be 1-3',
         }),
         {
           status: 400,
-          headers: { "Content-Type": "application/json" },
+          headers: { 'Content-Type': 'application/json' },
         },
-      );
+      )
     }
 
     // Decode CSV
-    const csvText = atob(body.csv);
+    const csvText = atob(body.csv)
 
     // Parse with Gemini
-    const prompt = buildCSVParserPrompt();
+    const prompt = buildCSVParserPrompt()
 
     // Get API key from Secrets Store
-    const apiKey = env.GEMINI_API_KEY?.get
-      ? await env.GEMINI_API_KEY.get()
-      : env.GEMINI_API_KEY;
+    const apiKey = env.GEMINI_API_KEY?.get ? await env.GEMINI_API_KEY.get() : env.GEMINI_API_KEY
 
     if (!apiKey) {
       return new Response(
         JSON.stringify({
-          error: "GEMINI_API_KEY not configured",
+          error: 'GEMINI_API_KEY not configured',
         }),
         {
           status: 500,
-          headers: { "Content-Type": "application/json" },
+          headers: { 'Content-Type': 'application/json' },
         },
-      );
+      )
     }
 
-    const books = await parseCSVWithGemini(csvText, prompt, apiKey);
+    const books = await parseCSVWithGemini(csvText, prompt, apiKey)
 
     // Extract unique authors
-    const authorsSet = new Set();
+    const authorsSet = new Set()
     for (const book of books) {
       if (book.author) {
-        authorsSet.add(book.author.trim());
+        authorsSet.add(book.author.trim())
       }
     }
 
-    const uniqueAuthors = Array.from(authorsSet);
-    const jobId = crypto.randomUUID();
+    const uniqueAuthors = Array.from(authorsSet)
+    const jobId = crypto.randomUUID()
 
     // Queue each author
     for (const author of uniqueAuthors) {
       await env.AUTHOR_WARMING_QUEUE.send({
         author: author,
-        source: "csv",
+        source: 'csv',
         depth: 0,
         queuedAt: new Date().toISOString(),
         jobId: jobId,
-      });
+      })
     }
 
     // Store job metadata in KV
@@ -94,35 +92,35 @@ export async function handleWarmingUpload(request, env, ctx) {
         authorsQueued: uniqueAuthors.length,
         maxDepth: maxDepth,
         startedAt: Date.now(),
-        status: "queued",
+        status: 'queued',
       }),
       {
         expirationTtl: 7 * 24 * 60 * 60, // 7 days
       },
-    );
+    )
 
     return new Response(
       JSON.stringify({
         jobId,
         authorsQueued: uniqueAuthors.length,
         estimatedWorks: uniqueAuthors.length * 15,
-        estimatedDuration: "2-4 hours",
+        estimatedDuration: '2-4 hours',
       }),
       {
         status: 202,
-        headers: { "Content-Type": "application/json" },
+        headers: { 'Content-Type': 'application/json' },
       },
-    );
+    )
   } catch (error) {
     return new Response(
       JSON.stringify({
-        error: "Failed to process upload",
+        error: 'Failed to process upload',
         message: error.message,
       }),
       {
         status: 500,
-        headers: { "Content-Type": "application/json" },
+        headers: { 'Content-Type': 'application/json' },
       },
-    );
+    )
   }
 }

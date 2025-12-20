@@ -46,7 +46,7 @@ export function shouldUseWorkflow(env: FeatureFlagEnv, isbn?: string): boolean {
   const rolloutPercent = parseInt(env.WORKFLOW_ROLLOUT_PERCENT || '0', 10)
 
   // Validate percentage
-  if (isNaN(rolloutPercent) || rolloutPercent < 0) {
+  if (Number.isNaN(rolloutPercent) || rolloutPercent < 0) {
     return false // Default to legacy if invalid
   }
 
@@ -61,7 +61,7 @@ export function shouldUseWorkflow(env: FeatureFlagEnv, isbn?: string): boolean {
   // Use consistent hashing if ISBN provided (deterministic routing)
   if (isbn) {
     const hash = simpleHash(isbn)
-    return (hash % 100) < rolloutPercent
+    return hash % 100 < rolloutPercent
   }
 
   // Random percentage for requests without ISBN
@@ -103,7 +103,7 @@ export function getRolloutConfig(env: FeatureFlagEnv): {
 function simpleHash(str: string): number {
   let hash = 5381
   for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash) + str.charCodeAt(i)
+    hash = (hash << 5) + hash + str.charCodeAt(i)
   }
   return Math.abs(hash)
 }
@@ -122,7 +122,7 @@ export async function logWorkflowMetrics(
   isbn: string,
   duration: number,
   success: boolean,
-  env: { PERFORMANCE_ANALYTICS?: AnalyticsEngineDataset }
+  env: { PERFORMANCE_ANALYTICS?: AnalyticsEngineDataset },
 ): Promise<void> {
   const metric = {
     method,

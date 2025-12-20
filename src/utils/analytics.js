@@ -43,8 +43,8 @@
  */
 export async function writeCacheMetrics(env, metrics) {
   if (!env.CACHE_ANALYTICS) {
-    console.warn("CACHE_ANALYTICS binding not available");
-    return;
+    console.warn('CACHE_ANALYTICS binding not available')
+    return
   }
 
   try {
@@ -52,28 +52,24 @@ export async function writeCacheMetrics(env, metrics) {
     // Analytics harvest script expects: blob1=<isbn_number>, blob2='isbn_search', index1='google-books-isbn'
     // For other searches, log endpoint and image quality (legacy format)
     const blobs = metrics.isbn
-      ? [metrics.isbn, "isbn_search"] // blob1=<isbn_number>, blob2='isbn_search'
-      : [metrics.endpoint, metrics.imageQuality];
+      ? [metrics.isbn, 'isbn_search'] // blob1=<isbn_number>, blob2='isbn_search'
+      : [metrics.endpoint, metrics.imageQuality]
 
     // Analytics Engine supports maximum of 1 index per data point
     // For ISBN searches, use 'google-books-isbn' as primary index for query filtering
     // For other searches, use cache hit/miss status as index
     // Note: Cache hit status is still available in blobs array for all searches
     const indexes = metrics.isbn
-      ? ["google-books-isbn"] // Primary index for ISBN search filtering
-      : [metrics.cacheHit ? "HIT" : "MISS"]; // Cache status for non-ISBN searches
+      ? ['google-books-isbn'] // Primary index for ISBN search filtering
+      : [metrics.cacheHit ? 'HIT' : 'MISS'] // Cache status for non-ISBN searches
 
     await env.CACHE_ANALYTICS.writeDataPoint({
       blobs,
-      doubles: [
-        metrics.responseTime,
-        metrics.dataCompleteness,
-        metrics.itemCount,
-      ],
+      doubles: [metrics.responseTime, metrics.dataCompleteness, metrics.itemCount],
       indexes,
-    });
+    })
   } catch (error) {
-    console.error("Failed to write cache metrics:", error);
+    console.error('Failed to write cache metrics:', error)
     // TODO: Add error tracking metric (env.ANALYTICS_ERRORS.increment())
     // Don't throw - would break search requests. Silent failure acceptable for analytics.
   }
@@ -95,18 +91,18 @@ export function trackRequestMetrics(
   statusCode,
   processingTime,
   errorCode = null,
-  cacheStatus = "MISS",
+  cacheStatus = 'MISS',
 ) {
   try {
-    if (!env.PERFORMANCE_ANALYTICS) return;
+    if (!env.PERFORMANCE_ANALYTICS) return
 
     env.PERFORMANCE_ANALYTICS.writeDataPoint({
-      blobs: [endpoint, errorCode || "N/A", cacheStatus],
+      blobs: [endpoint, errorCode || 'N/A', cacheStatus],
       doubles: [statusCode, processingTime],
       indexes: [endpoint], // For efficient querying by endpoint
-    });
+    })
   } catch (error) {
-    console.error("[Analytics] Failed to track metrics:", error);
+    console.error('[Analytics] Failed to track metrics:', error)
   }
 }
 
@@ -119,25 +115,20 @@ export function trackRequestMetrics(
  * @param {string} errorCode - Error code if applicable
  * @returns {Response} Response with added headers
  */
-export function addAnalyticsHeaders(
-  response,
-  startTime,
-  cacheStatus = "MISS",
-  errorCode = null,
-) {
-  const processingTime = Date.now() - startTime;
-  const headers = new Headers(response.headers);
+export function addAnalyticsHeaders(response, startTime, cacheStatus = 'MISS', errorCode = null) {
+  const processingTime = Date.now() - startTime
+  const headers = new Headers(response.headers)
 
-  headers.set("X-Response-Time", `${processingTime}ms`);
-  headers.set("X-Cache-Status", cacheStatus);
+  headers.set('X-Response-Time', `${processingTime}ms`)
+  headers.set('X-Cache-Status', cacheStatus)
 
   if (errorCode) {
-    headers.set("X-Error-Code", errorCode);
+    headers.set('X-Error-Code', errorCode)
   }
 
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
     headers,
-  });
+  })
 }

@@ -8,14 +8,14 @@
  * Refactoring Plan: Backend Handler Deduplication - eliminates 39 lines of duplicated code
  */
 
-import type { WorkDTO, AuthorDTO } from "../types/canonical.js";
-import { enrichAuthorWithWikidata } from "../services/wikidata-enrichment.js";
+import { enrichAuthorWithWikidata } from '../services/wikidata-enrichment.js'
+import type { AuthorDTO, WorkDTO } from '../types/canonical.js'
 
 /**
  * Extended WorkDTO with authors property
  * external-apis.js returns works with authors array, but canonical WorkDTO doesn't include it
  */
-export type WorkDTOWithAuthors = WorkDTO & { authors?: AuthorDTO[] };
+export type WorkDTOWithAuthors = WorkDTO & { authors?: AuthorDTO[] }
 
 /**
  * Extract unique authors from works
@@ -40,17 +40,17 @@ export type WorkDTOWithAuthors = WorkDTO & { authors?: AuthorDTO[] };
  * // Returns: [{ name: "Alice", ... }, { name: "Bob", ... }]
  */
 export function extractUniqueAuthors(works: WorkDTOWithAuthors[]): AuthorDTO[] {
-  const authorsMap = new Map<string, AuthorDTO>();
+  const authorsMap = new Map<string, AuthorDTO>()
 
   works.forEach((work) => {
-    (work.authors || []).forEach((author: AuthorDTO) => {
+    ;(work.authors || []).forEach((author: AuthorDTO) => {
       if (!authorsMap.has(author.name)) {
-        authorsMap.set(author.name, author);
+        authorsMap.set(author.name, author)
       }
-    });
-  });
+    })
+  })
 
-  return Array.from(authorsMap.values());
+  return Array.from(authorsMap.values())
 }
 
 /**
@@ -71,9 +71,9 @@ export function extractUniqueAuthors(works: WorkDTOWithAuthors[]): AuthorDTO[] {
  */
 export function removeAuthorsFromWorks(works: WorkDTOWithAuthors[]): WorkDTO[] {
   return works.map((work) => {
-    const { authors: _, ...cleanWork } = work;
-    return cleanWork;
-  });
+    const { authors: _, ...cleanWork } = work
+    return cleanWork
+  })
 }
 
 /**
@@ -107,15 +107,15 @@ export async function enrichAuthorsWithCulturalData(
   // Enrich authors in parallel for performance
   const enrichmentPromises = authors.map(async (author) => {
     // Skip enrichment if author already has gender data
-    if (author.gender && author.gender !== "Unknown") {
-      return author;
+    if (author.gender && author.gender !== 'Unknown') {
+      return author
     }
 
     try {
-      const wikidataData = await enrichAuthorWithWikidata(author.name, env);
+      const wikidataData = await enrichAuthorWithWikidata(author.name, env)
 
       if (!wikidataData) {
-        return author; // Keep original if Wikidata lookup fails
+        return author // Keep original if Wikidata lookup fails
       }
 
       // Merge Wikidata enrichment with base author data
@@ -126,15 +126,12 @@ export async function enrichAuthorsWithCulturalData(
         nationality: wikidataData.nationality,
         birthYear: wikidataData.birthYear,
         deathYear: wikidataData.deathYear,
-      };
+      }
     } catch (error: any) {
-      console.error(
-        `[Wikidata] Enrichment failed for "${author.name}":`,
-        error.message,
-      );
-      return author; // Keep original on error
+      console.error(`[Wikidata] Enrichment failed for "${author.name}":`, error.message)
+      return author // Keep original on error
     }
-  });
+  })
 
-  return await Promise.all(enrichmentPromises);
+  return await Promise.all(enrichmentPromises)
 }

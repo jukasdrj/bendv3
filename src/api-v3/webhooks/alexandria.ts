@@ -7,39 +7,41 @@
  * - POST /v3/webhooks/alexandria/enrichment-complete
  */
 
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
-import type { Env } from '../../types/env'
-import type { RequestContext } from '../../middleware/request-context'
 import { createProblemDetails } from '@bookstrack/schemas'
-
+import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
+import type { RequestContext } from '../../middleware/request-context'
+import type { Env } from '../../types/env'
 
 // Schema for the webhook payload
 const EnrichmentCompleteSchema = z.object({
   isbn: z.string(),
   type: z.enum(['edition', 'work', 'author']),
-  quality_improvement: z.number().optional()
+  quality_improvement: z.number().optional(),
 })
 
-export function registerAlexandriaWebhookRoutes(app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>) {
+export function registerAlexandriaWebhookRoutes(
+  app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>,
+) {
   const enrichmentCompleteRoute = createRoute({
     method: 'post',
     path: '/v3/webhooks/alexandria/enrichment-complete',
     tags: ['Webhooks'],
     summary: 'Handle enrichment completion event',
-    description: 'Receives notification from Alexandria when book enrichment is complete. Triggers a fresh fetch to update local D1 cache.',
+    description:
+      'Receives notification from Alexandria when book enrichment is complete. Triggers a fresh fetch to update local D1 cache.',
     request: {
       headers: z.object({
         'x-alexandria-webhook-secret': z.string().openapi({
-          description: 'Shared secret for authentication'
-        })
+          description: 'Shared secret for authentication',
+        }),
       }),
       body: {
         content: {
           'application/json': {
-            schema: EnrichmentCompleteSchema
-          }
-        }
-      }
+            schema: EnrichmentCompleteSchema,
+          },
+        },
+      },
     },
     responses: {
       200: {
@@ -48,20 +50,20 @@ export function registerAlexandriaWebhookRoutes(app: OpenAPIHono<{ Bindings: Env
           'application/json': {
             schema: z.object({
               success: z.boolean(),
-              message: z.string()
-            })
-          }
-        }
+              message: z.string(),
+            }),
+          },
+        },
       },
       401: {
         description: 'Invalid secret',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(enrichmentCompleteRoute, async (c) => {
@@ -75,9 +77,9 @@ export function registerAlexandriaWebhookRoutes(app: OpenAPIHono<{ Bindings: Env
       return c.json(
         createProblemDetails('UNAUTHORIZED', 'Invalid webhook secret', {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        401
+        401,
       )
     }
 
@@ -92,23 +94,23 @@ export function registerAlexandriaWebhookRoutes(app: OpenAPIHono<{ Bindings: Env
             // Import services dynamically to avoid circular deps
             const { enrichMultipleBooks } = await import('../../services/enrichment')
             const { BookRepository } = await import('../../repositories/book-repository')
-            
+
             // Fetch fresh data from Alex
             const externalResult = await enrichMultipleBooks(
               { isbn: payload.isbn },
               c.env,
               { maxResults: 1 },
-              c.executionCtx
+              c.executionCtx,
             )
 
             if (externalResult.works && externalResult.works.length > 0) {
               const work = externalResult.works[0]!
               const edition = externalResult.editions?.[0]
-              
+
               // Prepare BookRecord for D1
               // NOTE: This logic mirrors findBookByISBN in book-service.ts
               const bookRepo = new BookRepository(c.env as any)
-              
+
               const bookRecord = {
                 isbn: payload.isbn,
                 title: work.title || 'Unknown',
@@ -153,9 +155,9 @@ export function registerAlexandriaWebhookRoutes(app: OpenAPIHono<{ Bindings: Env
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })

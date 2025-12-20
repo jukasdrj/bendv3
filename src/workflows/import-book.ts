@@ -19,24 +19,15 @@
  * @see https://developers.cloudflare.com/workflows/
  */
 
+import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers'
 import {
-  WorkflowEntrypoint,
-  type WorkflowEvent,
-  type WorkflowStep,
-} from 'cloudflare:workers'
-
-// Import shared types from workflow-events.ts (single source of truth)
-import type {
-  BookMetadata,
-  BookImportResult,
-  WorkflowStatus,
-} from '../types/workflow-events.js'
-import type { IWebSocketConnectionDO } from '../types/durable-objects.js'
-import {
+  type BookEmbeddingInput,
   generateBookEmbedding,
   storeEmbedding,
-  type BookEmbeddingInput,
 } from '../services/embedding-service.js'
+import type { IWebSocketConnectionDO } from '../types/durable-objects.js'
+// Import shared types from workflow-events.ts (single source of truth)
+import type { BookImportResult, BookMetadata, WorkflowStatus } from '../types/workflow-events.js'
 
 // Re-export for consumers that import from this file
 export type { BookMetadata, BookImportResult, WorkflowStatus }
@@ -90,7 +81,10 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
    * Each step is automatically persisted - if the workflow fails and restarts,
    * it will resume from the last successful step rather than re-executing everything.
    */
-  override async run(event: WorkflowEvent<BookImportInput>, step: WorkflowStep): Promise<BookImportResult> {
+  override async run(
+    event: WorkflowEvent<BookImportInput>,
+    step: WorkflowStep,
+  ): Promise<BookImportResult> {
     const { isbn, jobId, source } = event.payload
 
     console.log(`[Workflow] Starting book import for ISBN ${isbn}, job ${jobId}`)
@@ -120,7 +114,7 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
       },
       async () => {
         return await this.fetchMetadata(validatedIsbn, source)
-      }
+      },
     )
 
     await this.emitProgress(jobId, 'metadata_fetched', 50, { title: metadata.title }, step)
@@ -142,7 +136,7 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
         },
         async () => {
           return await this.uploadCoverToR2(metadata.coverUrl!, validatedIsbn)
-        }
+        },
       )
 
       await this.emitProgress(jobId, 'cover_uploaded', 70, { coverR2Key }, step)
@@ -174,7 +168,7 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
               categories: metadata.categories,
             }
             return await generateBookEmbedding(bookInput, this.env as any)
-          }
+          },
         )
 
         if (embeddingResult) {
@@ -188,16 +182,22 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
                 author: metadata.author,
                 categories: metadata.categories?.join(', '),
               },
-              this.env as any
+              this.env as any,
             )
           })
           hasEmbedding = true
         }
 
-        await this.emitProgress(jobId, 'embedding_generated', 80, {
-          dimensions: embeddingResult?.dimensions ?? 0,
-          storedInVectorize: hasEmbedding,
-        }, step)
+        await this.emitProgress(
+          jobId,
+          'embedding_generated',
+          80,
+          {
+            dimensions: embeddingResult?.dimensions ?? 0,
+            storedInVectorize: hasEmbedding,
+          },
+          step,
+        )
       } catch (error) {
         // Non-critical: Continue without embeddings
         console.warn('[Workflow] Embedding generation failed (optional):', error)
@@ -219,7 +219,7 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
       },
       async () => {
         return await this.saveBookData(metadata, coverR2Key)
-      }
+      },
     )
 
     // Step 7: Complete
@@ -232,7 +232,13 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
       savedToD1,
     }
 
-    await this.emitProgress(jobId, 'completed', 100, result as unknown as Record<string, unknown>, step)
+    await this.emitProgress(
+      jobId,
+      'completed',
+      100,
+      result as unknown as Record<string, unknown>,
+      step,
+    )
 
     console.log(`[Workflow] Book import completed for ISBN ${validatedIsbn}`)
     return result
@@ -250,7 +256,7 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
     status: WorkflowStatus,
     progress: number,
     data: Record<string, unknown>,
-    step: WorkflowStep
+    step: WorkflowStep,
   ): Promise<void> {
     await step.do(`emit-${status}`, async () => {
       try {
@@ -309,7 +315,10 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
   /**
    * Fetch book metadata from provider
    */
-  private async fetchMetadata(isbn: string, source: BookImportInput['source']): Promise<BookMetadata> {
+  private async fetchMetadata(
+    isbn: string,
+    source: BookImportInput['source'],
+  ): Promise<BookMetadata> {
     switch (source) {
       case 'google_books':
         return await this.fetchFromGoogleBooks(isbn)
@@ -338,7 +347,7 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
       throw new Error(`Google Books API failed: ${response.status} ${response.statusText}`)
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       totalItems?: number
       items?: Array<{
         volumeInfo: {
@@ -359,7 +368,7 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
       throw new Error(`No book found for ISBN: ${isbn}`)
     }
 
-    const book = data.items[0]!.volumeInfo
+    const book = data.items[0]?.volumeInfo
 
     return {
       isbn,
@@ -391,15 +400,18 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
       throw new Error(`OpenLibrary API failed: ${response.status}`)
     }
 
-    const data = await response.json() as Record<string, {
-      title?: string
-      authors?: Array<{ name: string }>
-      cover?: { medium?: string; large?: string }
-      publish_date?: string
-      publishers?: Array<{ name: string }>
-      number_of_pages?: number
-      subjects?: Array<{ name: string }>
-    }>
+    const data = (await response.json()) as Record<
+      string,
+      {
+        title?: string
+        authors?: Array<{ name: string }>
+        cover?: { medium?: string; large?: string }
+        publish_date?: string
+        publishers?: Array<{ name: string }>
+        number_of_pages?: number
+        subjects?: Array<{ name: string }>
+      }
+    >
 
     const key = `ISBN:${isbn}`
     const book = data[key]
@@ -412,12 +424,12 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
       isbn,
       title: book.title || 'Unknown Title',
       author: book.authors?.[0]?.name || 'Unknown Author',
-      authors: book.authors?.map(a => a.name),
+      authors: book.authors?.map((a) => a.name),
       coverUrl: book.cover?.large || book.cover?.medium,
       publicationDate: book.publish_date,
       publisher: book.publishers?.[0]?.name,
       pageCount: book.number_of_pages,
-      categories: book.subjects?.map(s => s.name),
+      categories: book.subjects?.map((s) => s.name),
     }
   }
 
@@ -433,7 +445,7 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
 
     const response = await fetch(url, {
       headers: {
-        'Authorization': this.env.ISBNDB_API_KEY,
+        Authorization: this.env.ISBNDB_API_KEY,
         'User-Agent': 'BooksTracker/1.0',
       },
     })
@@ -442,7 +454,7 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
       throw new Error(`ISBNdb API failed: ${response.status}`)
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       book?: {
         title?: string
         authors?: string[]
@@ -522,43 +534,9 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
   }
 
   /**
-   * Generate text embedding for semantic search
-   */
-  private async generateEmbedding(metadata: BookMetadata): Promise<number[] | null> {
-    if (!this.env.AI) {
-      console.log('[Workflow] Workers AI not available, skipping embedding')
-      return null
-    }
-
-    const text = [
-      metadata.title,
-      `by ${metadata.author}`,
-      metadata.description,
-      metadata.categories?.join(', '),
-    ]
-      .filter(Boolean)
-      .join('. ')
-      .substring(0, 512) // Max 512 chars for embedding
-
-    try {
-      const response = await this.env.AI.run('@cf/baai/bge-m3', {
-        text: [text],
-      }) as { data: number[][] }
-
-      return response.data[0] ?? null
-    } catch (error) {
-      console.warn('[Workflow] Embedding generation failed:', error)
-      return null
-    }
-  }
-
-  /**
    * Save book data to D1 (with KV fallback)
    */
-  private async saveBookData(
-    metadata: BookMetadata,
-    coverR2Key: string | null
-  ): Promise<boolean> {
+  private async saveBookData(metadata: BookMetadata, coverR2Key: string | null): Promise<boolean> {
     if (this.env.DB) {
       // D1 available - use relational storage
       console.log('[Workflow] Saving to D1 database')
@@ -585,7 +563,7 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
             coverR2Key,
             metadata.publicationDate || null,
             metadata.publisher || null,
-            metadata.pageCount || null
+            metadata.pageCount || null,
           )
           .run()
 
@@ -609,7 +587,7 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
     await this.env.CACHE.put(
       `book:isbn:${metadata.isbn}`,
       JSON.stringify(bookData),
-      { expirationTtl: 86400 * 30 } // 30 days TTL
+      { expirationTtl: 86400 * 30 }, // 30 days TTL
     )
 
     return false // Saved to KV, not D1

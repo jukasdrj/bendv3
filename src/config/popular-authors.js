@@ -13,45 +13,45 @@
 
 export const POPULAR_AUTHORS = [
   // Contemporary Fiction & Literary
-  { name: "Colleen Hoover", priority: 1, genre: "Romance/Contemporary" },
-  { name: "Taylor Jenkins Reid", priority: 1, genre: "Contemporary Fiction" },
-  { name: "Kristin Hannah", priority: 1, genre: "Historical Fiction" },
-  { name: "Emily Henry", priority: 1, genre: "Romance/Contemporary" },
+  { name: 'Colleen Hoover', priority: 1, genre: 'Romance/Contemporary' },
+  { name: 'Taylor Jenkins Reid', priority: 1, genre: 'Contemporary Fiction' },
+  { name: 'Kristin Hannah', priority: 1, genre: 'Historical Fiction' },
+  { name: 'Emily Henry', priority: 1, genre: 'Romance/Contemporary' },
 
   // Fantasy & Sci-Fi
-  { name: "Brandon Sanderson", priority: 1, genre: "Fantasy" },
-  { name: "Sarah J. Maas", priority: 1, genre: "Fantasy/YA" },
-  { name: "Rebecca Yarros", priority: 1, genre: "Fantasy/Romance" },
-  { name: "Pierce Brown", priority: 1, genre: "Sci-Fi" },
-  { name: "Andy Weir", priority: 1, genre: "Sci-Fi" },
+  { name: 'Brandon Sanderson', priority: 1, genre: 'Fantasy' },
+  { name: 'Sarah J. Maas', priority: 1, genre: 'Fantasy/YA' },
+  { name: 'Rebecca Yarros', priority: 1, genre: 'Fantasy/Romance' },
+  { name: 'Pierce Brown', priority: 1, genre: 'Sci-Fi' },
+  { name: 'Andy Weir', priority: 1, genre: 'Sci-Fi' },
 
   // Mystery & Thriller
-  { name: "Freida McFadden", priority: 1, genre: "Psychological Thriller" },
-  { name: "Riley Sager", priority: 1, genre: "Thriller" },
-  { name: "Ruth Ware", priority: 1, genre: "Mystery/Thriller" },
-  { name: "Lucy Foley", priority: 1, genre: "Mystery" },
-  { name: "Alex Michaelides", priority: 1, genre: "Psychological Thriller" },
+  { name: 'Freida McFadden', priority: 1, genre: 'Psychological Thriller' },
+  { name: 'Riley Sager', priority: 1, genre: 'Thriller' },
+  { name: 'Ruth Ware', priority: 1, genre: 'Mystery/Thriller' },
+  { name: 'Lucy Foley', priority: 1, genre: 'Mystery' },
+  { name: 'Alex Michaelides', priority: 1, genre: 'Psychological Thriller' },
 
   // Horror & Dark Fantasy
-  { name: "Stephen King", priority: 2, genre: "Horror" },
-  { name: "Joe Hill", priority: 2, genre: "Horror" },
+  { name: 'Stephen King', priority: 2, genre: 'Horror' },
+  { name: 'Joe Hill', priority: 2, genre: 'Horror' },
 
   // Literary & Award Winners
-  { name: "Celeste Ng", priority: 2, genre: "Literary Fiction" },
-  { name: "Madeline Miller", priority: 2, genre: "Historical/Mythology" },
-  { name: "Brit Bennett", priority: 2, genre: "Literary Fiction" },
+  { name: 'Celeste Ng', priority: 2, genre: 'Literary Fiction' },
+  { name: 'Madeline Miller', priority: 2, genre: 'Historical/Mythology' },
+  { name: 'Brit Bennett', priority: 2, genre: 'Literary Fiction' },
 
   // Romance
-  { name: "Ali Hazelwood", priority: 1, genre: "Romance/Contemporary" },
-  { name: "Abby Jimenez", priority: 2, genre: "Romance" },
+  { name: 'Ali Hazelwood', priority: 1, genre: 'Romance/Contemporary' },
+  { name: 'Abby Jimenez', priority: 2, genre: 'Romance' },
 
   // Young Adult
-  { name: "Leigh Bardugo", priority: 2, genre: "YA Fantasy" },
-  { name: "Holly Jackson", priority: 2, genre: "YA Mystery" },
+  { name: 'Leigh Bardugo', priority: 2, genre: 'YA Fantasy' },
+  { name: 'Holly Jackson', priority: 2, genre: 'YA Mystery' },
 
   // Classic Modern Authors (High Backlist)
-  { name: "Neil Gaiman", priority: 2, genre: "Fantasy" },
-  { name: "John Grisham", priority: 3, genre: "Legal Thriller" },
+  { name: 'Neil Gaiman', priority: 2, genre: 'Fantasy' },
+  { name: 'John Grisham', priority: 3, genre: 'Legal Thriller' },
 ]
 
 /**
@@ -60,9 +60,9 @@ export const POPULAR_AUTHORS = [
  * @returns {Array<{name: string, genre: string}>}
  */
 export function getAuthorsByPriority(priority) {
-  return POPULAR_AUTHORS
-    .filter(author => author.priority === priority)
-    .map(({ name, genre }) => ({ name, genre }))
+  return POPULAR_AUTHORS.filter((author) => author.priority === priority).map(
+    ({ name, genre }) => ({ name, genre }),
+  )
 }
 
 /**
@@ -70,9 +70,7 @@ export function getAuthorsByPriority(priority) {
  * @returns {string[]}
  */
 export function getAllAuthorNames() {
-  return POPULAR_AUTHORS
-    .sort((a, b) => a.priority - b.priority)
-    .map(author => author.name)
+  return POPULAR_AUTHORS.sort((a, b) => a.priority - b.priority).map((author) => author.name)
 }
 
 /**
@@ -81,8 +79,7 @@ export function getAllAuthorNames() {
  * @returns {string[]}
  */
 export function getTopAuthors(count = 25) {
-  return POPULAR_AUTHORS
-    .sort((a, b) => a.priority - b.priority)
+  return POPULAR_AUTHORS.sort((a, b) => a.priority - b.priority)
     .slice(0, count)
-    .map(author => author.name)
+    .map((author) => author.name)
 }

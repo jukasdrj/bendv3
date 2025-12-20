@@ -10,33 +10,28 @@
  */
 
 import {
-  normalizeGoogleBooksToWork,
   normalizeGoogleBooksToEdition,
-  ensureWorkForEdition,
-} from "./normalizers/google-books.js";
-
+  normalizeGoogleBooksToWork,
+} from './normalizers/google-books.js'
 import {
-  normalizeOpenLibraryToWork,
-  normalizeOpenLibraryToEdition,
-  normalizeOpenLibraryToAuthor,
-} from "./normalizers/openlibrary.js";
-
-import {
-  normalizeISBNdbToWork,
-  normalizeISBNdbToEdition,
   normalizeISBNdbToAuthor,
-} from "./normalizers/isbndb.js";
+  normalizeISBNdbToEdition,
+  normalizeISBNdbToWork,
+} from './normalizers/isbndb.js'
+import {
+  normalizeOpenLibraryToAuthor,
+  normalizeOpenLibraryToEdition,
+  normalizeOpenLibraryToWork,
+} from './normalizers/openlibrary.js'
 
 // Re-export Alexandria API functions
-export { searchAlexandriaByISBN, searchAlexandria } from "./alexandria-api";
+export { searchAlexandria, searchAlexandriaByISBN } from './alexandria-api'
 
-import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js";
-import type { DataProvider } from "../types/enums.js";
-import { logExternalApiCall } from "../utils/analytics-logger.ts";
-import { getCached, setCached } from "../utils/cache.js";
-import { withCircuitBreaker } from "./circuit-breaker";
-import { CircuitBreakerOpenError } from "../types/errors";
-import { getCacheTTL } from "../config/cache-ttl.js";
+import { getCacheTTL } from '../config/cache-ttl.js'
+import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical.js'
+import { logExternalApiCall } from '../utils/analytics-logger.ts'
+import { getCached, setCached } from '../utils/cache.js'
+import { withCircuitBreaker } from './circuit-breaker'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -46,23 +41,23 @@ import { getCacheTTL } from "../config/cache-ttl.js";
  * Worker environment bindings used by external API functions
  */
 export interface ExternalAPIEnv {
-  GOOGLE_BOOKS_API_KEY?: any; // Can be string or SecretBinding
-  ISBNDB_API_KEY?: any; // Can be string or SecretBinding
-  ALEXANDRIA_CLIENT_ID?: string; // Worker secret (plain string)
-  ALEXANDRIA_CLIENT_SECRET?: string; // Worker secret (plain string)
-  GOOGLE_BOOKS_ANALYTICS?: AnalyticsEngineDataset;
-  ANALYTICS_ENGINE?: AnalyticsEngineDataset; // For logExternalApiCall analytics
-  CACHE?: KVNamespace;
-  CACHE_HOT_TTL?: string; // Hot TTL in seconds (default: 7200 = 2h)
-  CACHE_COLD_TTL?: string; // Cold TTL in seconds (default: 1209600 = 14d)
-  CACHE_METRICS_DO?: DurableObjectNamespace; // For cache metrics tracking
+  GOOGLE_BOOKS_API_KEY?: any // Can be string or SecretBinding
+  ISBNDB_API_KEY?: any // Can be string or SecretBinding
+  ALEXANDRIA_CLIENT_ID?: string // Worker secret (plain string)
+  ALEXANDRIA_CLIENT_SECRET?: string // Worker secret (plain string)
+  GOOGLE_BOOKS_ANALYTICS?: AnalyticsEngineDataset
+  ANALYTICS_ENGINE?: AnalyticsEngineDataset // For logExternalApiCall analytics
+  CACHE?: KVNamespace
+  CACHE_HOT_TTL?: string // Hot TTL in seconds (default: 7200 = 2h)
+  CACHE_COLD_TTL?: string // Cold TTL in seconds (default: 1209600 = 14d)
+  CACHE_METRICS_DO?: DurableObjectNamespace // For cache metrics tracking
 }
 
 /**
  * Search parameters for configurable queries
  */
 export interface SearchParams {
-  maxResults?: number;
+  maxResults?: number
 }
 
 /**
@@ -70,25 +65,25 @@ export interface SearchParams {
  * Handlers must strip the `authors` property before sending to client
  */
 export interface WorkDTOWithAuthors extends WorkDTO {
-  authors?: AuthorDTO[];
+  authors?: AuthorDTO[]
 }
 
 /**
  * Normalized API response structure
  */
 export interface NormalizedResponse {
-  works: WorkDTOWithAuthors[];
-  editions: EditionDTO[];
-  authors: AuthorDTO[];
+  works: WorkDTOWithAuthors[]
+  editions: EditionDTO[]
+  authors: AuthorDTO[]
 }
 
 /**
  * Search result metadata (for logging/analytics)
  */
 export interface SearchMetadata {
-  provider: string;
-  processingTime: number;
-  totalResults?: number;
+  provider: string
+  processingTime: number
+  totalResults?: number
 }
 
 /**
@@ -96,25 +91,25 @@ export interface SearchMetadata {
  */
 export interface AuthorWorksData {
   author: {
-    name: string;
-    openLibraryKey: string;
-  };
+    name: string
+    openLibraryKey: string
+  }
   works: Array<{
-    title: string;
-    openLibraryWorkKey: string;
-    firstPublicationYear?: number;
-    editions: any[];
-  }>;
+    title: string
+    openLibraryWorkKey: string
+    firstPublicationYear?: number
+    editions: any[]
+  }>
 }
 
 /**
  * ISBNdb book detail response
  */
 export interface ISBNdbBookData {
-  work: WorkDTO;
-  edition: EditionDTO;
-  authors: AuthorDTO[];
-  book: any; // Raw ISBNdb book data (backward compatibility)
+  work: WorkDTO
+  edition: EditionDTO
+  authors: AuthorDTO[]
+  book: any // Raw ISBNdb book data (backward compatibility)
 }
 
 /**
@@ -122,39 +117,39 @@ export interface ISBNdbBookData {
  */
 interface GoogleBooksAPIResponse {
   items?: Array<{
-    id?: string;
+    id?: string
     volumeInfo: {
-      title?: string;
-      authors?: string[];
-      [key: string]: any;
-    };
-    [key: string]: any;
-  }>;
+      title?: string
+      authors?: string[]
+      [key: string]: any
+    }
+    [key: string]: any
+  }>
 }
 
 /**
  * OpenLibrary search document structure
  */
 interface OpenLibraryDoc {
-  title?: string;
-  author_name?: string[];
-  [key: string]: any;
+  title?: string
+  author_name?: string[]
+  [key: string]: any
 }
 
 /**
  * ISBNdb book structure
  */
 interface ISBNdbBook {
-  authors?: string[];
-  [key: string]: any;
+  authors?: string[]
+  [key: string]: any
 }
 
 /**
  * ISBNdb search response
  */
 interface ISBNdbSearchResponse {
-  books?: ISBNdbBook[];
-  total?: number;
+  books?: ISBNdbBook[]
+  total?: number
 }
 
 // ============================================================================
@@ -171,63 +166,62 @@ async function withCache<T>(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
   options: {
-    provider: 'google-books' | 'open-library' | 'isbndb';
-    logContext?: string;
-    validateResult?: (result: T) => boolean;
-  } = { provider: 'google-books' }
+    provider: 'google-books' | 'open-library' | 'isbndb'
+    logContext?: string
+    validateResult?: (result: T) => boolean
+  } = { provider: 'google-books' },
 ): Promise<T | null> {
   // If no KV cache, skip caching (direct call with circuit breaker)
   if (!env.CACHE) {
-    console.warn(`⚠️ ${options.logContext || 'API call'} without cache (missing KV namespace)`);
-    return withCircuitBreaker(options.provider, env, fetchFn);
+    console.warn(`⚠️ ${options.logContext || 'API call'} without cache (missing KV namespace)`)
+    return withCircuitBreaker(options.provider, env, fetchFn)
   }
 
   // Check cache first
-  const cached = await getCached(cacheKey, env, ctx);
+  const cached = await getCached(cacheKey, env, ctx)
   if (cached) {
-    console.log(`📦 Cache HIT: ${options.logContext || cacheKey}`);
-    return cached.data as T;
+    console.log(`📦 Cache HIT: ${options.logContext || cacheKey}`)
+    return cached.data as T
   }
 
   // Cache MISS - fetch from API with circuit breaker
-  console.log(`🌐 Cache MISS: ${options.logContext || cacheKey}`);
-  const result = await withCircuitBreaker(options.provider, env, fetchFn);
+  console.log(`🌐 Cache MISS: ${options.logContext || cacheKey}`)
+  const result = await withCircuitBreaker(options.provider, env, fetchFn)
 
   // Write successful results to cache
   const shouldCache = options.validateResult
     ? options.validateResult(result as T)
-    : result && (Array.isArray(result) ? result.length > 0 : true);
+    : result && (Array.isArray(result) ? result.length > 0 : true)
 
   if (shouldCache) {
-    const hotTtl = getCacheTTL('hot', env);
-    const coldTtl = getCacheTTL('cold', env);
-    await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl);
-    console.log(`✅ Cached ${options.logContext || cacheKey}`);
+    const hotTtl = getCacheTTL('hot', env)
+    const coldTtl = getCacheTTL('cold', env)
+    await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl)
+    console.log(`✅ Cached ${options.logContext || cacheKey}`)
   }
 
-  return result;
+  return result
 }
 
 // ============================================================================
 // GOOGLE BOOKS API
 // ============================================================================
 
-const GOOGLE_BOOKS_USER_AGENT =
-  "BooksTracker/1.0 (nerd@ooheynerds.com) GoogleBooksWorker/1.0.0";
+const GOOGLE_BOOKS_USER_AGENT = 'BooksTracker/1.0 (nerd@ooheynerds.com) GoogleBooksWorker/1.0.0'
 
 export async function searchGoogleBooksById(
   volumeId: string,
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  const cacheKey = `volumeid:${volumeId}`;
+  const cacheKey = `volumeid:${volumeId}`
   return withCache<NormalizedResponse>(
     cacheKey,
     () => searchGoogleBooksById_Uncached(volumeId, env),
     env,
     ctx,
-    { provider: 'google-books', logContext: `Volume ID ${volumeId}` }
-  );
+    { provider: 'google-books', logContext: `Volume ID ${volumeId}` },
+  )
 }
 
 /**
@@ -237,52 +231,50 @@ async function searchGoogleBooksById_Uncached(
   volumeId: string,
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
-  const startTime = Date.now();
+  const startTime = Date.now()
   try {
-    console.log(`GoogleBooks ID search for "${volumeId}"`);
+    console.log(`GoogleBooks ID search for "${volumeId}"`)
 
     const apiKey = env.GOOGLE_BOOKS_API_KEY?.get
       ? await env.GOOGLE_BOOKS_API_KEY.get()
-      : env.GOOGLE_BOOKS_API_KEY;
+      : env.GOOGLE_BOOKS_API_KEY
 
     if (!apiKey) {
-      console.error("Google Books API key not configured.");
-      return null;
+      console.error('Google Books API key not configured.')
+      return null
     }
 
-    const searchUrl = `https://www.googleapis.com/books/v1/volumes/${volumeId}?key=${apiKey}`;
+    const searchUrl = `https://www.googleapis.com/books/v1/volumes/${volumeId}?key=${apiKey}`
 
     const response = await fetch(searchUrl, {
       headers: {
-        "User-Agent": GOOGLE_BOOKS_USER_AGENT,
-        Accept: "application/json",
+        'User-Agent': GOOGLE_BOOKS_USER_AGENT,
+        Accept: 'application/json',
       },
-      cache: "no-cache",
-    });
+      cache: 'no-cache',
+    })
 
     if (!response.ok) {
-      throw new Error(
-        `Google Books API error: ${response.status} ${response.statusText}`,
-      );
+      throw new Error(`Google Books API error: ${response.status} ${response.statusText}`)
     }
 
-    const data = await response.json();
+    const data = await response.json()
     // Wrap the single volume result in an `items` array to reuse the normalization logic
-    const normalizedData = normalizeGoogleBooksResponse({ items: [data] });
+    const normalizedData = normalizeGoogleBooksResponse({ items: [data] })
 
-    const processingTime = Date.now() - startTime;
-    console.log(`GoogleBooks ID search completed in ${processingTime}ms`);
+    const processingTime = Date.now() - startTime
+    console.log(`GoogleBooks ID search completed in ${processingTime}ms`)
 
     // Return empty result if no works found
     if (!normalizedData.works || normalizedData.works.length === 0) {
-      return null;
+      return null
     }
 
-    return normalizedData;
+    return normalizedData
   } catch (error) {
-    const processingTime = Date.now() - startTime;
-    console.error(`Error in GoogleBooks ID search:`, error);
-    throw error; // Let exceptions bubble up
+    const _processingTime = Date.now() - startTime
+    console.error(`Error in GoogleBooks ID search:`, error)
+    throw error // Let exceptions bubble up
   }
 }
 
@@ -292,29 +284,31 @@ export async function searchGoogleBooks(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  const maxResults = params.maxResults || 20;
-  const cacheKey = `search:${query.normalize('NFC').toLowerCase().trim()}`;
+  const maxResults = params.maxResults || 20
+  const cacheKey = `search:${query.normalize('NFC').toLowerCase().trim()}`
 
   // Special case: Check cache with maxResults filtering
   if (env.CACHE) {
-    const cached = await getCached(cacheKey, env, ctx);
+    const cached = await getCached(cacheKey, env, ctx)
     if (cached) {
-      console.log(`📦 Cache HIT: Search "${query}"`);
-      const cachedResult = cached.data as NormalizedResponse;
+      console.log(`📦 Cache HIT: Search "${query}"`)
+      const cachedResult = cached.data as NormalizedResponse
       // Filter cached results to requested maxResults in-memory
       if (cachedResult.works && cachedResult.works.length > maxResults) {
         return {
           ...cachedResult,
           works: cachedResult.works.slice(0, maxResults),
-        };
+        }
       }
-      return cachedResult;
+      return cachedResult
     }
   }
 
   // Cache MISS - fetch max results (40) for cache population
-  const cacheParams = { ...params, maxResults: 40 };
-  console.log(`🌐 Cache MISS: Searching Google Books for "${query}" (fetching 40 results for cache)`);
+  const cacheParams = { ...params, maxResults: 40 }
+  console.log(
+    `🌐 Cache MISS: Searching Google Books for "${query}" (fetching 40 results for cache)`,
+  )
 
   const result = await withCache<NormalizedResponse>(
     cacheKey,
@@ -324,19 +318,19 @@ export async function searchGoogleBooks(
     {
       provider: 'google-books',
       logContext: `Search "${query}" (${cacheParams.maxResults} works)`,
-      validateResult: (r) => r && r.works && r.works.length > 0
-    }
-  );
+      validateResult: (r) => r?.works && r.works.length > 0,
+    },
+  )
 
   // Filter result to requested maxResults before returning
-  if (result && result.works && result.works.length > maxResults) {
+  if (result?.works && result.works.length > maxResults) {
     return {
       ...result,
       works: result.works.slice(0, maxResults),
-    };
+    }
   }
 
-  return result;
+  return result
 }
 
 /**
@@ -348,48 +342,46 @@ async function searchGoogleBooks_Uncached(
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
-    "google-books",
+    'google-books',
     async () => {
-      console.log(`GoogleBooks search for "${query}"`);
+      console.log(`GoogleBooks search for "${query}"`)
 
       const apiKey = env.GOOGLE_BOOKS_API_KEY?.get
         ? await env.GOOGLE_BOOKS_API_KEY.get()
-        : env.GOOGLE_BOOKS_API_KEY;
+        : env.GOOGLE_BOOKS_API_KEY
 
       if (!apiKey) {
-        console.error("Google Books API key not configured.");
-        return null;
+        console.error('Google Books API key not configured.')
+        return null
       }
 
-      const maxResults = params.maxResults || 20;
-      const searchUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=${maxResults}&key=${apiKey}`;
+      const maxResults = params.maxResults || 20
+      const searchUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=${maxResults}&key=${apiKey}`
 
       const response = await fetch(searchUrl, {
         headers: {
-          "User-Agent": GOOGLE_BOOKS_USER_AGENT,
-          Accept: "application/json",
+          'User-Agent': GOOGLE_BOOKS_USER_AGENT,
+          Accept: 'application/json',
         },
-        cache: "no-cache", // Force revalidation with Google Books API
-      });
+        cache: 'no-cache', // Force revalidation with Google Books API
+      })
 
       if (!response.ok) {
-        throw new Error(
-          `Google Books API error: ${response.status} ${response.statusText}`,
-        );
+        throw new Error(`Google Books API error: ${response.status} ${response.statusText}`)
       }
 
-      const data = await response.json();
-      const normalizedData = normalizeGoogleBooksResponse(data);
+      const data = await response.json()
+      const normalizedData = normalizeGoogleBooksResponse(data)
 
       if (!normalizedData.works || normalizedData.works.length === 0) {
-        return null;
+        return null
       }
 
-      return normalizedData;
+      return normalizedData
     },
     { query },
     env,
-  );
+  )
 }
 
 export async function searchGoogleBooksByISBN(
@@ -397,15 +389,15 @@ export async function searchGoogleBooksByISBN(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  const normalizedIsbn = isbn.replace(/-/g, ''); // Normalize ISBN (remove hyphens)
-  const cacheKey = `book:isbn:${normalizedIsbn}`; // Canonical cache key format
+  const normalizedIsbn = isbn.replace(/-/g, '') // Normalize ISBN (remove hyphens)
+  const cacheKey = `book:isbn:${normalizedIsbn}` // Canonical cache key format
   return withCache<NormalizedResponse>(
     cacheKey,
     () => searchGoogleBooksByISBN_Uncached(isbn, env),
     env,
     ctx,
-    { provider: 'google-books', logContext: `ISBN ${isbn}` }
-  );
+    { provider: 'google-books', logContext: `ISBN ${isbn}` },
+  )
 }
 
 /**
@@ -417,47 +409,45 @@ async function searchGoogleBooksByISBN_Uncached(
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
-    "google-books",
+    'google-books',
     async () => {
-      console.log(`GoogleBooks ISBN search for "${isbn}"`);
+      console.log(`GoogleBooks ISBN search for "${isbn}"`)
 
       const apiKey = env.GOOGLE_BOOKS_API_KEY?.get
         ? await env.GOOGLE_BOOKS_API_KEY.get()
-        : env.GOOGLE_BOOKS_API_KEY;
+        : env.GOOGLE_BOOKS_API_KEY
 
       if (!apiKey) {
-        console.error("Google Books API key not configured.");
-        return null;
+        console.error('Google Books API key not configured.')
+        return null
       }
 
-      const searchUrl = `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&key=${apiKey}`;
+      const searchUrl = `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&key=${apiKey}`
 
       const response = await fetch(searchUrl, {
         headers: {
-          "User-Agent": GOOGLE_BOOKS_USER_AGENT,
-          Accept: "application/json",
+          'User-Agent': GOOGLE_BOOKS_USER_AGENT,
+          Accept: 'application/json',
         },
-        cache: "no-cache", // Force revalidation with Google Books API
-      });
+        cache: 'no-cache', // Force revalidation with Google Books API
+      })
 
       if (!response.ok) {
-        throw new Error(
-          `Google Books API error: ${response.status} ${response.statusText}`,
-        );
+        throw new Error(`Google Books API error: ${response.status} ${response.statusText}`)
       }
 
-      const data = await response.json();
-      const normalizedData = normalizeGoogleBooksResponse(data);
+      const data = await response.json()
+      const normalizedData = normalizeGoogleBooksResponse(data)
 
       if (!normalizedData.works || normalizedData.works.length === 0) {
-        return null;
+        return null
       }
 
-      return normalizedData;
+      return normalizedData
     },
     { isbn },
     env,
-  );
+  )
 }
 
 /**
@@ -468,28 +458,26 @@ async function searchGoogleBooksByISBN_Uncached(
  * for enrichment service compatibility (WorkDTOWithAuthors type).
  * Handlers must strip this property before sending to client.
  */
-function normalizeGoogleBooksResponse(
-  apiResponse: GoogleBooksAPIResponse,
-): NormalizedResponse {
+function normalizeGoogleBooksResponse(apiResponse: GoogleBooksAPIResponse): NormalizedResponse {
   if (!apiResponse.items || apiResponse.items.length === 0) {
-    return { works: [], editions: [], authors: [] };
+    return { works: [], editions: [], authors: [] }
   }
 
-  const works: WorkDTOWithAuthors[] = [];
-  const editions: EditionDTO[] = [];
-  const authorsMap = new Map<string, AuthorDTO>();
+  const works: WorkDTOWithAuthors[] = []
+  const editions: EditionDTO[] = []
+  const authorsMap = new Map<string, AuthorDTO>()
 
   apiResponse.items.forEach((item) => {
-    const volumeInfo = item.volumeInfo;
+    const volumeInfo = item.volumeInfo
     if (!volumeInfo || !volumeInfo.title) {
-      return;
+      return
     }
 
     // Use canonical normalizer for WorkDTO (ensures all required fields)
-    const work = normalizeGoogleBooksToWork(item);
+    const work = normalizeGoogleBooksToWork(item)
 
     // Use canonical normalizer for EditionDTO
-    const edition = normalizeGoogleBooksToEdition(item);
+    const edition = normalizeGoogleBooksToEdition(item)
 
     // Extract authors and create AuthorDTOs
     // Normalize to string[] to handle inconsistent provider formats:
@@ -497,129 +485,124 @@ function normalizeGoogleBooksResponse(
     // - string (single author)
     // - object[] ({name: string})
     // - undefined/null
-    const rawAuthors = volumeInfo.authors;
-    let authorNames: string[];
+    const rawAuthors = volumeInfo.authors
+    let authorNames: string[]
 
     if (!rawAuthors || (Array.isArray(rawAuthors) && rawAuthors.length === 0)) {
-      authorNames = ["Unknown Author"];
-    } else if (typeof rawAuthors === "string") {
-      authorNames = [rawAuthors];
+      authorNames = ['Unknown Author']
+    } else if (typeof rawAuthors === 'string') {
+      authorNames = [rawAuthors]
     } else if (Array.isArray(rawAuthors)) {
       authorNames = rawAuthors.map((a) => {
-        if (typeof a === "string") return a;
-        if (typeof a === "object" && a !== null && "name" in a)
-          return String(a.name);
-        return "Unknown Author";
-      });
+        if (typeof a === 'string') return a
+        if (typeof a === 'object' && a !== null && 'name' in a) return String(a.name)
+        return 'Unknown Author'
+      })
     } else {
-      authorNames = ["Unknown Author"];
+      authorNames = ['Unknown Author']
     }
 
     const authors: AuthorDTO[] = authorNames.map((name) => ({
       name,
-      gender: "Unknown" as const, // Required field per canonical contract
-    }));
+      gender: 'Unknown' as const, // Required field per canonical contract
+    }))
 
     // Attach authors to work for enrichment service compatibility
-    work.authors = authors;
+    work.authors = authors
 
     // Add to authors map for deduplication
     authors.forEach((author) => {
       if (!authorsMap.has(author.name)) {
-        authorsMap.set(author.name, author);
+        authorsMap.set(author.name, author)
       }
-    });
+    })
 
-    works.push(work);
-    editions.push(edition);
-  });
+    works.push(work)
+    editions.push(edition)
+  })
 
   return {
     works,
     editions,
     authors: Array.from(authorsMap.values()),
-  };
+  }
 }
 
 // ============================================================================
 // OPENLIBRARY API
 // ============================================================================
 
-const OPENLIBRARY_USER_AGENT =
-  "BooksTracker/1.0 (nerd@ooheynerds.com) OpenLibraryWorker/1.1.0";
+const OPENLIBRARY_USER_AGENT = 'BooksTracker/1.0 (nerd@ooheynerds.com) OpenLibraryWorker/1.1.0'
 
 export async function searchOpenLibraryByGoodreadsId(
   goodreadsId: string,
-  env: ExternalAPIEnv,
-  ctx?: ExecutionContext,
+  _env: ExternalAPIEnv,
+  _ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  const startTime = Date.now();
+  const _startTime = Date.now()
   try {
-    console.log(`OpenLibrary Goodreads ID search for "${goodreadsId}"`);
+    console.log(`OpenLibrary Goodreads ID search for "${goodreadsId}"`)
 
     // OpenLibrary's Search API supports querying by Goodreads ID
-    const searchUrl = `https://openlibrary.org/search.json?goodreads=${goodreadsId}&limit=1`;
+    const searchUrl = `https://openlibrary.org/search.json?goodreads=${goodreadsId}&limit=1`
     const response = await fetch(searchUrl, {
-      headers: { "User-Agent": OPENLIBRARY_USER_AGENT },
-    });
+      headers: { 'User-Agent': OPENLIBRARY_USER_AGENT },
+    })
 
     if (!response.ok) {
-      throw new Error(`OpenLibrary search API failed: ${response.status}`);
+      throw new Error(`OpenLibrary search API failed: ${response.status}`)
     }
 
-    const data = await response.json();
+    const data = await response.json()
     if (!data.docs || data.docs.length === 0) {
-      return null; // No results found
+      return null // No results found
     }
 
     // We get a search result, not a direct work, so we normalize the search result
-    const normalized = normalizeOpenLibrarySearchResults(data.docs);
+    const normalized = normalizeOpenLibrarySearchResults(data.docs)
 
     // Return null if no works found
     if (!normalized.works || normalized.works.length === 0) {
-      return null;
+      return null
     }
 
-    return normalized;
+    return normalized
   } catch (error) {
-    console.error(
-      `Error in OpenLibrary Goodreads ID search for "${goodreadsId}":`,
-      error,
-    );
-    throw error; // Let exceptions bubble up
+    console.error(`Error in OpenLibrary Goodreads ID search for "${goodreadsId}":`, error)
+    throw error // Let exceptions bubble up
   }
 }
 
 export async function searchOpenLibraryById(
   workId: string,
-  env: ExternalAPIEnv,
-  ctx?: ExecutionContext,
+  _env: ExternalAPIEnv,
+  _ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  const startTime = Date.now();
+  const _startTime = Date.now()
   try {
-    console.log(`OpenLibrary ID search for "${workId}"`);
+    console.log(`OpenLibrary ID search for "${workId}"`)
 
-    const workUrl = `https://openlibrary.org/works/${workId}.json`;
+    const workUrl = `https://openlibrary.org/works/${workId}.json`
     const workResponse = await fetch(workUrl, {
-      headers: { "User-Agent": OPENLIBRARY_USER_AGENT },
-    });
+      headers: { 'User-Agent': OPENLIBRARY_USER_AGENT },
+    })
 
     if (!workResponse.ok) {
-      throw new Error(`OpenLibrary work API failed: ${workResponse.status}`);
+      throw new Error(`OpenLibrary work API failed: ${workResponse.status}`)
     }
 
-    const workData = await workResponse.json();
-    const normalized = normalizeOpenLibrarySearchResults([workData]);
+    const workData = await workResponse.json()
+    const normalized = normalizeOpenLibrarySearchResults([workData])
 
     // Return null if no works found
     if (!normalized.works || normalized.works.length === 0) {
-      return null;
+      return null
     }
 
-    return normalized;
+    return normalized
   } catch (error) {
-    console.error(`Error in OpenLibrary ID search for "${workId}":`, error);
-    throw error; // Let exceptions bubble up
+    console.error(`Error in OpenLibrary ID search for "${workId}":`, error)
+    throw error // Let exceptions bubble up
   }
 }
 
@@ -629,29 +612,29 @@ export async function searchOpenLibrary(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  const maxResults = params.maxResults || 20;
-  const cacheKey = `ol:search:${query.normalize('NFC').toLowerCase().trim()}`;
+  const maxResults = params.maxResults || 20
+  const cacheKey = `ol:search:${query.normalize('NFC').toLowerCase().trim()}`
 
   // Special case: Check cache with maxResults filtering
   if (env.CACHE) {
-    const cached = await getCached(cacheKey, env, ctx);
+    const cached = await getCached(cacheKey, env, ctx)
     if (cached) {
-      console.log(`📦 Cache HIT: OpenLibrary "${query}"`);
-      const cachedResult = cached.data as NormalizedResponse;
+      console.log(`📦 Cache HIT: OpenLibrary "${query}"`)
+      const cachedResult = cached.data as NormalizedResponse
       // Filter cached results to requested maxResults in-memory
       if (cachedResult.works && cachedResult.works.length > maxResults) {
         return {
           ...cachedResult,
           works: cachedResult.works.slice(0, maxResults),
-        };
+        }
       }
-      return cachedResult;
+      return cachedResult
     }
   }
 
   // Cache MISS - fetch max results (40) for cache population
-  const cacheParams = { ...params, maxResults: 40 };
-  console.log(`🌐 Cache MISS: Searching OpenLibrary for "${query}" (fetching 40 results for cache)`);
+  const cacheParams = { ...params, maxResults: 40 }
+  console.log(`🌐 Cache MISS: Searching OpenLibrary for "${query}" (fetching 40 results for cache)`)
 
   const result = await withCache<NormalizedResponse>(
     cacheKey,
@@ -661,19 +644,19 @@ export async function searchOpenLibrary(
     {
       provider: 'open-library',
       logContext: `OpenLibrary "${query}" (${cacheParams.maxResults} works)`,
-      validateResult: (r) => r && r.works && r.works.length > 0
-    }
-  );
+      validateResult: (r) => r?.works && r.works.length > 0,
+    },
+  )
 
   // Filter result to requested maxResults before returning
-  if (result && result.works && result.works.length > maxResults) {
+  if (result?.works && result.works.length > maxResults) {
     return {
       ...result,
       works: result.works.slice(0, maxResults),
-    };
+    }
   }
 
-  return result;
+  return result
 }
 
 /**
@@ -685,49 +668,49 @@ async function searchOpenLibrary_Uncached(
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
-    "openlibrary",
+    'openlibrary',
     async () => {
-      console.log(`OpenLibrary general search for "${query}"`);
+      console.log(`OpenLibrary general search for "${query}"`)
 
-      const maxResults = params.maxResults || 20;
+      const maxResults = params.maxResults || 20
 
-      const searchUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=${maxResults}`;
+      const searchUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=${maxResults}`
       const response = await fetch(searchUrl, {
-        headers: { "User-Agent": OPENLIBRARY_USER_AGENT },
-      });
+        headers: { 'User-Agent': OPENLIBRARY_USER_AGENT },
+      })
 
       if (!response.ok) {
-        throw new Error(`OpenLibrary search API failed: ${response.status}`);
+        throw new Error(`OpenLibrary search API failed: ${response.status}`)
       }
 
-      const data = await response.json();
-      const normalized = normalizeOpenLibrarySearchResults(data.docs || []);
+      const data = await response.json()
+      const normalized = normalizeOpenLibrarySearchResults(data.docs || [])
 
       if (!normalized.works || normalized.works.length === 0) {
-        return null;
+        return null
       }
 
-      return normalized;
+      return normalized
     },
     { query },
     env,
-  );
+  )
 }
 
 export async function getOpenLibraryAuthorWorks(
   authorName: string,
-  env: ExternalAPIEnv,
+  _env: ExternalAPIEnv,
 ): Promise<AuthorWorksData | null> {
   try {
-    console.log(`OpenLibrary getAuthorWorks("${authorName}")`);
+    console.log(`OpenLibrary getAuthorWorks("${authorName}")`)
 
-    const authorKey = await findAuthorKeyByName(authorName);
+    const authorKey = await findAuthorKeyByName(authorName)
     if (!authorKey) {
-      console.log("Author not found in OpenLibrary");
-      return null;
+      console.log('Author not found in OpenLibrary')
+      return null
     }
 
-    const works = await getWorksByAuthorKey(authorKey);
+    const works = await getWorksByAuthorKey(authorKey)
 
     return {
       author: {
@@ -735,10 +718,10 @@ export async function getOpenLibraryAuthorWorks(
         openLibraryKey: authorKey,
       },
       works: works,
-    };
+    }
   } catch (error) {
-    console.error(`Error in getAuthorWorks for "${authorName}":`, error);
-    throw error; // Let exceptions bubble up
+    console.error(`Error in getAuthorWorks for "${authorName}":`, error)
+    throw error // Let exceptions bubble up
   }
 }
 
@@ -750,92 +733,86 @@ export async function getOpenLibraryAuthorWorks(
  * for enrichment service compatibility (WorkDTOWithAuthors type).
  * Handlers must strip this property before sending to client.
  */
-function normalizeOpenLibrarySearchResults(
-  docs: OpenLibraryDoc[],
-): NormalizedResponse {
-  const works: WorkDTOWithAuthors[] = [];
-  const editions: EditionDTO[] = [];
-  const authorsMap = new Map<string, AuthorDTO>();
+function normalizeOpenLibrarySearchResults(docs: OpenLibraryDoc[]): NormalizedResponse {
+  const works: WorkDTOWithAuthors[] = []
+  const editions: EditionDTO[] = []
+  const authorsMap = new Map<string, AuthorDTO>()
 
   docs.forEach((doc) => {
-    if (!doc.title) return;
+    if (!doc.title) return
 
     // Use canonical normalizer for WorkDTO (ensures all required fields)
-    const work = normalizeOpenLibraryToWork(doc);
+    const work = normalizeOpenLibraryToWork(doc)
 
     // Use canonical normalizer for EditionDTO
-    const edition = normalizeOpenLibraryToEdition(doc);
+    const edition = normalizeOpenLibraryToEdition(doc)
 
     // Extract authors and create AuthorDTOs
-    const authorNames = doc.author_name || ["Unknown Author"];
-    const authors = authorNames.map((name) =>
-      normalizeOpenLibraryToAuthor(name),
-    );
+    const authorNames = doc.author_name || ['Unknown Author']
+    const authors = authorNames.map((name) => normalizeOpenLibraryToAuthor(name))
 
     // Attach authors to work for enrichment service compatibility
-    work.authors = authors;
+    work.authors = authors
 
     // Add to authors map for deduplication
     authors.forEach((author) => {
       if (!authorsMap.has(author.name)) {
-        authorsMap.set(author.name, author);
+        authorsMap.set(author.name, author)
       }
-    });
+    })
 
-    works.push(work);
-    editions.push(edition);
-  });
+    works.push(work)
+    editions.push(edition)
+  })
 
   return {
     works,
     editions,
     authors: Array.from(authorsMap.values()),
-  };
+  }
 }
 
 async function findAuthorKeyByName(authorName: string): Promise<string | null> {
-  const searchUrl = `https://openlibrary.org/search/authors.json?q=${encodeURIComponent(authorName)}&limit=1`;
+  const searchUrl = `https://openlibrary.org/search/authors.json?q=${encodeURIComponent(authorName)}&limit=1`
   const response = await fetch(searchUrl, {
-    headers: { "User-Agent": OPENLIBRARY_USER_AGENT },
-  });
-  if (!response.ok) throw new Error("OpenLibrary author search API failed");
-  const data = await response.json();
-  return data.docs && data.docs.length > 0 ? data.docs[0].key : null;
+    headers: { 'User-Agent': OPENLIBRARY_USER_AGENT },
+  })
+  if (!response.ok) throw new Error('OpenLibrary author search API failed')
+  const data = await response.json()
+  return data.docs && data.docs.length > 0 ? data.docs[0].key : null
 }
 
 async function getWorksByAuthorKey(authorKey: string): Promise<
   Array<{
-    title: string;
-    openLibraryWorkKey: string;
-    firstPublicationYear?: number;
-    editions: any[];
+    title: string
+    openLibraryWorkKey: string
+    firstPublicationYear?: number
+    editions: any[]
   }>
 > {
-  const worksUrl = `https://openlibrary.org/authors/${authorKey}/works.json?limit=1000`;
+  const worksUrl = `https://openlibrary.org/authors/${authorKey}/works.json?limit=1000`
   const response = await fetch(worksUrl, {
-    headers: { "User-Agent": OPENLIBRARY_USER_AGENT },
-  });
-  if (!response.ok) throw new Error("OpenLibrary works fetch API failed");
-  const data = await response.json();
+    headers: { 'User-Agent': OPENLIBRARY_USER_AGENT },
+  })
+  if (!response.ok) throw new Error('OpenLibrary works fetch API failed')
+  const data = await response.json()
 
-  console.log(
-    `OpenLibrary returned ${data.entries?.length || 0} works for ${authorKey}`,
-  );
+  console.log(`OpenLibrary returned ${data.entries?.length || 0} works for ${authorKey}`)
 
   return (data.entries || []).map((work: any) => ({
     title: work.title,
     openLibraryWorkKey: work.key,
     firstPublicationYear: work.first_publish_year,
     editions: [],
-  }));
+  }))
 }
 
 // ============================================================================
 // ISBNDB API
 // ============================================================================
 
-const RATE_LIMIT_KEY = "isbndb_last_request";
-const RATE_LIMIT_INTERVAL = 1000;
+const RATE_LIMIT_KEY = 'isbndb_last_request'
+const RATE_LIMIT_INTERVAL = 1000
 
 /**
  * Search ISBNdb for books by title and author using combined search endpoint
@@ -847,7 +824,7 @@ export async function searchISBNdb(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
-  const cacheKey = `isbndb:search:${title.normalize('NFC').toLowerCase().trim()}:${authorName?.normalize('NFC').toLowerCase().trim() || 'any'}`;
+  const cacheKey = `isbndb:search:${title.normalize('NFC').toLowerCase().trim()}:${authorName?.normalize('NFC').toLowerCase().trim() || 'any'}`
   return withCache<NormalizedResponse>(
     cacheKey,
     () => searchISBNdb_Uncached(title, authorName, env),
@@ -856,9 +833,9 @@ export async function searchISBNdb(
     {
       provider: 'isbndb',
       logContext: `ISBNdb search "${title}" by "${authorName || 'any'}"`,
-      validateResult: (r) => r && r.works && r.works.length > 0
-    }
-  );
+      validateResult: (r) => r?.works && r.works.length > 0,
+    },
+  )
 }
 
 /**
@@ -870,61 +847,57 @@ async function searchISBNdb_Uncached(
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
-    "isbndb",
+    'isbndb',
     async () => {
-      console.log(
-        `ISBNdb search for "${title}" by "${authorName || "any author"}"`,
-      );
+      console.log(`ISBNdb search for "${title}" by "${authorName || 'any author'}"`)
 
-      let searchUrl = `https://api2.isbndb.com/search/books?page=1&pageSize=20&text=${encodeURIComponent(title)}`;
+      let searchUrl = `https://api2.isbndb.com/search/books?page=1&pageSize=20&text=${encodeURIComponent(title)}`
       if (authorName) {
-        searchUrl += `&author=${encodeURIComponent(authorName)}`;
+        searchUrl += `&author=${encodeURIComponent(authorName)}`
       }
 
-      await enforceRateLimit(env);
-      const searchResponse = await fetchWithAuth(searchUrl, env);
+      await enforceRateLimit(env)
+      const searchResponse = await fetchWithAuth(searchUrl, env)
 
       if (!searchResponse.books || searchResponse.books.length === 0) {
-        return null;
+        return null
       }
 
-      const works: WorkDTOWithAuthors[] = [];
-      const editions: EditionDTO[] = [];
-      const authorsSet = new Set<string>();
+      const works: WorkDTOWithAuthors[] = []
+      const editions: EditionDTO[] = []
+      const authorsSet = new Set<string>()
 
       for (const book of searchResponse.books) {
-        const work = normalizeISBNdbToWork(book);
-        const authorNames = book.authors || [];
-        const workAuthors: AuthorDTO[] = [];
+        const work = normalizeISBNdbToWork(book)
+        const authorNames = book.authors || []
+        const workAuthors: AuthorDTO[] = []
         authorNames.forEach((name) => {
           if (name) {
-            const author = normalizeISBNdbToAuthor(name);
-            workAuthors.push(author);
+            const author = normalizeISBNdbToAuthor(name)
+            workAuthors.push(author)
             if (!authorsSet.has(name)) {
-              authorsSet.add(name);
+              authorsSet.add(name)
             }
           }
-        });
+        })
 
-        (work as WorkDTOWithAuthors).authors = workAuthors;
-        works.push(work as WorkDTOWithAuthors);
-        const edition = normalizeISBNdbToEdition(book);
-        editions.push(edition);
+        ;(work as WorkDTOWithAuthors).authors = workAuthors
+        works.push(work as WorkDTOWithAuthors)
+        const edition = normalizeISBNdbToEdition(book)
+        editions.push(edition)
       }
 
-      const authors = Array.from(authorsSet).map((name) =>
-        normalizeISBNdbToAuthor(name),
-      );
+      const authors = Array.from(authorsSet).map((name) => normalizeISBNdbToAuthor(name))
 
       return {
         works,
         editions,
         authors,
-      };
+      }
     },
     { query: title },
     env,
-  );
+  )
 }
 
 export async function getISBNdbEditionsForWork(
@@ -933,7 +906,7 @@ export async function getISBNdbEditionsForWork(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<EditionDTO[] | null> {
-  const cacheKey = `isbndb:editions:${title.normalize('NFC').toLowerCase().trim()}:${authorName.normalize('NFC').toLowerCase().trim()}`;
+  const cacheKey = `isbndb:editions:${title.normalize('NFC').toLowerCase().trim()}:${authorName.normalize('NFC').toLowerCase().trim()}`
   return withCache<EditionDTO[]>(
     cacheKey,
     () => getISBNdbEditionsForWork_Uncached(title, authorName, env),
@@ -941,9 +914,9 @@ export async function getISBNdbEditionsForWork(
     ctx,
     {
       provider: 'isbndb',
-      logContext: `ISBNdb editions "${title}" by "${authorName}"`
-    }
-  );
+      logContext: `ISBNdb editions "${title}" by "${authorName}"`,
+    },
+  )
 }
 
 /**
@@ -955,35 +928,33 @@ async function getISBNdbEditionsForWork_Uncached(
   env: ExternalAPIEnv,
 ): Promise<EditionDTO[] | null> {
   try {
-    console.log(`ISBNdb getEditionsForWork ("${title}", "${authorName}")`);
-    const searchUrl = `https://api2.isbndb.com/books/${encodeURIComponent(title)}?column=title&language=en&shouldMatchAll=1&pageSize=100`;
+    console.log(`ISBNdb getEditionsForWork ("${title}", "${authorName}")`)
+    const searchUrl = `https://api2.isbndb.com/books/${encodeURIComponent(title)}?column=title&language=en&shouldMatchAll=1&pageSize=100`
 
-    await enforceRateLimit(env);
-    const searchResponse = await fetchWithAuth(searchUrl, env);
+    await enforceRateLimit(env)
+    const searchResponse = await fetchWithAuth(searchUrl, env)
 
     if (!searchResponse.books || searchResponse.books.length === 0) {
-      return null; // No results found
+      return null // No results found
     }
 
     const relevantBooks = searchResponse.books.filter((book: ISBNdbBook) =>
-      book.authors?.some((a) =>
-        a.toLowerCase().includes(authorName.toLowerCase()),
-      ),
-    );
+      book.authors?.some((a) => a.toLowerCase().includes(authorName.toLowerCase())),
+    )
 
     if (relevantBooks.length === 0) {
-      return null; // No relevant books found
+      return null // No relevant books found
     }
 
     // Use canonical normalizer for editions
     const editions = relevantBooks
       .map((book) => normalizeISBNdbToEdition(book))
-      .sort((a, b) => b.isbndbQuality - a.isbndbQuality); // Sort by quality score
+      .sort((a, b) => b.isbndbQuality - a.isbndbQuality) // Sort by quality score
 
-    return editions;
+    return editions
   } catch (error) {
-    console.error(`Error in getEditionsForWork for "${title}":`, error);
-    throw error; // Let exceptions bubble up
+    console.error(`Error in getEditionsForWork for "${title}":`, error)
+    throw error // Let exceptions bubble up
   }
 }
 
@@ -992,15 +963,15 @@ export async function getISBNdbBookByISBN(
   env: ExternalAPIEnv,
   ctx?: ExecutionContext,
 ): Promise<ISBNdbBookData | null> {
-  const normalizedIsbn = isbn.replace(/-/g, ''); // Normalize ISBN
-  const cacheKey = `isbndb:isbn:${normalizedIsbn}`;
+  const normalizedIsbn = isbn.replace(/-/g, '') // Normalize ISBN
+  const cacheKey = `isbndb:isbn:${normalizedIsbn}`
   return withCache<ISBNdbBookData>(
     cacheKey,
     () => getISBNdbBookByISBN_Uncached(isbn, env),
     env,
     ctx,
-    { provider: 'isbndb', logContext: `ISBNdb ISBN ${isbn}` }
-  );
+    { provider: 'isbndb', logContext: `ISBNdb ISBN ${isbn}` },
+  )
 }
 
 /**
@@ -1011,76 +982,69 @@ async function getISBNdbBookByISBN_Uncached(
   env: ExternalAPIEnv,
 ): Promise<ISBNdbBookData | null> {
   return logExternalApiCall(
-    "isbndb",
+    'isbndb',
     async () => {
-      console.log(`ISBNdb getBookByISBN("${isbn}")`);
-      const url = `https://api2.isbndb.com/book/${isbn}?with_prices=0`;
-      await enforceRateLimit(env);
-      const response = await fetchWithAuth(url, env);
+      console.log(`ISBNdb getBookByISBN("${isbn}")`)
+      const url = `https://api2.isbndb.com/book/${isbn}?with_prices=0`
+      await enforceRateLimit(env)
+      const response = await fetchWithAuth(url, env)
 
       if (!response.book) {
-        return null;
+        return null
       }
 
-      const book = response.book;
-      const work = normalizeISBNdbToWork(book);
-      const edition = normalizeISBNdbToEdition(book);
-      const authorNames = book.authors || [];
-      const authors = authorNames.map((name: string) =>
-        normalizeISBNdbToAuthor(name),
-      );
+      const book = response.book
+      const work = normalizeISBNdbToWork(book)
+      const edition = normalizeISBNdbToEdition(book)
+      const authorNames = book.authors || []
+      const authors = authorNames.map((name: string) => normalizeISBNdbToAuthor(name))
 
       return {
         work,
         edition,
         authors,
         book: response.book,
-      };
+      }
     },
     { isbn },
     env,
-  );
+  )
 }
 
-async function fetchWithAuth(
-  url: string,
-  env: ExternalAPIEnv,
-): Promise<ISBNdbSearchResponse> {
+async function fetchWithAuth(url: string, env: ExternalAPIEnv): Promise<ISBNdbSearchResponse> {
   // Handle both secrets store (has .get() method) and direct env var
-  const apiKey = env.ISBNDB_API_KEY?.get
-    ? await env.ISBNDB_API_KEY.get()
-    : env.ISBNDB_API_KEY;
+  const apiKey = env.ISBNDB_API_KEY?.get ? await env.ISBNDB_API_KEY.get() : env.ISBNDB_API_KEY
 
-  if (!apiKey) throw new Error("ISBNDB_API_KEY secret not found");
+  if (!apiKey) throw new Error('ISBNDB_API_KEY secret not found')
   const response = await fetch(url, {
-    headers: { Authorization: apiKey, Accept: "application/json" },
-  });
+    headers: { Authorization: apiKey, Accept: 'application/json' },
+  })
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`ISBNdb API error: ${response.status} - ${errorText}`);
+    const errorText = await response.text()
+    throw new Error(`ISBNdb API error: ${response.status} - ${errorText}`)
   }
-  return response.json();
+  return response.json()
 }
 
 async function enforceRateLimit(env: ExternalAPIEnv): Promise<void> {
   // Use CACHE binding instead of CACHE (unified naming)
-  const kvBinding = env.CACHE;
+  const kvBinding = env.CACHE
   if (!kvBinding) {
-    console.warn("No KV cache available for rate limiting");
-    return;
+    console.warn('No KV cache available for rate limiting')
+    return
   }
 
-  const lastRequest = await kvBinding.get(RATE_LIMIT_KEY);
+  const lastRequest = await kvBinding.get(RATE_LIMIT_KEY)
   if (lastRequest) {
-    const timeDiff = Date.now() - parseInt(lastRequest);
+    const timeDiff = Date.now() - parseInt(lastRequest, 10)
     if (timeDiff < RATE_LIMIT_INTERVAL) {
-      const waitTime = RATE_LIMIT_INTERVAL - timeDiff;
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
+      const waitTime = RATE_LIMIT_INTERVAL - timeDiff
+      await new Promise((resolve) => setTimeout(resolve, waitTime))
     }
   }
   await kvBinding.put(RATE_LIMIT_KEY, Date.now().toString(), {
     expirationTtl: 60,
-  });
+  })
 }
 
 // ============================================================================

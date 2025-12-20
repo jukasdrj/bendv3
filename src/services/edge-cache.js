@@ -5,26 +5,26 @@
  */
 function trackEdgeCacheEvent(env, ctx, event) {
   if (!env?.CACHE_METRICS_DO) {
-    return; // Skip if DO not available
+    return // Skip if DO not available
   }
 
   const doFetch = async () => {
     try {
-      const id = env.CACHE_METRICS_DO.idFromName("cache-metrics-singleton");
-      const stub = env.CACHE_METRICS_DO.get(id);
+      const id = env.CACHE_METRICS_DO.idFromName('cache-metrics-singleton')
+      const stub = env.CACHE_METRICS_DO.get(id)
       // ✅ RPC MIGRATION: Direct method call (no HTTP overhead)
-      await stub.recordEvent(event);
+      await stub.recordEvent(event)
     } catch (error) {
-      console.error("Failed to track edge cache event:", error);
+      console.error('Failed to track edge cache event:', error)
     }
-  };
+  }
 
   // Use ctx.waitUntil if available, otherwise fire-and-forget
-  if (ctx && ctx.waitUntil) {
-    ctx.waitUntil(doFetch());
+  if (ctx?.waitUntil) {
+    ctx.waitUntil(doFetch())
   } else {
     // Fire-and-forget (best effort) - don't await
-    doFetch();
+    doFetch()
   }
 }
 
@@ -40,8 +40,8 @@ function trackEdgeCacheEvent(env, ctx, event) {
  */
 export class EdgeCacheService {
   constructor(env = null, ctx = null) {
-    this.env = env;
-    this.ctx = ctx;
+    this.env = env
+    this.ctx = ctx
   }
   /**
    * Get cached data from edge cache with SWR support
@@ -52,74 +52,74 @@ export class EdgeCacheService {
    * @returns {Promise<Object|null>} Cached data with metadata, or null if miss
    */
   async get(cacheKey, options = {}) {
-    const maxAge = options.maxAge || 3600; // 1 hour fresh
-    const staleWhileRevalidate = options.staleWhileRevalidate || 86400; // 24 hours stale
-    const timestamp = Date.now();
+    const maxAge = options.maxAge || 3600 // 1 hour fresh
+    const staleWhileRevalidate = options.staleWhileRevalidate || 86400 // 24 hours stale
+    const timestamp = Date.now()
 
     try {
-      const cache = caches.default;
+      const cache = caches.default
       const request = new Request(`https://cache.internal/${cacheKey}`, {
-        method: "GET",
-      });
+        method: 'GET',
+      })
 
-      const response = await cache.match(request);
+      const response = await cache.match(request)
       if (response) {
-        const age = parseInt(response.headers.get("Age") || "0");
-        const data = await response.json();
+        const age = parseInt(response.headers.get('Age') || '0', 10)
+        const data = await response.json()
 
         // Fresh hit
         if (age < maxAge) {
           // Track fresh edge cache hit
           trackEdgeCacheEvent(this.env, this.ctx, {
-            type: "hit",
-            prefix: "edge",
+            type: 'hit',
+            prefix: 'edge',
             key: cacheKey,
             timestamp,
             age,
-          });
+          })
 
           return {
             data,
-            source: "EDGE_FRESH",
+            source: 'EDGE_FRESH',
             age,
-            latency: "<10ms",
-          };
+            latency: '<10ms',
+          }
         }
 
         // Stale hit (serve stale, background refresh handled by caller)
         if (age < maxAge + staleWhileRevalidate) {
           // Track stale edge cache hit (still counts as hit)
           trackEdgeCacheEvent(this.env, this.ctx, {
-            type: "hit",
-            prefix: "edge",
+            type: 'hit',
+            prefix: 'edge',
             key: cacheKey,
             timestamp,
             age,
             stale: true,
-          });
+          })
 
           return {
             data,
-            source: "EDGE_STALE",
+            source: 'EDGE_STALE',
             age,
             stale: true,
-            latency: "<10ms",
-          };
+            latency: '<10ms',
+          }
         }
       }
     } catch (error) {
-      console.error(`Edge cache get failed for ${cacheKey}:`, error);
+      console.error(`Edge cache get failed for ${cacheKey}:`, error)
     }
 
     // Cache miss - track it
     trackEdgeCacheEvent(this.env, this.ctx, {
-      type: "miss",
-      prefix: "edge",
+      type: 'miss',
+      prefix: 'edge',
       key: cacheKey,
       timestamp,
-    });
+    })
 
-    return null;
+    return null
   }
 
   /**
@@ -131,36 +131,36 @@ export class EdgeCacheService {
    * @returns {Promise<void>}
    */
   async set(cacheKey, data, ttl, staleWhileRevalidate = 86400) {
-    const timestamp = Date.now();
+    const timestamp = Date.now()
 
     try {
-      const cache = caches.default;
+      const cache = caches.default
       const request = new Request(`https://cache.internal/${cacheKey}`, {
-        method: "GET",
-      });
+        method: 'GET',
+      })
 
       const response = new Response(JSON.stringify(data), {
         headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": `public, max-age=${ttl}, s-maxage=${ttl}, stale-while-revalidate=${staleWhileRevalidate}`,
-          "X-Cache-Source": "edge",
-          "X-Cache-TTL": ttl.toString(),
-          "X-Cache-SWR": staleWhileRevalidate.toString(),
+          'Content-Type': 'application/json',
+          'Cache-Control': `public, max-age=${ttl}, s-maxage=${ttl}, stale-while-revalidate=${staleWhileRevalidate}`,
+          'X-Cache-Source': 'edge',
+          'X-Cache-TTL': ttl.toString(),
+          'X-Cache-SWR': staleWhileRevalidate.toString(),
         },
-      });
+      })
 
-      await cache.put(request, response);
+      await cache.put(request, response)
 
       // Track edge cache write
       trackEdgeCacheEvent(this.env, this.ctx, {
-        type: "write",
-        prefix: "edge",
+        type: 'write',
+        prefix: 'edge',
         key: cacheKey,
         timestamp,
         ttl,
-      });
+      })
     } catch (error) {
-      console.error(`Edge cache set failed for ${cacheKey}:`, error);
+      console.error(`Edge cache set failed for ${cacheKey}:`, error)
       // Don't throw - cache failures shouldn't break user requests
     }
   }

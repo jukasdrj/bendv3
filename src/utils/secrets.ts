@@ -9,7 +9,7 @@
  * Represents a Cloudflare secret binding, which can either be a direct string
  * (for local development) or a binding to the Secrets Store (with a .get() method).
  */
-type SecretBinding = string | { get: () => Promise<string | null | undefined> };
+type SecretBinding = string | { get: () => Promise<string | null | undefined> }
 
 /**
  * Get a secret value from Cloudflare Secrets Store or direct env var
@@ -31,18 +31,18 @@ type SecretBinding = string | { get: () => Promise<string | null | undefined> };
 export async function getSecret(
   secretBinding: SecretBinding | undefined | null,
 ): Promise<string | null> {
-  if (!secretBinding) return null;
+  if (!secretBinding) return null
 
   // String literal (direct env var)
-  if (typeof secretBinding === "string") return secretBinding;
+  if (typeof secretBinding === 'string') return secretBinding
 
   // Secrets Store binding (has async .get() method)
-  if (typeof secretBinding?.get === "function") {
-    const value = await secretBinding.get();
-    return value ?? null;
+  if (typeof secretBinding?.get === 'function') {
+    const value = await secretBinding.get()
+    return value ?? null
   }
 
-  return null;
+  return null
 }
 
 /**
@@ -66,9 +66,9 @@ export async function requireSecret(
   secretBinding: SecretBinding | undefined | null,
   secretName: string,
 ): Promise<string> {
-  const value = await getSecret(secretBinding);
+  const value = await getSecret(secretBinding)
   if (!value) {
-    throw new Error(`Required secret not configured: ${secretName}`);
+    throw new Error(`Required secret not configured: ${secretName}`)
   }
-  return value;
+  return value
 }

@@ -38,20 +38,20 @@
  */
 // import type { AlexandriaAppType as AlexandriaApp } from 'alexandria-worker'
 // export type AlexandriaAppType = AlexandriaApp
-export type AlexandriaAppType = any;
+export type AlexandriaAppType = any
 
 // ============================================================================
 // Request Types
 // ============================================================================
 
 export type {
-  SearchQuery,
   CombinedSearchQuery,
-  ProcessCover,
+  EnrichAuthor,
   EnrichEdition,
   EnrichWork,
-  EnrichAuthor,
+  ProcessCover,
   QueueEnrichment,
+  SearchQuery,
 } from 'alexandria-worker/types'
 
 // ============================================================================
@@ -59,52 +59,52 @@ export type {
 // ============================================================================
 
 export type {
-  SearchResult,
-  CombinedSearchResult,
-  BookResult,
-  HealthCheck,
-  DatabaseStats,
-  CoverProcessResult,
-  CoverMetadata,
-  CoverStatus,
   BatchCoverResult,
-  EnrichmentResult,
-  EnrichmentQueueResult,
+  BookResult,
+  CombinedSearchResult,
+  CoverMetadata,
+  CoverProcessResult,
+  CoverStatus,
+  DatabaseStats,
   EnrichmentJobStatus,
+  EnrichmentQueueResult,
+  EnrichmentResult,
   ErrorResponse,
+  HealthCheck,
+  SearchResult,
 } from 'alexandria-worker/types'
 
 /**
  * Standard API Response Envelope from Alexandria V3
  */
 export interface ResponseMeta {
-  requestId: string;
-  timestamp: string;
-  latencyMs?: number;
+  requestId: string
+  timestamp: string
+  latencyMs?: number
 }
 
 export interface AlexandriaResponse<T> {
-  success: boolean;
-  data: T;
-  meta: ResponseMeta;
+  success: boolean
+  data: T
+  meta: ResponseMeta
 }
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-export { ENDPOINTS, API_ROUTES } from 'alexandria-worker/types'
+export { API_ROUTES, ENDPOINTS } from 'alexandria-worker/types'
 
 // ============================================================================
 // Zod Schemas (for runtime validation)
 // ============================================================================
 
 export {
-  SearchQuerySchema,
   CombinedSearchQuerySchema,
-  ProcessCoverSchema,
+  EnrichAuthorSchema,
   EnrichEditionSchema,
   EnrichWorkSchema,
-  EnrichAuthorSchema,
+  ProcessCoverSchema,
   QueueEnrichmentSchema,
+  SearchQuerySchema,
 } from 'alexandria-worker/types'

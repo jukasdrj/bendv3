@@ -12,15 +12,15 @@
  * @param {number} days - Number of days to look back
  * @returns {Promise<Object>} Map of cacheKey → accessCount
  */
-export async function queryAccessFrequency(env, days) {
+export async function queryAccessFrequency(_env, _days) {
   console.warn(
-    "[Analytics] Analytics Engine bindings are write-only in Workers. Query functionality requires GraphQL API integration.",
-  );
+    '[Analytics] Analytics Engine bindings are write-only in Workers. Query functionality requires GraphQL API integration.',
+  )
   console.warn(
-    "[Analytics] Returning empty access stats. Consider implementing KV-based tracking for archival decisions.",
-  );
+    '[Analytics] Returning empty access stats. Consider implementing KV-based tracking for archival decisions.',
+  )
 
   // Return empty stats - archival process will proceed without access frequency data
   // This means all candidates will have equal priority (no frequency-based filtering)
-  return {};
+  return {}
 }

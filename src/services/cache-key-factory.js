@@ -51,36 +51,31 @@ export class CacheKeyFactory {
    * @returns {string} Cache key in format: auto-search:{queryB64}:{paramsB64}
    */
   static authorSearch(params) {
-    const {
-      query,
-      maxResults = 50,
-      showAllEditions = false,
-      sortBy = "publicationYear",
-    } = params;
+    const { query, maxResults = 50, showAllEditions = false, sortBy = 'publicationYear' } = params
 
     // Normalize query (lowercase, trim, Unicode NFC)
-    const normalizedQuery = this.normalizeText(query);
+    const normalizedQuery = CacheKeyFactory.normalizeText(query)
 
     // Base64 encode query with URL-safe characters
-    const queryB64 = btoa(normalizedQuery).replace(/[/+=]/g, "_");
+    const queryB64 = btoa(normalizedQuery).replace(/[/+=]/g, '_')
 
     // Create params object matching handler logic
     const searchParams = {
       maxResults: maxResults,
       showAllEditions: showAllEditions,
       sortBy: sortBy,
-    };
+    }
 
     // Sort params alphabetically for consistency
     const paramsString = Object.keys(searchParams)
       .sort()
       .map((key) => `${key}=${searchParams[key]}`)
-      .join("&");
+      .join('&')
 
     // Base64 encode params with URL-safe characters
-    const paramsB64 = btoa(paramsString).replace(/[/+=]/g, "_");
+    const paramsB64 = btoa(paramsString).replace(/[/+=]/g, '_')
 
-    return `auto-search:${queryB64}:${paramsB64}`;
+    return `auto-search:${queryB64}:${paramsB64}`
   }
 
   /**
@@ -91,8 +86,8 @@ export class CacheKeyFactory {
    */
   static bookISBN(isbn) {
     // Normalize ISBN by removing hyphens
-    const normalizedISBN = isbn.replace(/-/g, "");
-    return `search:isbn:isbn=${normalizedISBN}`;
+    const normalizedISBN = isbn.replace(/-/g, '')
+    return `search:isbn:isbn=${normalizedISBN}`
   }
 
   /**
@@ -104,10 +99,10 @@ export class CacheKeyFactory {
    */
   static bookTitle(title, maxResults = 20) {
     // Normalize title (lowercase, trim, Unicode NFC)
-    const normalizedTitle = this.normalizeText(title);
+    const normalizedTitle = CacheKeyFactory.normalizeText(title)
 
     // Use alphabetically sorted params for consistency
-    return `search:title:maxresults=${maxResults}&title=${normalizedTitle}`;
+    return `search:title:maxresults=${maxResults}&title=${normalizedTitle}`
   }
 
   /**
@@ -117,8 +112,8 @@ export class CacheKeyFactory {
    * @returns {string} Cache key in format: cover:{normalizedISBN}
    */
   static coverImage(isbn) {
-    const normalizedISBN = isbn.replace(/-/g, "");
-    return `cover:${normalizedISBN}`;
+    const normalizedISBN = isbn.replace(/-/g, '')
+    return `cover:${normalizedISBN}`
   }
 
   /**
@@ -135,7 +130,7 @@ export class CacheKeyFactory {
     const sortedParams = Object.keys(params)
       .sort()
       .map((k) => `${k}=${params[k]}`)
-      .join("&");
-    return `${prefix}:${sortedParams}`;
+      .join('&')
+    return `${prefix}:${sortedParams}`
   }
 }

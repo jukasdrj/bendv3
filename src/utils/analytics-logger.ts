@@ -11,8 +11,8 @@
  * and data normalization for Analytics Engine.
  */
 
-import type { AnalyticsEngineDataset } from "@cloudflare/workers-types";
-import type { DataProvider } from "../types/enums";
+import type { AnalyticsEngineDataset } from '@cloudflare/workers-types'
+import type { DataProvider } from '../types/enums'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -22,16 +22,16 @@ import type { DataProvider } from "../types/enums";
  * Environment bindings required for the analytics logger.
  */
 export interface AnalyticsEnv {
-  ANALYTICS_ENGINE?: AnalyticsEngineDataset;
+  ANALYTICS_ENGINE?: AnalyticsEngineDataset
 }
 
 /**
  * Parameters for the external API call to be logged.
  */
 export interface ApiCallParams {
-  query?: string;
-  isbn?: string;
-  [key: string]: any;
+  query?: string
+  isbn?: string
+  [key: string]: any
 }
 
 // ============================================================================
@@ -53,45 +53,45 @@ export async function logExternalApiCall<T>(
   params: ApiCallParams,
   env: AnalyticsEnv,
 ): Promise<T> {
-  const startTime = Date.now();
+  const startTime = Date.now()
 
   try {
-    const result = await apiCallFn();
-    const processingTime = Date.now() - startTime;
+    const result = await apiCallFn()
+    const processingTime = Date.now() - startTime
 
     if (env.ANALYTICS_ENGINE) {
-      const { query, isbn } = params;
-      const eventType = isbn ? "isbn_search" : "search";
+      const { query, isbn } = params
+      const eventType = isbn ? 'isbn_search' : 'search'
 
       // Extract actual result count from NormalizedResponse structure
-      const resultCount = (result as any)?.works?.length ?? 0;
+      const resultCount = (result as any)?.works?.length ?? 0
 
       env.ANALYTICS_ENGINE.writeDataPoint({
-        blobs: [query || isbn || "unknown", eventType, provider],
+        blobs: [query || isbn || 'unknown', eventType, provider],
         doubles: [processingTime, resultCount],
         indexes: [`${provider.toLowerCase()}-success`],
-      });
+      })
     }
 
-    return result;
+    return result
   } catch (error) {
-    const processingTime = Date.now() - startTime;
+    const processingTime = Date.now() - startTime
 
     // Type guard for error message extraction
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = error instanceof Error ? error.message : String(error)
 
     if (env.ANALYTICS_ENGINE) {
-      const { query, isbn } = params;
-      const eventType = isbn ? "isbn_search_error" : "search_error";
+      const { query, isbn } = params
+      const eventType = isbn ? 'isbn_search_error' : 'search_error'
 
       env.ANALYTICS_ENGINE.writeDataPoint({
-        blobs: [query || isbn || "unknown", eventType, provider, errorMessage],
+        blobs: [query || isbn || 'unknown', eventType, provider, errorMessage],
         doubles: [processingTime, 0],
         indexes: [`${provider.toLowerCase()}-error`],
-      });
+      })
     }
 
     // Re-throw the error to be handled by the caller
-    throw error;
+    throw error
   }
 }

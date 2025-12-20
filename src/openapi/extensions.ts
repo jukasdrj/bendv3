@@ -53,15 +53,15 @@ export interface RateLimitExtension {
  * @see src/handlers/v2/capabilities.ts - Feature list
  */
 export type FeatureExtension =
-  | 'text_search'           // ISBN, title, author search
-  | 'advanced_search'       // Multi-field search with filters
-  | 'semantic_search'       // AI-powered semantic search
-  | 'batch_enrichment'      // OpenLibrary work ID enrichment
-  | 'csv_import'            // CSV file import with Gemini parsing
-  | 'ai_scan'               // Bookshelf photo scanning with Gemini Vision
-  | 'websocket_progress'    // Real-time job progress via WebSocket
-  | 'http_polling'          // HTTP polling fallback for job status
-  | 'job_cancellation'      // Cancel in-progress jobs (v3.2+)
+  | 'text_search' // ISBN, title, author search
+  | 'advanced_search' // Multi-field search with filters
+  | 'semantic_search' // AI-powered semantic search
+  | 'batch_enrichment' // OpenLibrary work ID enrichment
+  | 'csv_import' // CSV file import with Gemini parsing
+  | 'ai_scan' // Bookshelf photo scanning with Gemini Vision
+  | 'websocket_progress' // Real-time job progress via WebSocket
+  | 'http_polling' // HTTP polling fallback for job status
+  | 'job_cancellation' // Cancel in-progress jobs (v3.2+)
 
 /**
  * API version when endpoint was introduced

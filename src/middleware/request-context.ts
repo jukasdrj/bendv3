@@ -28,7 +28,7 @@ export const requestContext = createMiddleware<{
   // Set context
   c.set('ctx', {
     requestId,
-    startTime: Date.now()
+    startTime: Date.now(),
   })
 
   // Add correlation ID to response

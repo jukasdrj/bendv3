@@ -6,8 +6,8 @@
  * @module api-v3/jobs/schema
  */
 
-import { z } from '@hono/zod-openapi'
 import { SuccessResponseSchema } from '@bookstrack/schemas'
+import { z } from '@hono/zod-openapi'
 
 /**
  * Job Types
@@ -16,12 +16,10 @@ import { SuccessResponseSchema } from '@bookstrack/schemas'
  * - bookshelf_scan: Bookshelf photo scanning with Gemini Vision
  * - batch_enrichment: Async batch book enrichment
  */
-export const JobTypeSchema = z
-  .enum(['csv_import', 'bookshelf_scan', 'batch_enrichment'])
-  .openapi({
-    description: 'Type of background job',
-    example: 'csv_import'
-  })
+export const JobTypeSchema = z.enum(['csv_import', 'bookshelf_scan', 'batch_enrichment']).openapi({
+  description: 'Type of background job',
+  example: 'csv_import',
+})
 
 export type JobType = z.infer<typeof JobTypeSchema>
 
@@ -38,7 +36,7 @@ export const JobStatusSchema = z
   .enum(['queued', 'processing', 'completed', 'failed', 'canceled'])
   .openapi({
     description: 'Current job status',
-    example: 'processing'
+    example: 'processing',
   })
 
 export type JobStatus = z.infer<typeof JobStatusSchema>
@@ -52,16 +50,16 @@ export const JobErrorSchema = z
   .object({
     code: z.string().openapi({
       description: 'Error code',
-      example: 'INTERNAL_ERROR'
+      example: 'INTERNAL_ERROR',
     }),
     message: z.string().openapi({
       description: 'Human-readable error message',
-      example: 'Gemini API rate limit exceeded'
+      example: 'Gemini API rate limit exceeded',
     }),
     retryable: z.boolean().optional().openapi({
       description: 'Whether the job can be retried',
-      example: true
-    })
+      example: true,
+    }),
   })
   .openapi('JobError')
 
@@ -76,31 +74,31 @@ export const JobSchema = z
   .object({
     jobId: z.string().uuid().openapi({
       description: 'Unique job identifier',
-      example: '550e8400-e29b-41d4-a716-446655440000'
+      example: '550e8400-e29b-41d4-a716-446655440000',
     }),
     type: JobTypeSchema,
     status: JobStatusSchema,
     progress: z.number().min(0).max(1).openapi({
       description: 'Completion progress (0.0 to 1.0)',
-      example: 0.65
+      example: 0.65,
     }),
     processedCount: z.number().int().min(0).openapi({
       description: 'Number of items processed',
-      example: 65
+      example: 65,
     }),
     totalCount: z.number().int().min(0).openapi({
       description: 'Total items to process',
-      example: 100
+      example: 100,
     }),
     startTime: z.string().datetime().openapi({
       description: 'ISO 8601 start timestamp',
-      example: '2025-12-05T10:00:00Z'
+      example: '2025-12-05T10:00:00Z',
     }),
     completedTime: z.string().datetime().optional().openapi({
       description: 'ISO 8601 completion timestamp',
-      example: '2025-12-05T10:05:00Z'
+      example: '2025-12-05T10:05:00Z',
     }),
-    error: JobErrorSchema.optional()
+    error: JobErrorSchema.optional(),
   })
   .openapi('Job')
 
@@ -115,18 +113,19 @@ export const JobInitResponseSchema = SuccessResponseSchema(
   z.object({
     jobId: z.string().uuid().openapi({
       description: 'Unique job identifier',
-      example: '550e8400-e29b-41d4-a716-446655440000'
+      example: '550e8400-e29b-41d4-a716-446655440000',
     }),
     status: JobStatusSchema,
     streamUrl: z.string().url().openapi({
       description: 'SSE stream endpoint for real-time updates',
-      example: 'https://api.oooefam.net/v3/jobs/imports/550e8400-e29b-41d4-a716-446655440000/stream'
+      example:
+        'https://api.oooefam.net/v3/jobs/imports/550e8400-e29b-41d4-a716-446655440000/stream',
     }),
     token: z.string().openapi({
       description: 'Authentication token for SSE stream (valid 1 hour)',
-      example: 'a1b2c3d4e5f6...'
-    })
-  })
+      example: 'a1b2c3d4e5f6...',
+    }),
+  }),
 ).openapi('JobInitResponse')
 
 export type JobInitResponse = z.infer<typeof JobInitResponseSchema>
@@ -150,9 +149,9 @@ export const JobResultsResponseSchema = SuccessResponseSchema(
     jobId: z.string().uuid(),
     status: JobStatusSchema,
     results: z.array(z.unknown()).openapi({
-      description: 'Job-specific result data (type depends on job type)'
-    })
-  })
+      description: 'Job-specific result data (type depends on job type)',
+    }),
+  }),
 ).openapi('JobResultsResponse')
 
 export type JobResultsResponse = z.infer<typeof JobResultsResponseSchema>
@@ -170,7 +169,7 @@ export const SSEProgressEventSchema = z.object({
   progress: z.number().min(0).max(1),
   processedCount: z.number().int().min(0),
   totalCount: z.number().int().min(0),
-  timestamp: z.string().datetime()
+  timestamp: z.string().datetime(),
 })
 
 export type SSEProgressEvent = z.infer<typeof SSEProgressEventSchema>
@@ -180,9 +179,9 @@ export const SSECompleteEventSchema = z.object({
   jobId: z.string().uuid(),
   status: z.literal('completed'),
   results: z.array(z.unknown()).openapi({
-    description: 'Full result data (for iOS persistence)'
+    description: 'Full result data (for iOS persistence)',
   }),
-  timestamp: z.string().datetime()
+  timestamp: z.string().datetime(),
 })
 
 export type SSECompleteEvent = z.infer<typeof SSECompleteEventSchema>
@@ -191,14 +190,14 @@ export type SSECompleteEvent = z.infer<typeof SSECompleteEventSchema>
 export const SSEErrorEventSchema = z.object({
   jobId: z.string().uuid(),
   error: JobErrorSchema,
-  timestamp: z.string().datetime()
+  timestamp: z.string().datetime(),
 })
 
 export type SSEErrorEvent = z.infer<typeof SSEErrorEventSchema>
 
 // Ping event (heartbeat to keep connection alive)
 export const SSEPingEventSchema = z.object({
-  timestamp: z.string().datetime()
+  timestamp: z.string().datetime(),
 })
 
 export type SSEPingEvent = z.infer<typeof SSEPingEventSchema>

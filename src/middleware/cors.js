@@ -22,16 +22,16 @@
  * @param {Request} [request] - Incoming request (optional, ignored after simplification)
  * @returns {object} - CORS headers object
  */
-export function getCorsHeaders(request) {
+export function getCorsHeaders(_request) {
   // Simplified: Always return wildcard origin (Issue #213, Task 1.7)
   // No origin validation, no credentials header
   return {
-    "Access-Control-Allow-Origin": "*", // Allow all origins
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
-    "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, X-AI-Provider, Sec-WebSocket-Protocol, Sec-WebSocket-Version, Upgrade, Connection",
-    "Access-Control-Max-Age": "86400", // 24 hours preflight cache
-  };
+    'Access-Control-Allow-Origin': '*', // Allow all origins
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE',
+    'Access-Control-Allow-Headers':
+      'Content-Type, Authorization, X-AI-Provider, Sec-WebSocket-Protocol, Sec-WebSocket-Version, Upgrade, Connection',
+    'Access-Control-Max-Age': '86400', // 24 hours preflight cache
+  }
 }
 
 /**
@@ -41,8 +41,8 @@ export function getCorsHeaders(request) {
  * @param {Request} request - Incoming request
  * @returns {boolean} - Always returns true
  */
-export function isOriginAllowed(request) {
-  return true; // Simplified: all origins allowed
+export function isOriginAllowed(_request) {
+  return true // Simplified: all origins allowed
 }
 
 /**
@@ -52,5 +52,5 @@ export function isOriginAllowed(request) {
  * @returns {string[]} - Returns wildcard array
  */
 export function getAllowedOrigins() {
-  return ["*"]; // Simplified: all origins allowed
+  return ['*'] // Simplified: all origins allowed
 }

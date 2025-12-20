@@ -8,18 +8,18 @@
  * - Idempotent deletion (204 even if not found)
  */
 
-import { AuthenticatedRoute, type AppContext } from '../../base'
 import { z } from 'zod'
-import { createErrorResponse, ErrorCodes } from '../../../utils/response-builder'
+import { type AppContext, AuthenticatedRoute } from '../../base'
 
 export class RemoveBookFromLibrary extends AuthenticatedRoute {
   schema = {
     tags: ['Library'],
     summary: 'Remove book from library (Protected)',
-    description: 'Remove a book from the authenticated user\'s library',
+    description: "Remove a book from the authenticated user's library",
     request: {
       params: z.object({
-        isbn: z.string()
+        isbn: z
+          .string()
           .regex(/^\d{13}$/, 'Must be 13-digit ISBN')
           .describe('13-digit ISBN (example: 9780439708180)'),
       }),
@@ -63,11 +63,12 @@ export class RemoveBookFromLibrary extends AuthenticatedRoute {
       // Note: D1 doesn't return affected rows count, so we can't tell if it existed
       // This is fine - DELETE is idempotent
       await this.withTimeout(
-        db.prepare('DELETE FROM user_library WHERE user_id = ? AND isbn = ?')
+        db
+          .prepare('DELETE FROM user_library WHERE user_id = ? AND isbn = ?')
           .bind(userId, isbn)
           .run(),
         5000,
-        'D1 delete query'
+        'D1 delete query',
       )
 
       // Log analytics
@@ -81,7 +82,6 @@ export class RemoveBookFromLibrary extends AuthenticatedRoute {
 
       // Return 204 No Content (standard for successful DELETE)
       return new Response(null, { status: 204 })
-
     } catch (error: any) {
       console.error(`[V3 Library] Delete error:`, error)
       return this.handleError(c, error, 500)

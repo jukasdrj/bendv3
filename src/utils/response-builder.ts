@@ -36,13 +36,8 @@
  * ```
  */
 
-import { getCorsHeaders } from "../middleware/cors.js";
-import type { ApiErrorCode } from "../types/enums.js";
-import type {
-  ResponseEnvelope,
-  ResponseMetadata,
-  ApiError,
-} from "../types/responses.js";
+import { getCorsHeaders } from '../middleware/cors.js'
+import type { ResponseEnvelope } from '../types/responses.js'
 
 /**
  * Standard error codes for consistent error handling across the API
@@ -52,36 +47,35 @@ import type {
  */
 export const ErrorCodes = {
   // Request validation errors (4xx)
-  MISSING_PARAMETER: "MISSING_PARAMETER",
-  INVALID_REQUEST: "INVALID_REQUEST",
-  INVALID_ISBN: "INVALID_ISBN",
-  INVALID_QUERY: "INVALID_QUERY",
-  INVALID_FILE: "INVALID_FILE",
-  FILE_TOO_LARGE: "FILE_TOO_LARGE",
-  BATCH_TOO_LARGE: "BATCH_TOO_LARGE",
-  EMPTY_BATCH: "EMPTY_BATCH",
+  MISSING_PARAMETER: 'MISSING_PARAMETER',
+  INVALID_REQUEST: 'INVALID_REQUEST',
+  INVALID_ISBN: 'INVALID_ISBN',
+  INVALID_QUERY: 'INVALID_QUERY',
+  INVALID_FILE: 'INVALID_FILE',
+  FILE_TOO_LARGE: 'FILE_TOO_LARGE',
+  BATCH_TOO_LARGE: 'BATCH_TOO_LARGE',
+  EMPTY_BATCH: 'EMPTY_BATCH',
 
   // Resource errors (4xx)
-  NOT_FOUND: "NOT_FOUND",
-  UNAUTHORIZED: "UNAUTHORIZED",
-  FORBIDDEN: "FORBIDDEN",
-  CLIENT_DISCONNECTED: "CLIENT_DISCONNECTED",
+  NOT_FOUND: 'NOT_FOUND',
+  UNAUTHORIZED: 'UNAUTHORIZED',
+  FORBIDDEN: 'FORBIDDEN',
+  CLIENT_DISCONNECTED: 'CLIENT_DISCONNECTED',
 
   // External service errors (5xx or 4xx)
-  RATE_LIMIT_EXCEEDED: "RATE_LIMIT_EXCEEDED",
-  CIRCUIT_OPEN: "CIRCUIT_OPEN", // Issue #303: Circuit breaker is open
-  PROVIDER_ERROR: "PROVIDER_ERROR",
-  PROVIDER_TIMEOUT: "PROVIDER_TIMEOUT",
-  CACHE_ERROR: "CACHE_ERROR",
+  RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
+  CIRCUIT_OPEN: 'CIRCUIT_OPEN', // Issue #303: Circuit breaker is open
+  PROVIDER_ERROR: 'PROVIDER_ERROR',
+  PROVIDER_TIMEOUT: 'PROVIDER_TIMEOUT',
+  CACHE_ERROR: 'CACHE_ERROR',
 
   // Internal errors (5xx)
-  INTERNAL_ERROR: "INTERNAL_ERROR",
-} as const;
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+} as const
 
 // ============================================================================
 // RESPONSE ENVELOPE FUNCTIONS (PRIMARY API)
 // ============================================================================
-
 
 /**
  * Options for createErrorResponse
@@ -147,7 +141,7 @@ export function createErrorResponse(
   const finalCorsRequest = opts.corsRequest ?? null
   const retryAfterMs = opts.retryAfterMs
 
-  console.error(`Error [${finalCode || "UNKNOWN"}]:`, opts.message);
+  console.error(`Error [${finalCode || 'UNKNOWN'}]:`, opts.message)
 
   // P1: Determine if error is retryable based on error code (Issue #303)
   const retryableErrors = new Set([
@@ -157,8 +151,8 @@ export function createErrorResponse(
     ErrorCodes.PROVIDER_TIMEOUT,
     ErrorCodes.CACHE_ERROR,
     ErrorCodes.INTERNAL_ERROR,
-  ]);
-  const retryable = finalCode ? retryableErrors.has(finalCode) : false;
+  ])
+  const retryable = finalCode ? retryableErrors.has(finalCode) : false
 
   const envelope: ResponseEnvelope<null> = {
     success: false, // P0: Add success discriminator for iOS client compatibility
@@ -174,24 +168,24 @@ export function createErrorResponse(
       ...(retryAfterMs && { retryAfterMs }),
       details: finalDetails,
     },
-  };
+  }
 
   // Build headers (Issue #302: Add Retry-After for 429 responses)
   const headers: Record<string, string> = {
     ...getCorsHeaders(finalCorsRequest),
-    "Content-Type": "application/json",
-    "X-Response-Format": "v2.0", // For monitoring compliance (Issue #93)
-    "X-Error-Type": finalCode || "UNKNOWN", // For analytics tracking
+    'Content-Type': 'application/json',
+    'X-Response-Format': 'v2.0', // For monitoring compliance (Issue #93)
+    'X-Error-Type': finalCode || 'UNKNOWN', // For analytics tracking
   }
 
   // Add Retry-After header for rate-limited responses (RFC 6585)
   if (finalStatus === 429 && retryAfterMs) {
     // Retry-After can be seconds or HTTP-date; we use seconds (more precise)
-    headers["Retry-After"] = String(Math.ceil(retryAfterMs / 1000))
+    headers['Retry-After'] = String(Math.ceil(retryAfterMs / 1000))
   }
 
   return new Response(JSON.stringify(envelope), {
     status: finalStatus,
     headers,
-  });
+  })
 }

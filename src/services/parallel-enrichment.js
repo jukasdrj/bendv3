@@ -1,6 +1,6 @@
 // src/services/parallel-enrichment.js
 
-const DEFAULT_CONCURRENCY = 10;
+const DEFAULT_CONCURRENCY = 10
 
 /**
  * Enrich books in parallel with concurrency limit.
@@ -24,35 +24,35 @@ export async function enrichBooksParallel(
   progressCallback,
   concurrency = DEFAULT_CONCURRENCY,
 ) {
-  const results = [];
-  const errors = [];
-  let completed = 0;
+  const results = []
+  const errors = []
+  let completed = 0
 
   // Process books in batches
   for (let i = 0; i < books.length; i += concurrency) {
-    const batch = books.slice(i, i + concurrency);
+    const batch = books.slice(i, i + concurrency)
 
-    const batchPromises = batch.map(async (book, batchIndex) => {
+    const batchPromises = batch.map(async (book, _batchIndex) => {
       try {
-        const enriched = await enrichFn(book);
-        completed++;
-        await progressCallback(completed, books.length, book.title || book.isbn || 'Unknown', false);
-        return enriched;
+        const enriched = await enrichFn(book)
+        completed++
+        await progressCallback(completed, books.length, book.title || book.isbn || 'Unknown', false)
+        return enriched
       } catch (error) {
-        completed++;
+        completed++
         const errorBook = {
           ...book,
           enrichmentError: error.message,
-        };
-        errors.push({ title: book.title, error: error.message });
-        await progressCallback(completed, books.length, book.title || book.isbn || 'Unknown', true);
-        return errorBook;
+        }
+        errors.push({ title: book.title, error: error.message })
+        await progressCallback(completed, books.length, book.title || book.isbn || 'Unknown', true)
+        return errorBook
       }
-    });
+    })
 
-    const batchResults = await Promise.all(batchPromises);
-    results.push(...batchResults);
+    const batchResults = await Promise.all(batchPromises)
+    results.push(...batchResults)
   }
 
-  return results;
+  return results
 }

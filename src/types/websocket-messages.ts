@@ -45,7 +45,7 @@
  * @module types/websocket-messages
  */
 
-import type { SingleEnrichmentResult } from "../services/enrichment.ts";
+import type { SingleEnrichmentResult } from '../services/enrichment.ts'
 
 // =============================================================================
 // WebSocket Close Codes (RFC 6455)
@@ -84,13 +84,12 @@ export const WebSocketCloseCodes = {
 
   /** Try again later (temporary overload, resource exhaustion) */
   TRY_AGAIN_LATER: 1013,
-} as const;
+} as const
 
 /**
  * Type for WebSocket close codes
  */
-export type WebSocketCloseCode =
-  (typeof WebSocketCloseCodes)[keyof typeof WebSocketCloseCodes];
+export type WebSocketCloseCode = (typeof WebSocketCloseCodes)[keyof typeof WebSocketCloseCodes]
 
 // =============================================================================
 // Core Types & Enums
@@ -100,18 +99,18 @@ export type WebSocketCloseCode =
  * Message type discriminator
  */
 export type MessageType =
-  | "job_started"
-  | "job_progress"
-  | "job_complete"
-  | "error"
-  | "ready" // Client → Server: Client is ready to receive messages
-  | "ready_ack" // Server → Client: Server acknowledges ready state
-  | "reconnected"; // Server → Client: Reconnection successful with state sync
+  | 'job_started'
+  | 'job_progress'
+  | 'job_complete'
+  | 'error'
+  | 'ready' // Client → Server: Client is ready to receive messages
+  | 'ready_ack' // Server → Client: Server acknowledges ready state
+  | 'reconnected' // Server → Client: Reconnection successful with state sync
 
 /**
  * Pipeline identifier for job source tracking
  */
-export type PipelineType = "batch_enrichment" | "csv_import" | "ai_scan";
+export type PipelineType = 'batch_enrichment' | 'csv_import' | 'ai_scan'
 
 // =============================================================================
 // Base Message Envelope
@@ -121,12 +120,12 @@ export type PipelineType = "batch_enrichment" | "csv_import" | "ai_scan";
  * All WebSocket messages follow this structure
  */
 export interface WebSocketMessage {
-  type: MessageType;
-  jobId: string; // Client correlation ID
-  pipeline: PipelineType; // Source identification
-  timestamp: number; // Server time (ms since epoch)
-  version: string; // Schema version (e.g., "1.0.0")
-  payload: MessagePayload; // Type-specific data
+  type: MessageType
+  jobId: string // Client correlation ID
+  pipeline: PipelineType // Source identification
+  timestamp: number // Server time (ms since epoch)
+  version: string // Schema version (e.g., "1.0.0")
+  payload: MessagePayload // Type-specific data
 }
 
 /**
@@ -136,16 +135,16 @@ export type MessagePayload =
   | JobStartedPayload
   | JobProgressPayload
   | JobCompletePayload
-  | ErrorPayload;
+  | ErrorPayload
 
 // =============================================================================
 // Job Started Payload
 // =============================================================================
 
 export interface JobStartedPayload {
-  type: "job_started";
-  totalCount?: number; // Optional: Total items to process
-  estimatedDuration?: number; // Optional: Estimated seconds
+  type: 'job_started'
+  totalCount?: number // Optional: Total items to process
+  estimatedDuration?: number // Optional: Estimated seconds
 }
 
 // =============================================================================
@@ -153,12 +152,12 @@ export interface JobStartedPayload {
 // =============================================================================
 
 export interface JobProgressPayload {
-  type: "job_progress";
-  progress: number; // 0.0 - 1.0
-  status: string; // Human-readable status message
-  processedCount?: number; // Optional: Items processed so far
-  currentItem?: string; // Optional: Current item being processed
-  keepAlive?: boolean; // Optional: True for keep-alive pings
+  type: 'job_progress'
+  progress: number // 0.0 - 1.0
+  status: string // Human-readable status message
+  processedCount?: number // Optional: Items processed so far
+  currentItem?: string // Optional: Current item being processed
+  keepAlive?: boolean // Optional: True for keep-alive pings
 }
 
 // =============================================================================
@@ -175,29 +174,29 @@ export interface JobProgressPayload {
  * Cloudflare limit is 32 MiB/message, but parsing huge payloads freezes mobile UIs.
  */
 export interface JobCompletionSummary {
-  totalProcessed: number;
-  successCount: number;
-  failureCount: number;
-  duration: number; // Milliseconds
-  resourceId?: string; // Optional: KV key for full results (e.g., "job-results:uuid")
+  totalProcessed: number
+  successCount: number
+  failureCount: number
+  duration: number // Milliseconds
+  resourceId?: string // Optional: KV key for full results (e.g., "job-results:uuid")
 }
 
 export type JobCompletePayload =
   | BatchEnrichmentCompletePayload
   | CSVImportCompletePayload
-  | AIScanCompletePayload;
+  | AIScanCompletePayload
 
 /**
  * Single book enrichment result from backend
  * Matches the structure returned by batch-enrichment.js
  */
 export interface EnrichedBookPayload {
-  title: string;
-  author?: string;
-  isbn?: string;
-  success: boolean;
-  error?: string;
-  enriched?: SingleEnrichmentResult | null;
+  title: string
+  author?: string
+  isbn?: string
+  success: boolean
+  error?: string
+  enriched?: SingleEnrichmentResult | null
 }
 
 /**
@@ -207,10 +206,10 @@ export interface EnrichedBookPayload {
  * **New format:** Lightweight summary with resourceId for HTTP retrieval
  */
 export interface BatchEnrichmentCompletePayload {
-  type: "job_complete";
-  pipeline: "batch_enrichment";
-  summary: JobCompletionSummary;
-  expiresAt: string; // ISO 8601 timestamp - when results expire from KV cache (24 hours)
+  type: 'job_complete'
+  pipeline: 'batch_enrichment'
+  summary: JobCompletionSummary
+  expiresAt: string // ISO 8601 timestamp - when results expire from KV cache (24 hours)
 }
 
 /**
@@ -220,25 +219,25 @@ export interface BatchEnrichmentCompletePayload {
  * **New format:** Lightweight summary with resourceId for HTTP retrieval
  */
 export interface CSVImportCompletePayload {
-  type: "job_complete";
-  pipeline: "csv_import";
-  summary: JobCompletionSummary;
-  expiresAt: string; // ISO 8601 timestamp - when results expire from KV cache (24 hours)
+  type: 'job_complete'
+  pipeline: 'csv_import'
+  summary: JobCompletionSummary
+  expiresAt: string // ISO 8601 timestamp - when results expire from KV cache (24 hours)
 }
 
 export interface ParsedBook {
-  title: string;
-  author: string;
-  isbn?: string;
-  coverUrl?: string;
-  publisher?: string;
-  publicationYear?: number;
-  enrichmentError?: string;
+  title: string
+  author: string
+  isbn?: string
+  coverUrl?: string
+  publisher?: string
+  publicationYear?: number
+  enrichmentError?: string
 }
 
 export interface ImportError {
-  title: string;
-  error: string;
+  title: string
+  error: string
 }
 
 /**
@@ -250,33 +249,33 @@ export interface ImportError {
  * **Mobile Impact:** Bookshelf scans with 200+ books previously caused UI freezes (10+ seconds)
  */
 export interface AIScanCompletePayload {
-  type: "job_complete";
-  pipeline: "ai_scan";
+  type: 'job_complete'
+  pipeline: 'ai_scan'
   summary: JobCompletionSummary & {
-    totalDetected?: number; // Optional: AI-specific stat
-    approved?: number; // Optional: Books auto-approved
-    needsReview?: number; // Optional: Books requiring manual review
-  };
-  expiresAt: string; // ISO 8601 timestamp - when results expire from KV cache (24 hours)
+    totalDetected?: number // Optional: AI-specific stat
+    approved?: number // Optional: Books auto-approved
+    needsReview?: number // Optional: Books requiring manual review
+  }
+  expiresAt: string // ISO 8601 timestamp - when results expire from KV cache (24 hours)
 }
 
 export interface DetectedBook {
-  title?: string;
-  author?: string;
-  isbn?: string;
-  confidence?: number;
-  boundingBox?: BoundingBox;
-  enrichmentStatus?: string;
-  coverUrl?: string;
-  publisher?: string;
-  publicationYear?: number;
+  title?: string
+  author?: string
+  isbn?: string
+  confidence?: number
+  boundingBox?: BoundingBox
+  enrichmentStatus?: string
+  coverUrl?: string
+  publisher?: string
+  publicationYear?: number
 }
 
 export interface BoundingBox {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
+  x1: number
+  y1: number
+  x2: number
+  y2: number
 }
 
 // =============================================================================
@@ -296,17 +295,17 @@ export interface BoundingBox {
  * @see src/utils/response-builder.ts - createErrorResponse()
  */
 export interface ErrorPayload {
-  type: "error";
-  data: null; // Always null for errors (matches HTTP format)
+  type: 'error'
+  data: null // Always null for errors (matches HTTP format)
   metadata: {
-    timestamp: string; // ISO 8601 timestamp
-  };
+    timestamp: string // ISO 8601 timestamp
+  }
   error: {
-    message: string; // Human-readable error message
-    code?: string; // Machine-readable error code (e.g., "PROCESSING_FAILED")
-    details?: any; // Optional: Additional error context
-  };
-  retryable?: boolean; // Optional: Can client retry? (WebSocket-specific extension)
+    message: string // Human-readable error message
+    code?: string // Machine-readable error code (e.g., "PROCESSING_FAILED")
+    details?: any // Optional: Additional error context
+  }
+  retryable?: boolean // Optional: Can client retry? (WebSocket-specific extension)
 }
 
 // =============================================================================
@@ -317,7 +316,7 @@ export interface ErrorPayload {
  * Factory for creating type-safe WebSocket messages
  */
 export class WebSocketMessageFactory {
-  private static readonly VERSION = "1.0.0";
+  private static readonly VERSION = '1.0.0'
 
   /**
    * Create a job_started message
@@ -325,19 +324,19 @@ export class WebSocketMessageFactory {
   static createJobStarted(
     jobId: string,
     pipeline: PipelineType,
-    payload: Omit<JobStartedPayload, "type">,
+    payload: Omit<JobStartedPayload, 'type'>,
   ): WebSocketMessage {
     return {
-      type: "job_started",
+      type: 'job_started',
       jobId,
       pipeline,
       timestamp: Date.now(),
-      version: this.VERSION,
+      version: WebSocketMessageFactory.VERSION,
       payload: {
-        type: "job_started",
+        type: 'job_started',
         ...payload,
       },
-    };
+    }
   }
 
   /**
@@ -346,19 +345,19 @@ export class WebSocketMessageFactory {
   static createJobProgress(
     jobId: string,
     pipeline: PipelineType,
-    payload: Omit<JobProgressPayload, "type">,
+    payload: Omit<JobProgressPayload, 'type'>,
   ): WebSocketMessage {
     return {
-      type: "job_progress",
+      type: 'job_progress',
       jobId,
       pipeline,
       timestamp: Date.now(),
-      version: this.VERSION,
+      version: WebSocketMessageFactory.VERSION,
       payload: {
-        type: "job_progress",
+        type: 'job_progress',
         ...payload,
       },
-    };
+    }
   }
 
   /**
@@ -367,19 +366,19 @@ export class WebSocketMessageFactory {
   static createJobComplete(
     jobId: string,
     pipeline: PipelineType,
-    payload: Omit<JobCompletePayload, "type">,
+    payload: Omit<JobCompletePayload, 'type'>,
   ): WebSocketMessage {
     return {
-      type: "job_complete",
+      type: 'job_complete',
       jobId,
       pipeline,
       timestamp: Date.now(),
-      version: this.VERSION,
+      version: WebSocketMessageFactory.VERSION,
       payload: {
-        type: "job_complete",
+        type: 'job_complete',
         ...payload,
       },
-    };
+    }
   }
 
   /**
@@ -388,18 +387,18 @@ export class WebSocketMessageFactory {
   static createError(
     jobId: string,
     pipeline: PipelineType,
-    payload: Omit<ErrorPayload, "type">,
+    payload: Omit<ErrorPayload, 'type'>,
   ): WebSocketMessage {
     return {
-      type: "error",
+      type: 'error',
       jobId,
       pipeline,
       timestamp: Date.now(),
-      version: this.VERSION,
+      version: WebSocketMessageFactory.VERSION,
       payload: {
-        type: "error",
+        type: 'error',
         ...payload,
       },
-    };
+    }
   }
 }

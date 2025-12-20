@@ -49,9 +49,7 @@ export function isValidISBN(isbn: string | null | undefined): boolean {
 export function mapGeminiCSVBookToBookRecord(geminiBook: any): BookRecord {
   // Validate ISBN before creating BookRecord
   if (!isValidISBN(geminiBook.isbn)) {
-    throw new Error(
-      `Invalid ISBN: ${geminiBook.isbn} for book "${geminiBook.title}"`
-    )
+    throw new Error(`Invalid ISBN: ${geminiBook.isbn} for book "${geminiBook.title}"`)
   }
 
   const now = Math.floor(Date.now() / 1000)
@@ -62,9 +60,7 @@ export function mapGeminiCSVBookToBookRecord(geminiBook: any): BookRecord {
     subtitle: null, // CSV parser doesn't extract subtitle
     description: geminiBook.notes || null,
     publisher: geminiBook.publisher || null,
-    publicationDate: geminiBook.publicationYear
-      ? `${geminiBook.publicationYear}-01-01`
-      : null, // Convert year to ISO 8601 date
+    publicationDate: geminiBook.publicationYear ? `${geminiBook.publicationYear}-01-01` : null, // Convert year to ISO 8601 date
     language: 'en', // Default to English (CSV doesn't include language)
     pageCount: geminiBook.pageCount || null,
 
@@ -75,35 +71,41 @@ export function mapGeminiCSVBookToBookRecord(geminiBook: any): BookRecord {
 
     // Canonical metadata - minimal structure from CSV data
     canonicalMetadata: {
-      works: [{
-        workId: null,
-        title: geminiBook.title,
-        subtitle: null,
-        description: geminiBook.notes || null,
-        firstPublicationYear: geminiBook.publicationYear || null,
-        genres: geminiBook.genre ? [geminiBook.genre] : [],
-        coverImageURL: null,
-      }],
-      editions: [{
-        editionId: null,
-        isbn: geminiBook.isbn || null,
-        title: geminiBook.title,
-        publisher: geminiBook.publisher || null,
-        publicationDate: geminiBook.publicationYear
-          ? `${geminiBook.publicationYear}-01-01`
-          : null,
-        language: 'en',
-        pageCount: geminiBook.pageCount || null,
-        format: null, // CSV doesn't include format
-        coverImageURL: null,
-      }],
-      authors: [{
-        authorId: null,
-        name: geminiBook.author,
-        role: 'author' as const,
-        nativeName: null,
-        romanizedName: null,
-      }],
+      works: [
+        {
+          workId: null,
+          title: geminiBook.title,
+          subtitle: null,
+          description: geminiBook.notes || null,
+          firstPublicationYear: geminiBook.publicationYear || null,
+          genres: geminiBook.genre ? [geminiBook.genre] : [],
+          coverImageURL: null,
+        },
+      ],
+      editions: [
+        {
+          editionId: null,
+          isbn: geminiBook.isbn || null,
+          title: geminiBook.title,
+          publisher: geminiBook.publisher || null,
+          publicationDate: geminiBook.publicationYear
+            ? `${geminiBook.publicationYear}-01-01`
+            : null,
+          language: 'en',
+          pageCount: geminiBook.pageCount || null,
+          format: null, // CSV doesn't include format
+          coverImageURL: null,
+        },
+      ],
+      authors: [
+        {
+          authorId: null,
+          name: geminiBook.author,
+          role: 'author' as const,
+          nativeName: null,
+          romanizedName: null,
+        },
+      ],
     },
 
     // Provider metadata - store original Gemini parse data
@@ -131,19 +133,14 @@ export function mapGeminiCSVBookToBookRecord(geminiBook: any): BookRecord {
  * @param enrichedData - Optional enrichment data from external APIs
  * @returns BookRecord ready for bookRepo.save()
  */
-export function mapGeminiVisionBookToBookRecord(
-  detectedBook: any,
-  enrichedData?: any
-): BookRecord {
+export function mapGeminiVisionBookToBookRecord(detectedBook: any, enrichedData?: any): BookRecord {
   // If enriched data is available, use it; otherwise use minimal detection data
   const book = enrichedData || detectedBook
 
   // Validate ISBN before creating BookRecord
   const isbn = book.isbn || detectedBook.isbn
   if (!isValidISBN(isbn)) {
-    throw new Error(
-      `Invalid ISBN: ${isbn} for book "${detectedBook.title}"`
-    )
+    throw new Error(`Invalid ISBN: ${isbn} for book "${detectedBook.title}"`)
   }
 
   const now = Math.floor(Date.now() / 1000)
@@ -164,39 +161,49 @@ export function mapGeminiVisionBookToBookRecord(
     coverLargeUrl: book.coverImageURL || null,
 
     // Canonical metadata - use enriched data or create minimal structure
-    canonicalMetadata: enrichedData ? {
-      works: enrichedData.works || [],
-      editions: enrichedData.editions || [],
-      authors: enrichedData.authors || [],
-    } : {
-      works: [{
-        workId: null,
-        title: detectedBook.title,
-        subtitle: null,
-        description: null,
-        firstPublicationYear: null,
-        genres: [],
-        coverImageURL: null,
-      }],
-      editions: [{
-        editionId: null,
-        isbn: detectedBook.isbn || null,
-        title: detectedBook.title,
-        publisher: null,
-        publicationDate: null,
-        language: 'en',
-        pageCount: null,
-        format: detectedBook.format || 'unknown',
-        coverImageURL: null,
-      }],
-      authors: detectedBook.author ? [{
-        authorId: null,
-        name: detectedBook.author,
-        role: 'author' as const,
-        nativeName: null,
-        romanizedName: null,
-      }] : [],
-    },
+    canonicalMetadata: enrichedData
+      ? {
+          works: enrichedData.works || [],
+          editions: enrichedData.editions || [],
+          authors: enrichedData.authors || [],
+        }
+      : {
+          works: [
+            {
+              workId: null,
+              title: detectedBook.title,
+              subtitle: null,
+              description: null,
+              firstPublicationYear: null,
+              genres: [],
+              coverImageURL: null,
+            },
+          ],
+          editions: [
+            {
+              editionId: null,
+              isbn: detectedBook.isbn || null,
+              title: detectedBook.title,
+              publisher: null,
+              publicationDate: null,
+              language: 'en',
+              pageCount: null,
+              format: detectedBook.format || 'unknown',
+              coverImageURL: null,
+            },
+          ],
+          authors: detectedBook.author
+            ? [
+                {
+                  authorId: null,
+                  name: detectedBook.author,
+                  role: 'author' as const,
+                  nativeName: null,
+                  romanizedName: null,
+                },
+              ]
+            : [],
+        },
 
     // Provider metadata - store original Gemini Vision detection
     providerMetadata: {
@@ -220,12 +227,15 @@ export function mapGeminiVisionBookToBookRecord(
  * @returns Deduplicated array (unique ISBNs only)
  */
 export function deduplicateBooksByISBN(books: any[]): any[] {
-  const uniqueBooksMap = books.reduce((acc, book) => {
-    if (book.isbn) {
-      acc[book.isbn] = book // Last occurrence wins
-    }
-    return acc
-  }, {} as Record<string, any>)
+  const uniqueBooksMap = books.reduce(
+    (acc, book) => {
+      if (book.isbn) {
+        acc[book.isbn] = book // Last occurrence wins
+      }
+      return acc
+    },
+    {} as Record<string, any>,
+  )
 
   return Object.values(uniqueBooksMap)
 }

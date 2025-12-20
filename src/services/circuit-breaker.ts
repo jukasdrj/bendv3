@@ -16,14 +16,13 @@
  * HALF_OPEN → OPEN: On any failure
  */
 
-import { CircuitBreakerOpenError } from '../types/errors'
 import type {
-  CircuitState,
-  CircuitBreakerState,
+  CircuitBreakerEvent,
   CircuitBreakerOptions,
-  CircuitBreakerEvent
+  CircuitBreakerState,
 } from '../types/circuit-breaker'
 import { DEFAULT_CIRCUIT_BREAKER_OPTIONS } from '../types/circuit-breaker'
+import { CircuitBreakerOpenError } from '../types/errors'
 
 /**
  * Circuit Breaker for external API providers
@@ -36,11 +35,7 @@ export class CircuitBreaker {
   private pendingState: CircuitBreakerState | null = null
   private readonly WRITE_BATCH_SIZE = 10 // Write to KV every 10th state change
 
-  constructor(
-    provider: string,
-    env: any,
-    options: Partial<CircuitBreakerOptions> = {}
-  ) {
+  constructor(provider: string, env: any, options: Partial<CircuitBreakerOptions> = {}) {
     this.provider = provider
     this.env = env
     this.options = { ...DEFAULT_CIRCUIT_BREAKER_OPTIONS, ...options }
@@ -105,7 +100,7 @@ export class CircuitBreaker {
     return {
       state: 'CLOSED',
       failureCount: 0,
-      successCount: 0
+      successCount: 0,
     }
   }
 
@@ -139,11 +134,9 @@ export class CircuitBreaker {
     if (!this.pendingState) return
 
     const key = this.getCacheKey()
-    await this.env.CACHE?.put(
-      key,
-      JSON.stringify(this.pendingState),
-      { expirationTtl: this.options.stateExpirationTtl }
-    )
+    await this.env.CACHE?.put(key, JSON.stringify(this.pendingState), {
+      expirationTtl: this.options.stateExpirationTtl,
+    })
 
     // Reset counter after successful write
     this.pendingWrites = 0
@@ -161,18 +154,20 @@ export class CircuitBreaker {
 
       if (newSuccessCount >= this.options.successThreshold) {
         // Transition to CLOSED after enough successes
-        console.log(`[CircuitBreaker] ${this.provider}: HALF_OPEN → CLOSED (${newSuccessCount} successes)`)
+        console.log(
+          `[CircuitBreaker] ${this.provider}: HALF_OPEN → CLOSED (${newSuccessCount} successes)`,
+        )
         await this.setState({
           state: 'CLOSED',
           failureCount: 0,
-          successCount: 0
+          successCount: 0,
         })
         await this.logEvent('closed')
       } else {
         // Still in HALF_OPEN, increment success count
         await this.setState({
           ...state,
-          successCount: newSuccessCount
+          successCount: newSuccessCount,
         })
       }
     } else if (state.state === 'CLOSED') {
@@ -181,7 +176,7 @@ export class CircuitBreaker {
         await this.setState({
           state: 'CLOSED',
           failureCount: 0,
-          successCount: 0
+          successCount: 0,
         })
       }
     }
@@ -201,7 +196,7 @@ export class CircuitBreaker {
         failureCount: state.failureCount + 1,
         successCount: 0,
         lastFailureTime: Date.now(),
-        openedAt: Date.now()
+        openedAt: Date.now(),
       })
       await this.logEvent('opened', state.failureCount + 1)
     } else if (state.state === 'CLOSED') {
@@ -210,13 +205,15 @@ export class CircuitBreaker {
 
       if (newFailureCount >= this.options.failureThreshold) {
         // Transition to OPEN after threshold exceeded
-        console.log(`[CircuitBreaker] ${this.provider}: CLOSED → OPEN (${newFailureCount} failures)`)
+        console.log(
+          `[CircuitBreaker] ${this.provider}: CLOSED → OPEN (${newFailureCount} failures)`,
+        )
         await this.setState({
           state: 'OPEN',
           failureCount: newFailureCount,
           successCount: 0,
           lastFailureTime: Date.now(),
-          openedAt: Date.now()
+          openedAt: Date.now(),
         })
         await this.logEvent('opened', newFailureCount)
       } else {
@@ -225,7 +222,7 @@ export class CircuitBreaker {
           state: 'CLOSED',
           failureCount: newFailureCount,
           successCount: 0,
-          lastFailureTime: Date.now()
+          lastFailureTime: Date.now(),
         })
       }
     }
@@ -239,7 +236,7 @@ export class CircuitBreaker {
     await this.setState({
       ...state,
       state: 'HALF_OPEN',
-      successCount: 0
+      successCount: 0,
     })
     await this.logEvent('half_opened', state.failureCount)
   }
@@ -256,13 +253,13 @@ export class CircuitBreaker {
    */
   private async logEvent(
     event: 'opened' | 'closed' | 'half_opened' | 'rejected',
-    failureCount?: number
+    failureCount?: number,
   ): Promise<void> {
     const analyticsEvent: CircuitBreakerEvent = {
       provider: this.provider,
       event,
       timestamp: Date.now(),
-      failureCount
+      failureCount,
     }
 
     // Log to console for debugging
@@ -273,7 +270,7 @@ export class CircuitBreaker {
       this.env.PERFORMANCE_ANALYTICS.writeDataPoint({
         blobs: [this.provider, event],
         doubles: [failureCount || 0],
-        indexes: [`circuit-breaker-${event}`]
+        indexes: [`circuit-breaker-${event}`],
       })
     }
   }
@@ -291,11 +288,14 @@ export class CircuitBreaker {
    */
   async reset(): Promise<void> {
     console.log(`[CircuitBreaker] ${this.provider}: Manual reset to CLOSED`)
-    await this.setState({
-      state: 'CLOSED',
-      failureCount: 0,
-      successCount: 0
-    }, true) // Force immediate write for manual reset
+    await this.setState(
+      {
+        state: 'CLOSED',
+        failureCount: 0,
+        successCount: 0,
+      },
+      true,
+    ) // Force immediate write for manual reset
   }
 
   /**
@@ -304,7 +304,9 @@ export class CircuitBreaker {
    */
   async flush(): Promise<void> {
     if (this.pendingWrites > 0) {
-      console.log(`[CircuitBreaker] ${this.provider}: Flushing ${this.pendingWrites} pending writes`)
+      console.log(
+        `[CircuitBreaker] ${this.provider}: Flushing ${this.pendingWrites} pending writes`,
+      )
       await this.persistState()
     }
   }
@@ -318,7 +320,7 @@ export async function withCircuitBreaker<T>(
   provider: string,
   env: any,
   fn: () => Promise<T>,
-  options?: Partial<CircuitBreakerOptions>
+  options?: Partial<CircuitBreakerOptions>,
 ): Promise<T> {
   const breaker = new CircuitBreaker(provider, env, options)
   return await breaker.execute(fn)

@@ -4,14 +4,14 @@
  * Central export point for all OpenAPI-related configuration and types.
  */
 
-export { openAPIConfig } from './config'
 export type { OpenAPIConfig } from './config'
+export { openAPIConfig } from './config'
 
 export {
   createExtensions,
-  type RateLimitExtension,
   type FeatureExtension,
-  type VersionExtension,
   type NotesExtension,
-  type OpenAPIExtensions
+  type OpenAPIExtensions,
+  type RateLimitExtension,
+  type VersionExtension,
 } from './extensions'

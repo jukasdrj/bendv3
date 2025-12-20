@@ -4,10 +4,10 @@
  * Uses OpenLibrary API for author work lookups
  */
 
-import * as externalApis from "../services/external-apis.ts";
-import { setCached } from "../utils/cache.js";
-import { UnifiedCacheService } from "../services/unified-cache.js";
-import { CacheKeyFactory } from "../services/cache-key-factory.js";
+import { CacheKeyFactory } from '../services/cache-key-factory.js'
+import * as externalApis from '../services/external-apis.ts'
+import { UnifiedCacheService } from '../services/unified-cache.js'
+import { setCached } from '../utils/cache.js'
 
 /**
  * Search books by author with pagination
@@ -40,11 +40,11 @@ import { CacheKeyFactory } from "../services/cache-key-factory.js";
  * }>} Author bibliography with pagination and cache metadata
  */
 export async function searchByAuthor(authorName, options, env, ctx) {
-  const { limit = 50, offset = 0, sortBy = "publicationYear" } = options;
+  const { limit = 50, offset = 0, sortBy = 'publicationYear' } = options
 
   // Validate pagination parameters
-  const validatedLimit = Math.min(Math.max(1, limit), 100);
-  const validatedOffset = Math.max(0, offset);
+  const validatedLimit = Math.min(Math.max(1, limit), 100)
+  const validatedOffset = Math.max(0, offset)
 
   // Generate cache key using centralized CacheKeyFactory
   const cacheKey = CacheKeyFactory.authorSearch({
@@ -52,67 +52,61 @@ export async function searchByAuthor(authorName, options, env, ctx) {
     maxResults: validatedLimit,
     showAllEditions: false, // Assuming default, adjust if needed
     sortBy: sortBy,
-  });
+  })
 
   // Try UnifiedCache first (Edge → KV tiers)
-  const cache = new UnifiedCacheService(env, ctx);
-  const cachedResult = await cache.get(cacheKey, "author", {
+  const cache = new UnifiedCacheService(env, ctx)
+  const cachedResult = await cache.get(cacheKey, 'author', {
     query: authorName,
     limit: validatedLimit,
     offset: validatedOffset,
-  });
+  })
 
-  if (cachedResult && cachedResult.data) {
-    const { data, source } = cachedResult;
+  if (cachedResult?.data) {
+    const { data, source } = cachedResult
 
     // Write cache metrics
     ctx.waitUntil(
       writeCacheMetrics(env, {
-        endpoint: "/search/author",
+        endpoint: '/search/author',
         cacheHit: true,
         responseTime: 0,
         itemCount: data.works?.length || 0,
         authorName: authorName,
       }),
-    );
+    )
 
     return {
       ...data,
       cached: true,
       cacheSource: source,
-    };
+    }
   }
 
-  const startTime = Date.now();
+  const startTime = Date.now()
 
   try {
     // Call existing OpenLibrary function
-    const olResult = await externalApis.getOpenLibraryAuthorWorks(
-      authorName,
-      env,
-    );
+    const olResult = await externalApis.getOpenLibraryAuthorWorks(authorName, env)
 
     if (!olResult) {
       return {
         success: false,
-        error: "Author not found in OpenLibrary",
+        error: 'Author not found in OpenLibrary',
         works: [],
         pagination: null,
-      };
+      }
     }
 
     // Apply pagination to works
-    const allWorks = olResult.works || [];
-    const totalWorks = allWorks.length;
+    const allWorks = olResult.works || []
+    const totalWorks = allWorks.length
 
     // Apply sorting
-    const sortedWorks = applySorting(allWorks, sortBy);
+    const sortedWorks = applySorting(allWorks, sortBy)
 
     // Slice for pagination
-    const paginatedWorks = sortedWorks.slice(
-      validatedOffset,
-      validatedOffset + validatedLimit,
-    );
+    const paginatedWorks = sortedWorks.slice(validatedOffset, validatedOffset + validatedLimit)
 
     /**
      * @type {{
@@ -137,7 +131,7 @@ export async function searchByAuthor(authorName, options, env, ctx) {
      */
     const responseData = {
       success: true,
-      provider: "openlibrary",
+      provider: 'openlibrary',
       author: {
         name: authorName,
         openLibraryKey: olResult.author?.openLibraryKey || null,
@@ -150,39 +144,37 @@ export async function searchByAuthor(authorName, options, env, ctx) {
         offset: validatedOffset,
         hasMore: validatedOffset + validatedLimit < totalWorks,
         nextOffset:
-          validatedOffset + validatedLimit < totalWorks
-            ? validatedOffset + validatedLimit
-            : null,
+          validatedOffset + validatedLimit < totalWorks ? validatedOffset + validatedLimit : null,
       },
       cached: false,
       responseTime: Date.now() - startTime,
-    };
+    }
 
     // Cache for 6 hours (per-page caching)
-    const ttl = 6 * 60 * 60; // 21600 seconds
-    ctx.waitUntil(setCached(cacheKey, responseData, ttl, env));
+    const ttl = 6 * 60 * 60 // 21600 seconds
+    ctx.waitUntil(setCached(cacheKey, responseData, ttl, env))
 
     // Write cache metrics
     ctx.waitUntil(
       writeCacheMetrics(env, {
-        endpoint: "/search/author",
+        endpoint: '/search/author',
         cacheHit: false,
         responseTime: Date.now() - startTime,
         itemCount: paginatedWorks.length,
         authorName: authorName,
       }),
-    );
+    )
 
-    return responseData;
+    return responseData
   } catch (error) {
-    console.error(`Author search failed for "${authorName}":`, error);
+    console.error(`Author search failed for "${authorName}":`, error)
     return {
       success: false,
-      error: "Author search failed",
+      error: 'Author search failed',
       details: error.message,
       works: [],
       pagination: null,
-    };
+    }
   }
 }
 
@@ -193,35 +185,31 @@ export async function searchByAuthor(authorName, options, env, ctx) {
  * @returns {Array} Sorted works
  */
 function applySorting(works, sortBy) {
-  const sortedWorks = [...works];
+  const sortedWorks = [...works]
 
   switch (sortBy) {
-    case "publicationYear":
+    case 'publicationYear':
       // Newest first (default)
       return sortedWorks.sort(
         (a, b) => (b.firstPublicationYear || 0) - (a.firstPublicationYear || 0),
-      );
+      )
 
-    case "publicationYearAsc":
+    case 'publicationYearAsc':
       // Oldest first
       return sortedWorks.sort(
         (a, b) => (a.firstPublicationYear || 0) - (b.firstPublicationYear || 0),
-      );
+      )
 
-    case "title":
+    case 'title':
       // Alphabetical
-      return sortedWorks.sort((a, b) =>
-        (a.title || "").localeCompare(b.title || ""),
-      );
+      return sortedWorks.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
 
-    case "popularity":
+    case 'popularity':
       // Sort by number of editions (proxy for popularity)
-      return sortedWorks.sort(
-        (a, b) => (b.editions?.length || 0) - (a.editions?.length || 0),
-      );
+      return sortedWorks.sort((a, b) => (b.editions?.length || 0) - (a.editions?.length || 0))
 
     default:
-      return sortedWorks;
+      return sortedWorks
   }
 }
 
@@ -232,21 +220,17 @@ function applySorting(works, sortBy) {
  */
 async function writeCacheMetrics(env, metrics) {
   if (!env.CACHE_ANALYTICS) {
-    console.warn("CACHE_ANALYTICS binding not available");
-    return;
+    console.warn('CACHE_ANALYTICS binding not available')
+    return
   }
 
   try {
     await env.CACHE_ANALYTICS.writeDataPoint({
-      blobs: [
-        metrics.endpoint,
-        metrics.authorName,
-        metrics.cacheHit ? "HIT" : "MISS",
-      ],
+      blobs: [metrics.endpoint, metrics.authorName, metrics.cacheHit ? 'HIT' : 'MISS'],
       doubles: [metrics.responseTime, metrics.itemCount],
-      indexes: [metrics.cacheHit ? "HIT" : "MISS"],
-    });
+      indexes: [metrics.cacheHit ? 'HIT' : 'MISS'],
+    })
   } catch (error) {
-    console.error("Failed to write cache metrics:", error);
+    console.error('Failed to write cache metrics:', error)
   }
 }

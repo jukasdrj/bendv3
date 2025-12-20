@@ -9,15 +9,15 @@
  * @module api-v3/jobs/stream
  */
 
+import type {
+  SSECompleteEvent,
+  SSEErrorEvent,
+  SSEPingEvent,
+  SSEProgressEvent,
+} from '@bookstrack/schemas'
 import type { Context } from 'hono'
 import type { Env } from '../../types/env'
-import {
-  type SSEProgressEvent,
-  type SSECompleteEvent,
-  type SSEErrorEvent,
-  type SSEPingEvent
-} from '@bookstrack/schemas'
-import { validateTokenFormat, parseLastEventId } from './common'
+import { parseLastEventId, validateTokenFormat } from './common'
 
 // ============================================================================
 // Types
@@ -59,11 +59,13 @@ interface JobStateManagerDO {
   getJobState(): Promise<JobState | null>
   registerSSEClient(clientId: string): Promise<{ success: boolean }>
   unregisterSSEClient(clientId: string): Promise<{ success: boolean }>
-  getUpdates(afterTimestamp?: number): Promise<Array<{
-    timestamp: number
-    eventType: string
-    data: any
-  }>>
+  getUpdates(afterTimestamp?: number): Promise<
+    Array<{
+      timestamp: number
+      eventType: string
+      data: any
+    }>
+  >
 }
 
 interface WebSocketConnectionDO {
@@ -108,19 +110,19 @@ function formatSSE(event: SSEEvent): string {
  */
 async function sendFinalEvent(
   state: JobState,
-  writeEvent: (event: SSEEvent) => Promise<void>
+  writeEvent: (event: SSEEvent) => Promise<void>,
 ): Promise<void> {
   if (state.status === 'completed') {
     const completeEvent: SSECompleteEvent = {
       jobId: state.jobId,
       status: 'completed',
       results: state.result?.books || [],
-      timestamp: new Date(state.completedTime || Date.now()).toISOString()
+      timestamp: new Date(state.completedTime || Date.now()).toISOString(),
     }
     await writeEvent({
       id: `${Date.now()}-final`,
       event: 'completed',
-      data: JSON.stringify(completeEvent)
+      data: JSON.stringify(completeEvent),
     })
   } else if (state.status === 'failed') {
     const errorEvent: SSEErrorEvent = {
@@ -128,14 +130,14 @@ async function sendFinalEvent(
       error: state.error || {
         code: 'UNKNOWN_ERROR',
         message: 'Job failed',
-        retryable: false
+        retryable: false,
       },
-      timestamp: new Date(state.failedTime || Date.now()).toISOString()
+      timestamp: new Date(state.failedTime || Date.now()).toISOString(),
     }
     await writeEvent({
       id: `${Date.now()}-final`,
       event: 'failed',
-      data: JSON.stringify(errorEvent)
+      data: JSON.stringify(errorEvent),
     })
   }
 }
@@ -173,7 +175,7 @@ async function sendFinalEvent(
 export async function handleSSEStream(
   c: Context<{ Bindings: Env }>,
   jobType: string,
-  jobId: string
+  jobId: string,
 ): Promise<Response> {
   const request = c.req.raw
   const env = c.env
@@ -183,17 +185,20 @@ export async function handleSSEStream(
   const isSSERequest = acceptHeader?.includes('text/event-stream')
 
   if (!isSSERequest) {
-    return c.json({
-      success: false,
-      error: {
-        code: 'INVALID_ACCEPT_HEADER',
-        message: 'This endpoint requires Accept: text/event-stream header',
-        hint: 'Use EventSource API or set Accept header to text/event-stream'
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'INVALID_ACCEPT_HEADER',
+          message: 'This endpoint requires Accept: text/event-stream header',
+          hint: 'Use EventSource API or set Accept header to text/event-stream',
+        },
+        metadata: {
+          timestamp: new Date().toISOString(),
+        },
       },
-      metadata: {
-        timestamp: new Date().toISOString()
-      }
-    }, 400)
+      400,
+    )
   }
 
   // Extract and validate Bearer token
@@ -201,16 +206,19 @@ export async function handleSSEStream(
   const token = authHeader?.replace('Bearer ', '')
 
   if (!validateTokenFormat(token)) {
-    return c.json({
-      success: false,
-      error: {
-        code: 'INVALID_TOKEN',
-        message: 'Valid Bearer token required. Obtain from job initiation response.'
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'INVALID_TOKEN',
+          message: 'Valid Bearer token required. Obtain from job initiation response.',
+        },
+        metadata: {
+          timestamp: new Date().toISOString(),
+        },
       },
-      metadata: {
-        timestamp: new Date().toISOString()
-      }
-    }, 401)
+      401,
+    )
   }
 
   // Get WebSocketConnectionDO stub for token validation (tokens are stored here)
@@ -220,18 +228,21 @@ export async function handleSSEStream(
   // Validate token with WebSocketConnectionDO (where tokens are stored)
   const tokenValidation = await wsDoStub.validateAuthToken(token)
   if (!tokenValidation.valid) {
-    return c.json({
-      success: false,
-      error: {
-        code: tokenValidation.expired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN',
-        message: tokenValidation.expired
-          ? 'Auth token expired. Tokens are valid for 1 hour.'
-          : 'Invalid auth token. Token does not match this job.'
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: tokenValidation.expired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN',
+          message: tokenValidation.expired
+            ? 'Auth token expired. Tokens are valid for 1 hour.'
+            : 'Invalid auth token. Token does not match this job.',
+        },
+        metadata: {
+          timestamp: new Date().toISOString(),
+        },
       },
-      metadata: {
-        timestamp: new Date().toISOString()
-      }
-    }, 401)
+      401,
+    )
   }
 
   // Get JobStateManagerDO stub for job state operations
@@ -289,13 +300,13 @@ export async function handleSSEStream(
           jobId,
           error: {
             code: 'JOB_NOT_FOUND',
-            message: 'Job not found or not initialized'
+            message: 'Job not found or not initialized',
           },
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         }
         await writeEvent({
           event: 'error',
-          data: JSON.stringify(errorEvent)
+          data: JSON.stringify(errorEvent),
         })
         await cleanup()
         await writer.close()
@@ -304,7 +315,8 @@ export async function handleSSEStream(
 
       // Send initial status event (unless resuming from recent event)
       const currentTimestamp = Date.now()
-      const shouldSkipInitial = resumeFromTimestamp !== null && currentTimestamp - resumeFromTimestamp < 10000
+      const shouldSkipInitial =
+        resumeFromTimestamp !== null && currentTimestamp - resumeFromTimestamp < 10000
 
       if (!shouldSkipInitial) {
         // FIX: Use proper SSE event type ('initialized', 'progress', 'completed', 'failed')
@@ -316,17 +328,21 @@ export async function handleSSEStream(
           progress: state.progress,
           processedCount: state.processedCount,
           totalCount: state.totalCount,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         }
         await writeEvent({
           id: `${currentTimestamp}-initial`,
           event: eventType,
-          data: JSON.stringify(progressEvent)
+          data: JSON.stringify(progressEvent),
         })
       }
 
       // If job already complete, send final event and close
-      if (state.status === 'completed' || state.status === 'failed' || state.status === 'canceled') {
+      if (
+        state.status === 'completed' ||
+        state.status === 'failed' ||
+        state.status === 'canceled'
+      ) {
         await sendFinalEvent(state, writeEvent)
         await cleanup()
         await writer.close()
@@ -340,14 +356,19 @@ export async function handleSSEStream(
       let lastStateRefresh = Date.now()
 
       // Adaptive polling backoff to reduce DO contention
-      const MIN_POLL_INTERVAL = 500  // Start fast for responsive updates
+      const MIN_POLL_INTERVAL = 500 // Start fast for responsive updates
       const MAX_POLL_INTERVAL = 3000 // Cap at 3s to prevent staleness
       const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
       let pollInterval = MIN_POLL_INTERVAL
 
-      while (state && state.status !== 'completed' && state.status !== 'failed' && state.status !== 'canceled') {
+      while (
+        state &&
+        state.status !== 'completed' &&
+        state.status !== 'failed' &&
+        state.status !== 'canceled'
+      ) {
         // Wait with adaptive interval
-        await new Promise(resolve => setTimeout(resolve, pollInterval))
+        await new Promise((resolve) => setTimeout(resolve, pollInterval))
 
         // Check for new updates from DO (timestamp-based)
         const updates = await doStub.getUpdates(lastTimestamp)
@@ -357,7 +378,7 @@ export async function handleSSEStream(
             await writeEvent({
               id: `${update.timestamp}-${update.eventType}`,
               event: update.eventType,
-              data: JSON.stringify(update.data)
+              data: JSON.stringify(update.data),
             })
             lastTimestamp = Math.max(lastTimestamp, update.timestamp)
           }
@@ -372,11 +393,11 @@ export async function handleSSEStream(
         // Send heartbeat every 30 seconds
         if (Date.now() - lastHeartbeat > 30000) {
           const pingEvent: SSEPingEvent = {
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           }
           await writeEvent({
             event: 'ping',
-            data: JSON.stringify(pingEvent)
+            data: JSON.stringify(pingEvent),
           })
           lastHeartbeat = Date.now()
         }
@@ -388,13 +409,13 @@ export async function handleSSEStream(
             error: {
               code: 'STREAM_TIMEOUT',
               message: 'No progress for 5 minutes. Use polling endpoint to check status.',
-              retryable: true
+              retryable: true,
             },
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           }
           await writeEvent({
             event: 'timeout',
-            data: JSON.stringify(errorEvent)
+            data: JSON.stringify(errorEvent),
           })
           break
         }
@@ -407,13 +428,15 @@ export async function handleSSEStream(
       }
 
       // Send final event if job completed
-      if (state && (state.status === 'completed' || state.status === 'failed' || state.status === 'canceled')) {
+      if (
+        state &&
+        (state.status === 'completed' || state.status === 'failed' || state.status === 'canceled')
+      ) {
         await sendFinalEvent(state, writeEvent)
       }
 
       // Cleanup on normal completion
       await cleanup()
-
     } catch (error) {
       console.error('[SSE V3 Stream] Error:', error)
       try {
@@ -422,13 +445,13 @@ export async function handleSSEStream(
           error: {
             code: 'STREAM_ERROR',
             message: 'An error occurred while streaming progress',
-            retryable: true
+            retryable: true,
           },
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         }
         await writeEvent({
           event: 'error',
-          data: JSON.stringify(errorEvent)
+          data: JSON.stringify(errorEvent),
         })
       } catch {
         // Writer may already be closed
@@ -448,9 +471,9 @@ export async function handleSSEStream(
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'X-Accel-Buffering': 'no', // Disable nginx buffering
       'Access-Control-Allow-Origin': '*', // SSE needs CORS
-    }
+    },
   })
 }

@@ -22,10 +22,9 @@
  * @see docs/ALEXANDRIA_RPC_MIGRATION.md for architecture details
  */
 
-import { createAlexandriaClient } from "./alexandria-client.js";
-import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js";
-import type { DataProvider, AuthorGender, EditionFormat } from "../types/enums.js";
-import { CircuitBreakerOpenError, ExternalAPIError, RateLimitError } from "../types/errors";
+import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical.js'
+import type { AuthorGender, DataProvider, EditionFormat } from '../types/enums.js'
+import { createAlexandriaClient } from './alexandria-client.js'
 
 // ========================================================================================
 // INTERFACES
@@ -37,73 +36,58 @@ import { CircuitBreakerOpenError, ExternalAPIError, RateLimitError } from "../ty
  */
 interface WorkerEnv {
   // KV Namespaces
-  CACHE: KVNamespace;
+  CACHE: KVNamespace
   // CACHE: KVNamespace; (Duplicate removed)
 
   // Secrets
-  GOOGLE_BOOKS_API_KEY: string;
-  ISBNDB_API_KEY: string;
-  GEMINI_API_KEY: string;
-  ALEXANDRIA_CLIENT_ID?: string; // Cloudflare Access service token
-  ALEXANDRIA_CLIENT_SECRET?: string; // Cloudflare Access service token
+  GOOGLE_BOOKS_API_KEY: string
+  ISBNDB_API_KEY: string
+  GEMINI_API_KEY: string
+  ALEXANDRIA_CLIENT_ID?: string // Cloudflare Access service token
+  ALEXANDRIA_CLIENT_SECRET?: string // Cloudflare Access service token
 
   // R2 Buckets
-  BOOKSHELF_IMAGES: R2Bucket;
+  BOOKSHELF_IMAGES: R2Bucket
 
   // Workers AI
-  AI: Fetcher;
+  AI: Fetcher
 
   // Durable Objects
-  PROGRESS_WEBSOCKET_DO: DurableObjectNamespace;
+  PROGRESS_WEBSOCKET_DO: DurableObjectNamespace
 
   // Analytics Engine
-  PERFORMANCE_ANALYTICS?: AnalyticsEngineDataset;
-  CACHE_ANALYTICS?: AnalyticsEngineDataset;
-  PROVIDER_ANALYTICS?: AnalyticsEngineDataset;
-  AI_ANALYTICS?: AnalyticsEngineDataset;
+  PERFORMANCE_ANALYTICS?: AnalyticsEngineDataset
+  CACHE_ANALYTICS?: AnalyticsEngineDataset
+  PROVIDER_ANALYTICS?: AnalyticsEngineDataset
+  AI_ANALYTICS?: AnalyticsEngineDataset
 
   // Queue Producers
-  AUTHOR_WARMING_QUEUE?: Queue;
+  AUTHOR_WARMING_QUEUE?: Queue
 }
 
 /**
  * Query parameters for book searches
  */
 interface BookSearchQuery {
-  title?: string;
-  author?: string;
-  isbn?: string;
+  title?: string
+  author?: string
+  isbn?: string
 }
 
 /**
  * Options for multi-book searches
  */
 interface SearchOptions {
-  maxResults?: number;
-}
-
-/**
- * Extended WorkDTO with authors property
- * external-apis.js returns works with authors array, but canonical WorkDTO doesn't include it
- */
-type WorkDTOWithAuthors = WorkDTO & { authors?: AuthorDTO[] };
-
-/**
- * Normalized API response from external API calls
- */
-interface ApiResponse {
-  works: WorkDTOWithAuthors[];
-  editions: EditionDTO[];
-  authors: AuthorDTO[];
+  maxResults?: number
 }
 
 /**
  * Return type for enrichMultipleBooks
  */
 interface EnrichmentResult {
-  works: WorkDTO[];
-  editions: EditionDTO[];
-  authors: AuthorDTO[];
+  works: WorkDTO[]
+  editions: EditionDTO[]
+  authors: AuthorDTO[]
 }
 
 /**
@@ -111,11 +95,17 @@ interface EnrichmentResult {
  * Provides context about why enrichment failed
  */
 export interface EnrichmentError {
-  code: 'NOT_FOUND' | 'API_ERROR' | 'RATE_LIMIT' | 'CIRCUIT_OPEN' | 'NETWORK_ERROR' | 'INVALID_INPUT';
-  message: string;
-  provider?: string;      // Which provider failed (e.g., 'google-books', 'open-library')
-  retryable: boolean;     // Whether the client should retry
-  retryAfterMs?: number;  // Suggested retry delay in milliseconds
+  code:
+    | 'NOT_FOUND'
+    | 'API_ERROR'
+    | 'RATE_LIMIT'
+    | 'CIRCUIT_OPEN'
+    | 'NETWORK_ERROR'
+    | 'INVALID_INPUT'
+  message: string
+  provider?: string // Which provider failed (e.g., 'google-books', 'open-library')
+  retryable: boolean // Whether the client should retry
+  retryAfterMs?: number // Suggested retry delay in milliseconds
 }
 
 /**
@@ -123,24 +113,24 @@ export interface EnrichmentError {
  * Contains work, edition (with cover URL), and authors for a single book
  */
 export interface SingleEnrichmentResult {
-  success: true;
-  work: WorkDTO;
-  edition: EditionDTO | null;
-  authors: AuthorDTO[];
+  success: true
+  work: WorkDTO
+  edition: EditionDTO | null
+  authors: AuthorDTO[]
 }
 
 /**
  * Return type for enrichSingleBook (error case)
  */
 export interface SingleEnrichmentError {
-  success: false;
-  error: EnrichmentError;
+  success: false
+  error: EnrichmentError
 }
 
 /**
  * Combined return type for enrichSingleBook
  */
-export type SingleEnrichmentResponse = SingleEnrichmentResult | SingleEnrichmentError | null;
+export type SingleEnrichmentResponse = SingleEnrichmentResult | SingleEnrichmentError | null
 
 // ========================================================================================
 // PUBLIC FUNCTIONS
@@ -168,22 +158,27 @@ export async function enrichMultipleBooks(
   query: BookSearchQuery,
   env: WorkerEnv,
   options: SearchOptions = { maxResults: 20 },
-  ctx?: ExecutionContext,
+  _ctx?: ExecutionContext,
 ): Promise<EnrichmentResult> {
-  const { title, author, isbn } = query;
-  const { maxResults = 20 } = options;
+  const { title, author, isbn } = query
+  const { maxResults = 20 } = options
 
   // Validate: require at least one search parameter
   if (!isbn && !title && !author) {
-    console.warn("enrichMultipleBooks: No search parameters provided");
-    return { works: [], editions: [], authors: [] };
+    console.warn('enrichMultipleBooks: No search parameters provided')
+    return { works: [], editions: [], authors: [] }
   }
 
   try {
     // Create Alexandria RPC client (sub-millisecond internal call)
-    const client = createAlexandriaClient(env);
+    const client = createAlexandriaClient(env)
 
-    console.log(`enrichMultipleBooks: Calling Alexandria RPC for`, { isbn, title, author, maxResults });
+    console.log(`enrichMultipleBooks: Calling Alexandria RPC for`, {
+      isbn,
+      title,
+      author,
+      maxResults,
+    })
 
     // Call Alexandria's /api/search endpoint
     // Alexandria handles:
@@ -198,51 +193,55 @@ export async function enrichMultipleBooks(
         // Note: maxResults not yet supported by Alexandria's search endpoint
         // Future enhancement: Alexandria should respect this parameter
       },
-    });
+    })
 
     if (!response.ok) {
-      console.error(`enrichMultipleBooks: Alexandria RPC error:`, response.status, response.statusText);
-      return { works: [], editions: [], authors: [] };
+      console.error(
+        `enrichMultipleBooks: Alexandria RPC error:`,
+        response.status,
+        response.statusText,
+      )
+      return { works: [], editions: [], authors: [] }
     }
 
-    const responseData = await response.json();
+    const responseData = await response.json()
 
     // Alexandria wraps results in "data" envelope: { success: true, data: { results: [...] } }
-    const data = responseData.data || responseData;
+    const data = responseData.data || responseData
 
     if (!data.results || data.results.length === 0) {
-      console.log(`enrichMultipleBooks: Alexandria found no results for`, { isbn, title, author });
-      return { works: [], editions: [], authors: [] };
+      console.log(`enrichMultipleBooks: Alexandria found no results for`, { isbn, title, author })
+      return { works: [], editions: [], authors: [] }
     }
 
     // Map Alexandria BookResult[] to BooksTrack canonical types
     // Alexandria stores data in normalized form (work/edition/author tables)
     // Works include embedded authors for per-work author support
-    const works: (WorkDTO & { authors?: AuthorDTO[] })[] = [];
-    const editions: EditionDTO[] = [];
-    const authorsMap = new Map<string, AuthorDTO>();
+    const works: (WorkDTO & { authors?: AuthorDTO[] })[] = []
+    const editions: EditionDTO[] = []
+    const authorsMap = new Map<string, AuthorDTO>()
 
     data.results.forEach((book: any) => {
       // Extract per-work authors first (needed for embedding in work)
       // Alexandria returns 'authors' as array of {name, key, openlibrary} objects
       // NOTE: Alexandria sometimes returns OpenLibrary paths as 'name' (e.g., "/authors/OL23919A")
       // We filter these out as they are not valid author names
-      let workAuthorDTOs: AuthorDTO[] = [];
+      let workAuthorDTOs: AuthorDTO[] = []
       if (book.authors && Array.isArray(book.authors)) {
         workAuthorDTOs = book.authors
           .map((a: any) => {
             if (typeof a === 'string') {
-              return { name: a, gender: 'Unknown' as const };
+              return { name: a, gender: 'Unknown' as const }
             }
-            
+
             // Map enriched fields from Alexandria
-            let gender: AuthorGender = 'Unknown';
+            let gender: AuthorGender = 'Unknown'
             if (a.gender) {
-              const g = a.gender.toLowerCase();
-              if (g === 'male') gender = 'Male';
-              else if (g === 'female') gender = 'Female';
-              else if (g === 'non-binary') gender = 'Non-binary';
-              else gender = 'Other';
+              const g = a.gender.toLowerCase()
+              if (g === 'male') gender = 'Male'
+              else if (g === 'female') gender = 'Female'
+              else if (g === 'non-binary') gender = 'Non-binary'
+              else gender = 'Other'
             }
 
             return {
@@ -251,12 +250,12 @@ export async function enrichMultipleBooks(
               nationality: a.nationality || undefined,
               birthYear: a.birth_year || undefined,
               deathYear: a.death_year || undefined,
-            };
+            }
           })
           // Filter out invalid names and OpenLibrary paths
-          .filter((a: AuthorDTO) => a.name && !a.name.startsWith('/authors/'));
+          .filter((a: AuthorDTO) => a.name && !a.name.startsWith('/authors/'))
       } else if (book.author && !book.author.startsWith('/authors/')) {
-        workAuthorDTOs = [{ name: book.author, gender: 'Unknown' as const }];
+        workAuthorDTOs = [{ name: book.author, gender: 'Unknown' as const }]
       }
 
       // Map to WorkDTO (canonical contract) with embedded authors
@@ -264,11 +263,17 @@ export async function enrichMultipleBooks(
       const work: WorkDTO & { authors?: AuthorDTO[] } = {
         // Required fields
         title: book.title || book.work_title || 'Unknown',
-        subjectTags: book.subjects ? (typeof book.subjects === 'string' ? JSON.parse(book.subjects) : book.subjects) : [],
+        subjectTags: book.subjects
+          ? typeof book.subjects === 'string'
+            ? JSON.parse(book.subjects)
+            : book.subjects
+          : [],
 
         // External IDs - Legacy
         // Alexandria returns openlibrary_work as full URL, extract the key
-        openLibraryWorkID: book.openlibrary_work ? book.openlibrary_work.split('/works/')[1] : undefined,
+        openLibraryWorkID: book.openlibrary_work
+          ? book.openlibrary_work.split('/works/')[1]
+          : undefined,
         googleBooksVolumeID: book.google_books_id || undefined,
         goodreadsID: book.goodreads_id || undefined,
         isbndbID: book.isbndb_work_id || undefined,
@@ -294,12 +299,12 @@ export async function enrichMultipleBooks(
 
         // Per-work embedded authors (for V3 API search results)
         authors: workAuthorDTOs,
-      };
-      works.push(work);
+      }
+      works.push(work)
 
       // Map to EditionDTO (canonical contract)
       // Alexandria returns 'isbn' (single field), not isbn_13/isbn_10 separately
-      const isbn = book.isbn_13 || book.isbn_10 || book.isbn;
+      const isbn = book.isbn_13 || book.isbn_10 || book.isbn
       if (isbn) {
         const edition: EditionDTO = {
           isbn: isbn,
@@ -313,7 +318,9 @@ export async function enrichMultipleBooks(
           coverSource: book.coverSource || undefined,
           format: mapBindingToFormat(book.binding), // Default format (required by EditionDTO)
           // External IDs
-          openLibraryEditionID: book.openlibrary_edition ? book.openlibrary_edition.split('/books/')[1] : undefined,
+          openLibraryEditionID: book.openlibrary_edition
+            ? book.openlibrary_edition.split('/books/')[1]
+            : undefined,
           // Required arrays (empty if not provided)
           amazonASINs: [],
           googleBooksVolumeIDs: [],
@@ -321,33 +328,35 @@ export async function enrichMultipleBooks(
           // Quality metrics
           isbndbQuality: book.isbndb_quality || 0,
           primaryProvider: 'alexandria' as DataProvider,
-        };
-        editions.push(edition);
+        }
+        editions.push(edition)
       }
 
       // Add per-work authors to deduplicated authors map (for result.authors)
       workAuthorDTOs.forEach((author) => {
         if (author.name && !authorsMap.has(author.name)) {
-          authorsMap.set(author.name, author);
+          authorsMap.set(author.name, author)
         }
-      });
-    });
+      })
+    })
 
     // Apply maxResults filtering (client-side, since Alexandria doesn't support it yet)
-    const filteredWorks = works.slice(0, maxResults);
-    const filteredEditions = editions.slice(0, maxResults);
+    const filteredWorks = works.slice(0, maxResults)
+    const filteredEditions = editions.slice(0, maxResults)
 
-    console.log(`enrichMultipleBooks: Alexandria returned ${filteredWorks.length} works (requested: ${maxResults})`);
+    console.log(
+      `enrichMultipleBooks: Alexandria returned ${filteredWorks.length} works (requested: ${maxResults})`,
+    )
 
     return {
       works: filteredWorks,
       editions: filteredEditions,
       authors: Array.from(authorsMap.values()),
-    };
+    }
   } catch (error) {
-    console.error("enrichMultipleBooks: RPC error:", error);
+    console.error('enrichMultipleBooks: RPC error:', error)
     // Best-effort: Network/RPC errors = empty results (don't crash the request)
-    return { works: [], editions: [], authors: [] };
+    return { works: [], editions: [], authors: [] }
   }
 }
 
@@ -372,21 +381,21 @@ export async function enrichMultipleBooks(
 export async function enrichSingleBook(
   query: BookSearchQuery,
   env: WorkerEnv,
-  ctx?: ExecutionContext,
+  _ctx?: ExecutionContext,
 ): Promise<SingleEnrichmentResponse> {
-  const { title, author, isbn, openLibraryId, googleBooksId } = query;
+  const { title, author, isbn, openLibraryId, googleBooksId } = query
 
   // Require at least one search parameter
   if (!title && !isbn && !author && !openLibraryId && !googleBooksId) {
-    console.warn("enrichSingleBook: No search parameters provided");
-    return null;
+    console.warn('enrichSingleBook: No search parameters provided')
+    return null
   }
 
   try {
     // Create Alexandria RPC client (sub-millisecond internal call)
-    const client = createAlexandriaClient(env);
+    const client = createAlexandriaClient(env)
 
-    console.log(`enrichSingleBook: Calling Alexandria RPC for`, query);
+    console.log(`enrichSingleBook: Calling Alexandria RPC for`, query)
 
     // Call Alexandria's /api/search endpoint
     // Alexandria handles all the smart fallback logic internally
@@ -398,10 +407,10 @@ export async function enrichSingleBook(
         // Note: Alexandria doesn't yet support specific ID lookups (googleBooksId, openLibraryId)
         // Future enhancement: Pass these to Alexandria for even faster lookups
       },
-    });
+    })
 
     if (!response.ok) {
-      console.error(`enrichSingleBook: Alexandria RPC error:`, response.status, response.statusText);
+      console.error(`enrichSingleBook: Alexandria RPC error:`, response.status, response.statusText)
       return {
         success: false,
         error: {
@@ -409,29 +418,29 @@ export async function enrichSingleBook(
           message: `Alexandria RPC error: ${response.status}`,
           provider: 'alexandria',
           retryable: response.status >= 500, // Retry on 5xx errors
-        }
-      };
+        },
+      }
     }
 
-    const responseData = await response.json();
+    const responseData = await response.json()
 
     // Alexandria wraps results in "data" envelope: { success: true, data: { results: [...] } }
-    const data = responseData.data || responseData;
+    const data = responseData.data || responseData
 
     if (!data.results || data.results.length === 0) {
-      console.log(`enrichSingleBook: Alexandria found no results for`, query);
+      console.log(`enrichSingleBook: Alexandria found no results for`, query)
       return {
         success: false,
         error: {
           code: 'NOT_FOUND',
           message: 'Book not found in any provider',
           retryable: false,
-        }
-      };
+        },
+      }
     }
 
     // Take the first result (Alexandria returns best match first)
-    const book = data.results[0];
+    const book = data.results[0]
 
     // Map to WorkDTO (canonical contract)
     const work: WorkDTO = {
@@ -454,42 +463,47 @@ export async function enrichSingleBook(
       // Quality metrics (required)
       isbndbQuality: book.isbndb_quality || 0,
       reviewStatus: 'verified' as const,
-    };
+    }
 
     // Map to EditionDTO (canonical contract)
-    const edition: EditionDTO | null = (book.isbn_13 || book.isbn_10) ? {
-      isbn: book.isbn_13 || book.isbn_10!,
-      isbns: [book.isbn_13 || book.isbn_10!],
-      title: book.title,
-      publicationDate: book.published_date || undefined,
-      pageCount: book.page_count || undefined,
-      language: book.language || 'en',
-      publisher: book.publisher || undefined,
-      coverImageURL: book.coverUrl || undefined, // Fixed: Use camelCase coverUrl from Alexandria
-      format: mapBindingToFormat(book.binding),
-      primaryProvider: 'alexandria' as DataProvider,
-      isbndbQuality: book.isbndb_quality || 0,
-       // External IDs
-      openLibraryEditionID: book.openlibrary_edition ? book.openlibrary_edition.split('/books/')[1] : undefined,
-      // Required arrays (empty if not provided)
-      amazonASINs: [],
-      googleBooksVolumeIDs: [],
-      librarythingIDs: [],
-    } : null;
+    const edition: EditionDTO | null =
+      book.isbn_13 || book.isbn_10
+        ? {
+            isbn: book.isbn_13 || book.isbn_10!,
+            isbns: [book.isbn_13 || book.isbn_10!],
+            title: book.title,
+            publicationDate: book.published_date || undefined,
+            pageCount: book.page_count || undefined,
+            language: book.language || 'en',
+            publisher: book.publisher || undefined,
+            coverImageURL: book.coverUrl || undefined, // Fixed: Use camelCase coverUrl from Alexandria
+            format: mapBindingToFormat(book.binding),
+            primaryProvider: 'alexandria' as DataProvider,
+            isbndbQuality: book.isbndb_quality || 0,
+            // External IDs
+            openLibraryEditionID: book.openlibrary_edition
+              ? book.openlibrary_edition.split('/books/')[1]
+              : undefined,
+            // Required arrays (empty if not provided)
+            amazonASINs: [],
+            googleBooksVolumeIDs: [],
+            librarythingIDs: [],
+          }
+        : null
 
     // Map authors
     const authors: AuthorDTO[] = (book.authors || []).map((a: any) => {
       if (typeof a === 'string') {
-        return { name: a, gender: 'Unknown' as const };
+        return { name: a, gender: 'Unknown' as const }
       }
 
-      let gender: AuthorGender = 'Unknown';
+      let gender: AuthorGender = 'Unknown'
       if (a.gender) {
-        const g = a.gender.toLowerCase();
-        if (g === 'male') gender = 'Male';
-        else if (g === 'female') gender = 'Female';
-        else if (g === 'non-binary') gender = 'Non-binary';
-        else gender = 'Other';
+        const g = a.gender.toLowerCase()
+        if (g === 'male') gender = 'Male'
+        else if (g === 'female') gender = 'Female'
+        else if (g === 'non-binary') gender = 'Non-binary'
+        else gender = 'Other'
       }
 
       return {
@@ -498,19 +512,19 @@ export async function enrichSingleBook(
         nationality: a.nationality || undefined,
         birthYear: a.birth_year || undefined,
         deathYear: a.death_year || undefined,
-      };
-    });
+      }
+    })
 
-    console.log(`enrichSingleBook: Alexandria returned result for "${book.title}"`);
+    console.log(`enrichSingleBook: Alexandria returned result for "${book.title}"`)
 
     return {
       success: true,
       work,
       edition,
       authors,
-    };
+    }
   } catch (error) {
-    console.error("enrichSingleBook: RPC error:", error);
+    console.error('enrichSingleBook: RPC error:', error)
 
     // Handle network/RPC errors
     if (error.name === 'TypeError' || error.message?.includes('fetch')) {
@@ -521,8 +535,8 @@ export async function enrichSingleBook(
           message: 'Network error while contacting Alexandria',
           retryable: true,
           retryAfterMs: 5000,
-        }
-      };
+        },
+      }
     }
 
     // Unknown error - not retryable
@@ -532,22 +546,22 @@ export async function enrichSingleBook(
         code: 'API_ERROR',
         message: error.message || 'Unknown error during enrichment',
         retryable: false,
-      }
-    };
+      },
+    }
   }
 }
 
-
 function mapBindingToFormat(binding?: string): EditionFormat {
-  if (!binding) return 'Paperback';
-  const b = binding.toLowerCase();
-  if (b.includes('hard') || b.includes('bound')) return 'Hardcover';
-  if (b.includes('soft') || b.includes('paper')) return 'Paperback';
-  if (b.includes('audio') || b.includes('cd') || b.includes('cassette')) return 'Audiobook';
-  if (b.includes('digital') || b.includes('epub') || b.includes('kindle') || b.includes('ebook')) return 'E-book';
-  if (b.includes('mass')) return 'Mass Market';
-  
-  return 'Paperback';
+  if (!binding) return 'Paperback'
+  const b = binding.toLowerCase()
+  if (b.includes('hard') || b.includes('bound')) return 'Hardcover'
+  if (b.includes('soft') || b.includes('paper')) return 'Paperback'
+  if (b.includes('audio') || b.includes('cd') || b.includes('cassette')) return 'Audiobook'
+  if (b.includes('digital') || b.includes('epub') || b.includes('kindle') || b.includes('ebook'))
+    return 'E-book'
+  if (b.includes('mass')) return 'Mass Market'
+
+  return 'Paperback'
 }
 
 // ========================================================================================

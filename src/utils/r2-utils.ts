@@ -16,30 +16,25 @@
  * @param keys - An array of object keys to delete
  * @returns Promise that resolves when deletion attempt is complete
  */
-export async function deleteR2Objects(
-  bucket: R2Bucket,
-  keys: string[],
-): Promise<void> {
+export async function deleteR2Objects(bucket: R2Bucket, keys: string[]): Promise<void> {
   if (keys.length === 0) {
-    console.log("[R2 Cleanup] No objects to clean up");
-    return;
+    console.log('[R2 Cleanup] No objects to clean up')
+    return
   }
 
-  console.log(
-    `[R2 Cleanup] Attempting to delete ${keys.length} objects: ${keys.join(", ")}`,
-  );
+  console.log(`[R2 Cleanup] Attempting to delete ${keys.length} objects: ${keys.join(', ')}`)
 
   try {
     // R2's delete method can take an array of keys for batch deletion
-    await bucket.delete(keys);
-    console.log(`[R2 Cleanup] Successfully deleted ${keys.length} objects`);
+    await bucket.delete(keys)
+    console.log(`[R2 Cleanup] Successfully deleted ${keys.length} objects`)
   } catch (error) {
     console.error(
       `[R2 Cleanup] Failed to delete objects - may indicate orphaned files:`,
       error,
       `Keys attempted:`,
       keys,
-    );
+    )
     // Do not re-throw; cleanup failures should not prevent the original error from being handled
   }
 }

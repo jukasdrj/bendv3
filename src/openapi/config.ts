@@ -14,20 +14,20 @@ export const openAPIConfig = {
     version: '3.3.0',
     description: 'Book search, enrichment, and AI-powered scanning API',
     contact: {
-      email: 'api-support@oooefam.net'
-    }
+      email: 'api-support@oooefam.net',
+    },
   },
   servers: [
     { url: 'https://api.oooefam.net', description: 'Production' },
-    { url: 'http://localhost:8787', description: 'Local development' }
+    { url: 'http://localhost:8787', description: 'Local development' },
   ],
   tags: [
     { name: 'Search', description: 'Book and author search operations' },
     { name: 'Enrichment', description: 'Book metadata enrichment' },
     { name: 'Import', description: 'CSV import and batch processing' },
     { name: 'Scanning', description: 'Bookshelf photo scanning' },
-    { name: 'Health', description: 'System health and monitoring' }
-  ]
+    { name: 'Health', description: 'System health and monitoring' },
+  ],
 }
 
 /**

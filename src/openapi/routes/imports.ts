@@ -7,8 +7,8 @@
 
 import { createRoute } from '@hono/zod-openapi'
 import { z } from 'zod'
-import { JobResponseSchema, JobStateSchema, JobResultsEnvelopeSchema } from '../../schemas/job'
-import { ResponseEnvelopeSchema, ErrorResponseSchema } from '../../schemas/common'
+import { ErrorResponseSchema, ResponseEnvelopeSchema } from '../../schemas/common'
+import { JobResponseSchema, JobResultsEnvelopeSchema, JobStateSchema } from '../../schemas/job'
 
 /**
  * CSV/Photo Import Request Body Schema
@@ -21,7 +21,7 @@ import { ResponseEnvelopeSchema, ErrorResponseSchema } from '../../schemas/commo
  * Note: Multipart/form-data validation is handled by the handler,
  * not by Zod. This schema is for OpenAPI documentation only.
  */
-const ImportRequestSchema = z.object({}).strict()
+const _ImportRequestSchema = z.object({}).strict()
 
 /**
  * Job Creation Response Envelope
@@ -137,14 +137,14 @@ curl -X POST https://api.oooefam.net/api/v2/imports \\
               jobId: 'import_abc123def456',
               authToken: '550e8400-e29b-41d4-a716-446655440000',
               sseUrl: '/api/v2/imports/import_abc123def456/stream',
-              statusUrl: '/api/v2/imports/import_abc123def456'
+              statusUrl: '/api/v2/imports/import_abc123def456',
             },
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
-            }
-          }
-        }
-      }
+              timestamp: '2025-11-28T12:00:00.000Z',
+            },
+          },
+        },
+      },
     },
     400: {
       description: 'Invalid request - missing or invalid file',
@@ -154,18 +154,18 @@ curl -X POST https://api.oooefam.net/api/v2/imports \\
           example: {
             data: null,
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
+              timestamp: '2025-11-28T12:00:00.000Z',
             },
             error: {
               code: 'MISSING_PARAMETER',
-              message: 'No file provided. Expected \'file\' field',
+              message: "No file provided. Expected 'file' field",
               details: {
-                suggestion: 'Ensure multipart/form-data request includes file field'
-              }
-            }
-          }
-        }
-      }
+                suggestion: 'Ensure multipart/form-data request includes file field',
+              },
+            },
+          },
+        },
+      },
     },
     413: {
       description: 'File too large',
@@ -175,18 +175,19 @@ curl -X POST https://api.oooefam.net/api/v2/imports \\
           example: {
             data: null,
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
+              timestamp: '2025-11-28T12:00:00.000Z',
             },
             error: {
               code: 'FILE_TOO_LARGE',
               message: 'CSV file too large (max 8MB to fit 2M token limit)',
               details: {
-                suggestion: 'Try splitting your CSV into smaller files or removing unnecessary columns'
-              }
-            }
-          }
-        }
-      }
+                suggestion:
+                  'Try splitting your CSV into smaller files or removing unnecessary columns',
+              },
+            },
+          },
+        },
+      },
     },
     429: {
       description: 'Rate limit exceeded',
@@ -196,17 +197,17 @@ curl -X POST https://api.oooefam.net/api/v2/imports \\
           example: {
             data: null,
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
+              timestamp: '2025-11-28T12:00:00.000Z',
             },
             error: {
               code: 'RATE_LIMIT_EXCEEDED',
               message: 'Rate limit exceeded. Maximum 5 requests per minute.',
               retryable: true,
-              retryAfterMs: 60000
-            }
-          }
-        }
-      }
+              retryAfterMs: 60000,
+            },
+          },
+        },
+      },
     },
     500: {
       description: 'Internal server error',
@@ -216,17 +217,17 @@ curl -X POST https://api.oooefam.net/api/v2/imports \\
           example: {
             data: null,
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
+              timestamp: '2025-11-28T12:00:00.000Z',
             },
             error: {
               code: 'INTERNAL_ERROR',
-              message: 'An unexpected error occurred while processing the request'
-            }
-          }
-        }
-      }
-    }
-  }
+              message: 'An unexpected error occurred while processing the request',
+            },
+          },
+        },
+      },
+    },
+  },
 })
 
 /**
@@ -340,9 +341,11 @@ const pollStatus = async (jobId) => {
 **Rate Limit:** 30 requests/minute per IP (suitable for polling)
   `,
   request: {
-    params: z.object({
-      jobId: z.string().uuid('Invalid jobId format. Expected UUID string')
-    }).strict()
+    params: z
+      .object({
+        jobId: z.string().uuid('Invalid jobId format. Expected UUID string'),
+      })
+      .strict(),
   },
   responses: {
     200: {
@@ -358,15 +361,15 @@ const pollStatus = async (jobId) => {
               totalCount: 150,
               processedCount: 100,
               pipeline: 'csv_import',
-              startTime: '2025-11-28T10:00:00Z'
+              startTime: '2025-11-28T10:00:00Z',
             },
             metadata: {
               timestamp: '2025-11-28T12:00:00.000Z',
-              source: 'job-state-manager-do'
-            }
-          }
-        }
-      }
+              source: 'job-state-manager-do',
+            },
+          },
+        },
+      },
     },
     400: {
       description: 'Invalid jobId format',
@@ -376,15 +379,15 @@ const pollStatus = async (jobId) => {
           example: {
             data: null,
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
+              timestamp: '2025-11-28T12:00:00.000Z',
             },
             error: {
               code: 'INVALID_REQUEST',
-              message: 'Invalid jobId format. Expected UUID string'
-            }
-          }
-        }
-      }
+              message: 'Invalid jobId format. Expected UUID string',
+            },
+          },
+        },
+      },
     },
     404: {
       description: 'Job not found or not initialized',
@@ -394,18 +397,18 @@ const pollStatus = async (jobId) => {
           example: {
             data: null,
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
+              timestamp: '2025-11-28T12:00:00.000Z',
             },
             error: {
               code: 'NOT_FOUND',
               message: 'Import job not found or not initialized',
               details: {
-                jobId: '550e8400-e29b-41d4-a716-446655440000'
-              }
-            }
-          }
-        }
-      }
+                jobId: '550e8400-e29b-41d4-a716-446655440000',
+              },
+            },
+          },
+        },
+      },
     },
     429: {
       description: 'Rate limit exceeded',
@@ -415,17 +418,17 @@ const pollStatus = async (jobId) => {
           example: {
             data: null,
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
+              timestamp: '2025-11-28T12:00:00.000Z',
             },
             error: {
               code: 'RATE_LIMIT_EXCEEDED',
               message: 'Rate limit exceeded. Maximum 30 requests per minute.',
               retryable: true,
-              retryAfterMs: 2000
-            }
-          }
-        }
-      }
+              retryAfterMs: 2000,
+            },
+          },
+        },
+      },
     },
     500: {
       description: 'Internal server error',
@@ -435,17 +438,17 @@ const pollStatus = async (jobId) => {
           example: {
             data: null,
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
+              timestamp: '2025-11-28T12:00:00.000Z',
             },
             error: {
               code: 'INTERNAL_ERROR',
-              message: 'An unexpected error occurred while processing the request'
-            }
-          }
-        }
-      }
-    }
-  }
+              message: 'An unexpected error occurred while processing the request',
+            },
+          },
+        },
+      },
+    },
+  },
 })
 
 /**
@@ -556,9 +559,11 @@ Parse this array and save all book objects to local storage for offline access.
 - 404: Job results not found or expired (checked 1 hour after completion)
   `,
   request: {
-    params: z.object({
-      jobId: z.string().uuid('Invalid jobId format. Expected UUID string')
-    }).strict()
+    params: z
+      .object({
+        jobId: z.string().uuid('Invalid jobId format. Expected UUID string'),
+      })
+      .strict(),
   },
   responses: {
     200: {
@@ -573,9 +578,7 @@ Parse this array and save all book objects to local storage for offline access.
               duplicatesSkipped: 5,
               enrichmentSucceeded: 140,
               enrichmentFailed: 5,
-              errors: [
-                { row: 15, isbn: '1234567890', error: 'Invalid ISBN' }
-              ],
+              errors: [{ row: 15, isbn: '1234567890', error: 'Invalid ISBN' }],
               books: [
                 {
                   isbn: '9780439708180',
@@ -588,17 +591,17 @@ Parse this array and save all book objects to local storage for offline access.
                   pageCount: 320,
                   categories: ['Fiction', 'Fantasy'],
                   language: 'en',
-                  coverUrl: 'https://...'
-                }
-              ]
+                  coverUrl: 'https://...',
+                },
+              ],
             },
             metadata: {
               cached: true,
-              ttl: '1 hour'
-            }
-          }
-        }
-      }
+              ttl: '1 hour',
+            },
+          },
+        },
+      },
     },
     400: {
       description: 'Invalid jobId format',
@@ -608,15 +611,15 @@ Parse this array and save all book objects to local storage for offline access.
           example: {
             data: null,
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
+              timestamp: '2025-11-28T12:00:00.000Z',
             },
             error: {
               code: 'INVALID_REQUEST',
-              message: 'Invalid jobId format. Expected UUID string'
-            }
-          }
-        }
-      }
+              message: 'Invalid jobId format. Expected UUID string',
+            },
+          },
+        },
+      },
     },
     404: {
       description: 'Job results not found or expired',
@@ -626,20 +629,25 @@ Parse this array and save all book objects to local storage for offline access.
           example: {
             data: null,
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
+              timestamp: '2025-11-28T12:00:00.000Z',
             },
             error: {
               code: 'NOT_FOUND',
-              message: 'Job results not found or expired. Results are stored for 1 hour after job completion.',
+              message:
+                'Job results not found or expired. Results are stored for 1 hour after job completion.',
               details: {
                 jobId: '550e8400-e29b-41d4-a716-446655440000',
                 ttl: '1 hour',
-                checkedKeys: ['csv-results:550e8400-e29b-41d4-a716-446655440000', 'scan-results:550e8400-e29b-41d4-a716-446655440000', 'job-results:550e8400-e29b-41d4-a716-446655440000']
-              }
-            }
-          }
-        }
-      }
+                checkedKeys: [
+                  'csv-results:550e8400-e29b-41d4-a716-446655440000',
+                  'scan-results:550e8400-e29b-41d4-a716-446655440000',
+                  'job-results:550e8400-e29b-41d4-a716-446655440000',
+                ],
+              },
+            },
+          },
+        },
+      },
     },
     500: {
       description: 'Internal server error',
@@ -649,15 +657,15 @@ Parse this array and save all book objects to local storage for offline access.
           example: {
             data: null,
             metadata: {
-              timestamp: '2025-11-28T12:00:00.000Z'
+              timestamp: '2025-11-28T12:00:00.000Z',
             },
             error: {
               code: 'INTERNAL_ERROR',
-              message: 'An unexpected error occurred while processing the request'
-            }
-          }
-        }
-      }
-    }
-  }
+              message: 'An unexpected error occurred while processing the request',
+            },
+          },
+        },
+      },
+    },
+  },
 })

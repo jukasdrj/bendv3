@@ -57,7 +57,7 @@ export async function uploadPayloadToR2(env, jobId, type, data) {
             uploadTime: timestamp.toString(),
           },
         },
-        { signal: abortController.signal } // Issue #59: Pass signal to enforce timeout
+        { signal: abortController.signal }, // Issue #59: Pass signal to enforce timeout
       )
 
       clearTimeout(timeout)
@@ -76,7 +76,7 @@ export async function uploadPayloadToR2(env, jobId, type, data) {
 
       if (i < R2_RETRY_COUNT - 1) {
         // Wait before retry (exponential backoff)
-        await new Promise((resolve) => setTimeout(resolve, Math.pow(2, i) * 100))
+        await new Promise((resolve) => setTimeout(resolve, 2 ** i * 100))
       }
     }
   }
@@ -200,10 +200,7 @@ export async function cleanupJobR2Objects(env, jobId) {
 
   try {
     // Paginate through all results (bucket.list returns max 1000 per request)
-    const prefixes = [
-      `hibernation/csv/${jobId}/`,
-      `hibernation/image/${jobId}/`,
-    ]
+    const prefixes = [`hibernation/csv/${jobId}/`, `hibernation/image/${jobId}/`]
 
     // Issue #59: Add timeout to list operations
     const abortController = new AbortController()
@@ -233,10 +230,10 @@ export async function cleanupJobR2Objects(env, jobId) {
       const batch = allObjects.slice(i, i + R2_DELETE_BATCH_SIZE)
       await Promise.all(
         batch.map((obj) =>
-          bucket.delete(obj.key).catch((error) =>
-            console.error(`[R2] Failed to delete ${obj.key}:`, error)
-          )
-        )
+          bucket
+            .delete(obj.key)
+            .catch((error) => console.error(`[R2] Failed to delete ${obj.key}:`, error)),
+        ),
       )
 
       // Add delay between batches (except for last batch)

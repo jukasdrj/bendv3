@@ -45,10 +45,10 @@ export interface CircuitBreakerOptions {
  * Default circuit breaker configuration
  */
 export const DEFAULT_CIRCUIT_BREAKER_OPTIONS: CircuitBreakerOptions = {
-  failureThreshold: 5,         // Open after 5 consecutive failures
-  successThreshold: 2,         // Close after 2 successes in HALF_OPEN
-  cooldownMs: 60000,          // 60 seconds cooldown
-  stateExpirationTtl: 300     // 5 minutes TTL in KV cache
+  failureThreshold: 5, // Open after 5 consecutive failures
+  successThreshold: 2, // Close after 2 successes in HALF_OPEN
+  cooldownMs: 60000, // 60 seconds cooldown
+  stateExpirationTtl: 300, // 5 minutes TTL in KV cache
 }
 
 /**

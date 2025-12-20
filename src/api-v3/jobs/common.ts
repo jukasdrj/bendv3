@@ -6,9 +6,9 @@
  * @module api-v3/jobs/common
  */
 
-import type { Env } from '../../types/env'
+import type { Job, JobStatus, JobType } from '@bookstrack/schemas'
 import type { DurableObjectStub } from '@cloudflare/workers-types'
-import type { Job, JobType, JobStatus } from '@bookstrack/schemas'
+import type { Env } from '../../types/env'
 
 /**
  * JobStateManagerDO Interface
@@ -55,7 +55,7 @@ export interface WebSocketConnectionDO {
  */
 export function getJobStateManagerDO(
   jobId: string,
-  env: Env
+  env: Env,
 ): DurableObjectStub & JobStateManagerDO {
   const doId = env.JOB_STATE_MANAGER_DO.idFromName(jobId)
   return env.JOB_STATE_MANAGER_DO.get(doId) as DurableObjectStub & JobStateManagerDO
@@ -79,7 +79,7 @@ export function getJobStateManagerDO(
  */
 export function getWebSocketConnectionDO(
   jobId: string,
-  env: Env
+  env: Env,
 ): DurableObjectStub & WebSocketConnectionDO {
   const doId = env.WEBSOCKET_CONNECTION_DO.idFromName(jobId)
   return env.WEBSOCKET_CONNECTION_DO.get(doId) as DurableObjectStub & WebSocketConnectionDO
@@ -151,7 +151,7 @@ export function validateTokenFormat(token: string | undefined): boolean {
 export function parseLastEventId(lastEventId: string | undefined): number | null {
   if (!lastEventId) return null
   const parsed = parseInt(lastEventId, 10)
-  return isNaN(parsed) ? null : parsed
+  return Number.isNaN(parsed) ? null : parsed
 }
 
 /**
@@ -209,18 +209,18 @@ export function createJobLinks(jobType: string, jobId: string, streamUrl: string
     self: {
       href: `${baseUrl}/v3/jobs/${jobType}/${jobId}`,
       rel: 'self',
-      method: 'GET' as const
+      method: 'GET' as const,
     },
     stream: {
       href: streamUrl,
       rel: 'related',
-      method: 'GET' as const
+      method: 'GET' as const,
     },
     cancel: {
       href: `${baseUrl}/v3/jobs/${jobType}/${jobId}`,
       rel: 'related',
-      method: 'DELETE' as const
-    }
+      method: 'DELETE' as const,
+    },
   }
 }
 
@@ -235,7 +235,7 @@ function mapPipelineToJobType(pipeline: string): JobType {
     csv_import: 'csv_import',
     ai_scan: 'bookshelf_scan',
     batch_enrichment: 'batch_enrichment',
-    enrichment: 'batch_enrichment'
+    enrichment: 'batch_enrichment',
   }
   return mapping[pipeline] || 'csv_import'
 }
@@ -277,14 +277,15 @@ export function mapDOStateToJob(state: any): Job {
     progress: state.progress ?? 0,
     processedCount: state.processedCount ?? 0,
     totalCount: state.totalCount ?? 0,
-    startTime: typeof state.startTime === 'number'
-      ? new Date(state.startTime).toISOString()
-      : state.startTime,
+    startTime:
+      typeof state.startTime === 'number'
+        ? new Date(state.startTime).toISOString()
+        : state.startTime,
     completedTime: state.completedTime
-      ? (typeof state.completedTime === 'number'
-          ? new Date(state.completedTime).toISOString()
-          : state.completedTime)
+      ? typeof state.completedTime === 'number'
+        ? new Date(state.completedTime).toISOString()
+        : state.completedTime
       : undefined,
-    error: state.error
+    error: state.error,
   }
 }

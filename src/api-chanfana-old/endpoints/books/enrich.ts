@@ -9,9 +9,9 @@
  */
 
 import { z } from 'zod'
-import { BendRoute, type AppContext } from '../../base'
-import { BookSchema } from '../../schemas/book'
 import { createErrorResponse, ErrorCodes } from '../../../utils/response-builder'
+import { type AppContext, BendRoute } from '../../base'
+import { BookSchema } from '../../schemas/book'
 
 export class EnrichBook extends BendRoute {
   schema = {
@@ -23,10 +23,12 @@ export class EnrichBook extends BendRoute {
         content: {
           'application/json': {
             schema: z.object({
-              isbn: z.string()
+              isbn: z
+                .string()
                 .regex(/^\d{13}$/, 'Must be 13-digit ISBN')
                 .describe('13-digit ISBN (example: 9780439708180)'),
-              force: z.boolean()
+              force: z
+                .boolean()
                 .default(false)
                 .describe('Force refresh from providers to bypass cache (example: false)'),
             }),
@@ -102,14 +104,8 @@ export class EnrichBook extends BendRoute {
 
       if (!result || !result.success) {
         return c.json(
-          createErrorResponse(
-            'Book not found',
-            404,
-            ErrorCodes.NOT_FOUND,
-            { isbn },
-            c.req.raw
-          ),
-          404
+          createErrorResponse('Book not found', 404, ErrorCodes.NOT_FOUND, { isbn }, c.req.raw),
+          404,
         )
       }
 
@@ -124,20 +120,22 @@ export class EnrichBook extends BendRoute {
 
       console.log(`[V3 Books] Enriched ${isbn} in ${duration}ms via ${result.metadata?.source}`)
 
-      return c.json({
-        success: true,
-        data: {
-          book: result.data,
-          enriched: !result.metadata?.cached || force,
-          provider: result.metadata?.source || 'unknown',
-          cached: result.metadata?.cached && !force,
+      return c.json(
+        {
+          success: true,
+          data: {
+            book: result.data,
+            enriched: !result.metadata?.cached || force,
+            provider: result.metadata?.source || 'unknown',
+            cached: result.metadata?.cached && !force,
+          },
+          metadata: {
+            timestamp: new Date().toISOString(),
+            duration,
+          },
         },
-        metadata: {
-          timestamp: new Date().toISOString(),
-          duration,
-        },
-      }, 200)
-
+        200,
+      )
     } catch (error: any) {
       console.error(`[V3 Books] Enrich error:`, error)
 
@@ -149,9 +147,9 @@ export class EnrichBook extends BendRoute {
             503,
             ErrorCodes.CIRCUIT_OPEN,
             { retryAfterMs: 60000 },
-            c.req.raw
+            c.req.raw,
           ),
-          503
+          503,
         )
       }
 

@@ -21,16 +21,16 @@
  */
 export const DEFAULT_TTL = {
   // Hot/Cold Strategy (used by cache-service.js and external-apis.ts)
-  hot: 2 * 60 * 60,           // 2 hours
-  cold: 14 * 24 * 60 * 60,    // 14 days
+  hot: 2 * 60 * 60, // 2 hours
+  cold: 14 * 24 * 60 * 60, // 14 days
 
   // Content-specific TTLs (used by kv-cache.js)
-  isbn: 365 * 24 * 60 * 60,       // 365 days (ISBN metadata never changes)
-  title: 7 * 24 * 60 * 60,        // 7 days (new editions occasionally)
-  author: 7 * 24 * 60 * 60,       // 7 days (new books occasionally)
+  isbn: 365 * 24 * 60 * 60, // 365 days (ISBN metadata never changes)
+  title: 7 * 24 * 60 * 60, // 7 days (new editions occasionally)
+  author: 7 * 24 * 60 * 60, // 7 days (new books occasionally)
   enrichment: 180 * 24 * 60 * 60, // 180 days (very stable metadata)
-  cover: 365 * 24 * 60 * 60,      // 365 days (cover images don't change)
-};
+  cover: 365 * 24 * 60 * 60, // 365 days (cover images don't change)
+}
 
 /**
  * Get TTL value for a specific cache type
@@ -48,17 +48,17 @@ export function getCacheTTL(type, env = {}) {
     author: 'CACHE_TTL_AUTHOR',
     enrichment: 'CACHE_TTL_ENRICHMENT',
     cover: 'CACHE_TTL_COVER',
-  };
+  }
 
-  const envVar = envVarMap[type];
+  const envVar = envVarMap[type]
   if (envVar && env[envVar]) {
-    const parsed = parseInt(env[envVar], 10);
-    if (!isNaN(parsed) && parsed > 0) {
-      return parsed;
+    const parsed = parseInt(env[envVar], 10)
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      return parsed
     }
   }
 
-  return DEFAULT_TTL[type] || DEFAULT_TTL.cold;
+  return DEFAULT_TTL[type] || DEFAULT_TTL.cold
 }
 
 /**
@@ -76,5 +76,5 @@ export function getAllCacheTTLs(env = {}) {
     author: getCacheTTL('author', env),
     enrichment: getCacheTTL('enrichment', env),
     cover: getCacheTTL('cover', env),
-  };
+  }
 }

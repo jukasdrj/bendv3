@@ -14,19 +14,19 @@
  * @module api-v3/jobs/enrichment
  */
 
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
-import type { Env } from '../../types/env'
-import type { RequestContext } from '../../middleware/request-context'
 import {
   createProblemDetails,
-  JobStatusResponseSchema,
+  type Job,
+  type JobResultsData,
   JobResultsResponseSchema,
-  SSEProgressEventSchema,
+  JobStatusResponseSchema,
   SSECompleteEventSchema,
   SSEErrorEventSchema,
-  type Job,
-  type JobResultsData
+  SSEProgressEventSchema,
 } from '@bookstrack/schemas'
+import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
+import type { RequestContext } from '../../middleware/request-context'
+import type { Env } from '../../types/env'
 import { getJobStateManagerDO, mapDOStateToJob } from './common'
 import { handleSSEStream } from './stream'
 
@@ -35,7 +35,9 @@ import { handleSSEStream } from './stream'
  *
  * @param app - V3 OpenAPIHono router instance
  */
-export function registerEnrichmentRoutes(app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>) {
+export function registerEnrichmentRoutes(
+  app: OpenAPIHono<{ Bindings: Env; Variables: { ctx: RequestContext } }>,
+) {
   // ========================================================================
   // GET /v3/jobs/enrichment/:jobId - Get job status
   // ========================================================================
@@ -52,23 +54,23 @@ export function registerEnrichmentRoutes(app: OpenAPIHono<{ Bindings: Env; Varia
 - Rate limit: 30 requests/minute per job`,
     request: {
       params: z.object({
-        jobId: z.string().uuid()
-      })
+        jobId: z.string().uuid(),
+      }),
     },
     responses: {
       200: {
         description: 'Job status',
-        content: { 'application/json': { schema: JobStatusResponseSchema } }
+        content: { 'application/json': { schema: JobStatusResponseSchema } },
       },
       404: {
         description: 'Job not found',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(getEnrichmentStatusRoute, async (c) => {
@@ -83,9 +85,9 @@ export function registerEnrichmentRoutes(app: OpenAPIHono<{ Bindings: Env; Varia
         return c.json(
           createProblemDetails('NOT_FOUND', 'Enrichment job not found', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
@@ -97,19 +99,19 @@ export function registerEnrichmentRoutes(app: OpenAPIHono<{ Bindings: Env; Varia
           data: job,
           metadata: {
             timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
-          }
+            requestId: ctx.requestId,
+          },
         },
-        200
+        200,
       )
     } catch (error: any) {
       console.error('[V3 Enrichment Status] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
@@ -141,18 +143,18 @@ export function registerEnrichmentRoutes(app: OpenAPIHono<{ Bindings: Env; Varia
     security: [{ bearerAuth: [] }],
     request: {
       params: z.object({
-        jobId: z.string().uuid()
+        jobId: z.string().uuid(),
       }),
       headers: z.object({
         authorization: z.string().optional().openapi({
           description: 'Bearer token from job creation',
-          example: 'Bearer a1b2c3d4e5f6...'
+          example: 'Bearer a1b2c3d4e5f6...',
         }),
         'last-event-id': z.string().optional().openapi({
           description: 'Last received event ID for reconnection',
-          example: '42'
-        })
-      })
+          example: '42',
+        }),
+      }),
     },
     responses: {
       200: {
@@ -165,21 +167,21 @@ export function registerEnrichmentRoutes(app: OpenAPIHono<{ Bindings: Env; Varia
                 SSEProgressEventSchema,
                 SSECompleteEventSchema,
                 SSEErrorEventSchema,
-                z.object({ timestamp: z.string() })
-              ])
-            })
-          }
-        }
+                z.object({ timestamp: z.string() }),
+              ]),
+            }),
+          },
+        },
       },
       401: {
         description: 'Unauthorized (invalid or expired token)',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       404: {
         description: 'Job not found',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(streamEnrichmentRoute, async (c) => {
@@ -205,23 +207,23 @@ Results include:
 Results cached in KV for 2 hours after completion.`,
     request: {
       params: z.object({
-        jobId: z.string().uuid()
-      })
+        jobId: z.string().uuid(),
+      }),
     },
     responses: {
       200: {
         description: 'Job results',
-        content: { 'application/json': { schema: JobResultsResponseSchema } }
+        content: { 'application/json': { schema: JobResultsResponseSchema } },
       },
       404: {
         description: 'Job not found or not completed',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(getEnrichmentResultsRoute, async (c) => {
@@ -236,9 +238,9 @@ Results cached in KV for 2 hours after completion.`,
         return c.json(
           createProblemDetails('NOT_FOUND', 'Enrichment job not found', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
@@ -247,9 +249,9 @@ Results cached in KV for 2 hours after completion.`,
           createProblemDetails('NOT_FOUND', `Job not completed (status: ${state.status})`, {
             requestId: ctx.requestId,
             instance: c.req.url,
-            jobStatus: state.status
+            jobStatus: state.status,
           }),
-          404
+          404,
         )
       }
 
@@ -261,16 +263,16 @@ Results cached in KV for 2 hours after completion.`,
         return c.json(
           createProblemDetails('NOT_FOUND', 'Results not found (may have expired after 2 hours)', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
       const data: JobResultsData = {
         jobId: state.jobId,
         status: state.status,
-        results
+        results,
       }
 
       return c.json(
@@ -279,19 +281,19 @@ Results cached in KV for 2 hours after completion.`,
           data,
           metadata: {
             timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
-          }
+            requestId: ctx.requestId,
+          },
         },
-        200
+        200,
       )
     } catch (error: any) {
       console.error('[V3 Enrichment Results] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
@@ -309,27 +311,27 @@ Results cached in KV for 2 hours after completion.`,
 **Note:** Jobs may not stop immediately (graceful shutdown).`,
     request: {
       params: z.object({
-        jobId: z.string().uuid()
-      })
+        jobId: z.string().uuid(),
+      }),
     },
     responses: {
       200: {
         description: 'Job canceled',
-        content: { 'application/json': { schema: JobStatusResponseSchema } }
+        content: { 'application/json': { schema: JobStatusResponseSchema } },
       },
       404: {
         description: 'Job not found',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       409: {
         description: 'Job already completed or failed',
-        content: { 'application/problem+json': { schema: z.any() } }
+        content: { 'application/problem+json': { schema: z.any() } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: z.any() } }
-      }
-    }
+        content: { 'application/problem+json': { schema: z.any() } },
+      },
+    },
   })
 
   app.openapi(cancelEnrichmentRoute, async (c) => {
@@ -344,9 +346,9 @@ Results cached in KV for 2 hours after completion.`,
         return c.json(
           createProblemDetails('NOT_FOUND', 'Enrichment job not found', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
@@ -356,16 +358,16 @@ Results cached in KV for 2 hours after completion.`,
           createProblemDetails('CONFLICT', `Cannot cancel ${state.status} job`, {
             requestId: ctx.requestId,
             instance: c.req.url,
-            jobStatus: state.status
+            jobStatus: state.status,
           }),
-          409
+          409,
         )
       }
 
       // Cancel job via DO
       await doStub.sendError({
         code: 'CANCELED',
-        message: 'Job canceled by user'
+        message: 'Job canceled by user',
       })
 
       const canceledState = await doStub.getJobState()
@@ -379,7 +381,7 @@ Results cached in KV for 2 hours after completion.`,
         totalCount: canceledState.totalCount,
         startTime: canceledState.startTime,
         completedTime: canceledState.completedTime,
-        error: canceledState.error
+        error: canceledState.error,
       }
 
       return c.json(
@@ -388,22 +390,24 @@ Results cached in KV for 2 hours after completion.`,
           data: job,
           metadata: {
             timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
-          }
+            requestId: ctx.requestId,
+          },
         },
-        200
+        200,
       )
     } catch (error: any) {
       console.error('[V3 Enrichment Cancel] Error:', error)
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
 
-  console.log('[V3 Jobs] Batch enrichment routes registered: GET /v3/jobs/enrichment/:jobId, GET /v3/jobs/enrichment/:jobId/stream, GET /v3/jobs/enrichment/:jobId/results, DELETE /v3/jobs/enrichment/:jobId')
+  console.log(
+    '[V3 Jobs] Batch enrichment routes registered: GET /v3/jobs/enrichment/:jobId, GET /v3/jobs/enrichment/:jobId/stream, GET /v3/jobs/enrichment/:jobId/results, DELETE /v3/jobs/enrichment/:jobId',
+  )
 }

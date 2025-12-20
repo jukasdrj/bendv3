@@ -1,7 +1,7 @@
 // src/utils/cache-keys.js
 
-import { normalizeISBN } from "./normalization.js";
-import { PROMPT_VERSION } from "../prompts/csv-parser-prompt.js";
+import { PROMPT_VERSION } from '../prompts/csv-parser-prompt.js'
+import { normalizeISBN } from './normalization.js'
 
 /**
  * Generate SHA-256 hash of string using Web Crypto API
@@ -10,11 +10,11 @@ import { PROMPT_VERSION } from "../prompts/csv-parser-prompt.js";
  * @returns {Promise<string>} Hexadecimal hash string
  */
 async function sha256(text) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(text);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  const encoder = new TextEncoder()
+  const data = encoder.encode(text)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 /**
@@ -29,8 +29,8 @@ async function sha256(text) {
  * @returns {Promise<string>} Cache key in format csv-parse:{hash}:{version}
  */
 export async function generateCSVCacheKey(csvText) {
-  const hash = await sha256(csvText);
-  return `csv-parse:${hash}:${PROMPT_VERSION}`;
+  const hash = await sha256(csvText)
+  return `csv-parse:${hash}:${PROMPT_VERSION}`
 }
 
 /**
@@ -45,6 +45,6 @@ export async function generateCSVCacheKey(csvText) {
  */
 export function generateISBNCacheKey(isbn) {
   // Use shared normalization utility for consistency
-  const normalized = normalizeISBN(isbn);
-  return `book:isbn:${normalized}`; // Canonical cache key format
+  const normalized = normalizeISBN(isbn)
+  return `book:isbn:${normalized}` // Canonical cache key format
 }

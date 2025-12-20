@@ -7,19 +7,15 @@
  * - Request coalescing to prevent duplicate in-flight calls
  */
 
-import * as externalApis from "../services/external-apis.ts";
-import {
-  createErrorResponse,
-  ErrorCodes,
-} from "../utils/response-builder.js";
-import { generateSearchLinks } from "../utils/book-metadata.js";
-import { transformWorkToGoogleFormat } from "../utils/transform-work.js";
+import * as externalApis from '../services/external-apis.ts'
+import { createErrorResponse, ErrorCodes } from '../utils/response-builder.js'
+import { transformWorkToGoogleFormat } from '../utils/transform-work.js'
 
 // Request coalescing: Map of in-flight requests by cache key
-const IN_FLIGHT_REQUESTS = new Map();
+const IN_FLIGHT_REQUESTS = new Map()
 
 // Request timeout (30 seconds)
-const REQUEST_TIMEOUT_MS = 30000;
+const REQUEST_TIMEOUT_MS = 30000
 
 /**
  * Wrap a promise with timeout and automatic cleanup
@@ -31,26 +27,26 @@ const REQUEST_TIMEOUT_MS = 30000;
  * @returns {Promise} Promise that rejects on timeout
  */
 async function withTimeout(promise, timeoutMs, cacheKey) {
-  let timeoutId;
-  let timeoutOccurred = false;
+  let timeoutId
+  let _timeoutOccurred = false
 
   try {
     return await Promise.race([
       promise,
       new Promise((_, reject) => {
         timeoutId = setTimeout(() => {
-          timeoutOccurred = true;
+          _timeoutOccurred = true
           // Clean up Map entry on timeout
-          IN_FLIGHT_REQUESTS.delete(cacheKey);
-          console.error(`⏱️ Request timeout after ${timeoutMs}ms: ${cacheKey}`);
-          reject(new Error(`Request timeout after ${timeoutMs}ms`));
-        }, timeoutMs);
+          IN_FLIGHT_REQUESTS.delete(cacheKey)
+          console.error(`⏱️ Request timeout after ${timeoutMs}ms: ${cacheKey}`)
+          reject(new Error(`Request timeout after ${timeoutMs}ms`))
+        }, timeoutMs)
       }),
-    ]);
+    ])
   } finally {
     // Always clear timeout to prevent memory leak
     if (timeoutId) {
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutId)
     }
     // Note: DO NOT delete from Map here on success
     // The inner requestPromise's finally block handles cleanup
@@ -62,13 +58,13 @@ async function withTimeout(promise, timeoutMs, cacheKey) {
  * Generate cache key for search parameters
  */
 function generateSearchCacheKey(searchParams) {
-  const { bookTitle, authorName, isbn } = searchParams;
+  const { bookTitle, authorName, isbn } = searchParams
   const parts = [
-    isbn || "",
-    bookTitle?.normalize('NFC').toLowerCase().trim() || "",
-    authorName?.normalize('NFC').toLowerCase().trim() || "",
-  ];
-  return `search:${parts.filter(Boolean).join(":")}`;
+    isbn || '',
+    bookTitle?.normalize('NFC').toLowerCase().trim() || '',
+    authorName?.normalize('NFC').toLowerCase().trim() || '',
+  ]
+  return `search:${parts.filter(Boolean).join(':')}`
 }
 
 /**
@@ -77,23 +73,21 @@ function generateSearchCacheKey(searchParams) {
  */
 async function checkNegativeCache(cacheKey, env) {
   try {
-    const negativeKey = `negative:${cacheKey}`;
-    const cached = await env.CACHE.get(negativeKey, "json");
+    const negativeKey = `negative:${cacheKey}`
+    const cached = await env.CACHE.get(negativeKey, 'json')
 
-    if (cached && cached.timestamp) {
-      const age = Date.now() - cached.timestamp;
+    if (cached?.timestamp) {
+      const age = Date.now() - cached.timestamp
       // Return cached error if less than 5 minutes old
       if (age < 300000) {
-        console.log(
-          `⚠️ Negative cache HIT: ${cacheKey} (age: ${Math.round(age / 1000)}s)`,
-        );
-        return cached;
+        console.log(`⚠️ Negative cache HIT: ${cacheKey} (age: ${Math.round(age / 1000)}s)`)
+        return cached
       }
     }
   } catch (error) {
-    console.error("Negative cache check failed:", error);
+    console.error('Negative cache check failed:', error)
   }
-  return null;
+  return null
 }
 
 /**
@@ -105,22 +99,22 @@ async function checkNegativeCache(cacheKey, env) {
  */
 async function storeNegativeCache(cacheKey, error, type, env) {
   try {
-    const negativeKey = `negative:${cacheKey}`;
+    const negativeKey = `negative:${cacheKey}`
     await env.CACHE.put(
       negativeKey,
       JSON.stringify({
-        type: type || "error", // 'no_results' vs 'error'
-        error: error.message || "Unknown error",
+        type: type || 'error', // 'no_results' vs 'error'
+        error: error.message || 'Unknown error',
         status: error.status || 500,
         timestamp: Date.now(),
       }),
       {
         expirationTtl: 300, // 5 minutes
       },
-    );
-    console.log(`📝 Stored negative cache: ${cacheKey} (type: ${type})`);
+    )
+    console.log(`📝 Stored negative cache: ${cacheKey} (type: ${type})`)
   } catch (err) {
-    console.error("Failed to store negative cache:", err);
+    console.error('Failed to store negative cache:', err)
   }
 }
 
@@ -137,141 +131,110 @@ async function storeNegativeCache(cacheKey, error, type, env) {
  * @returns {Promise<Object>} Search results with items array (Google Books format)
  */
 export async function handleAdvancedSearch(searchParams, options = {}, env) {
-  const { bookTitle, authorName } = searchParams;
-  const maxResults = options.maxResults || 1;
-  const cacheKey = generateSearchCacheKey(searchParams);
+  const { bookTitle, authorName } = searchParams
+  const maxResults = options.maxResults || 1
+  const cacheKey = generateSearchCacheKey(searchParams)
 
-  console.log(
-    `[AdvancedSearch] Searching for "${bookTitle}" by "${authorName}"`,
-  );
+  console.log(`[AdvancedSearch] Searching for "${bookTitle}" by "${authorName}"`)
 
   // Check negative cache first (prevents repeated failed lookups)
-  const negativeCache = await checkNegativeCache(cacheKey, env);
+  const negativeCache = await checkNegativeCache(cacheKey, env)
   if (negativeCache) {
     // Maintain consistent API contract: always return success: true for "no results"
-    if (negativeCache.type === "no_results") {
-      return new Response(JSON.stringify(
-        { items: [], resultCount: 0 }
-      ), {
+    if (negativeCache.type === 'no_results') {
+      return new Response(JSON.stringify({ items: [], resultCount: 0 }), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
     // Only true errors return success: false
     return createErrorResponse(
       negativeCache.error,
       negativeCache.status || 500,
       ErrorCodes.PROVIDER_ERROR,
-    );
+    )
   }
 
   // Check for in-flight request (request coalescing)
   if (IN_FLIGHT_REQUESTS.has(cacheKey)) {
-    console.log(
-      `🔄 Request coalescing: Waiting for in-flight request (${cacheKey})`,
-    );
-    return IN_FLIGHT_REQUESTS.get(cacheKey);
+    console.log(`🔄 Request coalescing: Waiting for in-flight request (${cacheKey})`)
+    return IN_FLIGHT_REQUESTS.get(cacheKey)
   }
 
   // Create new request promise
   const requestPromise = (async () => {
     try {
       // Try Google Books first (most reliable for enrichment)
-      const query = [bookTitle, authorName].filter(Boolean).join(" ");
+      const query = [bookTitle, authorName].filter(Boolean).join(' ')
 
-      const googleResult = await externalApis.searchGoogleBooks(
-        query,
-        { maxResults },
-        env,
-      );
+      const googleResult = await externalApis.searchGoogleBooks(query, { maxResults }, env)
 
-      if (googleResult && googleResult.works && googleResult.works.length > 0) {
+      if (googleResult?.works && googleResult.works.length > 0) {
         // Convert normalized works to Google Books format using shared utility
-        const items = googleResult.works.map((work) =>
-          transformWorkToGoogleFormat(work),
-        );
+        const items = googleResult.works.map((work) => transformWorkToGoogleFormat(work))
 
-        const resultItems = items.slice(0, maxResults);
-        return new Response(JSON.stringify(
-          { items: resultItems, resultCount: resultItems.length }
-        ), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        const resultItems = items.slice(0, maxResults)
+        return new Response(
+          JSON.stringify({ items: resultItems, resultCount: resultItems.length }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        )
       }
 
       // Fallback to OpenLibrary if Google Books fails
-      console.log(
-        `[AdvancedSearch] Google Books returned no results, trying OpenLibrary...`,
-      );
+      console.log(`[AdvancedSearch] Google Books returned no results, trying OpenLibrary...`)
 
-      const olResult = await externalApis.searchOpenLibrary(
-        query,
-        { maxResults },
-        env,
-      );
+      const olResult = await externalApis.searchOpenLibrary(query, { maxResults }, env)
 
-      if (olResult && olResult.works && olResult.works.length > 0) {
+      if (olResult?.works && olResult.works.length > 0) {
         // Convert OpenLibrary works to Google Books format using shared utility
-        const items = olResult.works.map((work) =>
-          transformWorkToGoogleFormat(work),
-        );
+        const items = olResult.works.map((work) => transformWorkToGoogleFormat(work))
 
-        const resultItems = items.slice(0, maxResults);
-        return new Response(JSON.stringify(
-          { items: resultItems, resultCount: resultItems.length }
-        ), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        const resultItems = items.slice(0, maxResults)
+        return new Response(
+          JSON.stringify({ items: resultItems, resultCount: resultItems.length }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        )
       }
 
       // No results from any provider - store as "no_results" type (not error)
-      console.log(`[AdvancedSearch] No results found from any provider`);
+      console.log(`[AdvancedSearch] No results found from any provider`)
       await storeNegativeCache(
         cacheKey,
-        { message: "No results found", status: 404 },
-        "no_results",
+        { message: 'No results found', status: 404 },
+        'no_results',
         env,
-      );
+      )
 
-      return new Response(JSON.stringify(
-        { items: [], resultCount: 0 }
-      ), {
+      return new Response(JSON.stringify({ items: [], resultCount: 0 }), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+        headers: { 'Content-Type': 'application/json' },
+      })
     } catch (error) {
-      console.error(
-        `[AdvancedSearch] Error searching for "${bookTitle}":`,
-        error,
-      );
+      console.error(`[AdvancedSearch] Error searching for "${bookTitle}":`, error)
 
       // Store negative cache for 5xx errors only (not client errors)
       if (!error.status || error.status >= 500) {
-        await storeNegativeCache(cacheKey, error, "error", env);
+        await storeNegativeCache(cacheKey, error, 'error', env)
       }
 
-      return createErrorResponse(
-        error.message || "Search failed",
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-      );
+      return createErrorResponse(error.message || 'Search failed', 500, ErrorCodes.INTERNAL_ERROR)
     } finally {
       // Clean up in-flight request
-      IN_FLIGHT_REQUESTS.delete(cacheKey);
+      IN_FLIGHT_REQUESTS.delete(cacheKey)
     }
-  })();
+  })()
 
   // Wrap with timeout to prevent memory leak on hung requests
-  const timeoutPromise = withTimeout(
-    requestPromise,
-    REQUEST_TIMEOUT_MS,
-    cacheKey,
-  );
+  const timeoutPromise = withTimeout(requestPromise, REQUEST_TIMEOUT_MS, cacheKey)
 
   // Store promise for request coalescing
-  IN_FLIGHT_REQUESTS.set(cacheKey, timeoutPromise);
+  IN_FLIGHT_REQUESTS.set(cacheKey, timeoutPromise)
 
-  return timeoutPromise;
+  return timeoutPromise
 }

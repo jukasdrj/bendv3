@@ -18,10 +18,14 @@
  * Issue: #140 - Switch to ISBNdb-Primary Pipeline
  */
 
-import type { Env } from '../types/env.js'
-import { normalizeISBNdbToWork, normalizeISBNdbToEdition, normalizeISBNdbToAuthor } from './normalizers/isbndb.js'
-import { KVCacheService } from './kv-cache.js'
 import { getCacheTTL } from '../config/cache-ttl.js'
+import type { Env } from '../types/env.js'
+import { KVCacheService } from './kv-cache.js'
+import {
+  normalizeISBNdbToAuthor,
+  normalizeISBNdbToEdition,
+  normalizeISBNdbToWork,
+} from './normalizers/isbndb.js'
 
 /**
  * ISBNdb book response format (from ISBNdbAPI.searchByAuthor)
@@ -63,7 +67,7 @@ export interface CacheWriteResult {
 export async function writeISBNdbBooksToCache(
   books: ISBNdbBook[],
   env: Env,
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
 ): Promise<CacheWriteResult[]> {
   const kvCache = new KVCacheService(env, ctx)
   const results: CacheWriteResult[] = []
@@ -76,7 +80,7 @@ export async function writeISBNdbBooksToCache(
           success: false,
           isbn: 'UNKNOWN',
           cached: false,
-          error: 'Missing ISBN'
+          error: 'Missing ISBN',
         })
         continue
       }
@@ -89,7 +93,7 @@ export async function writeISBNdbBooksToCache(
         results.push({
           success: true,
           isbn,
-          cached: true
+          cached: true,
         })
         continue
       }
@@ -108,28 +112,27 @@ export async function writeISBNdbBooksToCache(
           source: 'isbndb',
           provider: 'isbndb' as const,
           cached: false,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       }
 
       // Write to KV cache using cold TTL (14 days)
       await kvCache.set(cacheKey, canonicalData, 'isbn', {
-        ttl: getCacheTTL('cold', env) // Use cold TTL for persistent cache
+        ttl: getCacheTTL('cold', env), // Use cold TTL for persistent cache
       })
 
       results.push({
         success: true,
         isbn,
-        cached: false
+        cached: false,
       })
-
     } catch (error) {
       const isbn = book.isbn13 || book.isbn || 'UNKNOWN'
       results.push({
         success: false,
         isbn,
         cached: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
     }
   }
@@ -148,7 +151,7 @@ export async function writeISBNdbBooksToCache(
 export async function writeSingleISBNdbBookToCache(
   book: ISBNdbBook,
   env: Env,
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
 ): Promise<CacheWriteResult> {
   const results = await writeISBNdbBooksToCache([book], env, ctx)
   return results[0]

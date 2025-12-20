@@ -11,8 +11,8 @@
  */
 
 import type { Context } from 'hono'
-import { aggregateMetrics } from '../services/metrics-aggregator.js'
 import { checkAlertThresholds } from '../services/alert-monitor.js'
+import { aggregateMetrics } from '../services/metrics-aggregator.js'
 import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
 
 /**
@@ -23,13 +23,13 @@ async function getCacheHealth(env: any) {
     const metrics = await aggregateMetrics(env, '15m')
     const alerts = checkAlertThresholds(metrics)
 
-    const criticalAlerts = alerts.filter(a => a.severity === 'critical')
-    const warningAlerts = alerts.filter(a => a.severity === 'warning')
+    const criticalAlerts = alerts.filter((a) => a.severity === 'critical')
+    const warningAlerts = alerts.filter((a) => a.severity === 'warning')
 
     return {
       healthy: criticalAlerts.length === 0,
-      status: criticalAlerts.length > 0 ? 'critical' :
-              warningAlerts.length > 0 ? 'degraded' : 'healthy',
+      status:
+        criticalAlerts.length > 0 ? 'critical' : warningAlerts.length > 0 ? 'degraded' : 'healthy',
       alerts: {
         critical: criticalAlerts.length,
         warning: warningAlerts.length,
@@ -162,8 +162,8 @@ export async function handleCacheDashboard(c: Context) {
       getCacheStats(c.env),
     ])
 
-    return new Response(JSON.stringify(
-      {
+    return new Response(
+      JSON.stringify({
         health,
         alerts: {
           recent: alerts,
@@ -173,8 +173,8 @@ export async function handleCacheDashboard(c: Context) {
       }),
       {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      }
+        headers: { 'Content-Type': 'application/json' },
+      },
     )
   } catch (error) {
     console.error('[Cache Dashboard] Dashboard request failed:', error)
@@ -183,7 +183,7 @@ export async function handleCacheDashboard(c: Context) {
       500,
       ErrorCodes.INTERNAL_ERROR,
       { details: (error as Error).message },
-      c.req.raw
+      c.req.raw,
     )
   }
 }
@@ -196,12 +196,10 @@ export async function handleCacheHealth(c: Context) {
   try {
     const health = await getCacheHealth(c.env)
 
-    return new Response(JSON.stringify(health),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }
-    )
+    return new Response(JSON.stringify(health), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
   } catch (error) {
     console.error('[Cache Dashboard] Health check failed:', error)
     return createErrorResponse(
@@ -209,7 +207,7 @@ export async function handleCacheHealth(c: Context) {
       500,
       ErrorCodes.INTERNAL_ERROR,
       { details: (error as Error).message },
-      c.req.raw
+      c.req.raw,
     )
   }
 }
@@ -221,30 +219,30 @@ export async function handleCacheHealth(c: Context) {
 export async function handleCacheAlerts(c: Context) {
   try {
     const limitParam = c.req.query('limit')
-    const limit = limitParam ? parseInt(limitParam) : 20
+    const limit = limitParam ? parseInt(limitParam, 10) : 20
 
-    if (isNaN(limit) || limit < 1 || limit > 100) {
+    if (Number.isNaN(limit) || limit < 1 || limit > 100) {
       return createErrorResponse(
         'Invalid limit parameter (must be 1-100)',
         400,
         ErrorCodes.INVALID_REQUEST,
         { limit: limitParam },
-        c.req.raw
+        c.req.raw,
       )
     }
 
     const alerts = await getRecentAlerts(c.env, limit)
 
-    return new Response(JSON.stringify(
-      {
+    return new Response(
+      JSON.stringify({
         alerts,
         count: alerts.length,
         limit,
       }),
       {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      }
+        headers: { 'Content-Type': 'application/json' },
+      },
     )
   } catch (error) {
     console.error('[Cache Dashboard] Alert history request failed:', error)
@@ -253,7 +251,7 @@ export async function handleCacheAlerts(c: Context) {
       500,
       ErrorCodes.INTERNAL_ERROR,
       { details: (error as Error).message },
-      c.req.raw
+      c.req.raw,
     )
   }
 }

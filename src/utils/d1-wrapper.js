@@ -29,7 +29,7 @@ const WRITE_KEYWORDS = ['INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER',
  */
 function isWriteQuery(sql) {
   const trimmed = sql.trim().toUpperCase()
-  return WRITE_KEYWORDS.some(keyword => trimmed.startsWith(keyword))
+  return WRITE_KEYWORDS.some((keyword) => trimmed.startsWith(keyword))
 }
 
 /**
@@ -90,7 +90,7 @@ function wrapStatement(stmt, env, sql) {
      */
     async first() {
       const startTime = Date.now()
-      let error = null
+      let _error = null
 
       try {
         const result = await stmt.first()
@@ -101,12 +101,12 @@ function wrapStatement(stmt, env, sql) {
           queryType,
           latencyMs,
           latencyBucket: getLatencyBucket(latencyMs),
-          error: false
+          error: false,
         })
 
         return result
       } catch (err) {
-        error = err
+        _error = err
         const latencyMs = Date.now() - startTime
 
         // Record failed query metrics
@@ -114,7 +114,7 @@ function wrapStatement(stmt, env, sql) {
           queryType,
           latencyMs,
           latencyBucket: getLatencyBucket(latencyMs),
-          error: true
+          error: true,
         })
 
         throw err
@@ -127,7 +127,7 @@ function wrapStatement(stmt, env, sql) {
      */
     async all() {
       const startTime = Date.now()
-      let error = null
+      let _error = null
 
       try {
         const result = await stmt.all()
@@ -139,12 +139,12 @@ function wrapStatement(stmt, env, sql) {
           latencyMs,
           latencyBucket: getLatencyBucket(latencyMs),
           error: false,
-          rowCount: result.results?.length || 0
+          rowCount: result.results?.length || 0,
         })
 
         return result
       } catch (err) {
-        error = err
+        _error = err
         const latencyMs = Date.now() - startTime
 
         // Record failed query metrics
@@ -152,7 +152,7 @@ function wrapStatement(stmt, env, sql) {
           queryType,
           latencyMs,
           latencyBucket: getLatencyBucket(latencyMs),
-          error: true
+          error: true,
         })
 
         throw err
@@ -165,7 +165,7 @@ function wrapStatement(stmt, env, sql) {
      */
     async run() {
       const startTime = Date.now()
-      let error = null
+      let _error = null
 
       try {
         const result = await stmt.run()
@@ -177,12 +177,12 @@ function wrapStatement(stmt, env, sql) {
           latencyMs,
           latencyBucket: getLatencyBucket(latencyMs),
           error: false,
-          changes: result.meta?.changes || 0
+          changes: result.meta?.changes || 0,
         })
 
         return result
       } catch (err) {
-        error = err
+        _error = err
         const latencyMs = Date.now() - startTime
 
         // Record failed query metrics
@@ -190,7 +190,7 @@ function wrapStatement(stmt, env, sql) {
           queryType,
           latencyMs,
           latencyBucket: getLatencyBucket(latencyMs),
-          error: true
+          error: true,
         })
 
         throw err
@@ -203,7 +203,7 @@ function wrapStatement(stmt, env, sql) {
      */
     raw() {
       return stmt
-    }
+    },
   }
 }
 
@@ -259,7 +259,7 @@ export function wrapD1Database(db, env) {
      */
     raw() {
       return db
-    }
+    },
   }
 }
 

@@ -35,9 +35,11 @@ interface TestResult {
   }
 }
 
-export async function handleTestEnrichmentPipeline(c: Context<{ Bindings: Env }>): Promise<Response> {
+export async function handleTestEnrichmentPipeline(
+  c: Context<{ Bindings: Env }>,
+): Promise<Response> {
   const env = c.env
-  const limit = parseInt(c.req.query('limit') || '10')
+  const limit = parseInt(c.req.query('limit') || '10', 10)
 
   console.log('[TestEnrichment] Starting pipeline test with limit:', limit)
 
@@ -47,10 +49,13 @@ export async function handleTestEnrichmentPipeline(c: Context<{ Bindings: Env }>
     console.log(`[TestEnrichment] Fetched ${books.length} books from D1`)
 
     if (books.length === 0) {
-      return c.json({
-        error: 'No books found in database',
-        hint: 'Upload some books via CSV or add books to your library first'
-      }, 404)
+      return c.json(
+        {
+          error: 'No books found in database',
+          hint: 'Upload some books via CSV or add books to your library first',
+        },
+        404,
+      )
     }
 
     // Step 2: Check queue binding availability
@@ -58,18 +63,21 @@ export async function handleTestEnrichmentPipeline(c: Context<{ Bindings: Env }>
     console.log('[TestEnrichment] Queue binding available:', queueAvailable)
 
     if (!queueAvailable) {
-      return c.json({
-        error: 'ENRICHMENT_QUEUE binding not available',
-        books: books.map(b => ({
-          isbn: b.isbn,
-          title: b.title,
-          author: b.author,
-          currentCoverUrl: b.coverUrl,
-          queuedForEnrichment: false,
-          queueError: 'Queue binding not configured'
-        })),
-        hint: 'Check wrangler.jsonc queues.producers configuration'
-      }, 500)
+      return c.json(
+        {
+          error: 'ENRICHMENT_QUEUE binding not available',
+          books: books.map((b) => ({
+            isbn: b.isbn,
+            title: b.title,
+            author: b.author,
+            currentCoverUrl: b.coverUrl,
+            queuedForEnrichment: false,
+            queueError: 'Queue binding not configured',
+          })),
+          hint: 'Check wrangler.jsonc queues.producers configuration',
+        },
+        500,
+      )
     }
 
     // Step 3: Send books to enrichment queue
@@ -92,7 +100,6 @@ export async function handleTestEnrichmentPipeline(c: Context<{ Bindings: Env }>
         queued = true
         queuedCount++
         console.log(`[TestEnrichment] ✓ Queued ISBN ${book.isbn}`)
-
       } catch (error) {
         queueError = error instanceof Error ? error.message : String(error)
         console.error(`[TestEnrichment] ✗ Failed to queue ISBN ${book.isbn}:`, queueError)
@@ -112,8 +119,8 @@ export async function handleTestEnrichmentPipeline(c: Context<{ Bindings: Env }>
     const response: TestResult = {
       summary: {
         totalBooks: books.length,
-        withCovers: books.filter(b => b.coverUrl).length,
-        withoutCovers: books.filter(b => !b.coverUrl).length,
+        withCovers: books.filter((b) => b.coverUrl).length,
+        withoutCovers: books.filter((b) => !b.coverUrl).length,
         queuedForEnrichment: queuedCount,
         queueBindingAvailable: queueAvailable,
       },
@@ -122,19 +129,21 @@ export async function handleTestEnrichmentPipeline(c: Context<{ Bindings: Env }>
         binding: 'ENRICHMENT_QUEUE',
         target: 'alexandria-enrichment-queue',
         messagesS: queuedCount,
-      }
+      },
     }
 
     console.log('[TestEnrichment] Test complete:', JSON.stringify(response.summary))
 
     return c.json(response, 200)
-
   } catch (error) {
     console.error('[TestEnrichment] Pipeline test failed:', error)
-    return c.json({
-      error: 'Pipeline test failed',
-      message: error instanceof Error ? error.message : String(error)
-    }, 500)
+    return c.json(
+      {
+        error: 'Pipeline test failed',
+        message: error instanceof Error ? error.message : String(error),
+      },
+      500,
+    )
   }
 }
 
@@ -144,13 +153,15 @@ export async function handleTestEnrichmentPipeline(c: Context<{ Bindings: Env }>
  */
 async function fetchTestBooks(
   env: Env,
-  limit: number
-): Promise<Array<{
-  isbn: string
-  title: string
-  author: string
-  coverUrl: string | null
-}>> {
+  limit: number,
+): Promise<
+  Array<{
+    isbn: string
+    title: string
+    author: string
+    coverUrl: string | null
+  }>
+> {
   if (!env.DB) {
     console.log('[TestEnrichment] D1 not available')
     return []
@@ -169,7 +180,9 @@ async function fetchTestBooks(
       CASE WHEN b.cover_medium_url IS NULL THEN 0 ELSE 1 END,
       b.updated_at DESC
     LIMIT ?
-  `).bind(limit).all()
+  `)
+    .bind(limit)
+    .all()
 
   return (result.results || []).map((row: any) => ({
     isbn: row.isbn,

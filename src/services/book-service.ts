@@ -17,16 +17,10 @@
  */
 
 import { BookRepository } from '../repositories/book-repository'
-import { enrichMultipleBooks } from './enrichment'
-import { processBookCover, queueCoverProcessing } from './alexandria-cover-service'
+import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical'
 import type { BookRecord } from '../types/database'
-import type { WorkDTO, EditionDTO, AuthorDTO } from '../types/canonical'
-
-interface BookSearchQuery {
-  title?: string
-  author?: string
-  isbn?: string
-}
+import { processBookCover, queueCoverProcessing } from './alexandria-cover-service'
+import { enrichMultipleBooks } from './enrichment'
 
 interface SearchOptions {
   maxResults?: number
@@ -51,7 +45,7 @@ interface EnrichmentResult {
 export async function findBookByISBN(
   isbn: string,
   env: any,
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
 ): Promise<EnrichmentResult> {
   const bookRepo = new BookRepository(env)
 
@@ -66,7 +60,7 @@ export async function findBookByISBN(
 
     // Only return cached data if it has actual works
     // Otherwise, fall through to enrichment (book may have been cached before enrichment was added)
-    if (canonicalData && canonicalData.works && canonicalData.works.length > 0) {
+    if (canonicalData?.works && canonicalData.works.length > 0) {
       return {
         works: canonicalData.works,
         editions: canonicalData.editions || [],
@@ -82,12 +76,7 @@ export async function findBookByISBN(
   // 2. Repository miss: Fetch from external APIs
   console.log(`[BookService] Repository miss for ISBN ${isbn}, fetching from external APIs`)
 
-  const externalResult = await enrichMultipleBooks(
-    { isbn },
-    env,
-    { maxResults: 1 },
-    ctx
-  )
+  const externalResult = await enrichMultipleBooks({ isbn }, env, { maxResults: 1 }, ctx)
 
   // 3. Save to repository (dual-write if ENABLE_D1_WRITES=true)
   if (externalResult.works && externalResult.works.length > 0) {
@@ -114,7 +103,7 @@ export async function findBookByISBN(
               isbn: isbn,
             },
             env as any,
-            1  // Only 1 retry (fast fail for immediate processing)
+            1, // Only 1 retry (fast fail for immediate processing)
           )
 
           if (alexandriaResult.success) {
@@ -136,7 +125,9 @@ export async function findBookByISBN(
             console.log(`[BookService] ✅ Cover processed immediately via Alexandria for ${isbn}`)
           } else {
             // Queue for background processing on failure
-            console.warn(`[BookService] ⚠️ Immediate cover processing failed, queuing for background processing`)
+            console.warn(
+              `[BookService] ⚠️ Immediate cover processing failed, queuing for background processing`,
+            )
             await queueCoverProcessing(
               {
                 work_key: workKey,
@@ -144,7 +135,7 @@ export async function findBookByISBN(
                 isbn: isbn,
               },
               env as any,
-              'normal'  // Normal priority for background processing
+              'normal', // Normal priority for background processing
             )
             console.log(`[BookService] 📬 Cover queued for background processing: ${isbn}`)
           }
@@ -159,7 +150,7 @@ export async function findBookByISBN(
                 isbn: isbn,
               },
               env as any,
-              'normal'
+              'normal',
             )
             console.log(`[BookService] 📬 Cover queued after error: ${isbn}`)
           } catch (queueError) {
@@ -225,18 +216,13 @@ export async function findBooksByTitle(
   author: string | undefined,
   env: any,
   options: SearchOptions = { maxResults: 20 },
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
 ): Promise<EnrichmentResult> {
   // Title searches go directly to external APIs (no cache)
   // Reason: Multiple results, cache key would be complex
   console.log(`[BookService] Title search for "${title}" (no cache, direct external API call)`)
 
-  const result = await enrichMultipleBooks(
-    { title, author },
-    env,
-    options,
-    ctx
-  )
+  const result = await enrichMultipleBooks({ title, author }, env, options, ctx)
 
   // Future enhancement: Cache individual books found in title search results
   // This would populate the repository for future ISBN lookups
@@ -262,15 +248,13 @@ export async function findBooksByTitle(
 export async function batchEnrichBooks(
   isbns: string[],
   env: any,
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
 ): Promise<Map<string, EnrichmentResult>> {
   const bookRepo = new BookRepository(env)
   const results = new Map<string, EnrichmentResult>()
 
   // Step 1: Check repository for all ISBNs (parallel)
-  const cacheResults = await Promise.allSettled(
-    isbns.map((isbn) => bookRepo.findByISBN(isbn))
-  )
+  const cacheResults = await Promise.allSettled(isbns.map((isbn) => bookRepo.findByISBN(isbn)))
 
   const missingISBNs: string[] = []
 
@@ -294,14 +278,12 @@ export async function batchEnrichBooks(
   })
 
   console.log(
-    `[BookService] Batch enrichment: ${results.size} cached, ${missingISBNs.length} to fetch`
+    `[BookService] Batch enrichment: ${results.size} cached, ${missingISBNs.length} to fetch`,
   )
 
   // Step 2: Fetch missing ISBNs from external APIs (parallel)
   const externalResults = await Promise.allSettled(
-    missingISBNs.map((isbn) =>
-      enrichMultipleBooks({ isbn }, env, { maxResults: 1 }, ctx)
-    )
+    missingISBNs.map((isbn) => enrichMultipleBooks({ isbn }, env, { maxResults: 1 }, ctx)),
   )
 
   // Step 3: Process covers in parallel with concurrency control
@@ -337,7 +319,7 @@ export async function batchEnrichBooks(
   }
 
   console.log(
-    `[BookService] Processing ${coverProcessingTasks.length} covers in batches of ${COVER_BATCH_SIZE}`
+    `[BookService] Processing ${coverProcessingTasks.length} covers in batches of ${COVER_BATCH_SIZE}`,
   )
 
   // Process covers in batches for controlled parallelism
@@ -353,9 +335,9 @@ export async function batchEnrichBooks(
             provider_url: task.providerCoverURL,
             isbn: task.isbn,
           },
-          env as any
-        )
-      )
+          env as any,
+        ),
+      ),
     )
 
     // Store results in map for later use
@@ -466,7 +448,7 @@ export async function batchEnrichBooks(
 export async function findBooksByAuthor(
   authorName: string,
   env: any,
-  limit = 50
+  limit = 50,
 ): Promise<EnrichmentResult> {
   const bookRepo = new BookRepository(env)
 
@@ -499,7 +481,7 @@ export async function findBooksByAuthor(
 
   // Deduplicate authors by name
   const uniqueAuthors = Array.from(
-    new Map(allAuthors.map((author) => [author.name, author])).values()
+    new Map(allAuthors.map((author) => [author.name, author])).values(),
   )
 
   return {

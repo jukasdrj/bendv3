@@ -1,7 +1,8 @@
 // src/services/unified-cache.js
-import { EdgeCacheService } from "./edge-cache.js";
-import { KVCacheService } from "./kv-cache.js";
-import { getCacheTTL } from "../config/cache-ttl.js";
+
+import { getCacheTTL } from '../config/cache-ttl.js'
+import { EdgeCacheService } from './edge-cache.js'
+import { KVCacheService } from './kv-cache.js'
 
 /**
  * Unified Cache Service - Single entry point for all cache operations
@@ -15,10 +16,10 @@ import { getCacheTTL } from "../config/cache-ttl.js";
  */
 export class UnifiedCacheService {
   constructor(env, ctx) {
-    this.edgeCache = new EdgeCacheService(env, ctx);
-    this.kvCache = new KVCacheService(env, ctx);
-    this.env = env;
-    this.ctx = ctx;
+    this.edgeCache = new EdgeCacheService(env, ctx)
+    this.kvCache = new KVCacheService(env, ctx)
+    this.env = env
+    this.ctx = ctx
   }
 
   /**
@@ -29,62 +30,62 @@ export class UnifiedCacheService {
    * @returns {Promise<Object>} Cached or fresh data with metadata
    */
   async get(cacheKey, endpoint, options = {}) {
-    const startTime = Date.now();
+    const startTime = Date.now()
 
     // Tier 1: Edge Cache (fastest, 80% hit rate) with SWR support
     const edgeResult = await this.edgeCache.get(cacheKey, {
       maxAge: getCacheTTL('hot', this.env), // Hot TTL (2h) for freshness
       staleWhileRevalidate: getCacheTTL('cold', this.env), // Cold TTL (14d) for stale
-    });
+    })
 
     if (edgeResult) {
       // Track access for popularity analysis (non-blocking)
       if (this.ctx?.waitUntil) {
-        this.ctx.waitUntil(this.trackAccess(cacheKey));
+        this.ctx.waitUntil(this.trackAccess(cacheKey))
       }
 
       // Fresh hit - return immediately
       if (!edgeResult.stale) {
-        this.logMetrics("edge_hit_fresh", cacheKey, Date.now() - startTime);
-        return edgeResult;
+        this.logMetrics('edge_hit_fresh', cacheKey, Date.now() - startTime)
+        return edgeResult
       }
 
       // Stale hit - return stale data but trigger background refresh
-      this.logMetrics("edge_hit_stale", cacheKey, Date.now() - startTime);
+      this.logMetrics('edge_hit_stale', cacheKey, Date.now() - startTime)
       console.log(
         `🔄 Serving stale edge cache (age: ${edgeResult.age}s), triggering background refresh`,
-      );
+      )
 
       // Background refresh (non-blocking)
       if (this.ctx?.waitUntil) {
-        this.ctx.waitUntil(this.refreshStaleCache(cacheKey, endpoint, options));
+        this.ctx.waitUntil(this.refreshStaleCache(cacheKey, endpoint, options))
       }
 
-      return edgeResult;
+      return edgeResult
     }
 
     // Tier 2: KV Cache (fast, 15% hit rate)
-    const kvResult = await this.kvCache.get(cacheKey, endpoint);
+    const kvResult = await this.kvCache.get(cacheKey, endpoint)
     if (kvResult) {
       // Track access for popularity analysis (non-blocking)
       if (this.ctx?.waitUntil) {
-        this.ctx.waitUntil(this.trackAccess(cacheKey));
+        this.ctx.waitUntil(this.trackAccess(cacheKey))
       }
 
       // Populate edge cache for next request (async, non-blocking)
       if (this.ctx?.waitUntil) {
         this.ctx.waitUntil(
           this.edgeCache.set(cacheKey, kvResult.data, 6 * 60 * 60), // 6h edge TTL
-        );
+        )
       }
 
-      this.logMetrics("kv_hit", cacheKey, Date.now() - startTime);
-      return kvResult;
+      this.logMetrics('kv_hit', cacheKey, Date.now() - startTime)
+      return kvResult
     }
 
     // Cache miss - fall through to external APIs
-    this.logMetrics("api_miss", cacheKey, Date.now() - startTime);
-    return { data: null, source: "MISS", latency: Date.now() - startTime };
+    this.logMetrics('api_miss', cacheKey, Date.now() - startTime)
+    return { data: null, source: 'MISS', latency: Date.now() - startTime }
   }
 
   /**
@@ -131,7 +132,7 @@ export class UnifiedCacheService {
         freshData = result
       }
 
-      if (freshData && freshData.works && freshData.works.length > 0) {
+      if (freshData?.works && freshData.works.length > 0) {
         // Update KV cache
         await this.kvCache.set(cacheKey, freshData, endpoint)
         // Update Edge cache
@@ -167,14 +168,14 @@ export class UnifiedCacheService {
       }
 
       const accessKey = `access:${cacheKey}`
-      const current = await this.env.CACHE.get(accessKey, 'json') || { count: 0, lastAccess: 0 }
+      const current = (await this.env.CACHE.get(accessKey, 'json')) || { count: 0, lastAccess: 0 }
       await this.env.CACHE.put(
         accessKey,
         JSON.stringify({
           count: current.count + 1,
-          lastAccess: Date.now()
+          lastAccess: Date.now(),
         }),
-        { expirationTtl: getCacheTTL('hot', this.env) } // Use hot TTL for access tracking
+        { expirationTtl: getCacheTTL('hot', this.env) }, // Use hot TTL for access tracking
       )
     } catch (error) {
       // Non-critical, don't fail request
@@ -182,15 +183,14 @@ export class UnifiedCacheService {
     }
   }
 
-
   /**
    * Extract cache key prefix (e.g., "book:isbn:123" → "book")
    * @param {string} cacheKey - Full cache key
    * @returns {string} Prefix
    */
   extractPrefix(cacheKey) {
-    const parts = cacheKey.split(":");
-    return parts[0] || "unknown";
+    const parts = cacheKey.split(':')
+    return parts[0] || 'unknown'
   }
 
   /**
@@ -200,23 +200,23 @@ export class UnifiedCacheService {
    * @param {Object} options - Additional metadata
    */
   trackCacheEvent(type, cacheKey, options = {}) {
-    if (!this.env.CACHE_METRICS_DO) return;
-    if (!this.ctx?.waitUntil) return; // Skip if no ExecutionContext
+    if (!this.env.CACHE_METRICS_DO) return
+    if (!this.ctx?.waitUntil) return // Skip if no ExecutionContext
 
     try {
-      const prefix = this.extractPrefix(cacheKey);
-      const timestamp = Date.now();
+      const prefix = this.extractPrefix(cacheKey)
+      const timestamp = Date.now()
 
       // Get DO singleton
-      const id = this.env.CACHE_METRICS_DO.idFromName("cache-metrics-singleton");
-      const stub = this.env.CACHE_METRICS_DO.get(id);
+      const id = this.env.CACHE_METRICS_DO.idFromName('cache-metrics-singleton')
+      const stub = this.env.CACHE_METRICS_DO.get(id)
 
       // Send event asynchronously (non-blocking)
       this.ctx.waitUntil(
         stub
-          .fetch("http://do/event", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+          .fetch('http://do/event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               type,
               prefix,
@@ -226,11 +226,11 @@ export class UnifiedCacheService {
             }),
           })
           .catch((error) => {
-            console.error("Failed to track cache event:", error);
+            console.error('Failed to track cache event:', error)
           }),
-      );
+      )
     } catch (error) {
-      console.error("Failed to track cache event:", error);
+      console.error('Failed to track cache event:', error)
     }
   }
 
@@ -242,25 +242,25 @@ export class UnifiedCacheService {
    */
   logMetrics(event, cacheKey, latency) {
     // Track to CacheMetricsDO
-    if (event === "edge_hit_fresh" || event === "edge_hit_stale") {
-      this.trackCacheEvent("hit", cacheKey, { source: "edge" });
-    } else if (event === "kv_hit") {
-      this.trackCacheEvent("hit", cacheKey, { source: "kv" });
-    } else if (event === "api_miss") {
-      this.trackCacheEvent("miss", cacheKey);
+    if (event === 'edge_hit_fresh' || event === 'edge_hit_stale') {
+      this.trackCacheEvent('hit', cacheKey, { source: 'edge' })
+    } else if (event === 'kv_hit') {
+      this.trackCacheEvent('hit', cacheKey, { source: 'kv' })
+    } else if (event === 'api_miss') {
+      this.trackCacheEvent('miss', cacheKey)
     }
 
     // Also log to Analytics Engine (legacy)
-    if (!this.env.CACHE_ANALYTICS) return;
+    if (!this.env.CACHE_ANALYTICS) return
 
     try {
       this.env.CACHE_ANALYTICS.writeDataPoint({
         blobs: [event, cacheKey],
         doubles: [latency],
         indexes: [event],
-      });
+      })
     } catch (error) {
-      console.error("Failed to log cache metrics:", error);
+      console.error('Failed to log cache metrics:', error)
     }
   }
 }

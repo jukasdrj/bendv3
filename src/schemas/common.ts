@@ -21,12 +21,16 @@ import { z } from 'zod'
  * @returns Zod schema for complete response envelope
  */
 export function ResponseEnvelopeSchema<T extends z.ZodTypeAny>(dataSchema: T) {
-  return z.object({
-    data: dataSchema,
-    metadata: z.object({
-      timestamp: z.string().datetime().optional(),
-      cached: z.boolean().optional(),
-      source: z.string().optional(),
-    }).optional(),
-  }).strict()
+  return z
+    .object({
+      data: dataSchema,
+      metadata: z
+        .object({
+          timestamp: z.string().datetime().optional(),
+          cached: z.boolean().optional(),
+          source: z.string().optional(),
+        })
+        .optional(),
+    })
+    .strict()
 }

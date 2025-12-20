@@ -10,40 +10,40 @@
  * - OpenAPI 3.1 with security schemes
  */
 
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
-import { swaggerUI } from '@hono/swagger-ui'
-import type { Env } from '../types/env'
-import { requestContext, type RequestContext } from '../middleware/request-context'
 import {
-  SearchRequestSchema,
-  SearchResponseSchema,
+  BookSchema,
+  type EnrichedBook,
   EnrichRequestSchema,
   EnrichResponseSchema,
-  BookSchema,
   ErrorResponseSchema,
-  SuccessResponseSchema,
   ISBNSchema,
-  type EnrichedBook
+  SearchRequestSchema,
+  SearchResponseSchema,
+  SuccessResponseSchema,
 } from '@bookstrack/schemas'
 import { createProblemDetails } from '@bookstrack/schemas/errors'
-import { findBooksByTitle, findBookByISBN } from '../services/book-service'
-import { normalizeTitle } from '../utils/normalization'
+import { swaggerUI } from '@hono/swagger-ui'
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
+import { type RequestContext, requestContext } from '../middleware/request-context'
+import { findBookByISBN, findBooksByTitle } from '../services/book-service'
+import { generateBookEmbedding, storeEmbedding } from '../services/embedding-service'
 // Note: extractUniqueAuthors, removeAuthorsFromWorks, enrichAuthorsWithCulturalData removed
 // Alexandria now returns per-work embedded authors array, no client-side matching needed
 import { enrichMultipleBooks } from '../services/enrichment'
-import { generateBookEmbedding, storeEmbedding } from '../services/embedding-service'
-import { registerImportRoutes } from './jobs/imports'
-import { registerScanRoutes } from './jobs/scans'
-import { registerEnrichmentRoutes } from './jobs/enrichment'
-import { registerAlexandriaWebhookRoutes } from './webhooks/alexandria'
+import type { Env } from '../types/env'
+import { normalizeTitle } from '../utils/normalization'
 import { registerDiscoveryRoutes } from './discovery'
 import {
+  buildStreamUrl,
+  createJobLinks,
+  generateAuthToken,
   getJobStateManagerDO,
   getWebSocketConnectionDO,
-  generateAuthToken,
-  buildStreamUrl,
-  createJobLinks
 } from './jobs/common'
+import { registerEnrichmentRoutes } from './jobs/enrichment'
+import { registerImportRoutes } from './jobs/imports'
+import { registerScanRoutes } from './jobs/scans'
+import { registerAlexandriaWebhookRoutes } from './webhooks/alexandria'
 
 // Constants for V3 API data transformation
 const DEFAULT_PROVIDER_QUALITY = 95 // Default quality score for provider data
@@ -61,10 +61,10 @@ export function createV3Router() {
         const zodError = result.error
 
         // Extract field-level errors from Zod issues (RFC 9457 format)
-        const errors = zodError.issues.map(issue => ({
+        const errors = zodError.issues.map((issue) => ({
           field: issue.path.join('.'),
           message: issue.message,
-          code: issue.code
+          code: issue.code,
         }))
 
         // Return RFC 9457 Problem Details response
@@ -72,12 +72,12 @@ export function createV3Router() {
           createProblemDetails('INVALID_REQUEST', 'Validation failed', {
             requestId: ctx?.requestId,
             instance: c.req.url,
-            errors
+            errors,
           }),
-          400
+          400,
         )
       }
-    }
+    },
   })
 
   // Initialize OpenAPI metadata BEFORE defining routes
@@ -85,7 +85,7 @@ export function createV3Router() {
   // Note: We don't provide a path here - the endpoint is created in parent router
   app.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', {
     type: 'http',
-    scheme: 'bearer'
+    scheme: 'bearer',
   })
 
   // Apply request context middleware to all routes
@@ -119,7 +119,7 @@ export function createV3Router() {
 
 Supports both offset-based (page/limit) and cursor-based pagination.`,
     request: {
-      query: SearchRequestSchema
+      query: SearchRequestSchema,
     },
     responses: {
       200: {
@@ -127,12 +127,12 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
         content: { 'application/json': { schema: SearchResponseSchema } },
         headers: {
           'X-Request-ID': { schema: { type: 'string' }, description: 'Correlation ID' },
-          'X-Response-Time': { schema: { type: 'string' }, description: 'Response time' }
-        }
+          'X-Response-Time': { schema: { type: 'string' }, description: 'Response time' },
+        },
       },
       400: {
         description: 'Invalid request (RFC 9457 Problem Details)',
-        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } },
       },
       429: {
         description: 'Rate limit exceeded',
@@ -141,14 +141,14 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
           'Retry-After': { schema: { type: 'integer' }, description: 'Seconds to wait' },
           'X-RateLimit-Limit': { schema: { type: 'integer' } },
           'X-RateLimit-Remaining': { schema: { type: 'integer' } },
-          'X-RateLimit-Reset': { schema: { type: 'integer' } }
-        }
+          'X-RateLimit-Reset': { schema: { type: 'integer' } },
+        },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
-      }
-    }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } },
+      },
+    },
   })
 
   app.openapi(searchRoute, async (c) => {
@@ -165,59 +165,64 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
       // LIMITATION: Client-side pagination limited to first MAX_SEARCH_RESULTS
       // For queries with >100 results, only first 100 are accessible
       const result = await findBooksByTitle(normalizedTitle, undefined, c.env, {
-        maxResults: MAX_SEARCH_RESULTS
+        maxResults: MAX_SEARCH_RESULTS,
       })
 
       if (!result || !result.works || result.works.length === 0) {
         // No books found - iOS-compatible response format
         const offset = (page - 1) * limit
-        return c.json({
-          success: true,
-          data: {
-            results: [],
-            totalCount: 0,
-            query: { q, mode, limit, offset }
+        return c.json(
+          {
+            success: true,
+            data: {
+              results: [],
+              totalCount: 0,
+              query: { q, mode, limit, offset },
+            },
+            metadata: {
+              timestamp: new Date().toISOString(),
+              requestId: ctx.requestId,
+              cached: false,
+              processingTime: Date.now() - ctx.startTime,
+            },
+            error: null,
           },
-          metadata: {
-            timestamp: new Date().toISOString(),
-            requestId: ctx.requestId,
-            cached: false,
-            processingTime: Date.now() - ctx.startTime
-          },
-          error: null
-        }, 200)
+          200,
+        )
       }
 
       // Convert results to V3 Book format
       // Alexandria now returns per-work embedded authors array
-      const allBooks = result.works.map((work: any, idx: number) => {
-        const edition = result.editions?.[idx]
+      const allBooks = result.works
+        .map((work: any, idx: number) => {
+          const edition = result.editions?.[idx]
 
-        // Use embedded authors from Alexandria (per-work array)
-        // Falls back to result-level authors for backward compatibility
-        const workAuthors = work.authors || result.authors || []
+          // Use embedded authors from Alexandria (per-work array)
+          // Falls back to result-level authors for backward compatibility
+          const workAuthors = work.authors || result.authors || []
 
-        return {
-          isbn: edition?.isbn || edition?.isbns?.[0] || '',
-          isbn10: undefined, // Not available in canonical EditionDTO
-          title: work.title,
-          subtitle: undefined, // Not available in canonical WorkDTO
-          authors: workAuthors.map((a: any) => a.name),
-          publisher: edition?.publisher,
-          publishedDate: edition?.publicationDate,
-          description: work.description,
-          pageCount: edition?.pageCount,
-          categories: work.subjectTags, // Fixed: use subjectTags instead of subjects
-          language: edition?.language || 'en',
-          coverUrl: work.coverImageURL || edition?.coverImageURL,
-          coverSource: work.coverSource || edition?.coverSource || undefined,
-          thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
-          workKey: work.openLibraryWorkID || work.openLibraryID,
-          editionKey: edition?.openLibraryEditionID,
-          provider: 'alexandria' as const,
-          quality: DEFAULT_PROVIDER_QUALITY
-        }
-      }).filter(book => book.isbn) // Only include books with ISBNs
+          return {
+            isbn: edition?.isbn || edition?.isbns?.[0] || '',
+            isbn10: undefined, // Not available in canonical EditionDTO
+            title: work.title,
+            subtitle: undefined, // Not available in canonical WorkDTO
+            authors: workAuthors.map((a: any) => a.name),
+            publisher: edition?.publisher,
+            publishedDate: edition?.publicationDate,
+            description: work.description,
+            pageCount: edition?.pageCount,
+            categories: work.subjectTags, // Fixed: use subjectTags instead of subjects
+            language: edition?.language || 'en',
+            coverUrl: work.coverImageURL || edition?.coverImageURL,
+            coverSource: work.coverSource || edition?.coverSource || undefined,
+            thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
+            workKey: work.openLibraryWorkID || work.openLibraryID,
+            editionKey: edition?.openLibraryEditionID,
+            provider: 'alexandria' as const,
+            quality: DEFAULT_PROVIDER_QUALITY,
+          }
+        })
+        .filter((book) => book.isbn) // Only include books with ISBNs
 
       // Calculate true pagination from ALL results (limited to MAX_SEARCH_RESULTS)
       const totalResults = allBooks.length
@@ -231,55 +236,63 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
       // Calculate offset for iOS-compatible response
       const offset = (page - 1) * limit
 
-      console.log(`[V3 Search] Found ${totalResults} total books, returning page ${page} (offset ${offset}, ${paginatedBooks.length} books) in ${Date.now() - ctx.startTime}ms`)
+      console.log(
+        `[V3 Search] Found ${totalResults} total books, returning page ${page} (offset ${offset}, ${paginatedBooks.length} books) in ${Date.now() - ctx.startTime}ms`,
+      )
 
       // iOS-compatible response format with results/totalCount/query.offset
-      return c.json({
-        success: true,
-        data: {
-          results: paginatedBooks,
-          totalCount: totalResults,
-          query: { q, mode, limit, offset }
-        },
-        metadata: {
-          timestamp: new Date().toISOString(),
-          requestId: ctx.requestId,
-          cached: false,
-          processingTime: Date.now() - ctx.startTime
-        },
-        error: null,
-        _links: {
-          self: {
-            href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&limit=${limit}&offset=${offset}`,
-            rel: 'self',
-            method: 'GET'
+      return c.json(
+        {
+          success: true,
+          data: {
+            results: paginatedBooks,
+            totalCount: totalResults,
+            query: { q, mode, limit, offset },
           },
-          ...(page < totalPages ? {
-            next: {
-              href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&limit=${limit}&offset=${offset + limit}`,
-              rel: 'next',
-              method: 'GET'
-            }
-          } : {}),
-          ...(offset > 0 ? {
-            prev: {
-              href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&limit=${limit}&offset=${Math.max(0, offset - limit)}`,
-              rel: 'prev',
-              method: 'GET'
-            }
-          } : {})
-        }
-      }, 200)
-
+          metadata: {
+            timestamp: new Date().toISOString(),
+            requestId: ctx.requestId,
+            cached: false,
+            processingTime: Date.now() - ctx.startTime,
+          },
+          error: null,
+          _links: {
+            self: {
+              href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&limit=${limit}&offset=${offset}`,
+              rel: 'self',
+              method: 'GET',
+            },
+            ...(page < totalPages
+              ? {
+                  next: {
+                    href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&limit=${limit}&offset=${offset + limit}`,
+                    rel: 'next',
+                    method: 'GET',
+                  },
+                }
+              : {}),
+            ...(offset > 0
+              ? {
+                  prev: {
+                    href: `/v3/books/search?q=${encodeURIComponent(q)}&mode=${mode}&limit=${limit}&offset=${Math.max(0, offset - limit)}`,
+                    rel: 'prev',
+                    method: 'GET',
+                  },
+                }
+              : {}),
+          },
+        },
+        200,
+      )
     } catch (error: any) {
       console.error(`[V3 Search] Error:`, error)
 
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
@@ -299,32 +312,32 @@ for semantic search.`,
     request: {
       body: {
         content: {
-          'application/json': { schema: EnrichRequestSchema }
-        }
-      }
+          'application/json': { schema: EnrichRequestSchema },
+        },
+      },
     },
     responses: {
       200: {
         description: 'Books enriched',
-        content: { 'application/json': { schema: EnrichResponseSchema } }
+        content: { 'application/json': { schema: EnrichResponseSchema } },
       },
       400: {
         description: 'Invalid request',
-        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } },
       },
       404: {
         description: 'No books found',
-        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } },
       },
       429: {
         description: 'Rate limit exceeded',
-        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
-      }
-    }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } },
+      },
+    },
   })
 
   app.openapi(enrichRoute, async (c) => {
@@ -336,7 +349,9 @@ for semantic search.`,
     const includeEmbedding = body.includeEmbedding ?? false
     const async = body.async ?? false
 
-    console.log(`[V3 Enrich] ISBNs: ${isbns.length}, includeEmbedding: ${includeEmbedding}, async: ${async}`)
+    console.log(
+      `[V3 Enrich] ISBNs: ${isbns.length}, includeEmbedding: ${includeEmbedding}, async: ${async}`,
+    )
 
     // ========================================================================
     // ASYNC MODE: Create background job and return immediately
@@ -358,9 +373,7 @@ for semantic search.`,
       await wsDoStub.setAuthToken(authToken, 'enrichment')
 
       // Schedule enrichment processing via DO alarm
-      c.executionCtx.waitUntil(
-        doStub.scheduleEnrichment!(isbns, includeEmbedding, jobId)
-      )
+      c.executionCtx.waitUntil(doStub.scheduleEnrichment?.(isbns, includeEmbedding, jobId))
 
       const streamUrl = buildStreamUrl(c.req.url, 'enrichment', jobId)
 
@@ -371,15 +384,15 @@ for semantic search.`,
             jobId,
             status: 'queued' as const,
             streamUrl,
-            token: authToken
+            token: authToken,
           },
           metadata: {
             timestamp: new Date().toISOString(),
-            requestId: ctx.requestId
+            requestId: ctx.requestId,
           },
-          _links: createJobLinks('enrichment', jobId, streamUrl)
+          _links: createJobLinks('enrichment', jobId, streamUrl),
         },
-        202
+        202,
       )
     }
 
@@ -435,7 +448,7 @@ for semantic search.`,
             { isbn },
             c.env,
             { maxResults: 1 },
-            c.executionCtx
+            c.executionCtx,
           )
 
           if (!result || !result.works || result.works.length === 0) {
@@ -453,7 +466,7 @@ for semantic search.`,
             isbn10: undefined, // Not available in canonical EditionDTO
             title: work.title,
             subtitle: undefined, // Not available in canonical WorkDTO
-            authors: authors.map(a => a.name),
+            authors: authors.map((a) => a.name),
             publisher: edition?.publisher,
             publishedDate: edition?.publicationDate,
             description: work.description,
@@ -467,7 +480,7 @@ for semantic search.`,
             editionKey: edition?.openLibraryEditionID,
             provider: 'alexandria' as const,
             quality: DEFAULT_PROVIDER_QUALITY,
-            vectorized: false
+            vectorized: false,
           }
 
           // Generate embedding if requested
@@ -479,9 +492,9 @@ for semantic search.`,
                   title: book.title,
                   author: book.authors.join(', '),
                   description: book.description,
-                  categories: book.categories
+                  categories: book.categories,
                 },
-                c.env
+                c.env,
               )
 
               if (embedding) {
@@ -491,9 +504,9 @@ for semantic search.`,
                     isbn: book.isbn,
                     title: book.title,
                     author: book.authors.join(', '),
-                    categories: book.categories?.join(', ')
+                    categories: book.categories?.join(', '),
                   },
-                  c.env
+                  c.env,
                 )
                 book.vectorized = stored
               }
@@ -504,11 +517,10 @@ for semantic search.`,
 
           // Cache the result
           await c.env.CACHE.put(cacheKey, JSON.stringify(book), {
-            expirationTtl: 86400 // 24 hours
+            expirationTtl: 86400, // 24 hours
           })
 
           return { success: true, book }
-
         } catch (error) {
           console.error(`[V3 Enrich] Error processing ${isbn}:`, error)
           return { success: false, isbn }
@@ -518,9 +530,7 @@ for semantic search.`,
       // Process in parallel batches with controlled concurrency
       for (let i = 0; i < isbns.length; i += CONCURRENCY) {
         const batch = isbns.slice(i, i + CONCURRENCY)
-        const results = await Promise.allSettled(
-          batch.map(isbn => processSingleISBN(isbn))
-        )
+        const results = await Promise.allSettled(batch.map((isbn) => processSingleISBN(isbn)))
 
         results.forEach((result) => {
           if (result.status === 'fulfilled' && result.value.success) {
@@ -538,38 +548,42 @@ for semantic search.`,
         return c.json(
           createProblemDetails('NOT_FOUND', 'No books found for provided ISBNs', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
-      console.log(`[V3 Enrich] Enriched ${enrichedBooks.length}/${isbns.length} books in ${Date.now() - ctx.startTime}ms`)
+      console.log(
+        `[V3 Enrich] Enriched ${enrichedBooks.length}/${isbns.length} books in ${Date.now() - ctx.startTime}ms`,
+      )
 
-      return c.json({
-        success: true,
-        data: {
-          books: enrichedBooks,
-          requested: isbns.length,
-          found: enrichedBooks.length,
-          notFound: notFound  // Always return array, even if empty (iOS requires non-optional)
+      return c.json(
+        {
+          success: true,
+          data: {
+            books: enrichedBooks,
+            requested: isbns.length,
+            found: enrichedBooks.length,
+            notFound: notFound, // Always return array, even if empty (iOS requires non-optional)
+          },
+          metadata: {
+            timestamp: new Date().toISOString(),
+            requestId: ctx.requestId,
+            processingTime: Date.now() - ctx.startTime,
+          },
         },
-        metadata: {
-          timestamp: new Date().toISOString(),
-          requestId: ctx.requestId,
-          processingTime: Date.now() - ctx.startTime
-        }
-      }, 200)
-
+        200,
+      )
     } catch (error: any) {
       console.error(`[V3 Enrich] Error:`, error)
 
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
@@ -582,11 +596,12 @@ for semantic search.`,
     path: '/v3/books/:isbn',
     tags: ['Books'],
     summary: 'Get book by ISBN',
-    description: 'Direct lookup by ISBN (fastest path for known ISBNs). Supports conditional requests with ETag.',
+    description:
+      'Direct lookup by ISBN (fastest path for known ISBNs). Supports conditional requests with ETag.',
     request: {
       params: z.object({
-        isbn: ISBNSchema
-      })
+        isbn: ISBNSchema,
+      }),
       // Note: If-None-Match header is read directly via c.req.header('If-None-Match')
       // Removed headers validation - causes TypeError in @hono/zod-openapi when header is missing
     },
@@ -595,22 +610,22 @@ for semantic search.`,
         description: 'Book found',
         content: { 'application/json': { schema: SuccessResponseSchema(BookSchema) } },
         headers: {
-          'ETag': { schema: { type: 'string' }, description: 'Entity tag for caching' },
-          'Cache-Control': { schema: { type: 'string' }, description: 'Caching directives' }
-        }
+          ETag: { schema: { type: 'string' }, description: 'Entity tag for caching' },
+          'Cache-Control': { schema: { type: 'string' }, description: 'Caching directives' },
+        },
       },
       304: {
-        description: 'Not modified (ETag match)'
+        description: 'Not modified (ETag match)',
       },
       404: {
         description: 'Book not found',
-        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } },
       },
       500: {
         description: 'Server error',
-        content: { 'application/problem+json': { schema: ErrorResponseSchema } }
-      }
-    }
+        content: { 'application/problem+json': { schema: ErrorResponseSchema } },
+      },
+    },
   })
 
   app.openapi(getBookRoute, async (c) => {
@@ -627,9 +642,9 @@ for semantic search.`,
       return c.json(
         createProblemDetails('MISSING_PARAMETER', 'ISBN parameter is required', {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        400
+        400,
       )
     }
 
@@ -643,9 +658,9 @@ for semantic search.`,
         return c.json(
           createProblemDetails('NOT_FOUND', 'Book not found', {
             requestId: ctx.requestId,
-            instance: c.req.url
+            instance: c.req.url,
           }),
-          404
+          404,
         )
       }
 
@@ -659,7 +674,7 @@ for semantic search.`,
         isbn10: undefined, // Not available in canonical EditionDTO
         title: work.title,
         subtitle: undefined, // Not available in canonical WorkDTO
-        authors: enrichmentResult.authors?.map(a => a.name) || [],
+        authors: enrichmentResult.authors?.map((a) => a.name) || [],
         publisher: edition?.publisher,
         publishedDate: edition?.publicationDate,
         description: work.description,
@@ -679,7 +694,7 @@ for semantic search.`,
       const bookJson = JSON.stringify(book)
       const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(bookJson))
       const hashArray = Array.from(new Uint8Array(hash))
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+      const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
       const etag = `"${isbn}-${hashHex.slice(0, 16)}"`
 
       // Check ETag match
@@ -694,22 +709,24 @@ for semantic search.`,
       const duration = Date.now() - ctx.startTime
       console.log(`[V3 Books] Book found in ${duration}ms via ${enrichmentResult.source}`)
 
-      return c.json({
-        success: true,
-        data: book,
-        metadata: {
-          timestamp: new Date().toISOString(),
-          requestId: ctx.requestId,
-          source: enrichmentResult.source || 'external',
-          cached: enrichmentResult.cached || false,
-          processingTime: duration
+      return c.json(
+        {
+          success: true,
+          data: book,
+          metadata: {
+            timestamp: new Date().toISOString(),
+            requestId: ctx.requestId,
+            source: enrichmentResult.source || 'external',
+            cached: enrichmentResult.cached || false,
+            processingTime: duration,
+          },
+          _links: {
+            self: { href: `/v3/books/${isbn}`, rel: 'self', method: 'GET' },
+            enrich: { href: `/v3/books/enrich`, rel: 'related', method: 'POST' },
+          },
         },
-        _links: {
-          self: { href: `/v3/books/${isbn}`, rel: 'self', method: 'GET' },
-          enrich: { href: `/v3/books/enrich`, rel: 'related', method: 'POST' }
-        }
-      }, 200)
-
+        200,
+      )
     } catch (error: any) {
       console.error(`[V3 Books] Error:`, error)
 
@@ -719,18 +736,18 @@ for semantic search.`,
           createProblemDetails('CIRCUIT_OPEN', 'Service temporarily unavailable', {
             requestId: ctx.requestId,
             instance: c.req.url,
-            retryAfterMs: 60000
+            retryAfterMs: 60000,
           }),
-          503
+          503,
         )
       }
 
       return c.json(
         createProblemDetails('INTERNAL_ERROR', error.message, {
           requestId: ctx.requestId,
-          instance: c.req.url
+          instance: c.req.url,
         }),
-        500
+        500,
       )
     }
   })
@@ -746,9 +763,15 @@ for semantic search.`,
 
   console.log('[V3 API] Contract-first router with shared schemas created')
   console.log('[V3 API] Discovery Routes: GET /v3/capabilities, GET /v3/recommendations/weekly')
-  console.log('[V3 API] Book Routes: GET /v3/books/search, POST /v3/books/enrich, GET /v3/books/:isbn')
-  console.log('[V3 API] Job Routes (Imports): POST /v3/jobs/imports, GET /v3/jobs/imports/:id, GET /v3/jobs/imports/:id/stream')
-  console.log('[V3 API] Job Routes (Scans): POST /v3/jobs/scans, GET /v3/jobs/scans/:id, GET /v3/jobs/scans/:id/stream')
+  console.log(
+    '[V3 API] Book Routes: GET /v3/books/search, POST /v3/books/enrich, GET /v3/books/:isbn',
+  )
+  console.log(
+    '[V3 API] Job Routes (Imports): POST /v3/jobs/imports, GET /v3/jobs/imports/:id, GET /v3/jobs/imports/:id/stream',
+  )
+  console.log(
+    '[V3 API] Job Routes (Scans): POST /v3/jobs/scans, GET /v3/jobs/scans/:id, GET /v3/jobs/scans/:id/stream',
+  )
   console.log('[V3 API] Documentation: /v3/docs')
   console.log('[V3 API] OpenAPI JSON: /v3/openapi.json')
 

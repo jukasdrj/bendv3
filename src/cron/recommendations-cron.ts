@@ -88,13 +88,15 @@ export async function handleRecommendationsCron(env: Env): Promise<void> {
       await env.DB.prepare(`
         INSERT OR REPLACE INTO recommendations (id, week_of, book_isbns, recommendations_json, generated_at, expires_at)
         VALUES (?, ?, ?, ?, unixepoch(), ?)
-      `).bind(
-        id,
-        weekOf,
-        JSON.stringify(recommendations.map(r => r.isbn)),
-        JSON.stringify(recommendations),
-        expiresAt
-      ).run()
+      `)
+        .bind(
+          id,
+          weekOf,
+          JSON.stringify(recommendations.map((r) => r.isbn)),
+          JSON.stringify(recommendations),
+          expiresAt,
+        )
+        .run()
 
       console.log('[RecommendationsCron] Saved recommendations to D1')
     }
@@ -120,7 +122,6 @@ export async function handleRecommendationsCron(env: Env): Promise<void> {
 
     const duration = Date.now() - startTime
     console.log(`[RecommendationsCron] Completed in ${duration}ms`)
-
   } catch (error) {
     console.error('[RecommendationsCron] Error:', error)
     throw error // Let Cloudflare retry
@@ -147,14 +148,16 @@ function getCurrentWeekSunday(): string {
 /**
  * Fetch candidate books from D1 for recommendation consideration
  */
-async function fetchCandidateBooks(env: Env): Promise<Array<{
-  isbn: string
-  title: string
-  author: string
-  coverUrl?: string
-  categories?: string
-  description?: string
-}>> {
+async function fetchCandidateBooks(env: Env): Promise<
+  Array<{
+    isbn: string
+    title: string
+    author: string
+    coverUrl?: string
+    categories?: string
+    description?: string
+  }>
+> {
   if (!env.DB) {
     console.log('[RecommendationsCron] D1 not available')
     return []
@@ -190,8 +193,15 @@ async function fetchCandidateBooks(env: Env): Promise<Array<{
  * Generate recommendations using Gemini API
  */
 async function generateRecommendationsWithGemini(
-  candidates: Array<{ isbn: string; title: string; author: string; coverUrl?: string; categories?: string; description?: string }>,
-  env: Env
+  candidates: Array<{
+    isbn: string
+    title: string
+    author: string
+    coverUrl?: string
+    categories?: string
+    description?: string
+  }>,
+  env: Env,
 ): Promise<RecommendationItem[]> {
   const geminiKey = env.GEMINI_API_KEY
 
@@ -204,14 +214,18 @@ async function generateRecommendationsWithGemini(
       author: book.author,
       coverUrl: book.coverUrl,
       reason: 'Recently added to our collection',
-      score: 1 - (i * 0.05),
+      score: 1 - i * 0.05,
     }))
   }
 
   // Build prompt for Gemini
-  const bookList = candidates.slice(0, 50).map((b, i) =>
-    `${i + 1}. "${b.title}" by ${b.author} (ISBN: ${b.isbn})${b.categories ? ` - ${b.categories}` : ''}`
-  ).join('\n')
+  const bookList = candidates
+    .slice(0, 50)
+    .map(
+      (b, i) =>
+        `${i + 1}. "${b.title}" by ${b.author} (ISBN: ${b.isbn})${b.categories ? ` - ${b.categories}` : ''}`,
+    )
+    .join('\n')
 
   const prompt = `You are a book recommendation curator. From the following list of books, select the ${RECOMMENDATIONS_COUNT} best recommendations for a weekly "Staff Picks" feature. Consider diversity of genres, quality, and broad appeal.
 
@@ -244,7 +258,7 @@ Return ONLY the JSON array, no other text.`
             maxOutputTokens: 2048,
           },
         }),
-      }
+      },
     )
 
     if (!response.ok) {
@@ -252,7 +266,7 @@ Return ONLY the JSON array, no other text.`
       throw new Error(`Gemini API returned ${response.status}`)
     }
 
-    const data = await response.json() as GeminiResponse
+    const data = (await response.json()) as GeminiResponse
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
     // Parse JSON from response
@@ -262,23 +276,28 @@ Return ONLY the JSON array, no other text.`
       throw new Error('Invalid Gemini response format')
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as Array<{ isbn: string; reason: string; score: number }>
+    const parsed = JSON.parse(jsonMatch[0]) as Array<{
+      isbn: string
+      reason: string
+      score: number
+    }>
 
     // Enrich with book details
-    const candidateMap = new Map(candidates.map(c => [c.isbn, c]))
+    const candidateMap = new Map(candidates.map((c) => [c.isbn, c]))
 
-    return parsed.map(rec => {
-      const book = candidateMap.get(rec.isbn)
-      return {
-        isbn: rec.isbn,
-        title: book?.title || 'Unknown Title',
-        author: book?.author || 'Unknown Author',
-        coverUrl: book?.coverUrl,
-        reason: rec.reason,
-        score: rec.score,
-      }
-    }).filter(r => r.title !== 'Unknown Title')
-
+    return parsed
+      .map((rec) => {
+        const book = candidateMap.get(rec.isbn)
+        return {
+          isbn: rec.isbn,
+          title: book?.title || 'Unknown Title',
+          author: book?.author || 'Unknown Author',
+          coverUrl: book?.coverUrl,
+          reason: rec.reason,
+          score: rec.score,
+        }
+      })
+      .filter((r) => r.title !== 'Unknown Title')
   } catch (error) {
     console.error('[RecommendationsCron] Gemini generation failed:', error)
 
@@ -289,7 +308,7 @@ Return ONLY the JSON array, no other text.`
       author: book.author,
       coverUrl: book.coverUrl,
       reason: 'A great addition to any reading list',
-      score: 0.8 - (i * 0.02),
+      score: 0.8 - i * 0.02,
     }))
   }
 }

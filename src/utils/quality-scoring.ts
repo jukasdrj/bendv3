@@ -19,4 +19,4 @@ export const ISBNDB_QUALITY_WEIGHTS = {
   PUBLISHER: 5,
   SUBJECTS: 5,
   AUTHORS: 5,
-} as const;
+} as const

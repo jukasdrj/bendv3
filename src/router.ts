@@ -20,71 +20,66 @@
  * - GET /v3/openapi.json - V3 OpenAPI spec
  */
 
-import { OpenAPIHono } from "@hono/zod-openapi";
-import { swaggerUI } from "@hono/swagger-ui";
-import { cors } from "hono/cors";
-import type { Env } from "./types/env";
-import { handleMetricsRequest } from "./handlers/metrics-handler";
-import { handleCacheMetrics } from "./handlers/cache-metrics.js";
-import { handleHarvestDashboard } from "./handlers/harvest-dashboard.js";
-import { handleImageProxy } from "./handlers/image-proxy";
-import { triggerBookImportWorkflow, getWorkflowStatus } from "./handlers/workflow-trigger-handler";
-import { handleSimilarBooks, handleSemanticSearch } from "./handlers/semantic-search-handler";
-
-import { analyticsMiddleware } from "./middleware/hono-analytics";
-import { healthRoute } from "./openapi/routes/health";
-import { openAPIConfig } from "./openapi/config";
-import { checkRateLimit } from "./middleware/rate-limiter";
-import { createErrorResponse, ErrorCodes } from "./utils/response-builder";
-
+import { swaggerUI } from '@hono/swagger-ui'
+import { OpenAPIHono } from '@hono/zod-openapi'
+import { cors } from 'hono/cors'
+import { handleCacheMetrics } from './handlers/cache-metrics.js'
+import { handleHarvestDashboard } from './handlers/harvest-dashboard.js'
+import { handleImageProxy } from './handlers/image-proxy'
+import { handleMetricsRequest } from './handlers/metrics-handler'
+import { analyticsMiddleware } from './middleware/hono-analytics'
+import { checkRateLimit } from './middleware/rate-limiter'
+import { openAPIConfig } from './openapi/config'
+import { healthRoute } from './openapi/routes/health'
+import type { Env } from './types/env'
+import { createErrorResponse, ErrorCodes } from './utils/response-builder'
 
 // OpenAPI-enabled Hono app with Bindings and ExecutionContext support
 // Using OpenAPIHono for automatic OpenAPI spec generation (Phase 1.4 POC)
-const app = new OpenAPIHono<{ Bindings: Env; Variables: { executionCtx?: ExecutionContext } }>();
+const app = new OpenAPIHono<{ Bindings: Env; Variables: { executionCtx?: ExecutionContext } }>()
 
 // Helper to safely get ExecutionContext from Hono context
 // ExecutionContext is stored in c.executionCtx by Hono's native support
-const getCtx = (c: any): ExecutionContext | undefined => c.executionCtx as ExecutionContext | undefined;
+const getCtx = (c: any): ExecutionContext | undefined =>
+  c.executionCtx as ExecutionContext | undefined
 
 // Global analytics middleware (adds X-Router and X-Response-Time headers)
-app.use("*", analyticsMiddleware());
-
-
+app.use('*', analyticsMiddleware())
 
 // Global CORS middleware (secure with iOS compatibility)
 app.use(
-  "*",
+  '*',
   cors({
     origin: (origin) => {
       // Allow specific origins for web clients
       const allowedOrigins = [
-        "https://bookstrack.oooefam.net", // Production web app
-        "https://harvest.oooefam.net", // Harvest dashboard
-        "capacitor://localhost", // iOS app (Capacitor)
-        "http://localhost:3000", // Local dev (web)
-        "http://localhost:8787", // Local dev (wrangler)
-      ];
+        'https://bookstrack.oooefam.net', // Production web app
+        'https://harvest.oooefam.net', // Harvest dashboard
+        'capacitor://localhost', // iOS app (Capacitor)
+        'http://localhost:3000', // Local dev (web)
+        'http://localhost:8787', // Local dev (wrangler)
+      ]
       // Return the origin string if allowed, null if not
       // Hono CORS expects: origin string (allow), null/false (block)
       // Bug fix #72: Was returning boolean which became literal "true" header
       if (!origin) {
-        return "*"; // No Origin header = native app, allow all
+        return '*' // No Origin header = native app, allow all
       }
-      return allowedOrigins.includes(origin) ? origin : null;
+      return allowedOrigins.includes(origin) ? origin : null
     },
-    allowMethods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+    allowMethods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
     allowHeaders: [
-      "Content-Type",
-      "Authorization",
-      "Sec-WebSocket-Protocol",
-      "Sec-WebSocket-Version",
-      "Upgrade",
-      "Connection",
+      'Content-Type',
+      'Authorization',
+      'Sec-WebSocket-Protocol',
+      'Sec-WebSocket-Version',
+      'Upgrade',
+      'Connection',
     ],
-    exposeHeaders: ["X-Router", "X-Response-Time"],
+    exposeHeaders: ['X-Router', 'X-Response-Time'],
     maxAge: 86400, // 24 hours
   }),
-);
+)
 
 // ============================================================================
 // MVP Route 1: Health Check (OpenAPI Migration - Sprint 1, Day 5)
@@ -95,18 +90,21 @@ app.openapi(healthRoute, (c) => {
   // Query params are validated by Zod schema (HealthQuerySchema)
   // No query parameters needed for health check
 
-  return c.json({
-    data: {
-      status: "ok",
-      worker: "api-worker",
-      version: "2.1.0",
-      router: "hono",
+  return c.json(
+    {
+      data: {
+        status: 'ok',
+        worker: 'api-worker',
+        version: '2.1.0',
+        router: 'hono',
+      },
+      metadata: {
+        timestamp: new Date().toISOString(),
+      },
     },
-    metadata: {
-      timestamp: new Date().toISOString(),
-    },
-  }, 200);
-});
+    200,
+  )
+})
 
 // ============================================================================
 // V1 API Routes Removed (Issue #205 - V1 Sunset March 1, 2026)
@@ -122,19 +120,19 @@ app.openapi(healthRoute, (c) => {
 
 // Rate limiting middleware for Hono
 const rateLimitMiddleware = async (c, next) => {
-  const rateLimitResponse = await checkRateLimit(c.req.raw, c.env);
-  if (rateLimitResponse) return rateLimitResponse;
-  return await next();
-};
+  const rateLimitResponse = await checkRateLimit(c.req.raw, c.env)
+  if (rateLimitResponse) return rateLimitResponse
+  return await next()
+}
 
 // Rate limiting middleware with custom limit
 const createRateLimitMiddleware = (maxRequests) => {
   return async (c, next) => {
-    const rateLimitResponse = await checkRateLimit(c.req.raw, c.env, maxRequests);
-    if (rateLimitResponse) return rateLimitResponse;
-    return await next();
-  };
-};
+    const rateLimitResponse = await checkRateLimit(c.req.raw, c.env, maxRequests)
+    if (rateLimitResponse) return rateLimitResponse
+    return await next()
+  }
+}
 
 // ============================================================================
 // P1 WebSocket Reconnection Routes (Issue #238)
@@ -145,333 +143,303 @@ const createRateLimitMiddleware = (maxRequests) => {
 // POST /api/token/refresh - Refresh WebSocket authentication token
 // Rate limited to prevent abuse
 // Matches manual router: lines 133-180
-app.post("/api/token/refresh", rateLimitMiddleware, async (c) => {
+app.post('/api/token/refresh', rateLimitMiddleware, async (c) => {
   try {
-    const { jobId, oldToken } = await c.req.json();
+    const { jobId, oldToken } = await c.req.json()
 
     if (!jobId || !oldToken) {
       return createErrorResponse(
-        "Invalid request: jobId and oldToken required",
+        'Invalid request: jobId and oldToken required',
         400,
         ErrorCodes.INVALID_REQUEST,
-        { required: ["jobId", "oldToken"] },
-        c.req.raw
-      );
+        { required: ['jobId', 'oldToken'] },
+        c.req.raw,
+      )
     }
 
     // Feature flag: Use refactored architecture or legacy monolithic DO
-      const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId);
-      const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
-      result = await wsDoStub.refreshAuthToken(oldToken);
+    const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId)
+    const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId)
+    result = await wsDoStub.refreshAuthToken(oldToken)
 
     if (result.error) {
-      return createErrorResponse(
-        result.error,
-        401,
-        ErrorCodes.UNAUTHORIZED,
-        { jobId },
-        c.req.raw
-      );
+      return createErrorResponse(result.error, 401, ErrorCodes.UNAUTHORIZED, { jobId }, c.req.raw)
     }
 
     // Return new token with expiration - use ResponseEnvelope format
-    return new Response(JSON.stringify(
-      {
+    return new Response(
+      JSON.stringify({
         jobId,
         token: result.token,
         expiresIn: result.expiresIn,
       }),
       {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+        headers: { 'Content-Type': 'application/json' },
+      },
+    )
   } catch (error) {
-    console.error("Failed to refresh token:", error);
+    console.error('Failed to refresh token:', error)
     return createErrorResponse(
       `Failed to refresh token: ${(error as Error).message}`,
       500,
       ErrorCodes.INTERNAL_ERROR,
       undefined,
-      c.req.raw
-    );
+      c.req.raw,
+    )
   }
-});
+})
 
 // GET /api/job-state/:jobId - Get current job state for WebSocket reconnection
 // CRITICAL: Requires Bearer token auth, validates against DO state
 // Rate limited to 30 req/min per IP to prevent polling abuse (Issue #9)
 // Matches manual router: lines 182-251
-app.get(
-  "/api/job-state/:jobId",
-  createRateLimitMiddleware(30),
-  async (c) => {
-    try {
-      const jobId = c.req.param("jobId");
-
-      if (!jobId) {
-        return createErrorResponse(
-          "Invalid request: jobId required",
-          400,
-          ErrorCodes.INVALID_REQUEST,
-          { jobId },
-          c.req.raw
-        );
-      }
-
-      // Validate Bearer token (REQUIRED for auth)
-      const authHeader = c.req.header("Authorization");
-      const providedToken = authHeader?.replace("Bearer ", "");
-      if (!providedToken) {
-        return createErrorResponse(
-          "Missing authorization token",
-          401,
-          ErrorCodes.UNAUTHORIZED,
-          { endpoint: "/api/job-state/:jobId" },
-          c.req.raw
-        );
-      }
-
-      // Feature flag: Use refactored architecture or legacy monolithic DO
-      // Explicit string comparison for clarity and safety
-      let jobState: any;
-      let authToken: string;
-      let authTokenExpiration: number;
-
-        // NEW ARCHITECTURE: Query JOB_STATE_MANAGER_DO and WEBSOCKET_CONNECTION_DO separately
-        const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
-        const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(stateDoId);
-
-        const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId);
-        const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
-
-        // Fetch job state and auth details separately
-        jobState = await stateDoStub.getJobState();
-        const authResult = await wsDoStub.getAuthToken();
-
-        if (!jobState) {
-          return createErrorResponse(
-            "Job not found or state not initialized",
-            404,
-            ErrorCodes.NOT_FOUND,
-            { jobId },
-            c.req.raw
-          );
-        }
-
-        if (!authResult) {
-          return createErrorResponse(
-            "Job authentication not found",
-            404,
-            ErrorCodes.NOT_FOUND,
-            { jobId },
-            c.req.raw
-          );
-        }
-
-        authToken = authResult.token;
-        authTokenExpiration = authResult.expiresAt;
-
-      // Validate token matches and is not expired
-      if (
-        !authToken ||
-        providedToken !== authToken ||
-        Date.now() > authTokenExpiration
-      ) {
-        return createErrorResponse(
-          "Invalid or expired token",
-          401,
-          ErrorCodes.UNAUTHORIZED,
-          { jobId, tokenExpired: Date.now() > authTokenExpiration },
-          c.req.raw
-        );
-      }
-
-      // Return job state with ResponseEnvelope format
-      return new Response(JSON.stringify(
-        jobState
-      ),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    } catch (error) {
-      console.error("Failed to get job state:", error);
-      return createErrorResponse(
-        `Failed to get job state: ${(error as Error).message}`,
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        { jobId: c.req.param("jobId") },
-        c.req.raw
-      );
-    }
-  }
-);
-
-// POST /api/scan-bookshelf/cancel - Cancel bookshelf scanning job
-// Matches manual router: lines 404-429
-app.post("/api/scan-bookshelf/cancel", async (c) => {
+app.get('/api/job-state/:jobId', createRateLimitMiddleware(30), async (c) => {
   try {
-    const { jobId } = await c.req.json();
+    const jobId = c.req.param('jobId')
 
     if (!jobId) {
       return createErrorResponse(
-        "jobId required",
+        'Invalid request: jobId required',
+        400,
+        ErrorCodes.INVALID_REQUEST,
+        { jobId },
+        c.req.raw,
+      )
+    }
+
+    // Validate Bearer token (REQUIRED for auth)
+    const authHeader = c.req.header('Authorization')
+    const providedToken = authHeader?.replace('Bearer ', '')
+    if (!providedToken) {
+      return createErrorResponse(
+        'Missing authorization token',
+        401,
+        ErrorCodes.UNAUTHORIZED,
+        { endpoint: '/api/job-state/:jobId' },
+        c.req.raw,
+      )
+    }
+
+    // NEW ARCHITECTURE: Query JOB_STATE_MANAGER_DO and WEBSOCKET_CONNECTION_DO separately
+    const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId)
+    const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(stateDoId)
+
+    const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId)
+    const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId)
+
+    // Fetch job state and auth details separately
+    const jobState = await stateDoStub.getJobState()
+    const authResult = await wsDoStub.getAuthToken()
+
+    if (!jobState) {
+      return createErrorResponse(
+        'Job not found or state not initialized',
+        404,
+        ErrorCodes.NOT_FOUND,
+        { jobId },
+        c.req.raw,
+      )
+    }
+
+    if (!authResult) {
+      return createErrorResponse(
+        'Job authentication not found',
+        404,
+        ErrorCodes.NOT_FOUND,
+        { jobId },
+        c.req.raw,
+      )
+    }
+
+    const { token: authToken, expiresAt: authTokenExpiration } = authResult
+
+    // Validate token matches and is not expired
+    if (!authToken || providedToken !== authToken || Date.now() > authTokenExpiration) {
+      return createErrorResponse(
+        'Invalid or expired token',
+        401,
+        ErrorCodes.UNAUTHORIZED,
+        { jobId, tokenExpired: Date.now() > authTokenExpiration },
+        c.req.raw,
+      )
+    }
+
+    // Return job state with ResponseEnvelope format
+    return new Response(JSON.stringify(jobState), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  } catch (error) {
+    console.error('Failed to get job state:', error)
+    return createErrorResponse(
+      `Failed to get job state: ${(error as Error).message}`,
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      { jobId: c.req.param('jobId') },
+      c.req.raw,
+    )
+  }
+})
+
+// POST /api/scan-bookshelf/cancel - Cancel bookshelf scanning job
+// Matches manual router: lines 404-429
+app.post('/api/scan-bookshelf/cancel', async (c) => {
+  try {
+    const { jobId } = await c.req.json()
+
+    if (!jobId) {
+      return createErrorResponse(
+        'jobId required',
         400,
         ErrorCodes.MISSING_PARAMETER,
-        { parameter: "jobId" },
-        c.req.raw
-      );
+        { parameter: 'jobId' },
+        c.req.raw,
+      )
     }
 
     // Feature flag: Use refactored architecture or legacy monolithic DO
-      const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId);
-      const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(stateDoId);
-      result = await stateDoStub.cancelJob("User canceled bookshelf scan");
+    const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId)
+    const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(stateDoId)
+    result = await stateDoStub.cancelJob('User canceled bookshelf scan')
 
     // Return result from DO in ResponseEnvelope format
-    return new Response(JSON.stringify(
-      result
-    ),
-    {
+    return new Response(JSON.stringify(result), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+      headers: { 'Content-Type': 'application/json' },
+    })
   } catch (error) {
-    console.error("Cancel batch error:", error);
+    console.error('Cancel batch error:', error)
     return createErrorResponse(
-      "Failed to cancel batch",
+      'Failed to cancel batch',
       500,
       ErrorCodes.INTERNAL_ERROR,
       { details: (error as Error).message },
-      c.req.raw
-    );
+      c.req.raw,
+    )
   }
-});
+})
 
 // ============================================================================
 // MVP Route 3: Metrics (Analytics Integration Test)
 // ============================================================================
-app.get("/metrics", async (c) => {
-  return await handleMetricsRequest(c.req.raw, c.env, getCtx(c));
-});
+app.get('/metrics', async (c) => {
+  return await handleMetricsRequest(c.req.raw, c.env, getCtx(c))
+})
 
 // GET /api/cache/metrics - Cache performance metrics
-app.get("/api/cache/metrics", async (c) => {
-  return await handleCacheMetrics(c.req.raw, c.env);
-});
+app.get('/api/cache/metrics', async (c) => {
+  return await handleCacheMetrics(c.req.raw, c.env)
+})
 
 // GET /admin/harvest-dashboard - ISBNdb harvest dashboard
-app.get("/admin/harvest-dashboard", async (c) => {
-  return await handleHarvestDashboard(c.req.raw, c.env);
-});
+app.get('/admin/harvest-dashboard', async (c) => {
+  return await handleHarvestDashboard(c.req.raw, c.env)
+})
 
 // POST /admin/trigger-harvest - Manually trigger author expansion harvest (for testing)
-app.post("/admin/trigger-harvest", async (c) => {
+app.post('/admin/trigger-harvest', async (c) => {
   try {
-    console.log("[Admin] Manual harvest trigger requested");
-    const { executeAuthorExpansionHarvest } = await import('./handlers/author-expansion-harvest.js');
+    console.log('[Admin] Manual harvest trigger requested')
+    const { executeAuthorExpansionHarvest } = await import('./handlers/author-expansion-harvest.js')
 
     // Get parameters from query string or use defaults
-    const authorCount = parseInt(c.req.query("authors") || "10");
-    const booksPerAuthor = parseInt(c.req.query("books") || "50");
+    const authorCount = parseInt(c.req.query('authors') || '10', 10)
+    const booksPerAuthor = parseInt(c.req.query('books') || '50', 10)
 
-    console.log(`[Admin] Starting harvest: ${authorCount} authors, ${booksPerAuthor} books each`);
+    console.log(`[Admin] Starting harvest: ${authorCount} authors, ${booksPerAuthor} books each`)
 
     // Execute harvest (async - don't wait for completion)
     c.executionCtx.waitUntil(
       executeAuthorExpansionHarvest(c.env, authorCount, booksPerAuthor)
-        .then(result => {
-          console.log("[Admin] Harvest completed:", result);
+        .then((result) => {
+          console.log('[Admin] Harvest completed:', result)
         })
-        .catch(error => {
-          console.error("[Admin] Harvest failed:", error);
-        })
-    );
+        .catch((error) => {
+          console.error('[Admin] Harvest failed:', error)
+        }),
+    )
 
-    return new Response(JSON.stringify(
-      { message: "Harvest started in background", authorCount, booksPerAuthor }),
+    return new Response(
+      JSON.stringify({ message: 'Harvest started in background', authorCount, booksPerAuthor }),
       {
         status: 202,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+        headers: { 'Content-Type': 'application/json' },
+      },
+    )
   } catch (error) {
-    console.error("[Admin] Harvest trigger failed:", error);
+    console.error('[Admin] Harvest trigger failed:', error)
     return createErrorResponse(
-      "Failed to trigger harvest",
+      'Failed to trigger harvest',
       500,
       ErrorCodes.INTERNAL_ERROR,
       { details: (error as Error).message },
-      c.req.raw
-    );
+      c.req.raw,
+    )
   }
-});
+})
 
 // GET /api/cache/stats - Real-time cache performance statistics from CacheMetricsDO
-app.get("/api/cache/stats", async (c) => {
+app.get('/api/cache/stats', async (c) => {
   try {
-    const id = c.env.CACHE_METRICS_DO.idFromName("cache-metrics-singleton");
-    const stub = c.env.CACHE_METRICS_DO.get(id);
+    const id = c.env.CACHE_METRICS_DO.idFromName('cache-metrics-singleton')
+    const stub = c.env.CACHE_METRICS_DO.get(id)
 
     // ✅ RPC MIGRATION: Direct method call (no HTTP overhead)
-    const stats = await stub.getStats();
-    return new Response(JSON.stringify(
-      stats
-    ),
-    {
+    const stats = await stub.getStats()
+    return new Response(JSON.stringify(stats), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+      headers: { 'Content-Type': 'application/json' },
+    })
   } catch (error) {
-    console.error("Error fetching cache stats:", error);
+    console.error('Error fetching cache stats:', error)
     return createErrorResponse(
-      "Internal server error while fetching cache statistics",
+      'Internal server error while fetching cache statistics',
       500,
       ErrorCodes.INTERNAL_ERROR,
       { details: (error as Error).message },
-      c.req.raw
-    );
+      c.req.raw,
+    )
   }
-});
+})
 
 // ============================================================================
 // Cache Dashboard & Monitoring (Issue #99)
 // ============================================================================
 
 // GET /api/cache/dashboard - Full cache dashboard with health, alerts, and stats
-app.get("/api/cache/dashboard", async (c) => {
-  const { handleCacheDashboard } = await import("./handlers/cache-dashboard");
-  return await handleCacheDashboard(c);
-});
+app.get('/api/cache/dashboard', async (c) => {
+  const { handleCacheDashboard } = await import('./handlers/cache-dashboard')
+  return await handleCacheDashboard(c)
+})
 
 // GET /api/cache/health - Cache health check only (lightweight)
-app.get("/api/cache/health", async (c) => {
-  const { handleCacheHealth } = await import("./handlers/cache-dashboard");
-  return await handleCacheHealth(c);
-});
+app.get('/api/cache/health', async (c) => {
+  const { handleCacheHealth } = await import('./handlers/cache-dashboard')
+  return await handleCacheHealth(c)
+})
 
 // GET /api/cache/alerts - Alert history with optional limit parameter
-app.get("/api/cache/alerts", async (c) => {
-  const { handleCacheAlerts } = await import("./handlers/cache-dashboard");
-  return await handleCacheAlerts(c);
-});
+app.get('/api/cache/alerts', async (c) => {
+  const { handleCacheAlerts } = await import('./handlers/cache-dashboard')
+  return await handleCacheAlerts(c)
+})
 
 // ============================================================================
 // MVP Route 4: WebSocket Progress (WebSocket Routing Test)
 // ============================================================================
-app.get("/ws/progress", async (c) => {
+app.get('/ws/progress', async (c) => {
   // Validation: Limit jobId length to prevent abuse (UUIDs are 36 chars)
-  const jobId = c.req.query("jobId")?.substring(0, 100);
+  const jobId = c.req.query('jobId')?.substring(0, 100)
 
   if (!jobId || jobId.trim().length === 0) {
     return createErrorResponse(
-      "Missing jobId parameter",
+      'Missing jobId parameter',
       400,
       ErrorCodes.MISSING_PARAMETER,
-      { parameter: "jobId" },
-      c.req.raw
-    );
+      { parameter: 'jobId' },
+      c.req.raw,
+    )
   }
 
   // SECURITY FIX (Issue #163): Token authentication now uses WebSocket Subprotocol
@@ -490,13 +458,13 @@ app.get("/ws/progress", async (c) => {
   // See docs/openapi.yaml for WebSocket authentication specifications
 
   // Feature flag: Use refactored architecture or legacy monolithic DO
-    const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId);
-    const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId);
+  const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId)
+  const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId)
 
-    // Forward the request to the WebSocket DO
-    // The DO will handle authentication, upgrade, and lifecycle
-    return await wsDoStub.fetch(c.req.raw);
-});
+  // Forward the request to the WebSocket DO
+  // The DO will handle authentication, upgrade, and lifecycle
+  return await wsDoStub.fetch(c.req.raw)
+})
 
 // ============================================================================
 // V1 Results/Job Status Routes Removed (Issue #205 - V1 Sunset March 1, 2026)
@@ -514,152 +482,151 @@ app.get("/ws/progress", async (c) => {
 // GET /v1/jobs/{jobId}/results - REMOVED (Issue #205 - V1 Sunset March 1, 2026)
 // Replaced by GET /v3/jobs/{type}/:jobId/results
 
-
 // ============================================================================
 // V1 Additional Routes Removed (Issue #205 - V1 Sunset March 1, 2026)
 // ============================================================================
 // GET /v1/editions/search - REMOVED (replaced by V3 work editions API)
 
 // GET /images/proxy - Proxy external images through API (CORS, caching)
-app.get("/images/proxy", async (c) => {
-  const imageUrl = c.req.query("url");
+app.get('/images/proxy', async (c) => {
+  const imageUrl = c.req.query('url')
 
   if (!imageUrl) {
     return createErrorResponse(
-      "url query parameter is required",
+      'url query parameter is required',
       400,
       ErrorCodes.MISSING_PARAMETER,
-      { parameter: "url" },
-      c.req.raw
-    );
+      { parameter: 'url' },
+      c.req.raw,
+    )
   }
 
-  return await handleImageProxy(imageUrl, c.env);
-});
+  return await handleImageProxy(imageUrl, c.env)
+})
 
 // ============================================================================
 // Test Route (DEBUG mode only - for testing error handler)
 // ============================================================================
-app.get("/test/error", (c) => {
+app.get('/test/error', (c) => {
   // Only available in DEBUG mode for testing onError handler
-  if (c.env.LOG_LEVEL !== "DEBUG") {
+  if (c.env.LOG_LEVEL !== 'DEBUG') {
     return createErrorResponse(
-      "Endpoint not found: GET /test/error",
+      'Endpoint not found: GET /test/error',
       404,
       ErrorCodes.NOT_FOUND,
       undefined,
-      c.req.raw
-    );
+      c.req.raw,
+    )
   }
 
-  throw new Error("Test error for onError handler validation");
-});
+  throw new Error('Test error for onError handler validation')
+})
 
 // POST /test/cache-event - Test cache metrics by sending synthetic events
-app.post("/test/cache-event", async (c) => {
+app.post('/test/cache-event', async (c) => {
   // Only available in DEBUG mode
-  if (c.env.LOG_LEVEL !== "DEBUG") {
+  if (c.env.LOG_LEVEL !== 'DEBUG') {
     return createErrorResponse(
-      "Endpoint not found: POST /test/cache-event",
+      'Endpoint not found: POST /test/cache-event',
       404,
       ErrorCodes.NOT_FOUND,
       undefined,
-      c.req.raw
-    );
+      c.req.raw,
+    )
   }
 
   try {
     // Send 3 test events to CacheMetricsDO
-    const id = c.env.CACHE_METRICS_DO.idFromName("cache-metrics-singleton");
-    const stub = c.env.CACHE_METRICS_DO.get(id);
+    const id = c.env.CACHE_METRICS_DO.idFromName('cache-metrics-singleton')
+    const stub = c.env.CACHE_METRICS_DO.get(id)
 
-    const timestamp = Date.now();
+    const timestamp = Date.now()
 
     // ✅ RPC MIGRATION: Direct method calls (no HTTP overhead)
 
     // Event 1: Edge cache hit
     await stub.recordEvent({
-      type: "hit",
-      prefix: "edge",
-      key: "test:edge:hit",
+      type: 'hit',
+      prefix: 'edge',
+      key: 'test:edge:hit',
       timestamp,
-    });
+    })
 
     // Event 2: KV cache miss
     await stub.recordEvent({
-      type: "miss",
-      prefix: "book",
-      key: "book:isbn:test123",
+      type: 'miss',
+      prefix: 'book',
+      key: 'book:isbn:test123',
       timestamp,
-    });
+    })
 
     // Event 3: KV cache write
     await stub.recordEvent({
-      type: "write",
-      prefix: "author",
-      key: "author:search:testauthor",
+      type: 'write',
+      prefix: 'author',
+      key: 'author:search:testauthor',
       timestamp,
-    });
+    })
 
     // Get current stats
-    const stats = await stub.getStats();
+    const stats = await stub.getStats()
 
-    return new Response(JSON.stringify(
-      {
-        message: "Sent 3 synthetic cache events",
+    return new Response(
+      JSON.stringify({
+        message: 'Sent 3 synthetic cache events',
         events: [
-          { type: "hit", prefix: "edge" },
-          { type: "miss", prefix: "book" },
-          { type: "write", prefix: "author" },
+          { type: 'hit', prefix: 'edge' },
+          { type: 'miss', prefix: 'book' },
+          { type: 'write', prefix: 'author' },
         ],
         currentStats: stats,
       }),
       {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+        headers: { 'Content-Type': 'application/json' },
+      },
+    )
   } catch (error) {
-    console.error("Failed to send test cache events:", error);
+    console.error('Failed to send test cache events:', error)
     return createErrorResponse(
-      "Failed to send test cache events",
+      'Failed to send test cache events',
       500,
       ErrorCodes.INTERNAL_ERROR,
       { details: (error as Error).message },
-      c.req.raw
-    );
+      c.req.raw,
+    )
   }
-});
+})
 
 // ============================================================================
 // Admin Route: Trigger Recommendations Cron
 // ============================================================================
-app.post("/admin/trigger-recommendations", async (c) => {
+app.post('/admin/trigger-recommendations', async (c) => {
   try {
-    const { handleRecommendationsCron } = await import("./cron/recommendations-cron");
-    await handleRecommendationsCron(c.env);
+    const { handleRecommendationsCron } = await import('./cron/recommendations-cron')
+    await handleRecommendationsCron(c.env)
 
-    return new Response(JSON.stringify(
-      {
-        message: "Weekly recommendations cron triggered successfully",
+    return new Response(
+      JSON.stringify({
+        message: 'Weekly recommendations cron triggered successfully',
         timestamp: new Date().toISOString(),
       }),
       {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+        headers: { 'Content-Type': 'application/json' },
+      },
+    )
   } catch (error) {
-    console.error("Failed to trigger recommendations cron:", error);
+    console.error('Failed to trigger recommendations cron:', error)
     return createErrorResponse(
       `Failed to trigger recommendations cron: ${(error as Error).message}`,
       500,
       ErrorCodes.INTERNAL_ERROR,
       { details: (error as Error).message },
-      c.req.raw
-    );
+      c.req.raw,
+    )
   }
-});
+})
 
 // ============================================================================
 // V2 API Routes Removed (Issue #206 - V2 Sunset March 7, 2026)
@@ -681,9 +648,9 @@ app.notFound((c) => {
     404,
     ErrorCodes.NOT_FOUND,
     { method: c.req.method, path: c.req.path },
-    c.req.raw
-  );
-});
+    c.req.raw,
+  )
+})
 
 // ============================================================================
 // Testing and Verification Routes
@@ -693,7 +660,7 @@ app.notFound((c) => {
 app.get('/test/rpc-latency', async (c) => {
   try {
     const iterationsParam = c.req.query('iterations') || '100'
-    const iterations = parseInt(iterationsParam)
+    const iterations = parseInt(iterationsParam, 10)
 
     // Validation
     if (!Number.isInteger(iterations) || iterations < 1 || iterations > 10000) {
@@ -715,16 +682,13 @@ app.get('/test/rpc-latency', async (c) => {
     const result = await latencyTestStub.measureLatency(iterations)
 
     // Return in ResponseEnvelope format
-    return c.json(
-      result,
-      200,
-    )
+    return c.json(result, 200)
   } catch (error) {
     console.error('[RPC Latency Test] Error:', error)
     return c.json(
       createErrorResponse(
         ErrorCodes.INTERNAL_ERROR,
-        'Failed to measure RPC latency: ' + error.message,
+        `Failed to measure RPC latency: ${error.message}`,
         500,
       ),
       500,
@@ -736,73 +700,70 @@ app.get('/test/rpc-latency', async (c) => {
 // Global Error Handler
 // ============================================================================
 app.onError((err, c) => {
-  console.error("[Hono] Unhandled error:", err);
+  console.error('[Hono] Unhandled error:', err)
 
   // Log to Analytics Engine asynchronously (doesn't block response)
   // Enhanced error handling: ensure writeDataPoint exists and returns a Promise
   if (
     c.env.PERFORMANCE_ANALYTICS &&
-    typeof c.env.PERFORMANCE_ANALYTICS.writeDataPoint === "function"
+    typeof c.env.PERFORMANCE_ANALYTICS.writeDataPoint === 'function'
   ) {
     try {
       // Call writeDataPoint and check if it returns a value
       const dataPointResult = c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
-        blobs: ["router_error", err.message, c.req.path, c.req.method],
+        blobs: ['router_error', err.message, c.req.path, c.req.method],
         doubles: [1], // Error count
-        indexes: ["hono"], // Router type
-      });
+        indexes: ['hono'], // Router type
+      })
 
       // BUGFIX: Only proceed if writeDataPoint returned a valid value
       if (dataPointResult) {
         // Wrap in Promise.resolve() to guarantee a Promise for .catch()
-        const dataPointPromise = Promise.resolve(dataPointResult);
+        const dataPointPromise = Promise.resolve(dataPointResult)
 
         // ExecutionContext may not be available in Hono context, skip if not present
-        const ctx = getCtx(c);
+        const ctx = getCtx(c)
         if (ctx) {
           ctx.waitUntil(
             dataPointPromise.catch((analyticsErr) => {
-              console.error(
-                "[Hono] Failed to log error to Analytics Engine:",
-                analyticsErr,
-              );
+              console.error('[Hono] Failed to log error to Analytics Engine:', analyticsErr)
               // Note: Simple retry omitted to avoid exceeding Workers execution limits
               // Analytics failures are logged but not retried to maintain performance
             }),
-          );
+          )
         }
       }
     } catch (syncError) {
       // Catch synchronous errors during writeDataPoint invocation
       console.error(
-        "[Hono] Synchronous error when attempting to log to Analytics Engine:",
+        '[Hono] Synchronous error when attempting to log to Analytics Engine:',
         syncError,
-      );
+      )
       // Log sync errors via waitUntil to ensure they're captured
-      const ctx = getCtx(c);
+      const ctx = getCtx(c)
       if (ctx) {
         ctx.waitUntil(
           Promise.resolve().then(() => {
-            console.warn("[Hono] Analytics sync error captured in error handler");
+            console.warn('[Hono] Analytics sync error captured in error handler')
           }),
-        );
+        )
       }
     }
   } else {
     // Warn if Analytics binding is missing or misconfigured
     console.warn(
-      "[Hono] PERFORMANCE_ANALYTICS binding missing or invalid - error metrics will not be logged",
-    );
+      '[Hono] PERFORMANCE_ANALYTICS binding missing or invalid - error metrics will not be logged',
+    )
   }
 
   return createErrorResponse(
-    "An unexpected error occurred",
+    'An unexpected error occurred',
     500,
     ErrorCodes.INTERNAL_ERROR,
-    c.env.LOG_LEVEL === "DEBUG" ? { details: err.message } : undefined,
-    c.req.raw
-  );
-});
+    c.env.LOG_LEVEL === 'DEBUG' ? { details: err.message } : undefined,
+    c.req.raw,
+  )
+})
 
 // ============================================================================
 // OpenAPI Documentation Endpoints (Phase 1.4 POC)
@@ -810,17 +771,17 @@ app.onError((err, c) => {
 
 // GET /doc - Swagger UI
 app.get(
-  "/doc",
+  '/doc',
   swaggerUI({
-    url: "/doc/openapi.json",
-  })
-);
+    url: '/doc/openapi.json',
+  }),
+)
 
 // GET /doc/openapi.json - OpenAPI JSON spec
 // Use the simple app.doc() method with our configuration
-app.doc("/doc/openapi.json", openAPIConfig);
+app.doc('/doc/openapi.json', openAPIConfig)
 
-console.log("[OpenAPI] Registered /doc/openapi.json endpoint");
+console.log('[OpenAPI] Registered /doc/openapi.json endpoint')
 
 // ============================================================================
 // V3 API - Native @hono/zod-openapi (December 2025 - iOS Migration)
@@ -831,27 +792,27 @@ console.log("[OpenAPI] Registered /doc/openapi.json endpoint");
 // - Separate OpenAPI documentation at /v3/docs
 // - Type-safe request/response handling
 // - Integration with existing service layer (Alexandria, DOs, etc.)
-import { createV3Router } from "./api-v3/index";
-import openapiSpec from "./api-v3/openapi-static.json";
+import { createV3Router } from './api-v3/index'
+import openapiSpec from './api-v3/openapi-static.json'
 
 try {
-  const v3Router = createV3Router();
-  app.route("/", v3Router);
+  const v3Router = createV3Router()
+  app.route('/', v3Router)
 
   // Serve static OpenAPI spec (workaround for OpenAPIHono sub-router limitation)
   // The .doc() method and .getOpenAPIDocument() don't work when mounted with app.route()
-  app.get("/v3/openapi.json", (c) => {
+  app.get('/v3/openapi.json', (c) => {
     return c.json(openapiSpec, 200, {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=3600'
-    });
-  });
+      'Cache-Control': 'public, max-age=3600',
+    })
+  })
 
-  console.log("[V3 API] Successfully mounted native @hono/zod-openapi routes");
-  console.log("[V3 API] Static OpenAPI spec available at /v3/openapi.json");
+  console.log('[V3 API] Successfully mounted native @hono/zod-openapi routes')
+  console.log('[V3 API] Static OpenAPI spec available at /v3/openapi.json')
 } catch (error) {
-  console.error("[V3 API] Failed to mount v3 routes:", error);
+  console.error('[V3 API] Failed to mount v3 routes:', error)
   // Don't crash the worker - v1/v2 routes should still work
 }
 
-export default app;
+export default app

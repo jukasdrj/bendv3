@@ -8,8 +8,8 @@
  */
 
 // ISBN validation regex constants (DRY principle - avoids duplication across functions)
-const ISBN10_REGEX = /^\d{9}[\dX]$/i;
-const ISBN13_REGEX = /^\d{13}$/;
+const ISBN10_REGEX = /^\d{9}[\dX]$/i
+const ISBN13_REGEX = /^\d{13}$/
 
 /**
  * Validates an ISBN-10 string using the Modulo 11 checksum algorithm.
@@ -21,18 +21,18 @@ const ISBN13_REGEX = /^\d{13}$/;
 export function isValidISBN10Checksum(cleanedIsbn: string): boolean {
   // Defensive check, though primary validation should happen before calling this
   if (cleanedIsbn.length !== 10 || !ISBN10_REGEX.test(cleanedIsbn)) {
-    return false;
+    return false
   }
 
-  let sum = 0;
+  let sum = 0
   for (let i = 0; i < 9; i++) {
-    sum += parseInt(cleanedIsbn[i], 10) * (10 - i);
+    sum += parseInt(cleanedIsbn[i], 10) * (10 - i)
   }
 
-  const checkChar = cleanedIsbn[9].toUpperCase();
-  const checkDigit = checkChar === "X" ? 10 : parseInt(checkChar, 10);
+  const checkChar = cleanedIsbn[9].toUpperCase()
+  const checkDigit = checkChar === 'X' ? 10 : parseInt(checkChar, 10)
 
-  return (sum + checkDigit) % 11 === 0;
+  return (sum + checkDigit) % 11 === 0
 }
 
 /**
@@ -45,19 +45,19 @@ export function isValidISBN10Checksum(cleanedIsbn: string): boolean {
 export function isValidISBN13Checksum(cleanedIsbn: string): boolean {
   // Defensive check, though primary validation should happen before calling this
   if (cleanedIsbn.length !== 13 || !ISBN13_REGEX.test(cleanedIsbn)) {
-    return false;
+    return false
   }
 
-  let sum = 0;
+  let sum = 0
   for (let i = 0; i < 12; i++) {
-    const digit = parseInt(cleanedIsbn[i], 10);
-    sum += i % 2 === 0 ? digit : digit * 3;
+    const digit = parseInt(cleanedIsbn[i], 10)
+    sum += i % 2 === 0 ? digit : digit * 3
   }
 
-  const checkDigit = parseInt(cleanedIsbn[12], 10);
-  const calculatedCheckDigit = (10 - (sum % 10)) % 10;
+  const checkDigit = parseInt(cleanedIsbn[12], 10)
+  const calculatedCheckDigit = (10 - (sum % 10)) % 10
 
-  return calculatedCheckDigit === checkDigit;
+  return calculatedCheckDigit === checkDigit
 }
 
 /**
@@ -70,19 +70,19 @@ export function isValidISBN13Checksum(cleanedIsbn: string): boolean {
  * @returns True if the ISBN is valid (format and checksum), false otherwise.
  */
 export function isValidISBN(isbn: string): boolean {
-  if (!isbn || isbn.trim().length === 0) return false;
+  if (!isbn || isbn.trim().length === 0) return false
 
-  const cleaned = isbn.replace(/[-\s]/g, "");
+  const cleaned = isbn.replace(/[-\s]/g, '')
 
   // ISBN-13: exactly 13 digits
   if (cleaned.length === 13 && ISBN13_REGEX.test(cleaned)) {
-    return isValidISBN13Checksum(cleaned);
+    return isValidISBN13Checksum(cleaned)
   }
 
   // ISBN-10: 9 digits + (digit or X)
   if (cleaned.length === 10 && ISBN10_REGEX.test(cleaned)) {
-    return isValidISBN10Checksum(cleaned);
+    return isValidISBN10Checksum(cleaned)
   }
 
-  return false;
+  return false
 }

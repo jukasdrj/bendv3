@@ -21,13 +21,15 @@ import { ResponseEnvelopeSchema } from './common.js'
  * Returned when initiating async jobs (CSV import, batch enrichment, bookshelf scan).
  * Includes jobId, auth token, and URLs for status polling and real-time updates.
  */
-export const JobResponseSchema = z.object({
-  jobId: z.string().uuid(),
-  authToken: z.string().uuid(),
-  sseUrl: z.string(),
-  statusUrl: z.string(),
-  websocketUrl: z.string().optional()
-}).strict()
+export const JobResponseSchema = z
+  .object({
+    jobId: z.string().uuid(),
+    authToken: z.string().uuid(),
+    sseUrl: z.string(),
+    statusUrl: z.string(),
+    websocketUrl: z.string().optional(),
+  })
+  .strict()
 
 // ============================================================================
 // JOB STATUS SCHEMAS
@@ -43,7 +45,7 @@ export const JobStatusSchema = z.enum([
   'processing',
   'completed',
   'failed',
-  'canceled'
+  'canceled',
 ])
 
 /**
@@ -51,23 +53,21 @@ export const JobStatusSchema = z.enum([
  *
  * Type of async processing pipeline.
  */
-export const PipelineTypeSchema = z.enum([
-  'csv_import',
-  'batch_enrichment',
-  'ai_scan'
-])
+export const PipelineTypeSchema = z.enum(['csv_import', 'batch_enrichment', 'ai_scan'])
 
 /**
  * Job Error Schema
  *
  * Error details for failed jobs.
  */
-export const JobErrorSchema = z.object({
-  code: z.string(),
-  message: z.string(),
-  retryable: z.boolean(),
-  details: z.record(z.any()).optional()
-}).strict()
+export const JobErrorSchema = z
+  .object({
+    code: z.string(),
+    message: z.string(),
+    retryable: z.boolean(),
+    details: z.record(z.any()).optional(),
+  })
+  .strict()
 
 /**
  * Job State Schema
@@ -84,37 +84,41 @@ export const JobErrorSchema = z.object({
  * - error - Error details if job failed (optional)
  * - canceled, cancelReason, canceledTime - Cancellation details (V1 legacy endpoint only)
  */
-export const JobStateSchema = z.object({
-  jobId: z.string().uuid(),
-  status: JobStatusSchema,
-  progress: z.number().min(0).max(1), // 0.0 - 1.0
-  processedCount: z.number().int().nonnegative(),
-  totalCount: z.number().int().nonnegative(),
-  pipeline: PipelineTypeSchema.optional(),
-  startTime: z.string().datetime(),
-  lastUpdateTime: z.string().datetime().optional(),
-  completedTime: z.string().datetime().optional(),
-  failedTime: z.string().datetime().optional(),
-  error: JobErrorSchema.optional(),
-  canceled: z.boolean().optional(),
-  cancelReason: z.string().optional(),
-  canceledTime: z.string().datetime().optional()
-}).strict()
+export const JobStateSchema = z
+  .object({
+    jobId: z.string().uuid(),
+    status: JobStatusSchema,
+    progress: z.number().min(0).max(1), // 0.0 - 1.0
+    processedCount: z.number().int().nonnegative(),
+    totalCount: z.number().int().nonnegative(),
+    pipeline: PipelineTypeSchema.optional(),
+    startTime: z.string().datetime(),
+    lastUpdateTime: z.string().datetime().optional(),
+    completedTime: z.string().datetime().optional(),
+    failedTime: z.string().datetime().optional(),
+    error: JobErrorSchema.optional(),
+    canceled: z.boolean().optional(),
+    cancelReason: z.string().optional(),
+    canceledTime: z.string().datetime().optional(),
+  })
+  .strict()
 
 /**
  * Job Progress Schema
  *
  * Progress information for ongoing jobs.
  */
-export const JobProgressSchema = z.object({
-  jobId: z.string().uuid(),
-  status: JobStatusSchema,
-  progress: z.number().min(0).max(1), // 0.0 - 1.0
-  message: z.string().optional(),
-  currentItem: z.number().int().min(0).optional(),
-  totalItems: z.number().int().min(0).optional(),
-  error: z.string().optional()
-}).strict()
+export const JobProgressSchema = z
+  .object({
+    jobId: z.string().uuid(),
+    status: JobStatusSchema,
+    progress: z.number().min(0).max(1), // 0.0 - 1.0
+    message: z.string().optional(),
+    currentItem: z.number().int().min(0).optional(),
+    totalItems: z.number().int().min(0).optional(),
+    error: z.string().optional(),
+  })
+  .strict()
 
 // ============================================================================
 // CSV IMPORT SCHEMAS
@@ -125,33 +129,39 @@ export const JobProgressSchema = z.object({
  *
  * Book data parsed from CSV file by Gemini AI.
  */
-export const ParsedBookSchema = z.object({
-  title: z.string(),
-  author: z.string(),
-  isbn: z.string().optional()
-}).strict()
+export const ParsedBookSchema = z
+  .object({
+    title: z.string(),
+    author: z.string(),
+    isbn: z.string().optional(),
+  })
+  .strict()
 
 /**
  * CSV Import Results Schema
  *
  * Final results from CSV import job.
  */
-export const CSVImportResultsSchema = z.object({
-  jobId: z.string().uuid(),
-  status: JobStatusSchema,
-  totalRows: z.number().int().min(0),
-  booksCreated: z.number().int().min(0),
-  enrichmentSucceeded: z.number().int().min(0),
-  enrichmentFailed: z.number().int().min(0),
-  books: z.array(z.object({
-    title: z.string(),
-    author: z.string(),
-    isbn: z.string().optional(),
-    enriched: z.boolean(),
-    enrichment: EnrichmentDataSchema.optional()
-  })),
-  completedAt: z.string().datetime()
-}).strict()
+export const CSVImportResultsSchema = z
+  .object({
+    jobId: z.string().uuid(),
+    status: JobStatusSchema,
+    totalRows: z.number().int().min(0),
+    booksCreated: z.number().int().min(0),
+    enrichmentSucceeded: z.number().int().min(0),
+    enrichmentFailed: z.number().int().min(0),
+    books: z.array(
+      z.object({
+        title: z.string(),
+        author: z.string(),
+        isbn: z.string().optional(),
+        enriched: z.boolean(),
+        enrichment: EnrichmentDataSchema.optional(),
+      }),
+    ),
+    completedAt: z.string().datetime(),
+  })
+  .strict()
 
 // ============================================================================
 // BATCH ENRICHMENT SCHEMAS
@@ -162,29 +172,33 @@ export const CSVImportResultsSchema = z.object({
  *
  * Result of enriching a single book in a batch operation.
  */
-export const EnrichedBookResultSchema = z.object({
-  title: z.string(),
-  author: z.string().optional(),
-  isbn: z.string().optional(),
-  success: z.boolean(),
-  error: z.string().optional(),
-  enrichment: EnrichmentDataSchema.optional()
-}).strict()
+export const EnrichedBookResultSchema = z
+  .object({
+    title: z.string(),
+    author: z.string().optional(),
+    isbn: z.string().optional(),
+    success: z.boolean(),
+    error: z.string().optional(),
+    enrichment: EnrichmentDataSchema.optional(),
+  })
+  .strict()
 
 /**
  * Batch Enrichment Results Schema
  *
  * Final results from batch enrichment job.
  */
-export const BatchEnrichmentResultsSchema = z.object({
-  jobId: z.string().uuid(),
-  status: JobStatusSchema,
-  totalBooks: z.number().int().min(0),
-  successCount: z.number().int().min(0),
-  failedCount: z.number().int().min(0),
-  books: z.array(EnrichedBookResultSchema),
-  completedAt: z.string().datetime()
-}).strict()
+export const BatchEnrichmentResultsSchema = z
+  .object({
+    jobId: z.string().uuid(),
+    status: JobStatusSchema,
+    totalBooks: z.number().int().min(0),
+    successCount: z.number().int().min(0),
+    failedCount: z.number().int().min(0),
+    books: z.array(EnrichedBookResultSchema),
+    completedAt: z.string().datetime(),
+  })
+  .strict()
 
 // ============================================================================
 // BOOKSHELF SCAN SCHEMAS
@@ -195,49 +209,51 @@ export const BatchEnrichmentResultsSchema = z.object({
  *
  * Book detected from bookshelf photo by Gemini Vision AI.
  */
-export const DetectedBookSchema = z.object({
-  title: z.string().optional(),
-  author: z.string().optional(),
-  isbn: z.string().optional(),
-  confidence: z.number().min(0).max(1).optional(),
-  boundingBox: z.object({
-    x: z.number().min(0).max(1),
-    y: z.number().min(0).max(1),
-    width: z.number().min(0).max(1),
-    height: z.number().min(0).max(1)
-  }).optional(),
-  enrichmentStatus: z.enum([
-    'pending',
-    'success',
-    'not_found',
-    'error',
-    'circuit_open'
-  ]).optional(),
+export const DetectedBookSchema = z
+  .object({
+    title: z.string().optional(),
+    author: z.string().optional(),
+    isbn: z.string().optional(),
+    confidence: z.number().min(0).max(1).optional(),
+    boundingBox: z
+      .object({
+        x: z.number().min(0).max(1),
+        y: z.number().min(0).max(1),
+        width: z.number().min(0).max(1),
+        height: z.number().min(0).max(1),
+      })
+      .optional(),
+    enrichmentStatus: z
+      .enum(['pending', 'success', 'not_found', 'error', 'circuit_open'])
+      .optional(),
 
-  // Flattened edition fields (deprecated)
-  coverUrl: z.string().url().optional(),
-  publisher: z.string().optional(),
-  publicationYear: z.number().int().optional(),
+    // Flattened edition fields (deprecated)
+    coverUrl: z.string().url().optional(),
+    publisher: z.string().optional(),
+    publicationYear: z.number().int().optional(),
 
-  // Nested enrichment data (current)
-  enrichment: EnrichmentDataSchema.optional()
-}).strict()
+    // Nested enrichment data (current)
+    enrichment: EnrichmentDataSchema.optional(),
+  })
+  .strict()
 
 /**
  * Bookshelf Scan Results Schema
  *
  * Final results from bookshelf photo scanning job.
  */
-export const BookshelfScanResultsSchema = z.object({
-  jobId: z.string().uuid(),
-  status: JobStatusSchema,
-  photosProcessed: z.number().int().min(0),
-  booksDetected: z.number().int().min(0),
-  booksUnique: z.number().int().min(0),
-  booksEnriched: z.number().int().min(0),
-  books: z.array(DetectedBookSchema),
-  completedAt: z.string().datetime()
-}).strict()
+export const BookshelfScanResultsSchema = z
+  .object({
+    jobId: z.string().uuid(),
+    status: JobStatusSchema,
+    photosProcessed: z.number().int().min(0),
+    booksDetected: z.number().int().min(0),
+    booksUnique: z.number().int().min(0),
+    booksEnriched: z.number().int().min(0),
+    books: z.array(DetectedBookSchema),
+    completedAt: z.string().datetime(),
+  })
+  .strict()
 
 // ============================================================================
 // JOB RESULTS SCHEMAS
@@ -249,11 +265,13 @@ export const BookshelfScanResultsSchema = z.object({
  * Represents an individual error that occurred during job processing.
  * Includes row number (for CSV) and ISBN context when available.
  */
-export const JobErrorDetailSchema = z.object({
-  row: z.number().int().nonnegative().optional(),
-  isbn: z.string().optional(),
-  error: z.string()
-}).strict()
+export const JobErrorDetailSchema = z
+  .object({
+    row: z.number().int().nonnegative().optional(),
+    isbn: z.string().optional(),
+    error: z.string(),
+  })
+  .strict()
 
 /**
  * Job Results Schema (Pipeline-Agnostic)
@@ -275,15 +293,17 @@ export const JobErrorDetailSchema = z.object({
  * - `errors` - Array of individual import/enrichment failures
  * - `books` - Array of CANONICAL book objects (full metadata from providers)
  */
-export const JobResultsSchema = z.object({
-  booksCreated: z.number().int().nonnegative(),
-  booksUpdated: z.number().int().nonnegative().optional(),
-  duplicatesSkipped: z.number().int().nonnegative().optional(),
-  enrichmentSucceeded: z.number().int().nonnegative().optional(),
-  enrichmentFailed: z.number().int().nonnegative().optional(),
-  errors: z.array(JobErrorDetailSchema),
-  books: z.array(BookSchema) // Full canonical book objects for iOS SwiftData persistence
-}).strict()
+export const JobResultsSchema = z
+  .object({
+    booksCreated: z.number().int().nonnegative(),
+    booksUpdated: z.number().int().nonnegative().optional(),
+    duplicatesSkipped: z.number().int().nonnegative().optional(),
+    enrichmentSucceeded: z.number().int().nonnegative().optional(),
+    enrichmentFailed: z.number().int().nonnegative().optional(),
+    errors: z.array(JobErrorDetailSchema),
+    books: z.array(BookSchema), // Full canonical book objects for iOS SwiftData persistence
+  })
+  .strict()
 
 /**
  * Job Results Response Envelope

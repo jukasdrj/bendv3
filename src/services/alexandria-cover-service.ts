@@ -182,7 +182,7 @@ export async function processBookCover(
   env: ExternalAPIEnv,
   maxRetries: number = DEFAULT_MAX_RETRIES,
 ): Promise<CoverProcessingResponse> {
-  let lastError: any = null
+  let _lastError: any = null
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -207,9 +207,9 @@ export async function processBookCover(
         return result
       }
 
-      lastError = new Error(result.error)
+      _lastError = new Error(result.error)
     } catch (error: any) {
-      lastError = error
+      _lastError = error
       console.error(`[AlexandriaCover] Attempt ${attempt + 1} failed:`, error.message)
     }
 
@@ -244,10 +244,10 @@ export async function queueCoverProcessing(
 ): Promise<{ queued: boolean; error?: string }> {
   try {
     // Check if ALEXANDRIA_COVER_QUEUE binding exists (preferred - direct queue access)
-    // @ts-ignore - ALEXANDRIA_COVER_QUEUE binding from wrangler.toml
+    // @ts-expect-error - ALEXANDRIA_COVER_QUEUE binding from wrangler.toml
     if (env.ALEXANDRIA_COVER_QUEUE) {
       try {
-        // @ts-ignore
+        // @ts-expect-error
         await env.ALEXANDRIA_COVER_QUEUE.send({
           isbn: request.isbn,
           work_key: request.work_key,

@@ -1,70 +1,61 @@
 /**
- * @deprecated Cover harvesting now handled by Alexandria integration (2025-11-30)
- * 
- * This cron handler has been disabled during Alexandria integration Phase 1 monitoring.
- * The old harvest system created duplicate processing:
- * - OLD: ISBNdb → Download → Upload to BOOK_COVERS R2
- * - NEW: ISBNdb → Alexandria → Alexandria R2
- * 
- * Result: Every book processed twice, wasting API calls and storage.
- * 
- * Migration Timeline:
- * - Phase 1 (Week 1-2): Alexandria handles all real-time cover processing
- * - Phase 2 (Week 3-4): Refactor this to Alexandria-powered bulk pre-warming
- * - Phase 3 (Week 5+): Remove deprecated code entirely
- * 
- * @see /Users/juju/dev_repos/bendv3/ALEXANDRIA_DECOMMISSION_PLAN.md
- * @see /Users/juju/dev_repos/ALEXANDRIA_URGENT_CONFLICT.md
- * @see src/services/alexandria-cover-service.ts for new implementation
- */
-
-/**
- * Scheduled harvest handler (DEPRECATED)
- * 
- * Previously ran daily at 3am UTC to harvest book covers from ISBNdb.
- * Now disabled in favor of Alexandria real-time processing.
- * 
+ * Scheduled Harvest Handler
+ *
+ * Triggers Alexandria to harvest covers from ISBNdb for editions that are missing them.
+ * Uses the highly efficient batch endpoint (1000 ISBNs per API call).
+ *
+ * Schedule: Hourly (0 * * * *)
+ * Throughput: 1000 ISBNs/hour = 24,000/day (well within 15k API call quota)
+ *
  * @param {Object} env - Worker environment bindings
- * @returns {Object} Deprecation status
+ * @returns {Promise<Object>} Harvest result stats
  */
-export async function handleScheduledHarvest(env) {
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("⚠️  DEPRECATED: scheduled-harvest.js");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("");
-  console.log("This cron has been disabled as of 2025-11-30.");
-  console.log("Cover processing now handled by Alexandria integration.");
-  console.log("");
-  console.log("Benefits of new system:");
-  console.log("  ✅ No duplicate processing");
-  console.log("  ✅ Real-time cover availability");
-  console.log("  ✅ Single source of truth (Alexandria R2)");
-  console.log("  ✅ Sub-500ms latency");
-  console.log("");
-  console.log("Next Steps:");
-  console.log("  Phase 1 (Week 1-2): Monitor Alexandria success rate");
-  console.log("  Phase 2 (Week 3-4): Refactor to Alexandria-powered bulk warming");
-  console.log("  Phase 3 (Week 5+): Remove this file entirely");
-  console.log("");
-  console.log("See: ALEXANDRIA_DECOMMISSION_PLAN.md for full details");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+import { createAlexandriaClient } from '../services/alexandria-client'
 
-  return {
-    success: true,
-    deprecated: true,
-    disabledDate: "2025-11-30",
-    message: "Cover harvesting disabled - using Alexandria real-time processing",
-    nextSteps: "Will refactor to Alexandria-powered bulk pre-warming in Phase 2",
-    monitoring: {
-      phase: "Phase 1 - Burn-in monitoring",
-      duration: "2 weeks",
-      targetSuccessRate: ">95%",
-      targetLatency: "<500ms"
-    },
-    migration: {
-      plan: "ALEXANDRIA_DECOMMISSION_PLAN.md",
-      conflictDoc: "ALEXANDRIA_URGENT_CONFLICT.md",
-      newImplementation: "src/services/alexandria-cover-service.ts"
+export async function handleScheduledHarvest(env) {
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  console.log('📚 STARTING HOURLY COVER HARVEST')
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+
+  const client = createAlexandriaClient(env)
+
+  try {
+    // Call Alexandria's /api/harvest/covers endpoint
+    // batch_size: 1000 (Max efficiency for ISBNdb Premium)
+    // queue_covers: true (Download and store in R2)
+    const response = await client.api.harvest.covers.$post({
+      json: {
+        batch_size: 1000,
+        offset: 0, // Always start from 0 (process newest missing covers first)
+        queue_covers: true,
+      },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`[Harvest] Alexandria error: ${response.status} ${errorText}`)
+      throw new Error(`Alexandria harvest failed: ${response.status}`)
     }
-  };
+
+    const result = await response.json()
+
+    console.log('[Harvest] Result:', {
+      queried: result.queried,
+      found: result.found_in_isbndb,
+      updated: result.editions_updated,
+      queued: result.covers_queued,
+      duration: `${result.duration_ms}ms`,
+    })
+
+    return {
+      success: true,
+      data: result,
+    }
+  } catch (error) {
+    console.error('[Harvest] Fatal error:', error)
+    return {
+      success: false,
+      error: error.message,
+    }
+  }
 }

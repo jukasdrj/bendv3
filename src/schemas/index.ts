@@ -9,98 +9,93 @@
  * @module schemas
  */
 
-// Common schemas
-export {
-  ResponseMetadataSchema,
-  MetadataSchema, // Legacy alias
-  ResponseEnvelopeSchema,
-  createResponseEnvelopeSchema,
-  ErrorObjectSchema,
-  ErrorDetailsSchema, // Legacy alias
-  ErrorResponseSchema,
-  createErrorResponseSchema,
-  ErrorCodeEnum,
-  type ResponseMetadata,
-  type ErrorObject,
-  type ErrorResponse,
-  type SuccessResponse
-} from './common.js'
-
 // Book schemas
 export {
-  BookSchema,
-  BoundingBoxSchema,
-  WorkSchema,
-  EditionSchema,
-  AuthorSchema,
-  EnrichmentDataSchema,
-  BookSearchResultSchema,
-  type Book,
-  type BoundingBox,
-  type Work,
-  type Edition,
   type Author,
+  AuthorSchema,
+  type Book,
+  BookSchema,
+  type BookSearchResult,
+  BookSearchResultSchema,
+  type BoundingBox,
+  BoundingBoxSchema,
+  type Edition,
+  EditionSchema,
   type EnrichmentData,
-  type BookSearchResult
+  EnrichmentDataSchema,
+  type Work,
+  WorkSchema,
 } from './book.js'
-
-// Job schemas
-export {
-  JobResponseSchema,
-  JobStatusSchema,
-  JobProgressSchema,
-  ParsedBookSchema,
-  CSVImportResultsSchema,
-  EnrichedBookResultSchema,
-  BatchEnrichmentResultsSchema,
-  DetectedBookSchema,
-  BookshelfScanResultsSchema,
-  type JobResponse,
-  type JobStatus,
-  type JobProgress,
-  type ParsedBook,
-  type CSVImportResults,
-  type EnrichedBookResult,
-  type BatchEnrichmentResults,
-  type DetectedBook,
-  type BookshelfScanResults
-} from './job.js'
-
-// Search endpoint schemas (Sprint 1, Day 3-4 - OpenAPI Migration)
-export {
-  SearchISBNQuerySchema,
-  SearchTitleQuerySchema,
-  SearchISBNDataSchema,
-  SearchTitleDataSchema,
-  SearchResponseMetadataSchema,
-  SearchISBNSuccessResponseSchema,
-  SearchTitleSuccessResponseSchema,
-  SearchISBNResponseSchema,
-  SearchTitleResponseSchema,
-  type SearchISBNQuery,
-  type SearchTitleQuery,
-  type SearchISBNData,
-  type SearchTitleData,
-  type SearchResponseMetadata,
-  type SearchISBNSuccessResponse,
-  type SearchTitleSuccessResponse,
-  type SearchISBNResponse,
-  type SearchTitleResponse
-} from './search.js'
-
 // Capabilities endpoint schemas (Phase 1 POC)
 export * from './capabilities.js'
-
+// Common schemas
+export {
+  createErrorResponseSchema,
+  createResponseEnvelopeSchema,
+  ErrorCodeEnum,
+  ErrorDetailsSchema, // Legacy alias
+  type ErrorObject,
+  ErrorObjectSchema,
+  type ErrorResponse,
+  ErrorResponseSchema,
+  MetadataSchema, // Legacy alias
+  ResponseEnvelopeSchema,
+  type ResponseMetadata,
+  ResponseMetadataSchema,
+  type SuccessResponse,
+} from './common.js'
 // Health endpoint schemas (Sprint 1, Day 5 - OpenAPI Migration)
 export {
-  HealthQuerySchema,
-  HealthDataSchema,
-  HealthResponseMetadataSchema,
-  HealthSuccessResponseSchema,
-  HealthResponseSchema,
-  type HealthQuery,
   type HealthData,
+  HealthDataSchema,
+  type HealthQuery,
+  HealthQuerySchema,
+  type HealthResponse,
   type HealthResponseMetadata,
+  HealthResponseMetadataSchema,
+  HealthResponseSchema,
   type HealthSuccessResponse,
-  type HealthResponse
+  HealthSuccessResponseSchema,
 } from './health.js'
+// Job schemas
+export {
+  type BatchEnrichmentResults,
+  BatchEnrichmentResultsSchema,
+  type BookshelfScanResults,
+  BookshelfScanResultsSchema,
+  type CSVImportResults,
+  CSVImportResultsSchema,
+  type DetectedBook,
+  DetectedBookSchema,
+  type EnrichedBookResult,
+  EnrichedBookResultSchema,
+  type JobProgress,
+  JobProgressSchema,
+  type JobResponse,
+  JobResponseSchema,
+  type JobStatus,
+  JobStatusSchema,
+  type ParsedBook,
+  ParsedBookSchema,
+} from './job.js'
+// Search endpoint schemas (Sprint 1, Day 3-4 - OpenAPI Migration)
+export {
+  type SearchISBNData,
+  SearchISBNDataSchema,
+  type SearchISBNQuery,
+  SearchISBNQuerySchema,
+  type SearchISBNResponse,
+  SearchISBNResponseSchema,
+  type SearchISBNSuccessResponse,
+  SearchISBNSuccessResponseSchema,
+  type SearchResponseMetadata,
+  SearchResponseMetadataSchema,
+  type SearchTitleData,
+  SearchTitleDataSchema,
+  type SearchTitleQuery,
+  SearchTitleQuerySchema,
+  type SearchTitleResponse,
+  SearchTitleResponseSchema,
+  type SearchTitleSuccessResponse,
+  SearchTitleSuccessResponseSchema,
+} from './search.js'

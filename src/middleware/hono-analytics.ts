@@ -5,8 +5,8 @@
  * between manual routing and Hono routing.
  */
 
-import type { MiddlewareHandler } from "hono";
-import type { Env } from "../types/env";
+import type { MiddlewareHandler } from 'hono'
+import type { Env } from '../types/env'
 
 /**
  * Middleware that tracks router usage and response times
@@ -14,27 +14,31 @@ import type { Env } from "../types/env";
  */
 export const analyticsMiddleware = (): MiddlewareHandler<{ Bindings: Env }> => {
   return async (c, next) => {
-    const startTime = Date.now();
+    const startTime = Date.now()
 
-    await next();
+    await next()
 
     // Add router identifier for A/B testing
-    c.res.headers.set("X-Router", "hono");
+    c.res.headers.set('X-Router', 'hono')
 
     // Add response time
-    const responseTime = Date.now() - startTime;
-    c.res.headers.set("X-Response-Time", `${responseTime}ms`);
+    const responseTime = Date.now() - startTime
+    c.res.headers.set('X-Response-Time', `${responseTime}ms`)
 
     // Log performance metrics to Analytics Engine (async, non-blocking)
     // Use 10% sampling to reduce overhead in production
-    if (c.env.ENABLE_PERFORMANCE_LOGGING === "true" && Math.random() < 0.1 && c.env.PERFORMANCE_ANALYTICS) {
+    if (
+      c.env.ENABLE_PERFORMANCE_LOGGING === 'true' &&
+      Math.random() < 0.1 &&
+      c.env.PERFORMANCE_ANALYTICS
+    ) {
       // ExecutionContext is passed via fetch() but may not be available in Hono context
-      const ctx = (c as any).executionCtx as ExecutionContext | undefined;
+      const ctx = (c as any).executionCtx as ExecutionContext | undefined
       if (ctx) {
         try {
           const dataPointResult = c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
             blobs: [
-              "hono_router",
+              'hono_router',
               c.req.method,
               c.req.path,
               c.res.status.toString(),
@@ -42,24 +46,24 @@ export const analyticsMiddleware = (): MiddlewareHandler<{ Bindings: Env }> => {
             ],
             doubles: [responseTime],
             indexes: [new Date().toISOString()],
-          });
+          })
 
           // BUGFIX: Only call .catch() if writeDataPoint returns a valid value
           // Prevents "Cannot read properties of undefined (reading 'catch')" error
           if (dataPointResult) {
             ctx.waitUntil(
               Promise.resolve(dataPointResult).catch((err) => {
-                console.error("[Hono Analytics] Failed to log performance:", err);
+                console.error('[Hono Analytics] Failed to log performance:', err)
               }),
-            );
+            )
           }
         } catch (syncError) {
-          console.error("[Hono Analytics] Sync error logging performance:", syncError);
+          console.error('[Hono Analytics] Sync error logging performance:', syncError)
         }
       }
     }
-  };
-};
+  }
+}
 
 /**
  * Helper function to add router analytics to any response
@@ -67,16 +71,16 @@ export const analyticsMiddleware = (): MiddlewareHandler<{ Bindings: Env }> => {
  */
 export function addRouterAnalytics(
   response: Response,
-  router: "hono" | "manual",
+  router: 'hono' | 'manual',
   startTime: number,
 ): Response {
-  const headers = new Headers(response.headers);
-  headers.set("X-Router", router);
-  headers.set("X-Response-Time", `${Date.now() - startTime}ms`);
+  const headers = new Headers(response.headers)
+  headers.set('X-Router', router)
+  headers.set('X-Response-Time', `${Date.now() - startTime}ms`)
 
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
     headers,
-  });
+  })
 }

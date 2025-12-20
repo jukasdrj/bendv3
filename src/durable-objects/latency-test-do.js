@@ -71,7 +71,7 @@ export class LatencyTestDO {
       const id = this.env.CACHE_METRICS_DO.idFromName('default')
       cacheMetricsStub = this.env.CACHE_METRICS_DO.get(id)
     } catch (error) {
-      throw new Error('CACHE_METRICS_DO binding not available: ' + error.message)
+      throw new Error(`CACHE_METRICS_DO binding not available: ${error.message}`)
     }
 
     const measurements = []
@@ -161,9 +161,7 @@ export class LatencyTestDO {
         return sorted[lower]
       }
 
-      return (
-        sorted[lower] * (1 - weight) + sorted[upper] * weight
-      )
+      return sorted[lower] * (1 - weight) + sorted[upper] * weight
     }
 
     return {
@@ -191,7 +189,7 @@ export class LatencyTestDO {
         headers: { 'Content-Type': 'application/json' },
       })
     } else if (url.pathname === '/measure' && request.method === 'GET') {
-      const iterations = parseInt(url.searchParams.get('iterations') || '100')
+      const iterations = parseInt(url.searchParams.get('iterations') || '100', 10)
       const result = await this.measureLatency(iterations)
       return new Response(JSON.stringify(result), {
         headers: { 'Content-Type': 'application/json' },

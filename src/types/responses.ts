@@ -47,8 +47,8 @@
  * @module types/responses
  */
 
-import type { DataProvider, ApiErrorCode } from "./enums.js";
-import type { WorkDTO, EditionDTO, AuthorDTO } from "./canonical.js";
+import type { AuthorDTO, EditionDTO, WorkDTO } from './canonical.js'
+import type { DataProvider } from './enums.js'
 
 // ============================================================================
 // RESPONSE ENVELOPE
@@ -58,12 +58,12 @@ import type { WorkDTO, EditionDTO, AuthorDTO } from "./canonical.js";
  * Response metadata included in every response (legacy)
  */
 export interface ResponseMeta {
-  timestamp: string; // ISO 8601
-  processingTime?: number; // milliseconds
-  provider?: DataProvider;
-  cached?: boolean;
-  cacheAge?: number; // seconds since cached
-  requestId?: string; // for distributed tracing (future)
+  timestamp: string // ISO 8601
+  processingTime?: number // milliseconds
+  provider?: DataProvider
+  cached?: boolean
+  cacheAge?: number // seconds since cached
+  requestId?: string // for distributed tracing (future)
 }
 
 /**
@@ -72,16 +72,16 @@ export interface ResponseMeta {
  * Included in all API responses to provide context about the request processing.
  */
 export interface ResponseMetadata {
-  timestamp: string; // ISO 8601 timestamp of when the response was generated
-  traceId?: string; // Optional distributed tracing identifier (future use)
-  processingTime?: number; // Request processing duration in milliseconds
-  provider?: DataProvider; // Data source that fulfilled the request
-  cached?: boolean; // Whether the response was served from cache
-  source?: string; // Sprint 3: Data source identifier (e.g., 'vectorize', 'kv-cache', 'd1-database')
-  searchMode?: string; // Sprint 3: Search mode used (e.g., 'text', 'semantic', 'hybrid')
-  generatedAt?: string; // Sprint 3: When recommendations were generated
-  expiresAt?: string; // Sprint 3: When cached data expires
-  nextGenerationTime?: string; // Sprint 3: Next scheduled generation time
+  timestamp: string // ISO 8601 timestamp of when the response was generated
+  traceId?: string // Optional distributed tracing identifier (future use)
+  processingTime?: number // Request processing duration in milliseconds
+  provider?: DataProvider // Data source that fulfilled the request
+  cached?: boolean // Whether the response was served from cache
+  source?: string // Sprint 3: Data source identifier (e.g., 'vectorize', 'kv-cache', 'd1-database')
+  searchMode?: string // Sprint 3: Search mode used (e.g., 'text', 'semantic', 'hybrid')
+  generatedAt?: string // Sprint 3: When recommendations were generated
+  expiresAt?: string // Sprint 3: When cached data expires
+  nextGenerationTime?: string // Sprint 3: Next scheduled generation time
 }
 
 /**
@@ -90,10 +90,10 @@ export interface ResponseMetadata {
  * Consistent error format included in all error responses.
  */
 export interface ApiError {
-  message: string; // Human-readable error description
-  code?: string; // Machine-readable error code for programmatic handling
-  retryable: boolean; // P1: Whether the client should retry this request
-  details?: any; // Optional additional context about the error
+  message: string // Human-readable error description
+  code?: string // Machine-readable error code for programmatic handling
+  retryable: boolean // P1: Whether the client should retry this request
+  details?: any // Optional additional context about the error
 }
 
 // ============================================================================
@@ -105,11 +105,11 @@ export interface ApiError {
  * Used by: /v1/search/title, /v1/search/isbn, /v1/search/advanced
  */
 export interface BookSearchResponse {
-  works: WorkDTO[];
-  editions: EditionDTO[];
-  authors: AuthorDTO[];
-  resultCount: number; // Number of books found (0 for no results, N for N books)
-  totalResults?: number; // for pagination (future)
+  works: WorkDTO[]
+  editions: EditionDTO[]
+  authors: AuthorDTO[]
+  resultCount: number // Number of books found (0 for no results, N for N books)
+  totalResults?: number // for pagination (future)
 }
 
 /**
@@ -117,10 +117,10 @@ export interface BookSearchResponse {
  * Used by: /v1/api/enrichment/start
  */
 export interface EnrichmentJobResponse {
-  jobId: string;
-  queuedCount: number;
-  estimatedDuration?: number; // seconds
-  websocketUrl: string;
+  jobId: string
+  queuedCount: number
+  estimatedDuration?: number // seconds
+  websocketUrl: string
 }
 
 /**
@@ -128,13 +128,13 @@ export interface EnrichmentJobResponse {
  * Used by: /v1/api/scan-bookshelf, /v1/api/scan-bookshelf/batch
  */
 export interface BookshelfScanResponse {
-  jobId: string;
+  jobId: string
   detectedBooks: {
-    work: WorkDTO;
-    edition: EditionDTO;
-    confidence: number; // 0.0-1.0
-  }[];
-  websocketUrl: string;
+    work: WorkDTO
+    edition: EditionDTO
+    confidence: number // 0.0-1.0
+  }[]
+  websocketUrl: string
 }
 
 // ============================================================================
@@ -146,22 +146,22 @@ export interface BookshelfScanResponse {
  * Used by: POST /api/scan-bookshelf/batch, POST /api/batch-scan
  */
 export interface BookshelfScanInitResponse {
-  jobId: string;
-  authToken: string; // SSE authentication token (canonical field)
-  sseUrl: string; // SSE endpoint for real-time progress updates
-  statusUrl: string; // HTTP polling endpoint for job status
-  totalPhotos: number;
-  status: "started" | "processing";
+  jobId: string
+  authToken: string // SSE authentication token (canonical field)
+  sseUrl: string // SSE endpoint for real-time progress updates
+  statusUrl: string // HTTP polling endpoint for job status
+  totalPhotos: number
+  status: 'started' | 'processing'
 }
 
 /**
  * BoundingBox - Rectangle coordinates for book spine in image
  */
 export interface BoundingBox {
-  x: number; // X coordinate (0.0-1.0, normalized)
-  y: number; // Y coordinate (0.0-1.0, normalized)
-  width: number; // Width (0.0-1.0, normalized)
-  height: number; // Height (0.0-1.0, normalized)
+  x: number // X coordinate (0.0-1.0, normalized)
+  y: number // Y coordinate (0.0-1.0, normalized)
+  width: number // Width (0.0-1.0, normalized)
+  height: number // Height (0.0-1.0, normalized)
 }
 
 /**
@@ -171,31 +171,31 @@ export interface BoundingBox {
  * Used in WebSocket completion messages (AIScanCompletePayload).
  */
 export interface DetectedBookDTO {
-  title?: string;
-  author?: string;
-  isbn?: string;
-  confidence?: number; // 0.0-1.0 (AI confidence score)
-  boundingBox?: BoundingBox;
+  title?: string
+  author?: string
+  isbn?: string
+  confidence?: number // 0.0-1.0 (AI confidence score)
+  boundingBox?: BoundingBox
   // FIX (Shelf Scan Plan - Issue 2.2): Added "circuit_open" status for circuit breaker failures
-  enrichmentStatus?: "pending" | "success" | "not_found" | "error" | "circuit_open";
+  enrichmentStatus?: 'pending' | 'success' | 'not_found' | 'error' | 'circuit_open'
 
   // Flattened edition fields (not nested) - DEPRECATED, use enrichment below
-  coverUrl?: string;
-  publisher?: string;
-  publicationYear?: number;
+  coverUrl?: string
+  publisher?: string
+  publicationYear?: number
 
   // Nested enrichment data (canonical DTOs) - Added Nov 2025 to fix enrichment loss
   // FIX (Shelf Scan Plan - Issue 2.2): Added "circuit_open" status + retryAfterMs for circuit breaker failures
   enrichment?: {
-    status: "success" | "not_found" | "error" | "circuit_open";
-    work?: WorkDTO;
-    editions?: EditionDTO[];
-    authors?: AuthorDTO[];
-    provider?: string;
-    cachedResult?: boolean;
-    error?: string;
-    retryAfterMs?: number; // For circuit_open: when client can retry
-  };
+    status: 'success' | 'not_found' | 'error' | 'circuit_open'
+    work?: WorkDTO
+    editions?: EditionDTO[]
+    authors?: AuthorDTO[]
+    provider?: string
+    cachedResult?: boolean
+    error?: string
+    retryAfterMs?: number // For circuit_open: when client can retry
+  }
 }
 
 /**
@@ -203,19 +203,19 @@ export interface DetectedBookDTO {
  * Used by: POST /api/import/csv-gemini, POST /api/v2/imports
  */
 export interface CSVImportInitResponse {
-  jobId: string;
-  authToken: string; // WebSocket/SSE authentication token (canonical field)
-  sseUrl: string; // SSE endpoint for real-time progress updates
-  statusUrl: string; // HTTP polling endpoint for job status
+  jobId: string
+  authToken: string // WebSocket/SSE authentication token (canonical field)
+  sseUrl: string // SSE endpoint for real-time progress updates
+  statusUrl: string // HTTP polling endpoint for job status
 }
 
 /**
  * ParsedBookDTO - Book parsed from CSV file
  */
 export interface ParsedBookDTO {
-  title: string;
-  author: string;
-  isbn?: string;
+  title: string
+  author: string
+  isbn?: string
 }
 
 /**
@@ -223,14 +223,14 @@ export interface ParsedBookDTO {
  * Used by: POST /v1/enrichment/batch
  */
 export interface EnrichmentJobInitResponse {
-  jobId: string; // Echoed back from request for client confirmation
-  success: boolean;
-  processedCount: number;
-  totalCount: number;
-  authToken: string; // WebSocket authentication token (canonical field)
-  token?: string; // DEPRECATED: Use 'authToken'. Backward compatibility only. Removal: March 1, 2026
-  message?: string; // Human-readable status message
-  websocketUrl: string; // Full WebSocket URL with jobId and token
+  jobId: string // Echoed back from request for client confirmation
+  success: boolean
+  processedCount: number
+  totalCount: number
+  authToken: string // WebSocket authentication token (canonical field)
+  token?: string // DEPRECATED: Use 'authToken'. Backward compatibility only. Removal: March 1, 2026
+  message?: string // Human-readable status message
+  websocketUrl: string // Full WebSocket URL with jobId and token
 }
 
 /**
@@ -240,17 +240,16 @@ export interface EnrichmentJobInitResponse {
  * Used in WebSocket completion messages (EnrichmentCompletePayload).
  */
 export interface EnrichedBookDTO {
-  title: string;
-  author?: string;
-  isbn?: string;
-  success: boolean; // true if enrichment found data, false otherwise
-  error?: string;
+  title: string
+  author?: string
+  isbn?: string
+  success: boolean // true if enrichment found data, false otherwise
+  error?: string
 
   // Nested enrichment data (matches iOS EnrichedBookPayload)
   enriched?: {
-    work: WorkDTO;
-    edition?: EditionDTO;
-    authors: AuthorDTO[];
-  };
+    work: WorkDTO
+    edition?: EditionDTO
+    authors: AuthorDTO[]
+  }
 }
-

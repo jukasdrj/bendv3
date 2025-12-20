@@ -23,10 +23,6 @@
  * @see docs/CACHE_ARCHITECTURE.md for updated architecture
  */
 
-import { ISBNdbAPI } from '../services/isbndb-api.js'
-import { getTopAuthors } from '../config/popular-authors.js'
-import { writeISBNdbBooksToCache } from '../services/cache-direct-write.ts'
-
 /**
  * Execute author expansion harvest
  * @param {Object} env - Cloudflare environment bindings
@@ -34,30 +30,34 @@ import { writeISBNdbBooksToCache } from '../services/cache-direct-write.ts'
  * @param {number} booksPerAuthor - Max books per author (default: 200)
  * @returns {Promise<{success: boolean, stats: Object}>}
  */
-export async function executeAuthorExpansionHarvest(env, authorCount = 25, booksPerAuthor = 200) {
+export async function executeAuthorExpansionHarvest(
+  _env,
+  _authorCount = 25,
+  _booksPerAuthor = 200,
+) {
   // DEPRECATED: Return early with deprecation notice
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-  console.log("⚠️  DEPRECATED: author-expansion-harvest.js")
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-  console.log("")
-  console.log("This harvest has been disabled as of 2025-12-03.")
-  console.log("Book metadata now provided by Alexandria (49M+ ISBNs, zero cost).")
-  console.log("Cover processing handled by alexandria-cover-service.ts")
-  console.log("")
-  console.log("Benefits of Alexandria:")
-  console.log("  ✅ 49.3M+ ISBNs at zero API cost")
-  console.log("  ✅ Sub-100ms response times")
-  console.log("  ✅ No daily quota limits (vs ISBNdb 5000/day)")
-  console.log("  ✅ Real-time processing, no batch jobs needed")
-  console.log("")
-  console.log("This file will be removed after March 2026 sunset.")
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  console.log('⚠️  DEPRECATED: author-expansion-harvest.js')
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  console.log('')
+  console.log('This harvest has been disabled as of 2025-12-03.')
+  console.log('Book metadata now provided by Alexandria (49M+ ISBNs, zero cost).')
+  console.log('Cover processing handled by alexandria-cover-service.ts')
+  console.log('')
+  console.log('Benefits of Alexandria:')
+  console.log('  ✅ 49.3M+ ISBNs at zero API cost')
+  console.log('  ✅ Sub-100ms response times')
+  console.log('  ✅ No daily quota limits (vs ISBNdb 5000/day)')
+  console.log('  ✅ Real-time processing, no batch jobs needed')
+  console.log('')
+  console.log('This file will be removed after March 2026 sunset.')
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
 
   return {
     success: true,
     deprecated: true,
-    disabledDate: "2025-12-03",
-    message: "ISBNdb harvest disabled - using Alexandria real-time processing",
+    disabledDate: '2025-12-03',
+    message: 'ISBNdb harvest disabled - using Alexandria real-time processing',
     stats: {
       authorsProcessed: 0,
       authorsFailed: 0,
@@ -67,8 +67,8 @@ export async function executeAuthorExpansionHarvest(env, authorCount = 25, books
       cacheWarmingCalls: 0,
       newlyCached: 0,
       alreadyCached: 0,
-      errors: []
-    }
+      errors: [],
+    },
   }
 }
 

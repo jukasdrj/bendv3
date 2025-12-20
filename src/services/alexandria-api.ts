@@ -15,30 +15,26 @@
  * @see src/services/alexandria-client.ts for RPC client implementation
  */
 
+import { getCacheTTL } from '../config/cache-ttl.js'
+import type { AuthorDTO } from '../types/canonical.js'
+import { logExternalApiCall } from '../utils/analytics-logger.ts'
+import { getCached, setCached } from '../utils/cache.js'
+import { createAlexandriaClient } from './alexandria-client'
+import { withCircuitBreaker } from './circuit-breaker'
+import type { ExternalAPIEnv, NormalizedResponse, WorkDTOWithAuthors } from './external-apis'
+import type { AlexandriaResult } from './normalizers/alexandria.js'
 import {
-  normalizeAlexandriaToWork,
-  normalizeAlexandriaToEdition,
   normalizeAlexandriaToAuthor,
-} from "./normalizers/alexandria.js"
-import type { AlexandriaResult } from "./normalizers/alexandria.js"
-import type { WorkDTO, EditionDTO, AuthorDTO } from "../types/canonical.js"
-import type { ExternalAPIEnv, NormalizedResponse, WorkDTOWithAuthors } from "./external-apis"
-import { logExternalApiCall } from "../utils/analytics-logger.ts"
-import { getCached, setCached } from "../utils/cache.js"
-import { withCircuitBreaker } from "./circuit-breaker"
-import { getCacheTTL } from "../config/cache-ttl.js"
-import {
-  createAlexandriaClient,
-  hasAlexandriaServiceBinding,
-  getAlexandriaEffectiveUrl,
-} from "./alexandria-client"
+  normalizeAlexandriaToEdition,
+  normalizeAlexandriaToWork,
+} from './normalizers/alexandria.js'
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
-const ALEXANDRIA_BASE_URL = "https://alexandria.ooheynerds.com"
-const ALEXANDRIA_USER_AGENT = "BooksTracker/1.0 (nerd@ooheynerds.com) AlexandriaClient/1.0.0"
+const ALEXANDRIA_BASE_URL = 'https://alexandria.ooheynerds.com'
+const ALEXANDRIA_USER_AGENT = 'BooksTracker/1.0 (nerd@ooheynerds.com) AlexandriaClient/1.0.0'
 
 /**
  * Feature flag for Hono RPC migration
@@ -120,7 +116,7 @@ export async function searchAlexandriaByISBN(
   const result = await withCircuitBreaker('alexandria', env, () => uncachedFn(isbn, env))
 
   // Write successful results to cache
-  if (result && result.works && result.works.length > 0) {
+  if (result?.works && result.works.length > 0) {
     const hotTtl = getCacheTTL('hot', env)
     const coldTtl = getCacheTTL('cold', env)
     await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl)
@@ -158,7 +154,7 @@ async function searchAlexandriaByISBN_Uncached_RPC(
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
-    "alexandria",
+    'alexandria',
     async () => {
       console.log(`🔗 Alexandria RPC search for ISBN "${isbn}"`)
 
@@ -177,9 +173,7 @@ async function searchAlexandriaByISBN_Uncached_RPC(
       }
 
       if (!response.ok) {
-        throw new Error(
-          `Alexandria RPC error: ${response.status} ${response.statusText}`,
-        )
+        throw new Error(`Alexandria RPC error: ${response.status} ${response.statusText}`)
       }
 
       const jsonResponse: any = await response.json()
@@ -222,7 +216,7 @@ async function searchAlexandriaByISBN_Uncached_Fetch(
   env: ExternalAPIEnv,
 ): Promise<NormalizedResponse | null> {
   return logExternalApiCall(
-    "alexandria",
+    'alexandria',
     async () => {
       console.log(`Alexandria ISBN search for "${isbn}"`)
 
@@ -230,18 +224,18 @@ async function searchAlexandriaByISBN_Uncached_Fetch(
 
       // Get service token credentials for Cloudflare Access bypass
       // These are Worker secrets (not Secrets Store), so they're plain strings
-      const clientId = env.ALEXANDRIA_CLIENT_ID;
-      const clientSecret = env.ALEXANDRIA_CLIENT_SECRET;
+      const clientId = env.ALEXANDRIA_CLIENT_ID
+      const clientSecret = env.ALEXANDRIA_CLIENT_SECRET
 
       const headers: Record<string, string> = {
-        "User-Agent": ALEXANDRIA_USER_AGENT,
-        Accept: "application/json",
-      };
+        'User-Agent': ALEXANDRIA_USER_AGENT,
+        Accept: 'application/json',
+      }
 
       // Add Cloudflare Access service token headers if available
       if (clientId && clientSecret) {
-        headers["CF-Access-Client-Id"] = clientId;
-        headers["CF-Access-Client-Secret"] = clientSecret;
+        headers['CF-Access-Client-Id'] = clientId
+        headers['CF-Access-Client-Secret'] = clientSecret
       }
 
       const response = await fetch(searchUrl, { headers })
@@ -252,9 +246,7 @@ async function searchAlexandriaByISBN_Uncached_Fetch(
       }
 
       if (!response.ok) {
-        throw new Error(
-          `Alexandria API error: ${response.status} ${response.statusText}`,
-        )
+        throw new Error(`Alexandria API error: ${response.status} ${response.statusText}`)
       }
 
       const jsonResponse: any = await response.json()
@@ -288,10 +280,7 @@ async function searchAlexandriaByISBN_Uncached_Fetch(
  * for enrichment service compatibility (WorkDTOWithAuthors type).
  * Handlers must strip this property before sending to client.
  */
-function normalizeAlexandriaResponse(
-  result: AlexandriaResult,
-  isbn: string,
-): NormalizedResponse {
+function normalizeAlexandriaResponse(result: AlexandriaResult, _isbn: string): NormalizedResponse {
   const work = normalizeAlexandriaToWork(result)
   const edition = normalizeAlexandriaToEdition(result)
 
@@ -300,7 +289,7 @@ function normalizeAlexandriaResponse(
   let authors: AuthorDTO[]
   if (result.authors && result.authors.length > 0) {
     // New format: per-work embedded authors array from Alexandria
-    authors = result.authors.map(a => normalizeAlexandriaToAuthor(a.name))
+    authors = result.authors.map((a) => normalizeAlexandriaToAuthor(a.name))
   } else if (result.author) {
     // Legacy format: single author string
     authors = [normalizeAlexandriaToAuthor(result.author)]
@@ -338,13 +327,13 @@ function normalizeAlexandriaResponse(
  * @throws {Error} Always throws - feature not implemented
  */
 export async function searchAlexandria(
-  query: string,
-  params: any,
-  env: ExternalAPIEnv,
-  ctx?: ExecutionContext,
+  _query: string,
+  _params: any,
+  _env: ExternalAPIEnv,
+  _ctx?: ExecutionContext,
 ): Promise<NormalizedResponse | null> {
   throw new Error(
     'Alexandria title/author search not implemented; use ISBN search instead. ' +
-    'See todo-alexandria-integration.md for Phase 3 roadmap.'
+      'See todo-alexandria-integration.md for Phase 3 roadmap.',
   )
 }
