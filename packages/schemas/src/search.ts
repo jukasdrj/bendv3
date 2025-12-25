@@ -7,7 +7,7 @@
 
 import { z } from '@hono/zod-openapi'
 import { BookSchema } from './book'
-import { SuccessResponseSchema, LinkSchema } from './response'
+import { SuccessResponseSchema } from './response'
 
 /**
  * Search mode enumeration
