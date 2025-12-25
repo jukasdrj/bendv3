@@ -146,7 +146,7 @@ packages/
 
 **Core Documentation:**
 - **[.claude/CLAUDE.md](.claude/CLAUDE.md)** - Full Claude Code guidelines (architecture, patterns, AI workflows)
-- **[AGENTS.md](AGENTS.md)** - Universal AI agent guide (all tools)
+- **[docs/SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md)** - Cross-repo system architecture
 - **[README.md](README.md)** - Project overview and setup
 
 **API Documentation:**
@@ -154,9 +154,7 @@ packages/
 - **Schemas:** `packages/schemas/` - Shared Zod schemas with RFC 9457 error format
 
 **AI Context:**
-- `.ai/` - AI-specific prompts and templates
-- `.claude/` - Claude Code configuration (MCP, commands, agents)
-- `.github/` - GitHub agents (Jules, Copilot)
+- `.claude/` - Claude Code configuration (MCP, commands, settings)
 
 **Deployment & Operations:**
 - `docs/deployment/` - Deployment, secrets, monitoring, rollback
