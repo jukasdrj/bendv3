@@ -142,7 +142,20 @@ await repo.save(book)
 - `D1_READ_PERCENTAGE` (0-100) controls traffic routing
 - 0% = All reads from KV (legacy mode)
 - 100% = All reads from D1 (current production)
-- Feature flag for gradual migration
+- Treat changes as a feature-flag rollout (e.g., 10% → 25% → 50% → 100%) with verification between steps
+
+**Monitoring & Alerting (REQUIRED):**
+- Expose D1 read metrics tagged with `d1_read_percentage` (p95/p99 latency, error rate, timeouts, saturation)
+- Compare D1 vs KV latency/error rate during partial rollouts; alert if D1 is 2× slower or error rate >1% over 5 minutes
+- Page on-call if:
+  - D1 read error rate exceeds 2% for 5+ minutes, or
+  - D1 p95 read latency >500ms for 5+ minutes while KV is healthy
+
+**Rollback Procedure (on D1 degradation):**
+- Immediately set `D1_READ_PERCENTAGE=0` to route all reads back to KV
+- Confirm: D1-originated read traffic drops to ~0 and overall API error rate/latency return to baseline
+- Create an incident ticket and capture current metrics (screenshots, logs) before further changes
+- After stabilization, investigate D1 (indexes, query plans, capacity) before re-introducing traffic in small increments
 
 **Dual-Write:**
 - `ENABLE_D1_WRITES=true` enables writes to both stores
@@ -521,7 +534,11 @@ Request → KV Cache (hit?) → Alexandria RPC → Fallback Providers → KV Wri
 - `GET /v3/docs` - Swagger UI
 
 ### Webhooks
-- `POST /v3/webhooks/alexandria/books/:isbn` - Book processing callback
+- `POST /v3/webhooks/alexandria/books/:isbn` - Alexandria book processing callback
+  - **Security:** Requires HMAC-SHA256 signature verification using `env.ALEXANDRIA_WEBHOOK_SECRET`
+  - **Headers:** Alexandria sends `X-Alexandria-Signature` and `X-Alexandria-Timestamp` headers
+  - **Verification:** Worker MUST recompute HMAC over `{timestamp}.{rawBody}` and reject requests with missing/invalid signatures or timestamps older than 5 minutes with `401 Unauthorized`
+  - **Rate Limiting:** Standard webhook rate limits apply
 
 ---
 
@@ -532,7 +549,7 @@ Request → KV Cache (hit?) → Alexandria RPC → Fallback Providers → KV Wri
 {
   // Service Bindings
   "services": [
-    { "binding": "ALEXANDRIA", "service": "alexandria-worker" }
+    { "binding": "ALEXANDRIA", "service": "alexandria" }
   ],
 
   // KV Namespaces
@@ -574,11 +591,36 @@ Request → KV Cache (hit?) → Alexandria RPC → Fallback Providers → KV Wri
   ],
 
   // Feature Flags
+  //
+  // NOTE: These values are EXAMPLE DEFAULTS only.
+  // - Store conservative defaults in wrangler.jsonc (checked into git)
+  // - Override per environment (dev/staging/prod) via env-specific vars
+  //   or Wrangler envs, e.g.:
+  //   - dev:    WORKFLOW_ROLLOUT_PERCENT=5
+  //   - stage:  WORKFLOW_ROLLOUT_PERCENT=25
+  //   - prod:   WORKFLOW_ROLLOUT_PERCENT=50 → 75 → 100 with monitoring
+  //
+  // Rollout procedure:
+  // 1. Start with low percentages (1–5%) in non-prod, then prod.
+  // 2. Increase gradually (10 → 25 → 50 → 75 → 100) only if metrics/alerts look healthy.
+  // 3. For fast rollback, set percentage flags to 0 and/or disable the feature booleans.
+  //
+  // Rollback procedure:
+  // - Immediate rollback: set WORKFLOW_ROLLOUT_PERCENT=0 and ENABLE_ALEXANDRIA_RPC=false
+  //   via env vars for the affected environment, then redeploy.
+  // - Longer-term: update wrangler.jsonc defaults back to safe values so new envs
+  //   never start with 100% rollout by accident.
   "vars": {
-    "ENABLE_ALEXANDRIA_RPC": true,
-    "WORKFLOW_ROLLOUT_PERCENT": 100,
-    "D1_READ_PERCENTAGE": 100,
-    "ENABLE_D1_WRITES": true
+    // Alexandria RPC is opt-in by default; enable per-environment via env override
+    "ENABLE_ALEXANDRIA_RPC": false,
+
+    // Percentage of workflow traffic using new workflow engine.
+    // Defaults to 0 in version-controlled config; ramp up via env overrides.
+    "WORKFLOW_ROLLOUT_PERCENT": 0,
+
+    // Read/write split for D1. Keep conservative defaults here and tune via env vars.
+    "D1_READ_PERCENTAGE": 50,
+    "ENABLE_D1_WRITES": false
   }
 }
 ```

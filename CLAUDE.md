@@ -55,6 +55,7 @@
 
 ### V3 Webhooks
 - ✅ `POST /v3/webhooks/alexandria/books/:isbn` - Alexandria book processing callback
+  - **Security:** HMAC-SHA256 signature verification required using `ALEXANDRIA_WEBHOOK_SECRET`
 
 ---
 
