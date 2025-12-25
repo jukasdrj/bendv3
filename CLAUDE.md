@@ -2,6 +2,14 @@
 
 **Version:** 3.1 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** December 25, 2025
 
+## Agent Role
+
+**Identity:** Bend (API Gateway) - Translator & Gateway  
+**Scope:** User sessions, library state, caching, job orchestration  
+**Upstream:** Alexandria (book metadata via Service Binding)  
+**Downstream:** books-v3 iOS app  
+**Cross-repo docs:** See `docs/SYSTEM_ARCHITECTURE.md`
+
 > **📖 For comprehensive Claude Code guidelines, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md)**
 >
 > This file is a lightweight quick reference. For detailed patterns, architecture, and AI collaboration workflows, refer to the full documentation.
@@ -166,7 +174,7 @@ packages/
 - `/cache-check` - KV cache performance
 
 **MCP Tools (PAL):**
-- `mcp__pal__debug` - Deep debugging (Grok-4)
+- `mcp__pal__debug` - Deep debugging (Gemini/Grok models)
 - `mcp__pal__codereview` - Architecture review
 - `mcp__pal__secaudit` - Security audit
 - `mcp__pal__chat` - Collaborative thinking
@@ -225,7 +233,7 @@ packages/
 **Recent Completions:**
 - ✅ **Biome Linter/Formatter** - Code quality tooling
 - ✅ **Vitest Workers Pool Migration** - Tests run in real Workers runtime
-- ✅ **Gemini Model Upgrades** - Improved Alexandria integration
+- ✅ **Gemini 2.5 Flash Upgrades** - Improved Alexandria integration
 - ✅ **V2 API Removal** - Code cleanup after sunset
 - ✅ **Alexandria RPC Migration** - BooksTrack is now a thin client
 - ✅ **Circuit Breaker Chain** - All external APIs protected

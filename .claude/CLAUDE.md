@@ -434,8 +434,8 @@ const book = await alexandriaClient.getBook('9780439708180')
 - **Cache TTL:** 7 days (covers don't change)
 - **Circuit breaker:** 5 failures → OPEN, 60s cooldown
 
-### Gemini 2.0 Flash
-- **Model:** `gemini-2.0-flash-exp`
+### Gemini 2.5 Flash
+- **Model:** `gemini-2.5-flash`
 - **Context window:** 2M tokens
 - **Use case:** Bookshelf scanning, CSV parsing
 - **Cost optimization:** Use caching for repeated prompts
@@ -699,7 +699,7 @@ npx wrangler rollback   # Rollback to previous
 - **Permission:** `allow` (auto-runs)
 
 ### MCP Tools (PAL)
-- `mcp__pal__debug` - Deep debugging (Grok-4)
+- `mcp__pal__debug` - Deep debugging (Gemini/Grok models)
 - `mcp__pal__codereview` - Architecture review
 - `mcp__pal__secaudit` - Security audit
 - `mcp__pal__chat` - Collaborative thinking
