@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build packages
+        run: npm run build -w packages/schemas
+
       - name: Start Wrangler dev server
         run: |
           npx wrangler dev --port 8788 --local --config wrangler.test.jsonc &
@@ -150,6 +153,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Build packages
+        run: npm run build -w packages/schemas
 
       - name: Start Wrangler dev server
         run: |
