@@ -204,10 +204,6 @@
     {
       "tag": "v6",
       "new_classes": ["LatencyTestDO"]
-    },
-    {
-      "tag": "v7",
-      "deleted_classes": ["ProgressWebSocketDO", "ProgressWebSocketDO_Hibernation"]
     }
   ],
   "analytics_engine_datasets": [

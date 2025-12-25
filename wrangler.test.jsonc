@@ -86,5 +86,17 @@
         "class_name": "LatencyTestDO"
       }
     ]
-  }
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": [
+        "RateLimiterDO",
+        "WebSocketConnectionDO",
+        "JobStateManagerDO",
+        "CacheMetricsDO",
+        "LatencyTestDO"
+      ]
+    }
+  ]
 }
