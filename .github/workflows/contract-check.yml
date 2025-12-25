@@ -40,7 +40,7 @@ jobs:
 
       - name: Start Wrangler dev server
         run: |
-          npx wrangler dev --port 8788 --local &
+          npx wrangler dev --port 8788 --local --config wrangler.test.jsonc &
           WRANGLER_PID=$!
           echo "WRANGLER_PID=$WRANGLER_PID" >> $GITHUB_ENV
 
@@ -153,7 +153,7 @@ jobs:
 
       - name: Start Wrangler dev server
         run: |
-          npx wrangler dev --port 8788 --local &
+          npx wrangler dev --port 8788 --local --config wrangler.test.jsonc &
           WRANGLER_PID=$!
           echo "WRANGLER_PID=$WRANGLER_PID" >> $GITHUB_ENV
 
