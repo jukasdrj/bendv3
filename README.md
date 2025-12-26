@@ -273,8 +273,7 @@ npx wrangler tail --remote --format pretty
 
 ### Quick Links (Start Here)
 - **[Claude Code Guide](.claude/CLAUDE.md)** - Comprehensive AI development guidelines
-- **[Frontend Integration](FRONTEND_INTEGRATION.md)** - Quick reference for frontend developers
-- **[V3 Frontend Handoff](docs/V3_FRONTEND_HANDOFF.md)** - Complete V3 API integration guide
+- **[Frontend Integration](docs/FRONTEND_INTEGRATION.md)** - Complete V3 API integration guide
 - **[Cache Architecture](docs/CACHE_ARCHITECTURE.md)** - Caching strategy and TTLs
 
 ### Interactive API Documentation
