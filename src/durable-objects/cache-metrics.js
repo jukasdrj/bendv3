@@ -511,7 +511,7 @@ export class CacheMetricsDO extends DurableObject {
 
       this.stats.lastUpdated = eventData.timestamp
 
-      // FIX: Reduce write frequency from 2.5min to 10min to prevent write amplification
+      // FIX: Reduce write frequency from 5min to 10min to prevent write amplification
       if (Date.now() - this.lastPersisted > STATE_PERSIST_INTERVAL_MS) {
         await this.persistStats()
       }
