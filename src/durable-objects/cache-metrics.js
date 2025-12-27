@@ -15,7 +15,7 @@ import { DurableObject } from 'cloudflare:workers'
 
 const CHURN_WINDOW_MS = 5 * 60 * 1000 // 5 minutes
 const ALARM_INTERVAL_MS = 60 * 1000 // 1 minute
-const STATE_PERSIST_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+const STATE_PERSIST_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
 
 export class CacheMetricsDO extends DurableObject {
   constructor(state, env) {
@@ -512,8 +512,7 @@ export class CacheMetricsDO extends DurableObject {
       this.stats.lastUpdated = eventData.timestamp
 
       // FIX: Reduce write frequency from 2.5min to 10min to prevent write amplification
-      const PERSIST_FREQUENCY_MS = 10 * 60 * 1000 // 10 minutes
-      if (Date.now() - this.lastPersisted > PERSIST_FREQUENCY_MS) {
+      if (Date.now() - this.lastPersisted > STATE_PERSIST_INTERVAL_MS) {
         await this.persistStats()
       }
 
