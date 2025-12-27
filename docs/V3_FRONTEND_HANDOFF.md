@@ -1,6 +1,6 @@
-# V3 API - Frontend Integration Guide
+# BooksTrack API - Frontend Integration Guide
 
-**Date**: December 6, 2025
+**Date**: December 27, 2025
 **Status**: ✅ Production Ready
 **Base URL**: `https://api.oooefam.net`
 
@@ -20,6 +20,30 @@ npx openapi-typescript https://api.oooefam.net/v3/openapi.json -o src/types/api.
 
 ### 2. Test in Swagger UI
 👉 **Interactive API Explorer**: https://api.oooefam.net/v3/docs
+
+### 3. Health Check
+
+```bash
+curl https://api.oooefam.net/health
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "status": "ok",
+    "worker": "api-worker",
+    "version": "3.0.0"
+  },
+  "metadata": {
+    "timestamp": "2025-12-09T17:30:21Z"
+  }
+}
+```
+
+### 4. No Authentication Required
+
+All endpoints are public and rate-limited by IP. No API keys needed.
 
 ---
 
@@ -295,7 +319,9 @@ eventSource.addEventListener('complete', (e) => {
   "metadata": {
     "timestamp": "2025-12-06T...",
     "requestId": "req_123",     // For debugging/support
-    "processingTimeMs": 145
+    "processingTimeMs": 145,
+    "source": "alexandria",     // Data provider
+    "cached": true
   },
   "_links": { ... }             // Optional HATEOAS navigation links
 }
@@ -304,13 +330,16 @@ eventSource.addEventListener('complete', (e) => {
 ### Error Response (RFC 9457 Problem Details)
 ```typescript
 {
+  "success": false,
   "type": "https://api.oooefam.net/errors/not-found",
   "title": "Resource Not Found",
   "status": 404,
   "detail": "No books found for ISBN 9780000000000",
   "instance": "/v3/books/9780000000000",
   "requestId": "req_456",
-  "timestamp": "2025-12-06T..."
+  "timestamp": "2025-12-06T...",
+  "code": "NOT_FOUND",
+  "retryable": false
 }
 ```
 
@@ -369,33 +398,56 @@ eventSource.addEventListener('complete', (e) => {
 
 ## Error Handling
 
-V3 uses **RFC 9457 Problem Details** for structured errors:
+V3 uses **RFC 9457 Problem Details** for structured errors.
+
+### Common Error Codes
+
+| Code | Status | Description | Retryable |
+|------|--------|-------------|-----------|
+| `NOT_FOUND` | 404 | Resource not found | No |
+| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests | Yes (after delay) |
+| `CIRCUIT_OPEN` | 503 | External provider down | Yes (after 60s) |
+| `API_ERROR` | 502 | External API failure | Yes |
+| `VALIDATION_ERROR` | 400 | Invalid request | No |
+| `INTERNAL_ERROR` | 500 | Server error | Maybe |
+
+### Recommended Retry Logic
 
 ```typescript
-async function handleV3Request(url: string) {
-  const response = await fetch(url)
+async function fetchWithRetry(url: string, options = {}) {
+  const response = await fetch(url, options)
+  const json = await response.json()
 
-  if (!response.ok) {
-    // V3 errors use application/problem+json
-    const error = await response.json()
-
-    // Standard fields
-    console.error(error.title)      // Human-readable error
-    console.error(error.detail)     // Specific details
-    console.error(error.requestId)  // For support/debugging
-
-    // Handle specific error types
-    if (error.status === 404) {
-      // Not found
-    } else if (error.status === 429) {
-      // Rate limited - check error.retryAfterMs
-      setTimeout(() => retry(), error.retryAfterMs)
+  if (!json.success) {
+    // Error response
+    if (json.code === 'CIRCUIT_OPEN') {
+      throw new Error('Service unavailable, try again in 60 seconds')
     }
 
-    throw new Error(error.detail)
+    if (json.retryable && json.retryAfterMs) {
+      await new Promise(resolve => setTimeout(resolve, json.retryAfterMs))
+      return fetchWithRetry(url, options)
+    }
+
+    throw new Error(json.title || json.detail)
   }
 
-  return response.json()
+  return json.data  // Success - return just the data
+}
+```
+
+**TypeScript Type Guards:**
+
+```typescript
+const response = await fetch('/v3/books/9780439708180')
+const json = await response.json()
+
+if (json.success) {
+  // TypeScript knows json.data exists
+  console.log(json.data.title)
+} else {
+  // TypeScript knows json.code, json.title exist
+  console.error(`${json.code}: ${json.title}`)
 }
 ```
 
@@ -421,6 +473,19 @@ async function handleV3Request(url: string) {
 
 ### 5. Links
 - **V3**: Includes `_links` for API discoverability (optional to use)
+
+---
+
+## Rate Limits
+
+| Endpoint | Limit | Window |
+|----------|-------|--------|
+| Search endpoints | 100 req | 1 minute |
+| Enrichment | 30 req | 1 minute |
+| CSV imports | 10 req | 1 minute |
+| Global | 1000 req | 1 hour |
+
+Rate limits are per IP address. Use the `X-RateLimit-*` headers for tracking.
 
 ---
 
