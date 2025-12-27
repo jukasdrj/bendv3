@@ -117,6 +117,8 @@ export interface Env {
   RATE_LIMITER_DO: DurableObjectNamespace
   WEBSOCKET_CONNECTION_DO: DurableObjectNamespace
   JOB_STATE_MANAGER_DO: DurableObjectNamespace
+  CACHE_METRICS_DO: DurableObjectNamespace
+  LATENCY_TEST_DO: DurableObjectNamespace
 
   // Analytics Engine Datasets
   PERFORMANCE_ANALYTICS: AnalyticsEngineDataset
