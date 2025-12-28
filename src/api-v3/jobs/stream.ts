@@ -390,7 +390,8 @@ export async function handleSSEStream(
         const updates = await doStub.getUpdates(lastTimestamp)
 
         if (updates && updates.length > 0) {
-          for (const update of updates) {
+          for (let i = 0; i < updates.length; i++) {
+            let update = updates[i]
             // Fix: If update is 'completed' and books were stripped, fetch from KV
             if (
               update.eventType === 'completed' &&
@@ -398,7 +399,12 @@ export async function handleSSEStream(
             ) {
               const fetchedBooks = await fetchJobResults(state.jobId, state.pipeline, env)
               if (fetchedBooks.length > 0) {
-                update.data.books = fetchedBooks
+                // Create new object instead of mutating the original
+                update = {
+                  ...update,
+                  data: { ...update.data, books: fetchedBooks }
+                }
+                updates[i] = update
               }
             }
 

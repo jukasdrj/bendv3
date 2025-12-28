@@ -305,7 +305,7 @@ export async function fetchJobResults(
   jobId: string,
   pipeline: string,
   env: Env,
-): Promise<any[]> {
+): Promise<any[]> { // TODO: Use CanonicalBook[] type when available
   let resultKey = ''
   let resultProperty = ''
 
@@ -326,6 +326,11 @@ export async function fetchJobResults(
     const result: any = await env.CACHE.get(resultKey, 'json')
     if (result && Array.isArray(result[resultProperty])) {
       return result[resultProperty]
+    }
+    if (result) {
+      console.warn(
+        `[fetchJobResults] Result found but ${resultProperty} is not an array for ${jobId}. Keys: ${Object.keys(result).join(', ')}`
+      )
     }
   } catch (e) {
     console.error(`[fetchJobResults] Failed to fetch results for ${jobId}:`, e)
