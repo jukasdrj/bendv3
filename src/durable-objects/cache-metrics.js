@@ -569,9 +569,15 @@ export class CacheMetricsDO extends DurableObject {
       ]
 
       for (const window of windows) {
-        window.queryCount++
-        if (data.queryType === 'read') window.readQueries++
-        if (data.queryType === 'write') window.writeQueries++
+        // Handle batch counts if provided, otherwise default to single query
+        const readCount = data.readCount || (data.queryType === 'read' ? 1 : 0)
+        const writeCount = data.writeCount || (data.queryType === 'write' ? 1 : 0)
+        const queryCount = data.queryCount || (readCount + writeCount) || 1
+
+        window.queryCount += queryCount
+        window.readQueries += readCount
+        window.writeQueries += writeCount
+
         if (data.latencyMs) {
           window.totalLatencyMs += data.latencyMs
           // Categorize latency

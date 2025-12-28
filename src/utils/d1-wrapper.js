@@ -74,6 +74,9 @@ function wrapStatement(stmt, env, sql) {
   const queryType = isWriteQuery(sql) ? 'write' : 'read'
 
   return {
+    // Expose queryType for batch processing
+    queryType,
+
     /**
      * Bind parameters to the prepared statement
      * @param {...any} values - Parameter values
@@ -204,6 +207,14 @@ function wrapStatement(stmt, env, sql) {
     raw() {
       return stmt
     },
+
+    /**
+     * Get the underlying D1 statement safely (avoids conflict with D1's raw() execution method)
+     * @returns {Object} Unwrapped D1 statement
+     */
+    getInner() {
+      return stmt
+    },
   }
 }
 
@@ -244,13 +255,70 @@ export function wrapD1Database(db, env) {
     },
 
     /**
-     * Execute a batch of statements (no metrics tracking for now)
-     * @param {Array} statements - Array of prepared statements
+     * Execute a batch of statements with metrics tracking
+     * @param {Array} statements - Array of prepared statements (wrapped or raw)
      * @returns {Promise<Array>} Results array
      */
     async batch(statements) {
-      // TODO: Add batch metrics tracking in future enhancement
-      return db.batch(statements)
+      const startTime = Date.now()
+      let readCount = 0
+      let writeCount = 0
+
+      // Unwrap statements and count query types
+      const rawStatements = statements.map((stmt) => {
+        // Check if statement is wrapped (has queryType)
+        if (stmt.queryType) {
+          // Count based on wrapped query type
+          if (stmt.queryType === 'write') writeCount++
+          else readCount++
+
+          // Unwrap using getInner() if available, or raw() (legacy wrapper)
+          if (stmt.getInner && typeof stmt.getInner === 'function') {
+            return stmt.getInner()
+          }
+          if (stmt.raw && typeof stmt.raw === 'function') {
+            return stmt.raw()
+          }
+        }
+
+        // Assume raw statements are reads if we can't inspect them easily,
+        // or just count them towards total via default loop increment logic if we knew type.
+        // For now, treat unknown as read to avoid undercounting, or add a 'unknown' category?
+        // Defaulting to read seems safe for most D1 patterns where batch is mixed.
+        readCount++
+        return stmt
+      })
+
+      try {
+        const results = await db.batch(rawStatements)
+        const latencyMs = Date.now() - startTime
+
+        // Record batch metrics
+        await recordD1Metrics(env, {
+          latencyMs,
+          latencyBucket: getLatencyBucket(latencyMs),
+          error: false,
+          readCount,
+          writeCount,
+          queryCount: readCount + writeCount
+        })
+
+        return results
+      } catch (err) {
+        const latencyMs = Date.now() - startTime
+
+        // Record failed batch metrics
+        await recordD1Metrics(env, {
+          latencyMs,
+          latencyBucket: getLatencyBucket(latencyMs),
+          error: true,
+          readCount,
+          writeCount,
+          queryCount: readCount + writeCount
+        })
+
+        throw err
+      }
     },
 
     /**
