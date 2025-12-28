@@ -204,6 +204,11 @@ function wrapStatement(stmt, env, sql) {
     raw() {
       return stmt
     },
+
+    /**
+     * Query type (read/write)
+     */
+    queryType,
   }
 }
 
@@ -244,13 +249,78 @@ export function wrapD1Database(db, env) {
     },
 
     /**
-     * Execute a batch of statements (no metrics tracking for now)
+     * Execute a batch of statements with metrics tracking
      * @param {Array} statements - Array of prepared statements
      * @returns {Promise<Array>} Results array
      */
     async batch(statements) {
-      // TODO: Add batch metrics tracking in future enhancement
-      return db.batch(statements)
+      const startTime = Date.now()
+      let readCount = 0
+      let writeCount = 0
+      const unwrappedStatements = []
+
+      // Unwrap statements and count types
+      for (const stmt of statements) {
+        if (stmt.raw && typeof stmt.raw === 'function') {
+          // It's a wrapped statement
+          unwrappedStatements.push(stmt.raw())
+          if (stmt.queryType === 'write') {
+            writeCount++
+          } else {
+            readCount++
+          }
+        } else {
+          // It's already a raw statement (or unknown wrapper)
+          unwrappedStatements.push(stmt)
+          // Try to detect type if possible, otherwise assume read?
+          // Without SQL string we can't easily tell, but raw D1 statements don't expose it easily.
+          // For now, if we can't tell, we just increment query count via the sum of read/write,
+          // so let's default to read if we must, or track "unknown"?
+          // However, typical usage of this wrapper implies using .prepare() which returns wrapped statements.
+          // If mixed, we might undercount. Let's rely on wrapped property.
+          // If not wrapped, we won't increment read/write specific counters, but total query count will rise.
+        }
+      }
+
+      const totalCount = unwrappedStatements.length
+      // If we couldn't determine types for some, we might have readCount + writeCount < totalCount.
+      // recordD1Metrics uses readCount/writeCount if present.
+      // Let's ensure we account for all.
+      // If we have unwrapped statements, we can't easily know.
+      // Let's assume 'read' for unknown to stay safe? Or just pass 0.
+      // If we pass readCount and writeCount, those are added to readQueries/writeQueries.
+      // queryCount is added by `count` (which we can pass as totalCount).
+
+      try {
+        const result = await db.batch(unwrappedStatements)
+        const latencyMs = Date.now() - startTime
+
+        await recordD1Metrics(env, {
+          queryType: 'batch', // Used for fallback logic if needed
+          count: totalCount,
+          readCount,
+          writeCount,
+          latencyMs,
+          latencyBucket: getLatencyBucket(latencyMs),
+          error: false,
+        })
+
+        return result
+      } catch (err) {
+        const latencyMs = Date.now() - startTime
+
+        await recordD1Metrics(env, {
+          queryType: 'batch',
+          count: totalCount,
+          readCount,
+          writeCount,
+          latencyMs,
+          latencyBucket: getLatencyBucket(latencyMs),
+          error: true,
+        })
+
+        throw err
+      }
     },
 
     /**
