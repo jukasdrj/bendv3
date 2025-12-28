@@ -230,7 +230,10 @@ export function deduplicateBooksByISBN(books: any[]): any[] {
   const uniqueBooksMap = books.reduce(
     (acc, book) => {
       if (book.isbn) {
-        acc[book.isbn] = book // Last occurrence wins
+        // Normalize ISBN (remove non-digits) for deduplication key
+        // This ensures 978-0-123... and 9780123... are treated as same book
+        const normalizedIsbn = String(book.isbn).replace(/[-\s]/g, '')
+        acc[normalizedIsbn] = book // Last occurrence wins
       }
       return acc
     },

@@ -155,13 +155,33 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
     })
 
     const { BookRepository } = await import('../repositories/book-repository.js')
-    const { mapGeminiCSVBookToBookRecord, isValidISBN } = await import('./book-mappers.js')
+    const { mapGeminiCSVBookToBookRecord, isValidISBN, deduplicateBooksByISBN } = await import(
+      './book-mappers.js'
+    )
     const bookRepo = new BookRepository(env)
+
+    // Identify duplicates within the CSV (same ISBN)
+    // 1. Separate books with valid ISBNs from those without
+    const booksWithISBN = parsedBooks.filter((book) => isValidISBN(book.isbn))
+    const booksWithoutISBN = parsedBooks.filter((book) => !isValidISBN(book.isbn))
+
+    // 2. Deduplicate books with ISBNs
+    const uniqueBooksWithISBN = deduplicateBooksByISBN(booksWithISBN)
+    const duplicatesSkipped = booksWithISBN.length - uniqueBooksWithISBN.length
+
+    // 3. Combine unique books + books without ISBN for saving
+    const booksToSave = [...uniqueBooksWithISBN, ...booksWithoutISBN]
+
+    if (duplicatesSkipped > 0) {
+      console.log(`[CSV Processor Core] Skipped ${duplicatesSkipped} duplicate ISBNs in CSV`)
+    }
 
     // FIX: Parallelize D1 saves to avoid CPU timeout (Grok-4 critical issue)
     // 478 books × 50ms sequential = 23.9s (near 30s limit)
     // Parallel saves complete in <5s
-    const savePromises = parsedBooks
+    // Filter to books with valid ISBNs for D1 persistence
+    // (booksWithoutISBN are excluded here since they can't be persisted)
+    const savePromises = booksToSave
       .filter((book) => isValidISBN(book.isbn))
       .map(async (geminiBook) => {
         try {
@@ -178,8 +198,10 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
     const savedCount = results.filter((r) => r.status === 'fulfilled').length
     const failedCount = results.filter((r) => r.status === 'rejected').length
 
+    const booksEligibleForSave = booksToSave.filter((book) => isValidISBN(book.isbn)).length
     console.log(
-      `[CSV Processor Core] ✅ Persisted ${savedCount}/${parsedBooks.length} books to D1+KV` +
+      `[CSV Processor Core] ✅ Persisted ${savedCount}/${booksEligibleForSave} books to D1+KV` +
+        (duplicatesSkipped > 0 ? ` (${duplicatesSkipped} duplicates skipped)` : '') +
         (failedCount > 0 ? ` (${failedCount} failed)` : ''),
     )
 
@@ -233,7 +255,8 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
     // Store full results in KV for HTTP retrieval (API Contract format)
     // Transform validatedBooks to canonical BookSchema format
     // BookSchema requires: isbn, title, authors (array), plus optional fields
-    const canonicalBooks = parsedBooks
+    // Use booksToSave to avoid returning duplicates in the API response
+    const canonicalBooks = booksToSave
       .filter((book) => book.title && book.author)
       .map((book) => {
         // Parse author string into array (comma-separated authors)
@@ -263,7 +286,7 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
     const apiContractResults = {
       booksCreated: canonicalBooks.length,
       booksUpdated: 0, // CSV import always creates new books
-      duplicatesSkipped: 0, // TODO: Track duplicates
+      duplicatesSkipped: duplicatesSkipped,
       enrichmentSucceeded: 0, // CSV import doesn't enrich - set to 0 to be accurate
       enrichmentFailed: 0, // TODO: Track enrichment failures
       errors: [], // TODO: Store validation errors with row numbers
