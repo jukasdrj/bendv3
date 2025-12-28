@@ -289,3 +289,46 @@ export function mapDOStateToJob(state: any): Job {
     error: state.error,
   }
 }
+
+/**
+ * Fetch full job results from KV storage
+ *
+ * Used when large payloads (e.g. books array) are stripped from DO storage
+ * to avoid the 128KB limit. Reconstructs the full completion payload.
+ *
+ * @param jobId - Job identifier
+ * @param pipeline - Pipeline type
+ * @param env - Worker environment
+ * @returns Array of book objects (or empty array if not found)
+ */
+export async function fetchJobResults(
+  jobId: string,
+  pipeline: string,
+  env: Env,
+): Promise<any[]> {
+  let resultKey = ''
+  let resultProperty = ''
+
+  if (pipeline === 'ai_scan' || pipeline === 'bookshelf_scan') {
+    resultKey = `scan-results:${jobId}`
+    resultProperty = 'books'
+  } else if (pipeline === 'csv_import') {
+    resultKey = `csv-results:${jobId}`
+    resultProperty = 'books'
+  } else if (pipeline === 'enrichment' || pipeline === 'batch_enrichment') {
+    resultKey = `enrichment-results:${jobId}`
+    resultProperty = 'enrichedBooks'
+  }
+
+  if (!resultKey) return []
+
+  try {
+    const result: any = await env.CACHE.get(resultKey, 'json')
+    if (result && Array.isArray(result[resultProperty])) {
+      return result[resultProperty]
+    }
+  } catch (e) {
+    console.error(`[fetchJobResults] Failed to fetch results for ${jobId}:`, e)
+  }
+  return []
+}

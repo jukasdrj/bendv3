@@ -17,7 +17,7 @@ import type {
 } from '@bookstrack/schemas'
 import type { Context } from 'hono'
 import type { Env } from '../../types/env'
-import { parseLastEventId, validateTokenFormat } from './common'
+import { fetchJobResults, parseLastEventId, validateTokenFormat } from './common'
 
 // ============================================================================
 // Types
@@ -111,12 +111,25 @@ function formatSSE(event: SSEEvent): string {
 async function sendFinalEvent(
   state: JobState,
   writeEvent: (event: SSEEvent) => Promise<void>,
+  env: Env,
 ): Promise<void> {
   if (state.status === 'completed') {
+    // Fix: If books were stripped from DO storage, fetch from KV
+    let books = state.result?.books || []
+    if (
+      (!books || (Array.isArray(books) && books.length === 0)) &&
+      (state.totalCount > 0 || state.processedCount > 0)
+    ) {
+      const fetchedBooks = await fetchJobResults(state.jobId, state.pipeline, env)
+      if (fetchedBooks.length > 0) {
+        books = fetchedBooks
+      }
+    }
+
     const completeEvent: SSECompleteEvent = {
       jobId: state.jobId,
       status: 'completed',
-      results: state.result?.books || [],
+      results: books,
       timestamp: new Date(state.completedTime || Date.now()).toISOString(),
     }
     await writeEvent({
@@ -346,7 +359,7 @@ export async function handleSSEStream(
         state.status === 'failed' ||
         state.status === 'canceled'
       ) {
-        await sendFinalEvent(state, writeEvent)
+        await sendFinalEvent(state, writeEvent, env)
         await cleanup()
         await writer.close()
         return
@@ -378,6 +391,17 @@ export async function handleSSEStream(
 
         if (updates && updates.length > 0) {
           for (const update of updates) {
+            // Fix: If update is 'completed' and books were stripped, fetch from KV
+            if (
+              update.eventType === 'completed' &&
+              (!update.data.books || update.data.books.length === 0)
+            ) {
+              const fetchedBooks = await fetchJobResults(state.jobId, state.pipeline, env)
+              if (fetchedBooks.length > 0) {
+                update.data.books = fetchedBooks
+              }
+            }
+
             await writeEvent({
               id: `${update.timestamp}-${update.eventType}`,
               event: update.eventType,
@@ -435,7 +459,7 @@ export async function handleSSEStream(
         state &&
         (state.status === 'completed' || state.status === 'failed' || state.status === 'canceled')
       ) {
-        await sendFinalEvent(state, writeEvent)
+        await sendFinalEvent(state, writeEvent, env)
       }
 
       // Cleanup on normal completion

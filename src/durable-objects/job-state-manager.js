@@ -563,7 +563,21 @@ export class JobStateManagerDO extends DurableObject {
     const persistedUpdates = (await this.storage.get(`updates:${jobId}`)) || []
 
     // Combine with pending updates
-    const allUpdates = [...persistedUpdates, ...this.pendingUpdates]
+    // Fix: DO storage 128KB limit. Strip large 'books' array from persisted updates.
+    // Full results are available in KV/R2 and fetched by the stream handler if missing.
+    const sanitisedPendingUpdates = this.pendingUpdates.map((update) => {
+      if (update.eventType === 'completed' && update.data?.books?.length > 0) {
+        // Create a copy without books
+        const { books, ...rest } = update.data
+        return {
+          ...update,
+          data: { ...rest, books: [] }, // Strip books to save space
+        }
+      }
+      return update
+    })
+
+    const allUpdates = [...persistedUpdates, ...sanitisedPendingUpdates]
 
     // Keep only last 100 updates
     const trimmedUpdates = allUpdates.slice(-100)
@@ -576,7 +590,7 @@ export class JobStateManagerDO extends DurableObject {
     this.lastUpdatePersist = Date.now()
 
     console.log(
-      `[JobStateManager] Flushed ${allUpdates.length - persistedUpdates.length} pending updates for job ${jobId}`,
+      `[JobStateManager] Flushed ${sanitisedPendingUpdates.length} pending updates for job ${jobId}`,
     )
   }
 
