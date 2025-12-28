@@ -179,6 +179,8 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
     // FIX: Parallelize D1 saves to avoid CPU timeout (Grok-4 critical issue)
     // 478 books × 50ms sequential = 23.9s (near 30s limit)
     // Parallel saves complete in <5s
+    // Filter to books with valid ISBNs for D1 persistence
+    // (booksWithoutISBN are excluded here since they can't be persisted)
     const savePromises = booksToSave
       .filter((book) => isValidISBN(book.isbn))
       .map(async (geminiBook) => {
@@ -196,8 +198,10 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
     const savedCount = results.filter((r) => r.status === 'fulfilled').length
     const failedCount = results.filter((r) => r.status === 'rejected').length
 
+    const booksEligibleForSave = booksToSave.filter((book) => isValidISBN(book.isbn)).length
     console.log(
-      `[CSV Processor Core] ✅ Persisted ${savedCount}/${parsedBooks.length} books to D1+KV` +
+      `[CSV Processor Core] ✅ Persisted ${savedCount}/${booksEligibleForSave} books to D1+KV` +
+        (duplicatesSkipped > 0 ? ` (${duplicatesSkipped} duplicates skipped)` : '') +
         (failedCount > 0 ? ` (${failedCount} failed)` : ''),
     )
 
