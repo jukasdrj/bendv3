@@ -58,8 +58,19 @@ async function recordD1Metrics(env, metricsData) {
     // Record metrics via RPC
     await stub.recordD1Metrics(metricsData)
   } catch (error) {
+    // CRITICAL: Structured logging for observability degradation
+    console.error('[D1 Wrapper] Metrics recording failed - observability degraded', {
+      errorId: 'D1_METRICS_FAILED',
+      error: error.message,
+      metricsType: metricsData.queryType || 'batch',
+      timestamp: new Date().toISOString(),
+      // Don't log full metricsData to avoid sensitive data exposure
+      hasReadCount: typeof metricsData.readCount !== 'undefined',
+      hasWriteCount: typeof metricsData.writeCount !== 'undefined'
+    })
+
     // Metrics recording failures should not break the application
-    console.error('[D1 Wrapper] Failed to record metrics:', error.message)
+    // but we need to be aware that observability is degraded
   }
 }
 
@@ -266,6 +277,12 @@ export function wrapD1Database(db, env) {
 
       // Unwrap statements and count query types
       const rawStatements = statements.map((stmt) => {
+        // Validate statement input
+        if (!stmt) {
+          console.warn('[D1 Wrapper] Null/undefined statement in batch, skipping')
+          return stmt  // Let D1 handle the error
+        }
+
         // Check if statement is wrapped (has queryType)
         if (stmt.queryType) {
           // Count based on wrapped query type
@@ -281,10 +298,14 @@ export function wrapD1Database(db, env) {
           }
         }
 
-        // Assume raw statements are reads if we can't inspect them easily,
-        // or just count them towards total via default loop increment logic if we knew type.
-        // For now, treat unknown as read to avoid undercounting, or add a 'unknown' category?
-        // Defaulting to read seems safe for most D1 patterns where batch is mixed.
+        // For unwrapped statements, warn about inability to classify properly
+        console.warn('[D1 Wrapper] Unknown statement type in batch - cannot determine read/write classification', {
+          statementKeys: Object.keys(stmt),
+          hasRawMethod: typeof stmt.raw === 'function',
+          statement: 'D1 native statement (unwrapped)'
+        })
+
+        // Count as read for backward compatibility, but log the assumption
         readCount++
         return stmt
       })
@@ -296,7 +317,6 @@ export function wrapD1Database(db, env) {
         // Record batch metrics
         await recordD1Metrics(env, {
           latencyMs,
-          latencyBucket: getLatencyBucket(latencyMs),
           error: false,
           readCount,
           writeCount,
@@ -310,14 +330,24 @@ export function wrapD1Database(db, env) {
         // Record failed batch metrics
         await recordD1Metrics(env, {
           latencyMs,
-          latencyBucket: getLatencyBucket(latencyMs),
           error: true,
           readCount,
           writeCount,
           queryCount: readCount + writeCount
         })
 
-        throw err
+        // Enhance error context before re-throwing
+        const enhancedError = new Error(`D1 batch operation failed: ${err.message}`)
+        enhancedError.cause = err
+        enhancedError.batchInfo = {
+          statementCount: statements.length,
+          readCount,
+          writeCount,
+          latencyMs,
+          operation: 'batch'
+        }
+
+        throw enhancedError
       }
     },
 
