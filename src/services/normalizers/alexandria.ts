@@ -65,8 +65,8 @@ export function normalizeAlexandriaToWork(result: AlexandriaResult): WorkDTO {
 
     // Provenance
     synthetic: false,
-    primaryProvider: 'alexandria' as any, // TODO: Add to DataProvider enum
-    contributors: ['alexandria'] as any[],
+    primaryProvider: 'alexandria',
+    contributors: ['alexandria'],
 
     // External IDs
     openLibraryWorkID: workOLID,
@@ -107,8 +107,8 @@ export function normalizeAlexandriaToEdition(result: AlexandriaResult): EditionD
     coverImageURL,
 
     // Provenance
-    primaryProvider: 'alexandria' as any,
-    contributors: ['alexandria'] as any[],
+    primaryProvider: 'alexandria',
+    contributors: ['alexandria'],
 
     // External IDs
     openLibraryEditionID: editionOLID,
