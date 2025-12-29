@@ -19,8 +19,10 @@
 import { BookRepository } from '../repositories/book-repository'
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical'
 import type { BookRecord } from '../types/database'
+import { type CoverProcessingTask, createCoverProcessor } from '../utils/concurrency-limiter'
 import { processBookCover, queueCoverProcessing } from './alexandria-cover-service'
 import { enrichMultipleBooks } from './enrichment'
+import { CacheKeys, deduplicate } from './request-deduplication'
 
 interface SearchOptions {
   maxResults?: number
@@ -43,6 +45,19 @@ interface EnrichmentResult {
  * @returns EnrichmentResult with works, editions, authors
  */
 export async function findBookByISBN(
+  isbn: string,
+  env: any,
+  ctx?: ExecutionContext,
+): Promise<EnrichmentResult> {
+  return deduplicate(CacheKeys.isbn(isbn), async () => {
+    return findBookByISBNInternal(isbn, env, ctx)
+  })
+}
+
+/**
+ * Internal implementation of findBookByISBN (deduplicated)
+ */
+async function findBookByISBNInternal(
   isbn: string,
   env: any,
   ctx?: ExecutionContext,
@@ -218,20 +233,22 @@ export async function findBooksByTitle(
   options: SearchOptions = { maxResults: 20 },
   ctx?: ExecutionContext,
 ): Promise<EnrichmentResult> {
-  // Title searches go directly to external APIs (no cache)
-  // Reason: Multiple results, cache key would be complex
-  console.log(`[BookService] Title search for "${title}" (no cache, direct external API call)`)
+  return deduplicate(CacheKeys.titleSearch(title, author), async () => {
+    // Title searches go directly to external APIs (no cache)
+    // Reason: Multiple results, cache key would be complex
+    console.log(`[BookService] Title search for "${title}" (no cache, direct external API call)`)
 
-  const result = await enrichMultipleBooks({ title, author }, env, options, ctx)
+    const result = await enrichMultipleBooks({ title, author }, env, options, ctx)
 
-  // Future enhancement: Cache individual books found in title search results
-  // This would populate the repository for future ISBN lookups
+    // Future enhancement: Cache individual books found in title search results
+    // This would populate the repository for future ISBN lookups
 
-  return {
-    ...result,
-    cached: false,
-    source: 'external',
-  }
+    return {
+      ...result,
+      cached: false,
+      source: 'external',
+    }
+  })
 }
 
 /**
@@ -286,15 +303,9 @@ export async function batchEnrichBooks(
     missingISBNs.map((isbn) => enrichMultipleBooks({ isbn }, env, { maxResults: 1 }, ctx)),
   )
 
-  // Step 3: Process covers in parallel with concurrency control
-  // Prepare cover processing tasks for books with valid work keys
-  const COVER_BATCH_SIZE = 10 // Process 10 covers at a time to avoid overwhelming Alexandria
-  const coverProcessingTasks: Array<{
-    isbn: string
-    workKey: string
-    providerCoverURL: string
-    resultIndex: number
-  }> = []
+  // Step 3: Process covers in parallel with optimized concurrency control
+  const coverProcessor = createCoverProcessor(env)
+  const coverProcessingTasks: CoverProcessingTask[] = []
 
   // Collect all cover processing tasks
   for (let i = 0; i < missingISBNs.length; i++) {
@@ -312,42 +323,17 @@ export async function batchEnrichBooks(
           isbn,
           workKey,
           providerCoverURL,
-          resultIndex: i,
         })
       }
     }
   }
 
   console.log(
-    `[BookService] Processing ${coverProcessingTasks.length} covers in batches of ${COVER_BATCH_SIZE}`,
+    `[BookService] Processing ${coverProcessingTasks.length} covers with optimized concurrency control`,
   )
 
-  // Process covers in batches for controlled parallelism
-  const coverResultsMap = new Map<string, any>()
-  for (let i = 0; i < coverProcessingTasks.length; i += COVER_BATCH_SIZE) {
-    const batch = coverProcessingTasks.slice(i, i + COVER_BATCH_SIZE)
-
-    const batchResults = await Promise.allSettled(
-      batch.map((task) =>
-        processBookCover(
-          {
-            work_key: task.workKey,
-            provider_url: task.providerCoverURL,
-            isbn: task.isbn,
-          },
-          env as any,
-        ),
-      ),
-    )
-
-    // Store results in map for later use
-    batch.forEach((task, index) => {
-      const result = batchResults[index]
-      if (result.status === 'fulfilled') {
-        coverResultsMap.set(task.isbn, result.value)
-      }
-    })
-  }
+  // Process all covers with controlled parallelism and progress tracking
+  const coverResultsMap = await coverProcessor.processCovers(coverProcessingTasks)
 
   // Step 4: Save to repository and add to results
   for (let i = 0; i < missingISBNs.length; i++) {
@@ -370,7 +356,7 @@ export async function batchEnrichBooks(
         }
 
         const alexandriaResult = coverResultsMap.get(isbn)
-        if (alexandriaResult?.success) {
+        if (alexandriaResult?.success && alexandriaResult.urls) {
           coverURLs = {
             small: alexandriaResult.urls.small,
             medium: alexandriaResult.urls.medium,
@@ -450,45 +436,47 @@ export async function findBooksByAuthor(
   env: any,
   limit = 50,
 ): Promise<EnrichmentResult> {
-  const bookRepo = new BookRepository(env)
+  return deduplicate(CacheKeys.authorSearch(authorName), async () => {
+    const bookRepo = new BookRepository(env)
 
-  const books = await bookRepo.findByAuthor(authorName, limit)
+    const books = await bookRepo.findByAuthor(authorName, limit)
 
-  if (books.length === 0) {
-    console.log(`[BookService] No books found for author "${authorName}" (D1 query)`)
+    if (books.length === 0) {
+      console.log(`[BookService] No books found for author "${authorName}" (D1 query)`)
+      return {
+        works: [],
+        editions: [],
+        authors: [],
+        cached: false,
+        source: 'd1',
+      }
+    }
+
+    console.log(`[BookService] Found ${books.length} books for author "${authorName}"`)
+
+    // Extract works, editions, authors from canonicalMetadata
+    const allWorks: WorkDTO[] = []
+    const allEditions: EditionDTO[] = []
+    const allAuthors: AuthorDTO[] = []
+
+    books.forEach((book) => {
+      const metadata = book.canonicalMetadata
+      if (metadata.works) allWorks.push(...metadata.works)
+      if (metadata.editions) allEditions.push(...metadata.editions)
+      if (metadata.authors) allAuthors.push(...metadata.authors)
+    })
+
+    // Deduplicate authors by name
+    const uniqueAuthors = Array.from(
+      new Map(allAuthors.map((author) => [author.name, author])).values(),
+    )
+
     return {
-      works: [],
-      editions: [],
-      authors: [],
-      cached: false,
+      works: allWorks,
+      editions: allEditions,
+      authors: uniqueAuthors,
+      cached: true,
       source: 'd1',
     }
-  }
-
-  console.log(`[BookService] Found ${books.length} books for author "${authorName}"`)
-
-  // Extract works, editions, authors from canonicalMetadata
-  const allWorks: WorkDTO[] = []
-  const allEditions: EditionDTO[] = []
-  const allAuthors: AuthorDTO[] = []
-
-  books.forEach((book) => {
-    const metadata = book.canonicalMetadata
-    if (metadata.works) allWorks.push(...metadata.works)
-    if (metadata.editions) allEditions.push(...metadata.editions)
-    if (metadata.authors) allAuthors.push(...metadata.authors)
   })
-
-  // Deduplicate authors by name
-  const uniqueAuthors = Array.from(
-    new Map(allAuthors.map((author) => [author.name, author])).values(),
-  )
-
-  return {
-    works: allWorks,
-    editions: allEditions,
-    authors: uniqueAuthors,
-    cached: true,
-    source: 'd1',
-  }
 }

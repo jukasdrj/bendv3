@@ -397,6 +397,113 @@ for semantic search.`,
     }
 
     // ========================================================================
+    // STREAMING MODE: For large batches to prevent OOM and improve UX
+    // ========================================================================
+    const STREAMING_THRESHOLD = 50 // Use streaming for >50 ISBNs
+
+    if (isbns.length > STREAMING_THRESHOLD && !includeEmbedding) {
+      // Import streaming utilities
+      const { createStreamingResponse, createBookEnrichmentStream } = await import(
+        '../utils/streaming-response'
+      )
+
+      console.log(`[V3 Enrich] Using streaming mode for ${isbns.length} ISBNs`)
+
+      // Create the enrichment function for streaming
+      const enrichFunction = async (isbn: string) => {
+        try {
+          // Use the same cache check logic as sync mode
+          const cacheKey = `book:isbn:${isbn}`
+          const cached = await c.env.CACHE.get<any>(cacheKey, 'json')
+
+          // Validate cached data (using the same logic from sync mode)
+          const isValidEnrichedBook = (data: unknown): data is any => {
+            if (!data || typeof data !== 'object') return false
+            const obj = data as Record<string, unknown>
+            return (
+              typeof obj.isbn === 'string' &&
+              typeof obj.title === 'string' &&
+              Array.isArray(obj.authors) &&
+              typeof obj.provider === 'string' &&
+              typeof obj.quality === 'number' &&
+              'vectorized' in obj &&
+              !('works' in obj) &&
+              !('editions' in obj)
+            )
+          }
+
+          if (cached && isValidEnrichedBook(cached)) {
+            return { success: true, book: cached, isbn }
+          }
+
+          // Import enrichment logic
+          const { enrichMultipleBooks } = await import('../services/enrichment')
+
+          // Fetch from external APIs
+          const result = await enrichMultipleBooks(
+            { isbn },
+            c.env,
+            { maxResults: 1 },
+            c.executionCtx,
+          )
+
+          if (!result || !result.works || result.works.length === 0) {
+            return { success: false, isbn, error: 'Book not found' }
+          }
+
+          // Convert to V3 format (same logic as sync mode)
+          const work = result.works[0]!
+          const edition = result.editions?.[0]
+          const authors = result.authors || []
+
+          const book = {
+            isbn: edition?.isbn || isbn,
+            title: work.title,
+            authors: authors.map((a) => a.name),
+            publisher: edition?.publisher,
+            publishedDate: edition?.publicationDate,
+            description: work.description,
+            pageCount: edition?.pageCount,
+            categories: work.subjectTags,
+            language: edition?.language || 'en',
+            coverUrl: work.coverImageURL || edition?.coverImageURL,
+            coverSource: work.coverSource || edition?.coverSource || undefined,
+            thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
+            workKey: work.openLibraryWorkID || work.openLibraryID,
+            editionKey: edition?.openLibraryEditionID,
+            provider: 'alexandria' as const,
+            quality: 85, // DEFAULT_PROVIDER_QUALITY
+            vectorized: false,
+          }
+
+          // Cache the result
+          c.executionCtx.waitUntil(
+            c.env.CACHE.put(cacheKey, JSON.stringify(book), { expirationTtl: 7200 }),
+          )
+
+          return { success: true, book, isbn }
+        } catch (error: any) {
+          console.error(`[V3 Enrich Stream] Error processing ${isbn}:`, error)
+          return { success: false, isbn, error: error.message || 'Processing error' }
+        }
+      }
+
+      // Create streaming generator
+      const generator = () => createBookEnrichmentStream(isbns, enrichFunction, 25)
+
+      // Return streaming response
+      return createStreamingResponse(generator, {
+        batchSize: 25,
+        flushThreshold: 10,
+        contentType: 'application/x-ndjson',
+        headers: {
+          'X-Request-ID': ctx.requestId,
+          'X-Processing-Mode': 'streaming',
+        },
+      })
+    }
+
+    // ========================================================================
     // SYNC MODE: Existing behavior (unchanged)
     // ========================================================================
 
