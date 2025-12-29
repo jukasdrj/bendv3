@@ -15,7 +15,12 @@ import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
 
 // DO stub interfaces for RPC calls
 interface CacheMetricsStub {
-  recordEvent(event: { type: string; prefix: string; key: string; timestamp: number }): Promise<void>
+  recordEvent(event: {
+    type: string
+    prefix: string
+    key: string
+    timestamp: number
+  }): Promise<void>
   getStats(): Promise<unknown>
 }
 

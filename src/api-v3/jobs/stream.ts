@@ -402,7 +402,7 @@ export async function handleSSEStream(
                 // Create new object instead of mutating the original
                 update = {
                   ...update,
-                  data: { ...update.data, books: fetchedBooks }
+                  data: { ...update.data, books: fetchedBooks },
                 }
                 updates[i] = update
               }

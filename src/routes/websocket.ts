@@ -18,7 +18,9 @@ import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
 // DO stub interfaces for RPC calls
 interface WebSocketConnectionStub {
   fetch(request: Request): Promise<Response>
-  refreshAuthToken(oldToken: string): Promise<{ token?: string; expiresIn?: number; error?: string }>
+  refreshAuthToken(
+    oldToken: string,
+  ): Promise<{ token?: string; expiresIn?: number; error?: string }>
   getAuthToken(): Promise<{ token: string; expiresAt: number } | null>
 }
 
@@ -94,7 +96,9 @@ export function createJobApiRoutes() {
       }
 
       const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId)
-      const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId) as unknown as WebSocketConnectionStub
+      const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(
+        wsDoId,
+      ) as unknown as WebSocketConnectionStub
       const result = await wsDoStub.refreshAuthToken(oldToken)
 
       if (result.error) {
@@ -148,10 +152,14 @@ export function createJobApiRoutes() {
 
       // Query JOB_STATE_MANAGER_DO and WEBSOCKET_CONNECTION_DO separately
       const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId)
-      const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(stateDoId) as unknown as JobStateManagerStub
+      const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(
+        stateDoId,
+      ) as unknown as JobStateManagerStub
 
       const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId)
-      const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(wsDoId) as unknown as WebSocketConnectionStub
+      const wsDoStub = c.env.WEBSOCKET_CONNECTION_DO.get(
+        wsDoId,
+      ) as unknown as WebSocketConnectionStub
 
       // Fetch job state and auth details separately
       const jobState = await stateDoStub.getJobState()
@@ -219,7 +227,9 @@ export function createJobApiRoutes() {
       }
 
       const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId)
-      const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(stateDoId) as unknown as JobStateManagerStub
+      const stateDoStub = c.env.JOB_STATE_MANAGER_DO.get(
+        stateDoId,
+      ) as unknown as JobStateManagerStub
       const result = await stateDoStub.cancelJob('User canceled bookshelf scan')
 
       return c.json(result)

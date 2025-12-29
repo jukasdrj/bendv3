@@ -561,18 +561,24 @@ export class CacheMetricsDO extends DurableObject {
   async recordD1Metrics(data) {
     try {
       // Validate batch-specific fields
-      if (typeof data.readCount !== 'undefined' &&
-          (typeof data.readCount !== 'number' || data.readCount < 0)) {
+      if (
+        typeof data.readCount !== 'undefined' &&
+        (typeof data.readCount !== 'number' || data.readCount < 0)
+      ) {
         throw new Error(`Invalid readCount: must be non-negative number, got ${data.readCount}`)
       }
 
-      if (typeof data.writeCount !== 'undefined' &&
-          (typeof data.writeCount !== 'number' || data.writeCount < 0)) {
+      if (
+        typeof data.writeCount !== 'undefined' &&
+        (typeof data.writeCount !== 'number' || data.writeCount < 0)
+      ) {
         throw new Error(`Invalid writeCount: must be non-negative number, got ${data.writeCount}`)
       }
 
-      if (typeof data.queryCount !== 'undefined' &&
-          (typeof data.queryCount !== 'number' || data.queryCount < 0)) {
+      if (
+        typeof data.queryCount !== 'undefined' &&
+        (typeof data.queryCount !== 'number' || data.queryCount < 0)
+      ) {
         throw new Error(`Invalid queryCount: must be non-negative number, got ${data.queryCount}`)
       }
 
@@ -588,13 +594,15 @@ export class CacheMetricsDO extends DurableObject {
         // Handle batch counts if provided, otherwise default to single query
         const readCount = data.readCount || (data.queryType === 'read' ? 1 : 0)
         const writeCount = data.writeCount || (data.queryType === 'write' ? 1 : 0)
-        const queryCount = data.queryCount || (readCount + writeCount) || 1
+        const queryCount = data.queryCount || readCount + writeCount || 1
 
         // Validate consistency between counts
         if (data.queryCount && data.readCount !== undefined && data.writeCount !== undefined) {
           const totalFromCounts = data.readCount + data.writeCount
           if (Math.abs(data.queryCount - totalFromCounts) > 0.001) {
-            console.warn(`[CacheMetricsDO] Query count inconsistency: queryCount=${data.queryCount} but readCount+writeCount=${totalFromCounts}`)
+            console.warn(
+              `[CacheMetricsDO] Query count inconsistency: queryCount=${data.queryCount} but readCount+writeCount=${totalFromCounts}`,
+            )
           }
         }
 

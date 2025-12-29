@@ -66,7 +66,7 @@ async function recordD1Metrics(env, metricsData) {
       timestamp: new Date().toISOString(),
       // Don't log full metricsData to avoid sensitive data exposure
       hasReadCount: typeof metricsData.readCount !== 'undefined',
-      hasWriteCount: typeof metricsData.writeCount !== 'undefined'
+      hasWriteCount: typeof metricsData.writeCount !== 'undefined',
     })
 
     // Metrics recording failures should not break the application
@@ -280,7 +280,7 @@ export function wrapD1Database(db, env) {
         // Validate statement input
         if (!stmt) {
           console.warn('[D1 Wrapper] Null/undefined statement in batch, skipping')
-          return stmt  // Let D1 handle the error
+          return stmt // Let D1 handle the error
         }
 
         // Check if statement is wrapped (has queryType)
@@ -299,11 +299,14 @@ export function wrapD1Database(db, env) {
         }
 
         // For unwrapped statements, warn about inability to classify properly
-        console.warn('[D1 Wrapper] Unknown statement type in batch - cannot determine read/write classification', {
-          statementKeys: Object.keys(stmt),
-          hasRawMethod: typeof stmt.raw === 'function',
-          statement: 'D1 native statement (unwrapped)'
-        })
+        console.warn(
+          '[D1 Wrapper] Unknown statement type in batch - cannot determine read/write classification',
+          {
+            statementKeys: Object.keys(stmt),
+            hasRawMethod: typeof stmt.raw === 'function',
+            statement: 'D1 native statement (unwrapped)',
+          },
+        )
 
         // Count as read for backward compatibility, but log the assumption
         readCount++
@@ -320,7 +323,7 @@ export function wrapD1Database(db, env) {
           error: false,
           readCount,
           writeCount,
-          queryCount: readCount + writeCount
+          queryCount: readCount + writeCount,
         })
 
         return results
@@ -333,7 +336,7 @@ export function wrapD1Database(db, env) {
           error: true,
           readCount,
           writeCount,
-          queryCount: readCount + writeCount
+          queryCount: readCount + writeCount,
         })
 
         // Enhance error context before re-throwing
@@ -344,7 +347,7 @@ export function wrapD1Database(db, env) {
           readCount,
           writeCount,
           latencyMs,
-          operation: 'batch'
+          operation: 'batch',
         }
 
         throw enhancedError

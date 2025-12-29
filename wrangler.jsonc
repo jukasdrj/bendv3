@@ -204,6 +204,10 @@
     {
       "tag": "v6",
       "new_classes": ["LatencyTestDO"]
+    },
+    {
+      "tag": "v7",
+      "new_classes": []
     }
   ],
   "analytics_engine_datasets": [

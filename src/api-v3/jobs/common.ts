@@ -301,11 +301,8 @@ export function mapDOStateToJob(state: any): Job {
  * @param env - Worker environment
  * @returns Array of book objects (or empty array if not found)
  */
-export async function fetchJobResults(
-  jobId: string,
-  pipeline: string,
-  env: Env,
-): Promise<any[]> { // TODO: Use CanonicalBook[] type when available
+export async function fetchJobResults(jobId: string, pipeline: string, env: Env): Promise<any[]> {
+  // TODO: Use CanonicalBook[] type when available
   let resultKey = ''
   let resultProperty = ''
 
@@ -329,7 +326,7 @@ export async function fetchJobResults(
     }
     if (result) {
       console.warn(
-        `[fetchJobResults] Result found but ${resultProperty} is not an array for ${jobId}. Keys: ${Object.keys(result).join(', ')}`
+        `[fetchJobResults] Result found but ${resultProperty} is not an array for ${jobId}. Keys: ${Object.keys(result).join(', ')}`,
       )
     }
   } catch (e) {
