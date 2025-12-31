@@ -33,6 +33,7 @@ export class CircuitBreaker {
   private options: CircuitBreakerOptions
   private pendingWrites: number = 0
   private pendingState: CircuitBreakerState | null = null
+  private lastPersistedFailureCount: number = 0 // Track last persisted failure count
   private readonly WRITE_BATCH_SIZE = 10 // Write to KV every 10th state change
 
   constructor(provider: string, env: any, options: Partial<CircuitBreakerOptions> = {}) {
@@ -106,7 +107,7 @@ export class CircuitBreaker {
 
   /**
    * Update circuit breaker state with batched writes
-   * Critical transitions (OPEN/CLOSED) are persisted immediately
+   * Critical transitions (OPEN/CLOSED) and failure count changes are persisted immediately
    */
   private async setState(state: CircuitBreakerState, forceWrite: boolean = false): Promise<void> {
     // Store pending state in memory
@@ -115,14 +116,24 @@ export class CircuitBreaker {
     // Critical state transitions should always write immediately
     const isCriticalTransition = state.state === 'OPEN' || state.state === 'CLOSED'
 
+    // Also persist when failure count changes (prevents loss on Worker restart)
+    const hasFailureCountChange =
+      state.failureCount > 0 && state.failureCount !== this.lastPersistedFailureCount
+
     // Increment pending writes counter
     this.pendingWrites++
 
     // Write to KV if:
     // 1. Critical state transition (OPEN/CLOSED)
-    // 2. Batch size reached (every 10th write)
-    // 3. Force write requested
-    if (isCriticalTransition || this.pendingWrites >= this.WRITE_BATCH_SIZE || forceWrite) {
+    // 2. Failure count changed (prevents loss on restart)
+    // 3. Batch size reached (every 10th write)
+    // 4. Force write requested
+    if (
+      isCriticalTransition ||
+      hasFailureCountChange ||
+      this.pendingWrites >= this.WRITE_BATCH_SIZE ||
+      forceWrite
+    ) {
       await this.persistState()
     }
   }
@@ -137,6 +148,9 @@ export class CircuitBreaker {
     await this.env.CACHE?.put(key, JSON.stringify(this.pendingState), {
       expirationTtl: this.options.stateExpirationTtl,
     })
+
+    // Track last persisted failure count to detect changes
+    this.lastPersistedFailureCount = this.pendingState.failureCount
 
     // Reset counter after successful write
     this.pendingWrites = 0

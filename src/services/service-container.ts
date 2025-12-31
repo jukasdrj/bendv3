@@ -46,6 +46,7 @@ type ServiceInstance<T = any> = T | ServiceFactory<T>
 export class ServiceContainer {
   private services = new Map<string, ServiceInstance>()
   private singletons = new Map<string, any>()
+  private singletonFlags = new Map<string, boolean>() // Track singleton intent
   private env: Env
 
   constructor(env: Env) {
@@ -61,6 +62,7 @@ export class ServiceContainer {
    */
   register<T>(name: string, factory: ServiceFactory<T> | T, singleton = true): this {
     this.services.set(name, factory)
+    this.singletonFlags.set(name, singleton) // Store singleton flag
     if (!singleton) {
       this.singletons.delete(name) // Ensure it's not cached
     }
@@ -93,8 +95,12 @@ export class ServiceContainer {
       instance = serviceFactory
     }
 
-    // Cache as singleton if not explicitly disabled
-    this.singletons.set(name, instance)
+    // Only cache if registered as singleton (default: true)
+    const isSingleton = this.singletonFlags.get(name) ?? true
+    if (isSingleton) {
+      this.singletons.set(name, instance)
+    }
+
     return instance
   }
 
@@ -152,7 +158,7 @@ export function createServiceContainer(env: Env): ServiceContainer {
   container.register(ServiceId.EnrichmentService, (container) => {
     // Import the enrichment function as a service wrapper
     return {
-      enrichMultipleBooks: require('./enrichment').enrichMultipleBooks
+      enrichMultipleBooks: require('./enrichment').enrichMultipleBooks,
     }
   })
 
@@ -192,7 +198,7 @@ export function createMockServiceContainer(env: Partial<Env> = {}): ServiceConta
   const mockEnv = {
     CACHE: {} as KVNamespace,
     DB: {} as D1Database,
-    ...env
+    ...env,
   } as Env
 
   const container = new ServiceContainer(mockEnv)

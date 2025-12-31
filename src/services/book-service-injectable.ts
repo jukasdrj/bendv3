@@ -54,7 +54,7 @@ export class InjectableBookService {
     enrichmentService: IEnrichmentService,
     coverService: ICoverService,
     deduplicationService: IDeduplicationService,
-    env: Env
+    env: Env,
   ) {
     this.bookRepository = bookRepository
     this.enrichmentService = enrichmentService
@@ -72,7 +72,7 @@ export class InjectableBookService {
       container.resolve<IEnrichmentService>(ServiceId.EnrichmentService),
       container.resolve<ICoverService>(ServiceId.CoverService),
       container.resolve<IDeduplicationService>(ServiceId.DeduplicationService),
-      container.getEnv()
+      container.getEnv(),
     )
   }
 
@@ -90,7 +90,7 @@ export class InjectableBookService {
    */
   private async findBookByISBNInternal(
     isbn: string,
-    ctx?: ExecutionContext
+    ctx?: ExecutionContext,
   ): Promise<EnrichmentResult> {
     // 1. Try repository (smart router: KV → D1 based on D1_READ_PERCENTAGE)
     const cachedBook = await this.bookRepository.findByISBN(isbn)
@@ -122,7 +122,7 @@ export class InjectableBookService {
       { isbn },
       this.env,
       { maxResults: 1 },
-      ctx
+      ctx,
     )
 
     // 3. Save to repository and process covers
@@ -145,7 +145,7 @@ export class InjectableBookService {
   async findBooksByTitle(
     title: string,
     options: SearchOptions = {},
-    ctx?: ExecutionContext
+    ctx?: ExecutionContext,
   ): Promise<EnrichmentResult> {
     return this.deduplicationService.deduplicate(`title:${title}`, async () => {
       return this.findBooksByTitleInternal(title, options, ctx)
@@ -158,7 +158,7 @@ export class InjectableBookService {
   private async findBooksByTitleInternal(
     title: string,
     options: SearchOptions = {},
-    ctx?: ExecutionContext
+    ctx?: ExecutionContext,
   ): Promise<EnrichmentResult> {
     const maxResults = options.maxResults || 20
 
@@ -166,7 +166,9 @@ export class InjectableBookService {
     const cachedBooks = await this.bookRepository.findByTitle(title, { maxResults })
 
     if (cachedBooks && cachedBooks.length > 0) {
-      console.log(`[BookService] ✅ Repository hit for title "${title}" (${cachedBooks.length} results)`)
+      console.log(
+        `[BookService] ✅ Repository hit for title "${title}" (${cachedBooks.length} results)`,
+      )
 
       return this.aggregateBookResults(cachedBooks, true)
     }
@@ -178,7 +180,7 @@ export class InjectableBookService {
       { title },
       this.env,
       { maxResults },
-      ctx
+      ctx,
     )
 
     // Save all found books to repository
@@ -201,7 +203,7 @@ export class InjectableBookService {
   async findBooksByAuthor(
     author: string,
     options: SearchOptions = {},
-    ctx?: ExecutionContext
+    ctx?: ExecutionContext,
   ): Promise<EnrichmentResult> {
     return this.deduplicationService.deduplicate(`author:${author}`, async () => {
       return this.findBooksByAuthorInternal(author, options, ctx)
@@ -214,7 +216,7 @@ export class InjectableBookService {
   private async findBooksByAuthorInternal(
     author: string,
     options: SearchOptions = {},
-    ctx?: ExecutionContext
+    ctx?: ExecutionContext,
   ): Promise<EnrichmentResult> {
     const maxResults = options.maxResults || 20
 
@@ -222,7 +224,9 @@ export class InjectableBookService {
     const cachedBooks = await this.bookRepository.findByAuthor(author, { maxResults })
 
     if (cachedBooks && cachedBooks.length > 0) {
-      console.log(`[BookService] ✅ Repository hit for author "${author}" (${cachedBooks.length} results)`)
+      console.log(
+        `[BookService] ✅ Repository hit for author "${author}" (${cachedBooks.length} results)`,
+      )
 
       return this.aggregateBookResults(cachedBooks, true)
     }
@@ -234,7 +238,7 @@ export class InjectableBookService {
       { author },
       this.env,
       { maxResults },
-      ctx
+      ctx,
     )
 
     // Save all found books to repository
@@ -257,7 +261,7 @@ export class InjectableBookService {
   private async processAndSaveBook(
     isbn: string,
     result: any,
-    ctx?: ExecutionContext
+    ctx?: ExecutionContext,
   ): Promise<void> {
     try {
       const work = result.works[0]
@@ -277,7 +281,7 @@ export class InjectableBookService {
               isbn: isbn,
             },
             this.env,
-            1 // Only 1 retry (fast fail for immediate processing)
+            1, // Only 1 retry (fast fail for immediate processing)
           )
 
           if (alexandriaResult.success) {
@@ -292,12 +296,17 @@ export class InjectableBookService {
             console.log(`[BookService] ✅ Cover processed immediately via Alexandria for ${isbn}`)
           } else {
             // Queue for background processing on failure
-            console.warn(`[BookService] ⚠️ Immediate cover processing failed, queuing for background processing`)
-            await this.coverService.queueCoverProcessing({
-              work_key: workKey,
-              provider_url: providerCoverURL,
-              isbn: isbn,
-            }, this.env)
+            console.warn(
+              `[BookService] ⚠️ Immediate cover processing failed, queuing for background processing`,
+            )
+            await this.coverService.queueCoverProcessing(
+              {
+                work_key: workKey,
+                provider_url: providerCoverURL,
+                isbn: isbn,
+              },
+              this.env,
+            )
           }
         } catch (error) {
           console.error(`[BookService] Cover processing error for ${isbn}:`, error)
@@ -319,7 +328,6 @@ export class InjectableBookService {
 
       await this.bookRepository.save(bookRecord)
       console.log(`[BookService] ✅ Saved book ${isbn} to repository`)
-
     } catch (error) {
       console.error(`[BookService] Error saving book ${isbn}:`, error)
       // Don't throw - we still want to return the result to the user
@@ -329,22 +337,22 @@ export class InjectableBookService {
   /**
    * Process and save multiple books with parallel cover processing
    */
-  private async batchProcessAndSave(
-    result: any,
-    ctx?: ExecutionContext
-  ): Promise<void> {
+  private async batchProcessAndSave(result: any, ctx?: ExecutionContext): Promise<void> {
     const books = result.works || []
     const promises = books.map((work: any, index: number) => {
       const edition = result.editions?.[index]
       const isbn = edition?.isbn13 || edition?.isbn10 || `work-${work.id || index}`
 
-      return this.processAndSaveBook(isbn, {
-        works: [work],
-        editions: edition ? [edition] : [],
-        authors: result.authors?.filter((author: any) =>
-          work.authorIds?.includes(author.id)
-        ) || [],
-      }, ctx)
+      return this.processAndSaveBook(
+        isbn,
+        {
+          works: [work],
+          editions: edition ? [edition] : [],
+          authors:
+            result.authors?.filter((author: any) => work.authorIds?.includes(author.id)) || [],
+        },
+        ctx,
+      )
     })
 
     await Promise.allSettled(promises)
@@ -401,7 +409,7 @@ function getDefaultContainer(env: any): ServiceContainer {
 export async function findBookByISBN(
   isbn: string,
   env: any,
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
 ): Promise<EnrichmentResult> {
   const container = getDefaultContainer(env)
   const bookService = InjectableBookService.fromContainer(container)
@@ -415,7 +423,7 @@ export async function findBooksByTitle(
   title: string,
   env: any,
   options: SearchOptions = {},
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
 ): Promise<EnrichmentResult> {
   const container = getDefaultContainer(env)
   const bookService = InjectableBookService.fromContainer(container)
@@ -429,7 +437,7 @@ export async function findBooksByAuthor(
   author: string,
   env: any,
   options: SearchOptions = {},
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
 ): Promise<EnrichmentResult> {
   const container = getDefaultContainer(env)
   const bookService = InjectableBookService.fromContainer(container)

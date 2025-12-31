@@ -6,9 +6,11 @@
  *
  * Implementation:
  * - In-memory Map tracks inflight promises by key
- * - TTL cleanup prevents memory leaks
+ * - LRU eviction prevents unbounded memory growth
  * - Promise sharing across concurrent requests
  */
+
+const MAX_INFLIGHT_REQUESTS = 1000 // Maximum concurrent deduplicated requests
 
 const inflightRequests = new Map<string, Promise<any>>()
 
@@ -27,15 +29,26 @@ export async function deduplicate<T>(key: string, fn: () => Promise<T>, ttlMs = 
     return inflightRequests.get(key)!
   }
 
-  console.log(`[RequestDedup] 🆕 New request for key: ${key}`)
+  // LRU eviction: remove oldest entry if max size reached
+  if (inflightRequests.size >= MAX_INFLIGHT_REQUESTS) {
+    const oldestKey = inflightRequests.keys().next().value
+    if (oldestKey) {
+      inflightRequests.delete(oldestKey)
+      console.warn(
+        `[RequestDedup] ⚠️ Evicted oldest key: ${oldestKey} (max size ${MAX_INFLIGHT_REQUESTS} reached)`,
+      )
+    }
+  }
+
+  console.log(
+    `[RequestDedup] 🆕 New request for key: ${key} (cache size: ${inflightRequests.size})`,
+  )
 
   // Create new promise and track it
   const promise = fn().finally(() => {
-    // Cleanup after TTL to prevent memory leaks
-    setTimeout(() => {
-      inflightRequests.delete(key)
-      console.log(`[RequestDedup] 🗑️ Cleaned up key: ${key}`)
-    }, ttlMs)
+    // Immediate cleanup on completion (no setTimeout to avoid Worker termination issues)
+    inflightRequests.delete(key)
+    console.log(`[RequestDedup] 🗑️ Cleaned up key: ${key} (cache size: ${inflightRequests.size})`)
   })
 
   inflightRequests.set(key, promise)
