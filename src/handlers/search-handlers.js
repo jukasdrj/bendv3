@@ -9,7 +9,7 @@
 
 import * as externalApis from '../services/external-apis.ts'
 import { createErrorResponse, ErrorCodes } from '../utils/response-builder.js'
-import { transformWorkToGoogleFormat } from '../utils/transform-work.js'
+import { transformWorkToGoogleFormat } from '../utils/transform-work.ts'
 
 // Request coalescing: Map of in-flight requests by cache key
 const IN_FLIGHT_REQUESTS = new Map()

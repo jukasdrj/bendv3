@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { processCSVImport } from '../../src/services/csv-processor.js';
+import { processCSVImport } from '../../src/services/csv-processor';
 import { findBookByISBN } from '../../src/services/book-service.js';
 import * as EnrichmentService from '../../src/services/enrichment.js';
 
@@ -18,7 +18,7 @@ const mockEnv = {
     })),
   },
   ENRICHMENT_QUEUE: {
-    send: vi.fn(),
+    send: vi.fn(() => Promise.resolve()),
   },
   GEMINI_API_KEY: 'test-key',
   ENABLE_D1_WRITES: 'true',

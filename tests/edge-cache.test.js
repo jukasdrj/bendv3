@@ -1,6 +1,6 @@
 // test/edge-cache.test.js
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { EdgeCacheService } from '../src/services/edge-cache.js';
+import { EdgeCacheService } from '../src/services/edge-cache.ts';
 
 describe('EdgeCacheService', () => {
   let service;
@@ -14,7 +14,11 @@ describe('EdgeCacheService', () => {
     };
 
     vi.stubGlobal('caches', { default: mockCache });
-    service = new EdgeCacheService();
+    const mockEnv = {};
+    const mockCtx = {
+      waitUntil: vi.fn()
+    };
+    service = new EdgeCacheService(mockEnv, mockCtx);
   });
 
   test('get returns null on cache miss', async () => {

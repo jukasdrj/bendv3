@@ -1,6 +1,6 @@
 // test/parallel-enrichment.test.js
 import { describe, test, expect, vi } from 'vitest';
-import { enrichBooksParallel } from '../src/services/parallel-enrichment.js';
+import { enrichBooksParallel } from '../src/services/parallel-enrichment';
 
 describe('Parallel Enrichment', () => {
   test('enriches books concurrently with concurrency limit', async () => {

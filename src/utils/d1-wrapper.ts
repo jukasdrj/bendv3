@@ -7,8 +7,8 @@
  * - Errors
  *
  * Usage:
- * ```javascript
- * import { wrapD1Database } from './utils/d1-wrapper.js'
+ * ```typescript
+ * import { wrapD1Database } from './utils/d1-wrapper'
  *
  * const db = wrapD1Database(env.DB, env)
  * const result = await db.prepare('SELECT * FROM books WHERE isbn = ?').bind(isbn).first()
@@ -17,27 +17,64 @@
  * @module d1-wrapper
  */
 
+import type { Env } from '../types/env.js'
+
 /**
  * SQL keywords that indicate write operations
  */
 const WRITE_KEYWORDS = ['INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'TRUNCATE']
 
 /**
- * Detect if SQL query is a write operation
- * @param {string} sql - SQL query string
- * @returns {boolean} True if write operation
+ * Query type classification
  */
-function isWriteQuery(sql) {
+type QueryType = 'read' | 'write'
+
+/**
+ * Latency performance bucket
+ */
+type LatencyBucket = 'fast' | 'normal' | 'slow' | 'verySlow'
+
+/**
+ * D1 metrics data for individual queries
+ */
+interface QueryMetrics {
+  queryType: QueryType
+  latencyMs: number
+  latencyBucket: LatencyBucket
+  error: boolean
+  rowCount?: number
+  changes?: number
+}
+
+/**
+ * D1 metrics data for batch operations
+ */
+interface BatchMetrics {
+  latencyMs: number
+  error: boolean
+  readCount: number
+  writeCount: number
+  queryCount: number
+}
+
+/**
+ * Detect if SQL query is a write operation
+ *
+ * @param sql - SQL query string
+ * @returns True if write operation
+ */
+function isWriteQuery(sql: string): boolean {
   const trimmed = sql.trim().toUpperCase()
   return WRITE_KEYWORDS.some((keyword) => trimmed.startsWith(keyword))
 }
 
 /**
  * Categorize latency into performance buckets
- * @param {number} latencyMs - Query latency in milliseconds
- * @returns {string} Latency bucket (fast, normal, slow, verySlow)
+ *
+ * @param latencyMs - Query latency in milliseconds
+ * @returns Latency bucket classification
  */
-function getLatencyBucket(latencyMs) {
+function getLatencyBucket(latencyMs: number): LatencyBucket {
   if (latencyMs < 10) return 'fast'
   if (latencyMs < 50) return 'normal'
   if (latencyMs < 200) return 'slow'
@@ -46,10 +83,11 @@ function getLatencyBucket(latencyMs) {
 
 /**
  * Record D1 metrics to CacheMetricsDO
- * @param {Object} env - Worker environment
- * @param {Object} metricsData - Metrics to record
+ *
+ * @param env - Worker environment
+ * @param metricsData - Metrics to record
  */
-async function recordD1Metrics(env, metricsData) {
+async function recordD1Metrics(env: Env, metricsData: QueryMetrics | BatchMetrics): Promise<void> {
   try {
     // Get or create metrics Durable Object stub
     const id = env.CACHE_METRICS_DO.idFromName('global')
@@ -58,15 +96,16 @@ async function recordD1Metrics(env, metricsData) {
     // Record metrics via RPC
     await stub.recordD1Metrics(metricsData)
   } catch (error) {
+    const err = error as Error
     // CRITICAL: Structured logging for observability degradation
     console.error('[D1 Wrapper] Metrics recording failed - observability degraded', {
       errorId: 'D1_METRICS_FAILED',
-      error: error.message,
-      metricsType: metricsData.queryType || 'batch',
+      error: err.message,
+      metricsType: 'queryType' in metricsData ? metricsData.queryType : 'batch',
       timestamp: new Date().toISOString(),
       // Don't log full metricsData to avoid sensitive data exposure
-      hasReadCount: typeof metricsData.readCount !== 'undefined',
-      hasWriteCount: typeof metricsData.writeCount !== 'undefined',
+      hasReadCount: 'readCount' in metricsData,
+      hasWriteCount: 'writeCount' in metricsData,
     })
 
     // Metrics recording failures should not break the application
@@ -75,14 +114,41 @@ async function recordD1Metrics(env, metricsData) {
 }
 
 /**
- * Wrap a D1 prepared statement with metrics tracking
- * @param {Object} stmt - D1 prepared statement
- * @param {Object} env - Worker environment
- * @param {string} sql - SQL query string
- * @returns {Object} Wrapped statement with metrics
+ * Wrapped D1 prepared statement interface
  */
-function wrapStatement(stmt, env, sql) {
-  const queryType = isWriteQuery(sql) ? 'write' : 'read'
+export interface WrappedStatement<T = unknown> {
+  queryType: QueryType
+  bind(...values: unknown[]): WrappedStatement<T>
+  first<R = T>(): Promise<R | null>
+  all<R = T>(): Promise<D1Result<R>>
+  run(): Promise<D1Result>
+  raw(): D1PreparedStatement
+  getInner(): D1PreparedStatement
+}
+
+/**
+ * Wrapped D1 database interface
+ */
+export interface WrappedDatabase {
+  prepare<T = unknown>(sql: string): WrappedStatement<T>
+  batch(statements: (WrappedStatement | D1PreparedStatement)[]): Promise<D1Result[]>
+  raw(): D1Database
+}
+
+/**
+ * Wrap a D1 prepared statement with metrics tracking
+ *
+ * @param stmt - D1 prepared statement
+ * @param env - Worker environment
+ * @param sql - SQL query string
+ * @returns Wrapped statement with metrics
+ */
+function wrapStatement<T = unknown>(
+  stmt: D1PreparedStatement,
+  env: Env,
+  sql: string,
+): WrappedStatement<T> {
+  const queryType: QueryType = isWriteQuery(sql) ? 'write' : 'read'
 
   return {
     // Expose queryType for batch processing
@@ -90,24 +156,25 @@ function wrapStatement(stmt, env, sql) {
 
     /**
      * Bind parameters to the prepared statement
-     * @param {...any} values - Parameter values
-     * @returns {Object} Wrapped statement
+     *
+     * @param values - Parameter values
+     * @returns Wrapped statement
      */
-    bind(...values) {
+    bind(...values: unknown[]): WrappedStatement<T> {
       const boundStmt = stmt.bind(...values)
-      return wrapStatement(boundStmt, env, sql)
+      return wrapStatement<T>(boundStmt, env, sql)
     },
 
     /**
      * Execute query and return first row
-     * @returns {Promise<Object>} First row or null
+     *
+     * @returns First row or null
      */
-    async first() {
+    async first<R = T>(): Promise<R | null> {
       const startTime = Date.now()
-      let _error = null
 
       try {
-        const result = await stmt.first()
+        const result = await stmt.first<R>()
         const latencyMs = Date.now() - startTime
 
         // Record successful query metrics
@@ -120,7 +187,6 @@ function wrapStatement(stmt, env, sql) {
 
         return result
       } catch (err) {
-        _error = err
         const latencyMs = Date.now() - startTime
 
         // Record failed query metrics
@@ -137,14 +203,14 @@ function wrapStatement(stmt, env, sql) {
 
     /**
      * Execute query and return all rows
-     * @returns {Promise<Object>} Result object with results array
+     *
+     * @returns Result object with results array
      */
-    async all() {
+    async all<R = T>(): Promise<D1Result<R>> {
       const startTime = Date.now()
-      let _error = null
 
       try {
-        const result = await stmt.all()
+        const result = await stmt.all<R>()
         const latencyMs = Date.now() - startTime
 
         // Record successful query metrics
@@ -158,7 +224,6 @@ function wrapStatement(stmt, env, sql) {
 
         return result
       } catch (err) {
-        _error = err
         const latencyMs = Date.now() - startTime
 
         // Record failed query metrics
@@ -175,11 +240,11 @@ function wrapStatement(stmt, env, sql) {
 
     /**
      * Execute query without returning results (for writes)
-     * @returns {Promise<Object>} Execution result
+     *
+     * @returns Execution result
      */
-    async run() {
+    async run(): Promise<D1Result> {
       const startTime = Date.now()
-      let _error = null
 
       try {
         const result = await stmt.run()
@@ -196,7 +261,6 @@ function wrapStatement(stmt, env, sql) {
 
         return result
       } catch (err) {
-        _error = err
         const latencyMs = Date.now() - startTime
 
         // Record failed query metrics
@@ -213,17 +277,19 @@ function wrapStatement(stmt, env, sql) {
 
     /**
      * Get raw statement for advanced operations
-     * @returns {Object} Unwrapped D1 statement
+     *
+     * @returns Unwrapped D1 statement
      */
-    raw() {
+    raw(): D1PreparedStatement {
       return stmt
     },
 
     /**
      * Get the underlying D1 statement safely (avoids conflict with D1's raw() execution method)
-     * @returns {Object} Unwrapped D1 statement
+     *
+     * @returns Unwrapped D1 statement
      */
-    getInner() {
+    getInner(): D1PreparedStatement {
       return stmt
     },
   }
@@ -232,12 +298,12 @@ function wrapStatement(stmt, env, sql) {
 /**
  * Wrap a D1 database instance with automatic metrics tracking
  *
- * @param {Object} db - D1 database instance (env.DB)
- * @param {Object} env - Worker environment
- * @returns {Object} Wrapped database with metrics tracking
+ * @param db - D1 database instance (env.DB)
+ * @param env - Worker environment
+ * @returns Wrapped database with metrics tracking
  *
  * @example
- * ```javascript
+ * ```typescript
  * // In your handler:
  * const db = wrapD1Database(env.DB, env)
  *
@@ -247,30 +313,32 @@ function wrapStatement(stmt, env, sql) {
  *   .first()
  * ```
  */
-export function wrapD1Database(db, env) {
+export function wrapD1Database(db: D1Database, env: Env): WrappedDatabase {
   // Skip wrapping if metrics DO not available (testing/local dev)
   if (!env.CACHE_METRICS_DO) {
     console.warn('[D1 Wrapper] CACHE_METRICS_DO not available, skipping metrics')
-    return db
+    return db as unknown as WrappedDatabase
   }
 
   return {
     /**
      * Prepare a SQL statement with metrics tracking
-     * @param {string} sql - SQL query
-     * @returns {Object} Wrapped prepared statement
+     *
+     * @param sql - SQL query
+     * @returns Wrapped prepared statement
      */
-    prepare(sql) {
+    prepare<T = unknown>(sql: string): WrappedStatement<T> {
       const stmt = db.prepare(sql)
-      return wrapStatement(stmt, env, sql)
+      return wrapStatement<T>(stmt, env, sql)
     },
 
     /**
      * Execute a batch of statements with metrics tracking
-     * @param {Array} statements - Array of prepared statements (wrapped or raw)
-     * @returns {Promise<Array>} Results array
+     *
+     * @param statements - Array of prepared statements (wrapped or raw)
+     * @returns Results array
      */
-    async batch(statements) {
+    async batch(statements: (WrappedStatement | D1PreparedStatement)[]): Promise<D1Result[]> {
       const startTime = Date.now()
       let readCount = 0
       let writeCount = 0
@@ -284,16 +352,16 @@ export function wrapD1Database(db, env) {
         }
 
         // Check if statement is wrapped (has queryType)
-        if (stmt.queryType) {
+        if ('queryType' in stmt) {
           // Count based on wrapped query type
           if (stmt.queryType === 'write') writeCount++
           else readCount++
 
           // Unwrap using getInner() if available, or raw() (legacy wrapper)
-          if (stmt.getInner && typeof stmt.getInner === 'function') {
+          if (typeof stmt.getInner === 'function') {
             return stmt.getInner()
           }
-          if (stmt.raw && typeof stmt.raw === 'function') {
+          if (typeof stmt.raw === 'function') {
             return stmt.raw()
           }
         }
@@ -303,14 +371,14 @@ export function wrapD1Database(db, env) {
           '[D1 Wrapper] Unknown statement type in batch - cannot determine read/write classification',
           {
             statementKeys: Object.keys(stmt),
-            hasRawMethod: typeof stmt.raw === 'function',
+            hasRawMethod: typeof (stmt as WrappedStatement).raw === 'function',
             statement: 'D1 native statement (unwrapped)',
           },
         )
 
         // Count as read for backward compatibility, but log the assumption
         readCount++
-        return stmt
+        return stmt as D1PreparedStatement
       })
 
       try {
@@ -328,6 +396,7 @@ export function wrapD1Database(db, env) {
 
         return results
       } catch (err) {
+        const error = err as Error
         const latencyMs = Date.now() - startTime
 
         // Record failed batch metrics
@@ -340,9 +409,9 @@ export function wrapD1Database(db, env) {
         })
 
         // Enhance error context before re-throwing
-        const enhancedError = new Error(`D1 batch operation failed: ${err.message}`)
+        const enhancedError = new Error(`D1 batch operation failed: ${error.message}`)
         enhancedError.cause = err
-        enhancedError.batchInfo = {
+        ;(enhancedError as Error & { batchInfo: unknown }).batchInfo = {
           statementCount: statements.length,
           readCount,
           writeCount,
@@ -356,9 +425,10 @@ export function wrapD1Database(db, env) {
 
     /**
      * Get the underlying D1 instance
-     * @returns {Object} Unwrapped D1 database
+     *
+     * @returns Unwrapped D1 database
      */
-    raw() {
+    raw(): D1Database {
       return db
     },
   }
@@ -368,9 +438,9 @@ export function wrapD1Database(db, env) {
  * Helper to detect query type from SQL string
  * Exported for testing purposes
  *
- * @param {string} sql - SQL query string
- * @returns {string} 'read' or 'write'
+ * @param sql - SQL query string
+ * @returns Query type classification
  */
-export function detectQueryType(sql) {
+export function detectQueryType(sql: string): QueryType {
   return isWriteQuery(sql) ? 'write' : 'read'
 }

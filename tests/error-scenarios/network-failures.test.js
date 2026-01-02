@@ -23,7 +23,7 @@
  * Related: Issue #9 - E2E & Error Scenario Tests (Phase 1)
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { parseCSVWithGemini } from '../../src/providers/gemini-csv-provider.js'
+import { parseCSVWithGemini } from '../../src/providers/gemini-csv-provider.ts'
 import { handleAdvancedSearch } from '../../src/handlers/search-handlers.js'
 
 // Global fetch mock

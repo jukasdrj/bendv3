@@ -1,6 +1,6 @@
 // test/unified-cache.test.js
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { UnifiedCacheService } from '../src/services/unified-cache.js';
+import { UnifiedCacheService } from '../src/services/unified-cache.ts';
 
 describe('UnifiedCacheService', () => {
   let service;

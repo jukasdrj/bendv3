@@ -1,6 +1,6 @@
 import { searchByAuthor } from '../handlers/author-search.js'
 import { searchByTitle } from '../handlers/book-search.js'
-import { enrichBooksParallel } from '../services/parallel-enrichment.js'
+import { enrichBooksParallel } from '../services/parallel-enrichment'
 
 /**
  * Author Warming Consumer - Processes queued authors

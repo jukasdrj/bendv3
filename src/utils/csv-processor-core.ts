@@ -3,7 +3,7 @@
  *
  * Shared CSV processing logic extracted from:
  * - src/handlers/csv-import.ts (processCSVImportCore)
- * - src/services/csv-processor.js (processCSVImport)
+ * - src/services/csv-processor.ts (processCSVImport)
  *
  * This eliminates code duplication and provides a single source of truth
  * for CSV validation, Gemini parsing, caching, and result storage.
@@ -11,16 +11,130 @@
  * Related: Issue #180 - Eliminate code duplication in CSV processing
  */
 
-import { buildCSVParserPrompt } from '../prompts/csv-parser-prompt.js'
-import { parseCSVWithGemini as parseCSVWithGeminiImpl } from '../providers/gemini-csv-provider.js'
-import { generateCSVCacheKey } from './cache-keys.ts'
-import { validateCSV as validateCSVImpl } from './csv-validator.js'
+import { buildCSVParserPrompt } from '../prompts/csv-parser-prompt'
+import { parseCSVWithGemini as parseCSVWithGeminiImpl } from '../providers/gemini-csv-provider'
+import type { Env } from '../types/env'
+import { generateCSVCacheKey } from './cache-keys'
+import { validateCSV as validateCSVImpl } from './csv-validator'
+import type { ProgressReporter } from './progress-reporter'
+
+/**
+ * Parsed book from Gemini CSV parser
+ */
+export interface ParsedBook {
+  title: string
+  author: string
+  isbn?: string
+  publisher?: string
+  publicationYear?: string | number
+  notes?: string
+  pageCount?: string | number
+  genre?: string
+  languageCode?: string
+  [key: string]: unknown
+}
+
+/**
+ * Validated book in ParsedBookDTO structure
+ */
+export interface ValidatedBook {
+  title: string
+  author: string
+  isbn?: string
+}
+
+/**
+ * Canonical book schema for API responses
+ */
+export interface CanonicalBook {
+  isbn: string
+  title: string
+  authors: string[]
+  publisher?: string
+  publishedDate?: string
+  description?: string
+  pageCount?: number
+  categories?: string[]
+  language?: string
+  coverUrl?: string
+}
+
+/**
+ * CSV validation result
+ */
+export interface CSVValidationResult {
+  valid: boolean
+  error?: string
+}
+
+/**
+ * Job processing context
+ */
+export interface ProcessingContext {
+  parsedBooks: ParsedBook[]
+  validatedBooks: ValidatedBook[]
+  startTime: number
+  resourceId: string
+  jobId: string
+}
+
+/**
+ * Completion payload
+ */
+export interface CompletionPayload {
+  summary?: {
+    totalProcessed: number
+    successCount: number
+    failureCount: number
+    duration: number
+    resourceId: string
+  }
+  booksCount?: number
+  resultsUrl?: string
+  successRate?: string
+  [key: string]: unknown
+}
+
+/**
+ * API contract results format
+ */
+export interface APIContractResults {
+  booksCreated: number
+  booksUpdated: number
+  duplicatesSkipped: number
+  enrichmentSucceeded: number
+  enrichmentFailed: number
+  errors: unknown[]
+  books: CanonicalBook[]
+}
+
+/**
+ * CSV processor options
+ */
+export interface ProcessCSVCoreOptions {
+  /** TTL for KV storage in seconds (default: 3600 = 1 hour) */
+  resultsTTL?: number
+  /** KV key prefix (default: "job-results") */
+  resultsKeyPrefix?: string
+  /** Custom completion payload builder */
+  buildCompletionPayload?: (context: ProcessingContext) => CompletionPayload
+  /** Dependency injection for testing */
+  deps?: ProcessorDependencies
+}
+
+/**
+ * Dependencies for CSV processing (for testing/mocking)
+ */
+export interface ProcessorDependencies {
+  validateCSV: (csvText: string) => CSVValidationResult
+  parseCSVWithGemini: (csvText: string, prompt: string, apiKey: string) => Promise<ParsedBook[]>
+}
 
 /**
  * Default dependencies for CSV processing
  * Exported for testing with dependency injection (Issue #217)
  */
-export const defaultDeps = {
+export const defaultDeps: ProcessorDependencies = {
   validateCSV: validateCSVImpl,
   parseCSVWithGemini: parseCSVWithGeminiImpl,
 }
@@ -36,22 +150,19 @@ export const defaultDeps = {
  * 5. Store results in KV
  * 6. Report completion
  *
- * @param {string} csvText - Raw CSV file content
- * @param {string} jobId - Unique job identifier
- * @param {Object} progressReporter - Interface for reporting progress
- * @param {Function} progressReporter.waitForReady - Wait for client ready signal (timeout: number) => Promise<{timedOut, disconnected}>
- * @param {Function} progressReporter.updateProgress - Update progress (pipeline: string, payload: object) => Promise<void>
- * @param {Function} progressReporter.complete - Mark job complete (pipeline: string, payload: object) => Promise<void>
- * @param {Function} progressReporter.sendError - Send error (pipeline: string, payload: object) => Promise<void>
- * @param {Object} env - Worker environment bindings (CACHE, GEMINI_API_KEY)
- * @param {Object} options - Configuration options
- * @param {number} options.resultsTTL - TTL for KV storage in seconds (default: 3600 = 1 hour)
- * @param {string} options.resultsKeyPrefix - KV key prefix (default: "job-results")
- * @param {Function} options.buildCompletionPayload - Custom completion payload builder (default: summary format)
- * @param {Object} options.deps - Dependency injection for testing (default: defaultDeps)
- * @returns {Promise<void>}
+ * @param csvText - Raw CSV file content
+ * @param jobId - Unique job identifier
+ * @param progressReporter - Interface for reporting progress
+ * @param env - Worker environment bindings (CACHE, GEMINI_API_KEY)
+ * @param options - Configuration options
  */
-export async function processCSVCore(csvText, jobId, progressReporter, env, options = {}) {
+export async function processCSVCore(
+  csvText: string,
+  jobId: string,
+  progressReporter: ProgressReporter,
+  env: Env,
+  options: ProcessCSVCoreOptions = {},
+): Promise<void> {
   const {
     resultsTTL = 3600, // Default: 1 hour
     resultsKeyPrefix = 'job-results', // IMPORTANT: Must match retrieval endpoint key (csv-results for /v1/csv/results, scan-results for /v1/scan/results)
@@ -97,7 +208,7 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
     })
 
     const cacheKey = await generateCSVCacheKey(csvText)
-    let parsedBooks = await env.CACHE.get(cacheKey, 'json')
+    let parsedBooks = await env.CACHE.get<ParsedBook[]>(cacheKey, 'json')
 
     // Issue #101: Cache hit telemetry for monitoring effectiveness
     const cacheHit = !!parsedBooks
@@ -138,7 +249,7 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
 
     // Validate and shape parsed books to ParsedBookDTO structure
     // Strip extraneous fields from Gemini output to prevent schema drift
-    const validatedBooks = parsedBooks
+    const validatedBooks: ValidatedBook[] = parsedBooks
       .filter((book) => book.title && book.author) // Ensure required fields present
       .map((book) => ({
         title: String(book.title).trim(),
@@ -187,10 +298,10 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
         try {
           const bookRecord = mapGeminiCSVBookToBookRecord(geminiBook)
           await bookRepo.save(bookRecord)
-          return { status: 'fulfilled', isbn: geminiBook.isbn }
+          return { status: 'fulfilled' as const, isbn: geminiBook.isbn }
         } catch (error) {
           console.error(`[CSV Processor Core] Failed to save ISBN ${geminiBook.isbn}:`, error)
-          return { status: 'rejected', isbn: geminiBook.isbn, error }
+          return { status: 'rejected' as const, isbn: geminiBook.isbn, error }
         }
       })
 
@@ -210,7 +321,8 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
     if (env.ENRICHMENT_QUEUE) {
       const successfulISBNs = results
         .filter((r) => r.status === 'fulfilled' && r.value?.isbn)
-        .map((r) => r.value.isbn)
+        .map((r) => (r.value as { status: 'fulfilled'; isbn?: string }).isbn)
+        .filter((isbn): isbn is string => isbn !== undefined)
 
       if (successfulISBNs.length > 0) {
         console.log(
@@ -219,7 +331,7 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
 
         // Batch queue sends for efficiency (10 ISBNs per message)
         const batchSize = 10
-        const queuePromises = []
+        const queuePromises: Promise<void>[] = []
 
         for (let i = 0; i < successfulISBNs.length; i += batchSize) {
           const batch = successfulISBNs.slice(i, i + batchSize)
@@ -231,7 +343,7 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
                 source: 'csv_import',
                 priority: 8, // High priority - user data
                 timestamp: new Date().toISOString(),
-              }).catch((err) => {
+              }).catch((err: Error) => {
                 // Non-blocking: log but don't fail the import
                 console.warn(`[CSV Processor Core] ⚠️ Failed to queue ISBN ${isbn}:`, err.message)
               }),
@@ -256,7 +368,7 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
     // Transform validatedBooks to canonical BookSchema format
     // BookSchema requires: isbn, title, authors (array), plus optional fields
     // Use booksToSave to avoid returning duplicates in the API response
-    const canonicalBooks = booksToSave
+    const canonicalBooks: CanonicalBook[] = booksToSave
       .filter((book) => book.title && book.author)
       .map((book) => {
         // Parse author string into array (comma-separated authors)
@@ -283,7 +395,7 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
       })
 
     const resourceId = `${resultsKeyPrefix}:${jobId}`
-    const apiContractResults = {
+    const apiContractResults: APIContractResults = {
       booksCreated: canonicalBooks.length,
       booksUpdated: 0, // CSV import always creates new books
       duplicatesSkipped: duplicatesSkipped,
@@ -315,7 +427,7 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
     console.error(`[CSV Processor Core] Processing failed for job ${jobId}:`, error)
     await progressReporter.sendError('csv_import', {
       code: 'E_CSV_PROCESSING_FAILED',
-      message: error.message,
+      message: (error as Error).message,
       retryable: true,
       details: {
         fallbackAvailable: true,
@@ -330,10 +442,11 @@ export async function processCSVCore(csvText, jobId, progressReporter, env, opti
 /**
  * Default completion payload builder (matches csv-import.ts format)
  *
- * @param {Object} context - Processing context
- * @returns {Object} Completion payload
+ * @param context - Processing context
+ * @returns Completion payload
  */
-function buildDefaultCompletionPayload({ parsedBooks, validatedBooks, startTime, resourceId }) {
+function buildDefaultCompletionPayload(context: ProcessingContext): CompletionPayload {
+  const { parsedBooks, validatedBooks, startTime, resourceId } = context
   return {
     summary: {
       totalProcessed: parsedBooks.length,
@@ -346,13 +459,14 @@ function buildDefaultCompletionPayload({ parsedBooks, validatedBooks, startTime,
 }
 
 /**
- * Alternative completion payload builder (matches csv-processor.js format)
- * Use this for backward compatibility with csv-processor.js callers
+ * Alternative completion payload builder (matches csv-processor.ts format)
+ * Use this for backward compatibility with csv-processor.ts callers
  *
- * @param {Object} context - Processing context
- * @returns {Object} Completion payload
+ * @param context - Processing context
+ * @returns Completion payload
  */
-export function buildServiceCompletionPayload({ validatedBooks, parsedBooks, jobId }) {
+export function buildServiceCompletionPayload(context: ProcessingContext): CompletionPayload {
+  const { validatedBooks, parsedBooks, jobId } = context
   return {
     booksCount: validatedBooks.length,
     resultsUrl: `/v3/jobs/imports/${jobId}/results`,
@@ -363,13 +477,18 @@ export function buildServiceCompletionPayload({ validatedBooks, parsedBooks, job
 /**
  * Call Gemini API to parse CSV
  *
- * @param {string} csvText - Raw CSV content
- * @param {string} prompt - Gemini prompt with few-shot examples
- * @param {Object} env - Worker environment bindings
- * @param {Object} deps - Injected dependencies (Issue #217)
- * @returns {Promise<Array<Object>>} Parsed book data
+ * @param csvText - Raw CSV content
+ * @param prompt - Gemini prompt with few-shot examples
+ * @param env - Worker environment bindings
+ * @param deps - Injected dependencies (Issue #217)
+ * @returns Parsed book data
  */
-async function callGemini(csvText, prompt, env, deps) {
+async function callGemini(
+  csvText: string,
+  prompt: string,
+  env: Env,
+  deps: ProcessorDependencies,
+): Promise<ParsedBook[]> {
   /**
    * GEMINI_API_KEY binding supports two patterns:
    *   1. Secrets Store binding (recommended for production): env.GEMINI_API_KEY is a SecretsStore binding and requires .get() to retrieve the value.
@@ -378,7 +497,9 @@ async function callGemini(csvText, prompt, env, deps) {
    * This dynamic resolution allows local development with a plaintext key (e.g., via wrangler.toml)
    * while ensuring production uses the more secure Secrets Store.
    */
-  const apiKey = env.GEMINI_API_KEY?.get ? await env.GEMINI_API_KEY.get() : env.GEMINI_API_KEY
+  const geminiApiKey = env.GEMINI_API_KEY as string | { get?: () => Promise<string> }
+  const apiKey =
+    typeof geminiApiKey === 'object' && geminiApiKey.get ? await geminiApiKey.get() : geminiApiKey
 
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY not configured')

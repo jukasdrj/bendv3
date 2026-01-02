@@ -6,12 +6,112 @@
  * for cover image harvesting.
  */
 
+import type { Env } from '../types/env'
+
+/**
+ * Google Books volume image links
+ */
+interface ImageLinks {
+  extraLarge?: string
+  large?: string
+  medium?: string
+  thumbnail?: string
+}
+
+/**
+ * Google Books volume industry identifiers
+ */
+interface IndustryIdentifier {
+  type: 'ISBN_10' | 'ISBN_13'
+  identifier: string
+}
+
+/**
+ * Google Books volume information
+ */
+interface VolumeInfo {
+  title: string
+  subtitle?: string
+  authors?: string[]
+  publisher?: string
+  publishedDate?: string
+  pageCount?: number
+  description?: string
+  imageLinks?: ImageLinks
+  industryIdentifiers?: IndustryIdentifier[]
+  printType?: string
+}
+
+/**
+ * Google Books API item
+ */
+interface GoogleBooksItem {
+  volumeInfo: VolumeInfo
+}
+
+/**
+ * Google Books API response
+ */
+interface GoogleBooksResponse {
+  items?: GoogleBooksItem[]
+}
+
+/**
+ * Work metadata for edition discovery
+ */
+interface WorkMetadata {
+  title: string
+  authors: string[]
+}
+
+/**
+ * Score breakdown for debugging
+ */
+interface ScoreBreakdown {
+  hasExtraLargeImage: boolean
+  hasLargeImage: boolean
+  hasMediumImage: boolean
+  isIllustrated: boolean
+  isFirstEdition: boolean
+  binding: string | undefined
+  publicationYear: string | undefined
+}
+
+/**
+ * Discovered edition with score
+ */
+interface Edition {
+  isbn: string | undefined
+  title: string
+  subtitle?: string
+  authors: string[]
+  publisher?: string
+  publishedDate?: string
+  pageCount?: number
+  imageLinks?: ImageLinks
+  description?: string
+  score: number
+  _scoreBreakdown: ScoreBreakdown
+}
+
+/**
+ * Top edition metadata for harvesting
+ */
+export interface TopEdition {
+  isbn: string
+  title: string
+  score: number
+  imageUrl?: string
+  publisher?: string
+  publishedDate?: string
+}
+
 /**
  * Score an edition based on quality indicators
- * @param {Object} volumeInfo - Google Books volume metadata
- * @returns {number} Score from 0-100
+ * @param volumeInfo - Google Books volume metadata
+ * @returns Score from 0-100
  */
-function scoreEdition(volumeInfo) {
+function scoreEdition(volumeInfo: VolumeInfo): number {
   let score = 0
 
   // Image quality (40 points max)
@@ -71,13 +171,11 @@ function scoreEdition(volumeInfo) {
 
 /**
  * Discover all editions of a Work using Google Books API
- * @param {Object} workMetadata - Basic work metadata
- * @param {string} workMetadata.title - Work title
- * @param {string[]} workMetadata.authors - List of author names
- * @param {Object} env - Worker environment bindings
- * @returns {Promise<Array>} Array of edition objects with scores
+ * @param workMetadata - Basic work metadata
+ * @param _env - Worker environment bindings
+ * @returns Array of edition objects with scores
  */
-export async function discoverEditions(workMetadata, _env) {
+export async function discoverEditions(workMetadata: WorkMetadata, _env: Env): Promise<Edition[]> {
   const { title, authors } = workMetadata
 
   if (!title || !authors || authors.length === 0) {
@@ -99,14 +197,27 @@ export async function discoverEditions(workMetadata, _env) {
     url.searchParams.set('printType', 'books') // Exclude magazines
     url.searchParams.set('orderBy', 'relevance')
 
-    const response = await fetch(url.toString())
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000)
+    let response: Response
+    try {
+      response = await fetch(url.toString(), { signal: controller.signal })
+      clearTimeout(timeout)
+    } catch (err) {
+      clearTimeout(timeout)
+      if ((err as Error).name === 'AbortError') {
+        console.error('Google Books API request timed out after 10 seconds')
+        return []
+      }
+      throw err
+    }
 
     if (!response.ok) {
       console.error(`Google Books API error: ${response.status}`)
       return []
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as GoogleBooksResponse
 
     if (!data.items || data.items.length === 0) {
       console.log(`No editions found for: ${title}`)
@@ -152,7 +263,7 @@ export async function discoverEditions(workMetadata, _env) {
           },
         }
       })
-      .filter((edition) => edition.isbn) // Only keep editions with ISBNs
+      .filter((edition): edition is Edition => !!edition.isbn) // Only keep editions with ISBNs
       .sort((a, b) => b.score - a.score) // Sort by score descending
 
     console.log(
@@ -168,12 +279,16 @@ export async function discoverEditions(workMetadata, _env) {
 
 /**
  * Get top N editions for a Work
- * @param {Object} workMetadata - Basic work metadata
- * @param {Object} env - Worker environment bindings
- * @param {number} limit - Max editions to return (default: 3)
- * @returns {Promise<Array>} Top N edition ISBNs with metadata
+ * @param workMetadata - Basic work metadata
+ * @param env - Worker environment bindings
+ * @param limit - Max editions to return (default: 3)
+ * @returns Top N edition ISBNs with metadata
  */
-export async function getTopEditions(workMetadata, env, limit = 3) {
+export async function getTopEditions(
+  workMetadata: WorkMetadata,
+  env: Env,
+  limit = 3,
+): Promise<TopEdition[]> {
   const allEditions = await discoverEditions(workMetadata, env)
 
   if (allEditions.length === 0) {
@@ -191,7 +306,7 @@ export async function getTopEditions(workMetadata, env, limit = 3) {
   })
 
   return topEditions.map((ed) => ({
-    isbn: ed.isbn,
+    isbn: ed.isbn!,
     title: ed.title,
     score: ed.score,
     imageUrl: ed.imageLinks?.large || ed.imageLinks?.medium || ed.imageLinks?.thumbnail,

@@ -1,8 +1,59 @@
-// src/services/unified-cache.js
+// src/services/unified-cache.ts
 
+import type { ExecutionContext } from '@cloudflare/workers-types'
 import { getCacheTTL } from '../config/cache-ttl.ts'
-import { EdgeCacheService } from './edge-cache.js'
+import type { Env } from '../types/env.ts'
+import { EdgeCacheService } from './edge-cache.ts'
 import { KVCacheService } from './kv-cache.ts'
+
+/**
+ * Cache tier types
+ */
+export type CacheTier = 'kv' | 'd1' | 'edge'
+
+/**
+ * Cache result metadata
+ */
+export interface CacheMetadata {
+  source: string
+  cached?: boolean
+  timestamp?: string
+  age?: number
+  stale?: boolean
+  latency?: string
+}
+
+/**
+ * Cached data with metadata
+ */
+export interface CachedData<T> {
+  data: T | null
+  source: string
+  age?: number
+  stale?: boolean
+  latency?: string
+  metadata?: CacheMetadata
+}
+
+/**
+ * Cache query options
+ */
+export interface CacheQueryOptions {
+  query?: string
+  maxResults?: number
+  [key: string]: unknown
+}
+
+/**
+ * Cache event options
+ */
+interface CacheEventOptions {
+  source?: string
+  age?: number
+  stale?: boolean
+  ttl?: number
+  [key: string]: unknown
+}
 
 /**
  * Unified Cache Service - Single entry point for all cache operations
@@ -15,7 +66,12 @@ import { KVCacheService } from './kv-cache.ts'
  * Target: 95% overall hit rate, <10ms P50 latency
  */
 export class UnifiedCacheService {
-  constructor(env, ctx) {
+  private edgeCache: EdgeCacheService
+  private kvCache: KVCacheService
+  private env: Env
+  private ctx: ExecutionContext
+
+  constructor(env: Env, ctx: ExecutionContext) {
     this.edgeCache = new EdgeCacheService(env, ctx)
     this.kvCache = new KVCacheService(env, ctx)
     this.env = env
@@ -24,30 +80,32 @@ export class UnifiedCacheService {
 
   /**
    * Get data from cache tiers (Edge → KV → API)
-   * @param {string} cacheKey - Cache key
-   * @param {string} endpoint - Endpoint type ('title', 'isbn', 'author')
-   * @param {Object} options - Query options (query, maxResults, etc.)
-   * @returns {Promise<Object>} Cached or fresh data with metadata
+   * @param cacheKey - Cache key
+   * @param endpoint - Endpoint type ('title', 'isbn', 'author')
+   * @param options - Query options (query, maxResults, etc.)
+   * @returns Cached or fresh data with metadata
    */
-  async get(cacheKey, endpoint, options = {}) {
+  async get<T = unknown>(
+    cacheKey: string,
+    endpoint: string,
+    options: CacheQueryOptions = {},
+  ): Promise<CachedData<T>> {
     const startTime = Date.now()
 
     // Tier 1: Edge Cache (fastest, 80% hit rate) with SWR support
-    const edgeResult = await this.edgeCache.get(cacheKey, {
+    const edgeResult = await this.edgeCache.get<T>(cacheKey, {
       maxAge: getCacheTTL('hot', this.env), // Hot TTL (2h) for freshness
       staleWhileRevalidate: getCacheTTL('cold', this.env), // Cold TTL (14d) for stale
     })
 
     if (edgeResult) {
       // Track access for popularity analysis (non-blocking)
-      if (this.ctx?.waitUntil) {
-        this.ctx.waitUntil(this.trackAccess(cacheKey))
-      }
+      this.ctx.waitUntil(this.trackAccess(cacheKey))
 
       // Fresh hit - return immediately
       if (!edgeResult.stale) {
         this.logMetrics('edge_hit_fresh', cacheKey, Date.now() - startTime)
-        return edgeResult
+        return edgeResult as CachedData<T>
       }
 
       // Stale hit - return stale data but trigger background refresh
@@ -57,44 +115,38 @@ export class UnifiedCacheService {
       )
 
       // Background refresh (non-blocking)
-      if (this.ctx?.waitUntil) {
-        this.ctx.waitUntil(this.refreshStaleCache(cacheKey, endpoint, options))
-      }
+      this.ctx.waitUntil(this.refreshStaleCache(cacheKey, endpoint, options))
 
-      return edgeResult
+      return edgeResult as CachedData<T>
     }
 
     // Tier 2: KV Cache (fast, 15% hit rate)
     const kvResult = await this.kvCache.get(cacheKey, endpoint)
     if (kvResult) {
       // Track access for popularity analysis (non-blocking)
-      if (this.ctx?.waitUntil) {
-        this.ctx.waitUntil(this.trackAccess(cacheKey))
-      }
+      this.ctx.waitUntil(this.trackAccess(cacheKey))
 
       // Populate edge cache for next request (async, non-blocking)
-      if (this.ctx?.waitUntil) {
-        this.ctx.waitUntil(
-          this.edgeCache.set(cacheKey, kvResult.data, 6 * 60 * 60), // 6h edge TTL
-        )
-      }
+      this.ctx.waitUntil(
+        this.edgeCache.set(cacheKey, kvResult.data, 6 * 60 * 60), // 6h edge TTL
+      )
 
       this.logMetrics('kv_hit', cacheKey, Date.now() - startTime)
-      return kvResult
+      return kvResult as CachedData<T>
     }
 
     // Cache miss - fall through to external APIs
     this.logMetrics('api_miss', cacheKey, Date.now() - startTime)
-    return { data: null, source: 'MISS', latency: Date.now() - startTime }
+    return { data: null, source: 'MISS', latency: `${Date.now() - startTime}ms` }
   }
 
   /**
    * Background refresh for stale cache entries
    * Fetches fresh data from API and updates all cache tiers
    *
-   * @param {string} cacheKey - Cache key to refresh
-   * @param {string} endpoint - Endpoint type
-   * @param {Object} options - Original query options
+   * @param cacheKey - Cache key to refresh
+   * @param endpoint - Endpoint type
+   * @param options - Original query options
    *
    * Strategy:
    * - Parses cache key format (book:isbn:1234567890 or book:title:query)
@@ -104,7 +156,11 @@ export class UnifiedCacheService {
    *
    * Non-critical: Failures are logged but don't affect request response
    */
-  async refreshStaleCache(cacheKey, endpoint, options) {
+  private async refreshStaleCache(
+    cacheKey: string,
+    endpoint: string,
+    options: CacheQueryOptions,
+  ): Promise<void> {
     try {
       console.log(`🔄 Background refresh started for: ${cacheKey}`)
 
@@ -113,7 +169,7 @@ export class UnifiedCacheService {
       const [type, subtype, ...valueParts] = cacheKey.split(':')
       const value = valueParts.join(':')
 
-      let freshData = null
+      let freshData: unknown = null
 
       if (type === 'book' && subtype === 'isbn') {
         // Use findBookByISBN for ISBN lookups
@@ -132,7 +188,13 @@ export class UnifiedCacheService {
         freshData = result
       }
 
-      if (freshData?.works && freshData.works.length > 0) {
+      if (
+        freshData &&
+        typeof freshData === 'object' &&
+        'works' in freshData &&
+        Array.isArray(freshData.works) &&
+        freshData.works.length > 0
+      ) {
         // Update KV cache
         await this.kvCache.set(cacheKey, freshData, endpoint)
         // Update Edge cache
@@ -142,7 +204,8 @@ export class UnifiedCacheService {
         console.log(`⚠️ Background refresh found no data for: ${cacheKey}`)
       }
     } catch (error) {
-      console.error(`❌ Background refresh failed for ${cacheKey}:`, error.message)
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      console.error(`❌ Background refresh failed for ${cacheKey}:`, message)
       // Don't throw - background refresh failures are non-critical
     }
   }
@@ -156,19 +219,24 @@ export class UnifiedCacheService {
    * - Statistically representative for popularity analysis
    * - Configurable via ACCESS_TRACKING_SAMPLE_RATE (default: 0.01)
    *
-   * @param {string} cacheKey - Cache key being accessed
-   * @private
+   * @param cacheKey - Cache key being accessed
    */
-  async trackAccess(cacheKey) {
+  private async trackAccess(cacheKey: string): Promise<void> {
     try {
       // 1% sampling - only track 1 in 100 accesses to reduce KV writes
-      const sampleRate = this.env.ACCESS_TRACKING_SAMPLE_RATE || 0.01
+      const sampleRate = Number.parseFloat(this.env.ACCESS_TRACKING_SAMPLE_RATE || '0.01')
       if (Math.random() >= sampleRate) {
         return // Skip tracking for 99% of requests
       }
 
       const accessKey = `access:${cacheKey}`
-      const current = (await this.env.CACHE.get(accessKey, 'json')) || { count: 0, lastAccess: 0 }
+      const current = (await this.env.CACHE.get<{ count: number; lastAccess: number }>(
+        accessKey,
+        'json',
+      )) || {
+        count: 0,
+        lastAccess: 0,
+      }
       await this.env.CACHE.put(
         accessKey,
         JSON.stringify({
@@ -179,29 +247,29 @@ export class UnifiedCacheService {
       )
     } catch (error) {
       // Non-critical, don't fail request
-      console.warn(`Failed to track cache access for ${cacheKey}:`, error.message)
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      console.warn(`Failed to track cache access for ${cacheKey}:`, message)
     }
   }
 
   /**
    * Extract cache key prefix (e.g., "book:isbn:123" → "book")
-   * @param {string} cacheKey - Full cache key
-   * @returns {string} Prefix
+   * @param cacheKey - Full cache key
+   * @returns Prefix
    */
-  extractPrefix(cacheKey) {
+  private extractPrefix(cacheKey: string): string {
     const parts = cacheKey.split(':')
     return parts[0] || 'unknown'
   }
 
   /**
    * Track cache event to CacheMetricsDO
-   * @param {string} type - Event type ('hit', 'miss', 'write')
-   * @param {string} cacheKey - Cache key
-   * @param {Object} options - Additional metadata
+   * @param type - Event type ('hit', 'miss', 'write')
+   * @param cacheKey - Cache key
+   * @param options - Additional metadata
    */
-  trackCacheEvent(type, cacheKey, options = {}) {
+  private trackCacheEvent(type: string, cacheKey: string, options: CacheEventOptions = {}): void {
     if (!this.env.CACHE_METRICS_DO) return
-    if (!this.ctx?.waitUntil) return // Skip if no ExecutionContext
 
     try {
       const prefix = this.extractPrefix(cacheKey)
@@ -225,7 +293,7 @@ export class UnifiedCacheService {
               ...options,
             }),
           })
-          .catch((error) => {
+          .catch((error: unknown) => {
             console.error('Failed to track cache event:', error)
           }),
       )
@@ -236,11 +304,11 @@ export class UnifiedCacheService {
 
   /**
    * Log cache metrics to Analytics Engine
-   * @param {string} event - Event type (edge_hit, kv_hit, api_miss)
-   * @param {string} cacheKey - Cache key
-   * @param {number} latency - Latency in milliseconds
+   * @param event - Event type (edge_hit, kv_hit, api_miss)
+   * @param cacheKey - Cache key
+   * @param latency - Latency in milliseconds
    */
-  logMetrics(event, cacheKey, latency) {
+  private logMetrics(event: string, cacheKey: string, latency: number): void {
     // Track to CacheMetricsDO
     if (event === 'edge_hit_fresh' || event === 'edge_hit_stale') {
       this.trackCacheEvent('hit', cacheKey, { source: 'edge' })

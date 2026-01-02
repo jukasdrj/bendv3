@@ -11,9 +11,18 @@
  * - No external dependencies
  */
 
+/**
+ * Token bucket rate limiter with automatic refill
+ */
 export class RateLimiter {
+  private tokensPerSecond: number
+  private tokens: number
+  private lastRefill: number
+
   /**
-   * @param {number} tokensPerSecond - Maximum requests per second (default: 10)
+   * Create a new rate limiter
+   *
+   * @param tokensPerSecond - Maximum requests per second (default: 10)
    */
   constructor(tokensPerSecond = 10) {
     this.tokensPerSecond = tokensPerSecond
@@ -23,9 +32,10 @@ export class RateLimiter {
 
   /**
    * Acquire a token (wait if necessary)
-   * @returns {Promise<number>} Wait time in milliseconds
+   *
+   * @returns Wait time in milliseconds
    */
-  async acquire() {
+  async acquire(): Promise<number> {
     const now = Date.now()
     const timePassed = (now - this.lastRefill) / 1000
 
@@ -55,24 +65,27 @@ export class RateLimiter {
 
   /**
    * Sleep helper
-   * @param {number} ms - Milliseconds to sleep
+   *
+   * @param ms - Milliseconds to sleep
    */
-  sleep(ms) {
+  private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
   /**
    * Reset limiter state (useful for testing)
    */
-  reset() {
+  reset(): void {
     this.tokens = this.tokensPerSecond
     this.lastRefill = Date.now()
   }
 
   /**
    * Get current token count (for debugging)
+   *
+   * @returns Current available tokens
    */
-  getTokenCount() {
+  getTokenCount(): number {
     const now = Date.now()
     const timePassed = (now - this.lastRefill) / 1000
     return Math.min(this.tokensPerSecond, this.tokens + timePassed * this.tokensPerSecond)

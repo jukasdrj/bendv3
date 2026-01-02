@@ -8,8 +8,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { processBookshelfScan } from "../src/services/ai-scanner.js";
-import * as geminiProvider from "../src/providers/gemini-provider.js";
+import { processBookshelfScan } from '../src/services/ai-scanner'
+import * as geminiProvider from "../src/providers/gemini-provider.ts";
 
 describe("AI Scanner Metadata", () => {
   let mockEnv;

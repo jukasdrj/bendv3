@@ -7,29 +7,106 @@
  * Issue #183: Retry logic with exponential backoff for Vision API failures
  */
 
-import { BOOKSHELF_RESPONSE_SCHEMA } from '../types/gemini-schemas.js'
-import { retryWithBackoff } from '../utils/retry.ts'
+import type { Env } from '../types/env'
+import type { BookshelfDetectedBook } from '../types/gemini-schemas'
+import { BOOKSHELF_RESPONSE_SCHEMA } from '../types/gemini-schemas'
+import { retryWithBackoff } from '../utils/retry'
 
 // Configurable model selection (Issue #101: Flash-Lite migration)
 // Override via GEMINI_VISION_MODEL env var if needed (rollback: set to "gemini-2.5-flash")
 const DEFAULT_VISION_MODEL = 'gemini-2.5-flash'
 
 /**
- * Scan bookshelf image using Gemini AI
- * @param {ArrayBuffer} imageData - Raw JPEG image data
- * @param {Object} env - Worker environment with GEMINI_API_KEY
- * @returns {Promise<Object>} Scan result with books array
+ * Gemini API request structure for generateContent endpoint
  */
-export async function scanImageWithGemini(imageData, env) {
+interface GeminiContentRequest {
+  system_instruction: {
+    parts: Array<{ text: string }>
+  }
+  contents: Array<{
+    parts: Array<
+      | {
+          inline_data: {
+            mime_type: string
+            data: string
+          }
+        }
+      | { text: string }
+    >
+  }>
+  generationConfig: {
+    temperature: number
+    topK: number
+    topP: number
+    maxOutputTokens: number
+    responseMimeType: string
+    responseSchema: typeof BOOKSHELF_RESPONSE_SCHEMA
+  }
+}
+
+/**
+ * Gemini API response structure
+ */
+interface GeminiResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string
+      }>
+    }
+  }>
+  usageMetadata?: {
+    promptTokenCount?: number
+    candidatesTokenCount?: number
+    totalTokenCount?: number
+  }
+}
+
+/**
+ * Token usage metrics from Gemini API
+ */
+interface TokenUsage {
+  promptTokens: number
+  outputTokens: number
+  totalTokens: number
+}
+
+/**
+ * Scan result metadata
+ */
+interface ScanMetadata {
+  provider: string
+  model: string
+  timestamp: string
+  processingTimeMs: number
+  tokenUsage: TokenUsage
+  error?: string
+}
+
+/**
+ * Complete scan result with books and metadata
+ */
+interface ScanResult {
+  books: BookshelfDetectedBook[]
+  suggestions: string[]
+  metadata: ScanMetadata
+}
+
+/**
+ * Scan bookshelf image using Gemini AI
+ * @param imageData - Raw JPEG image data
+ * @param env - Worker environment with GEMINI_API_KEY
+ * @returns Scan result with books array
+ */
+export async function scanImageWithGemini(imageData: ArrayBuffer, env: Env): Promise<ScanResult> {
   const startTime = Date.now()
 
   // DIAGNOSTIC: Log secret binding status
   console.log('[GeminiProvider] DIAGNOSTIC: Checking GEMINI_API_KEY binding...')
   console.log('[GeminiProvider] env.GEMINI_API_KEY exists:', !!env.GEMINI_API_KEY)
-  console.log('[GeminiProvider] env.GEMINI_API_KEY.get exists:', !!env.GEMINI_API_KEY?.get)
 
-  // Get API key
-  const apiKey = env.GEMINI_API_KEY?.get ? await env.GEMINI_API_KEY.get() : env.GEMINI_API_KEY
+  // Get API key (support both string and secret binding)
+  const apiKey = env.GEMINI_API_KEY
 
   console.log('[GeminiProvider] DIAGNOSTIC: API key retrieved:', !!apiKey)
   console.log('[GeminiProvider] DIAGNOSTIC: API key length:', apiKey?.length || 0)
@@ -44,35 +121,27 @@ export async function scanImageWithGemini(imageData, env) {
   // After: 5MB image = ~100ms encoding (600x performance improvement!)
   // Workers-compatible: Use btoa with chunking to avoid stack overflow (Issue #50, #58)
   const uint8Array = new Uint8Array(imageData)
-  const chunks = []
+  const chunks: string[] = []
   const chunkSize = 8192 // Process 8KB at a time to avoid stack overflow
   for (let i = 0; i < uint8Array.length; i += chunkSize) {
     const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length))
-    chunks.push(String.fromCharCode.apply(null, chunk))
+    chunks.push(String.fromCharCode.apply(null, Array.from(chunk)))
   }
   const binaryString = chunks.join('') // O(n) - single allocation instead of O(n²) concatenation
   const base64Image = btoa(binaryString)
 
   // Get model from env or use default (Issue #101: Flash-Lite migration)
-  const visionModel = env.GEMINI_VISION_MODEL || DEFAULT_VISION_MODEL
+  const visionModel = (env.GEMINI_VISION_MODEL as string | undefined) || DEFAULT_VISION_MODEL
   console.log(`[GeminiProvider] Using model: ${visionModel}`)
 
   // Call Gemini API with retry logic (Issue #183: exponential backoff on transient failures)
   const response = await retryWithBackoff(async () => {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${visionModel}:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'x-goog-api-key': apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          // System instruction: Define role and output format (static, won't change)
-          system_instruction: {
-            parts: [
-              {
-                text: `You are an expert bookshelf analyzer specialized in extracting book metadata from shelf photos.
+    const requestBody: GeminiContentRequest = {
+      // System instruction: Define role and output format (static, won't change)
+      system_instruction: {
+        parts: [
+          {
+            text: `You are an expert bookshelf analyzer specialized in extracting book metadata from shelf photos.
 
 Your task is to identify every book in the provided image and extract its title, author, and physical format.
 
@@ -88,20 +157,20 @@ ISBN VALIDATION (if ISBN is visible on spine):
 - ISBN-10 may end with 'X' (checksum) - this is valid
 - If ISBN appears incomplete or malformed, return null instead
 - NEVER return ISBNs with wrong digit counts - prefer null over invalid data`,
-              },
-            ],
           },
-          contents: [
+        ],
+      },
+      contents: [
+        {
+          parts: [
             {
-              parts: [
-                {
-                  inline_data: {
-                    mime_type: 'image/jpeg',
-                    data: base64Image,
-                  },
-                },
-                {
-                  text: `Analyze this bookshelf image step by step:
+              inline_data: {
+                mime_type: 'image/jpeg',
+                data: base64Image,
+              },
+            },
+            {
+              text: `Analyze this bookshelf image step by step:
 
 1. **Identify individual book spines**: Look for vertical or horizontal book orientations
 2. **Handle common challenges**:
@@ -119,20 +188,30 @@ ISBN VALIDATION (if ISBN is visible on spine):
 5. **Return structured JSON**: Only include books with readable titles
 
 Extract all visible book information now.`,
-                },
-              ],
             },
           ],
-          generationConfig: {
-            temperature: 0.2, // Issue #101: Optimized for determinism - vision tasks need accuracy over creativity
-            topK: 40, // Allow some variation for better book spine recognition
-            topP: 0.95, // Nucleus sampling for quality
-            maxOutputTokens: 8192, // Increased from 2048 to prevent truncation with many books
-            responseMimeType: 'application/json', // Force JSON output
-            responseSchema: BOOKSHELF_RESPONSE_SCHEMA, // Schema-enforced validation (guarantees structure)
-            // Removed stopSequences - was causing premature truncation
-          },
-        }),
+        },
+      ],
+      generationConfig: {
+        temperature: 0.2, // Issue #101: Optimized for determinism - vision tasks need accuracy over creativity
+        topK: 40, // Allow some variation for better book spine recognition
+        topP: 0.95, // Nucleus sampling for quality
+        maxOutputTokens: 8192, // Increased from 2048 to prevent truncation with many books
+        responseMimeType: 'application/json', // Force JSON output
+        responseSchema: BOOKSHELF_RESPONSE_SCHEMA, // Schema-enforced validation (guarantees structure)
+        // Removed stopSequences - was causing premature truncation
+      },
+    }
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${visionModel}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
       },
     )
 
@@ -147,7 +226,7 @@ Extract all visible book information now.`,
   })
 
   console.log('[GeminiProvider] Gemini API response OK, parsing JSON...')
-  const geminiData = await response.json()
+  const geminiData = (await response.json()) as GeminiResponse
   console.log('[GeminiProvider] Response parsed, checking for candidates...')
 
   // Extract token usage metrics (Gemini API best practice: cost tracking)
@@ -183,7 +262,7 @@ Extract all visible book information now.`,
 
   // With structured output, the response should be valid JSON.
   // Add a try-catch block for defensive parsing in case of API deviations.
-  let books
+  let books: unknown
   try {
     books = JSON.parse(text)
   } catch (error) {
@@ -232,14 +311,13 @@ Extract all visible book information now.`,
   // Trust schema for normalization - no validation needed
   // RELAXED SCHEMA: Only title is required, all other fields are optional/nullable
   // BoundingBox removed temporarily to debug Gemini 0-token output issue
-  const normalizedBooks = books
-    .map((book) => ({
-      title: book.title,
-      author: book.author || '',
-      isbn: book.isbn || null,
-      format: book.format || 'unknown', // Default to unknown if not provided
-      confidence: book.confidence || 0.7, // Default confidence if not provided
-      boundingBox: null, // Removed from schema (debugging)
+  const normalizedBooks: BookshelfDetectedBook[] = books
+    .map((book: Record<string, unknown>) => ({
+      title: book.title as string,
+      author: (book.author as string | null | undefined) || '',
+      isbn: (book.isbn as string | null | undefined) || null,
+      format: (book.format as BookshelfDetectedBook['format']) || 'unknown', // Default to unknown if not provided
+      confidence: (book.confidence as number | null | undefined) || 0.7, // Default confidence if not provided
     }))
     .filter((book) => book.title && book.title.length > 0)
 

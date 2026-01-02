@@ -9,23 +9,130 @@
  * - covers: prefers edition.coverImageURL with placeholder fallback
  */
 
-import { generateSearchLinks, getPlaceholderCover } from './book-metadata.ts'
+import { generateSearchLinks, getPlaceholderCover } from './book-metadata.js'
+
+/**
+ * Author information (various formats)
+ */
+interface AuthorInput {
+  name?: string
+  gender?: string
+  culturalRegion?: string
+  nationality?: string
+  birthYear?: number
+  deathYear?: number
+  openLibraryID?: string
+  isbndbID?: string
+  googleBooksID?: string
+  goodreadsID?: string
+  bookCount?: number
+}
+
+/**
+ * Detailed author object with cultural diversity fields
+ */
+interface AuthorDetailed {
+  name: string
+  gender: string
+  culturalRegion?: string
+  nationality?: string
+  birthYear?: number
+  deathYear?: number
+  openLibraryID?: string
+  isbndbID?: string
+  googleBooksID?: string
+  goodreadsID?: string
+  bookCount?: number
+}
+
+/**
+ * Edition information
+ */
+interface Edition {
+  isbn10?: string
+  isbn13?: string
+  coverImageURL?: string
+  publisher?: string
+  publicationDate?: string
+  pageCount?: number
+  description?: string
+  authors?: (string | AuthorInput)[]
+}
+
+/**
+ * Work object from provider
+ */
+interface Work {
+  id?: string
+  openLibraryWorkKey?: string
+  title: string
+  subtitle?: string
+  authors?: (string | AuthorInput)[]
+  subjects?: string[]
+  description?: string
+  firstPublicationYear?: number
+  editions?: Edition[]
+}
+
+/**
+ * Industry identifier
+ */
+interface IndustryIdentifier {
+  type: 'ISBN_10' | 'ISBN_13'
+  identifier: string
+}
+
+/**
+ * Image links
+ */
+interface ImageLinks {
+  thumbnail: string
+  smallThumbnail: string
+}
+
+/**
+ * Volume info (Google Books format)
+ */
+interface VolumeInfo {
+  title: string
+  subtitle?: string
+  authors: string[]
+  authorsDetailed?: AuthorDetailed[]
+  publisher?: string
+  publishedDate?: string
+  description?: string
+  industryIdentifiers: IndustryIdentifier[]
+  pageCount?: number
+  categories: string[]
+  imageLinks: ImageLinks
+}
+
+/**
+ * Search links for HATEOAS
+ */
+interface SearchLinks {
+  googleBooks?: string
+  openLibrary?: string
+  amazon?: string
+}
+
+/**
+ * Google Books volume format
+ */
+export interface GoogleBooksVolume {
+  kind: 'books#volume'
+  id: string
+  volumeInfo: VolumeInfo
+  searchLinks: SearchLinks
+}
 
 /**
  * Transform a normalized Work object to Google Books format
- * @param {Object} work - Normalized work object from provider
- * @param {Array} work.authors - Author objects with name and metadata
- * @param {string} work.title - Book title
- * @param {string} work.subtitle - Book subtitle
- * @param {Array} work.subjects - Subject categories (canonical source)
- * @param {string} work.description - Book description
- * @param {string} work.firstPublicationYear - Year of first publication
- * @param {Array} work.editions - Edition objects with ISBN and publication details
- * @param {string} work.id - Work ID
- * @param {string} work.openLibraryWorkKey - OpenLibrary work key
- * @returns {Object} Book object in Google Books format with volumeInfo
+ *
+ * @param work - Normalized work object from provider
+ * @returns Book object in Google Books format with volumeInfo
  */
-export function transformWorkToGoogleFormat(work) {
+export function transformWorkToGoogleFormat(work: Work): GoogleBooksVolume {
   // Get primary edition (first one with most metadata)
   const primaryEdition = work.editions && work.editions.length > 0 ? work.editions[0] : null
 
@@ -39,7 +146,7 @@ export function transformWorkToGoogleFormat(work) {
   const coverImageURL = primaryEdition?.coverImageURL || getPlaceholderCover()
 
   // Build volumeInfo object with canonical field mapping
-  const volumeInfo = {
+  const volumeInfo: VolumeInfo = {
     title: work.title,
     subtitle: work.subtitle,
     authors: authors,
@@ -87,26 +194,29 @@ export function transformWorkToGoogleFormat(work) {
  * Extract and normalize authors from work or edition
  * Handles multiple author format variations (string, object, array)
  *
- * @param {Object} work - Work object
- * @param {Object} primaryEdition - Primary edition object (fallback)
- * @returns {Object} { authors: string[], authorsDetailed: Object[] }
+ * @param work - Work object
+ * @param primaryEdition - Primary edition object (fallback)
+ * @returns Object with authors array and detailed authors
  */
-function extractAuthors(work, primaryEdition) {
-  let authors = []
-  let authorsDetailed = []
+function extractAuthors(
+  work: Work,
+  primaryEdition: Edition | null,
+): { authors: string[]; authorsDetailed: AuthorDetailed[] } {
+  let authors: string[] = []
+  let authorsDetailed: AuthorDetailed[] = []
 
   // Try work.authors first (preferred source)
   if (work.authors) {
     if (Array.isArray(work.authors)) {
       authors = work.authors.map((a) => {
         if (typeof a === 'string') return a
-        if (a?.name) return a.name
+        if (typeof a === 'object' && a !== null && a.name) return a.name
         return String(a)
       })
 
       // Preserve full AuthorDTO objects for cultural diversity fields
       authorsDetailed = work.authors
-        .filter((a) => typeof a === 'object' && a !== null)
+        .filter((a): a is AuthorInput => typeof a === 'object' && a !== null)
         .map((a) => buildAuthorDetails(a))
     } else if (typeof work.authors === 'string') {
       authors = [work.authors]
@@ -117,13 +227,17 @@ function extractAuthors(work, primaryEdition) {
   // Fallback to edition.authors if work has no authors
   if (authors.length === 0 && primaryEdition?.authors) {
     authors = Array.isArray(primaryEdition.authors)
-      ? primaryEdition.authors.map((a) => (typeof a === 'string' ? a : a.name || String(a)))
+      ? primaryEdition.authors.map((a) => {
+          if (typeof a === 'string') return a
+          if (typeof a === 'object' && a !== null && a.name) return a.name
+          return String(a)
+        })
       : [String(primaryEdition.authors)]
 
     // Also try to preserve detailed author info from edition
     if (Array.isArray(primaryEdition.authors)) {
       authorsDetailed = primaryEdition.authors
-        .filter((a) => typeof a === 'object' && a !== null)
+        .filter((a): a is AuthorInput => typeof a === 'object' && a !== null)
         .map((a) => buildAuthorDetails(a))
     }
   }
@@ -133,12 +247,13 @@ function extractAuthors(work, primaryEdition) {
 
 /**
  * Build detailed author object with cultural diversity fields
- * @param {Object} author - Author object
- * @returns {Object} Detailed author with optional cultural fields
+ *
+ * @param author - Author object
+ * @returns Detailed author with optional cultural fields
  */
-function buildAuthorDetails(author) {
+function buildAuthorDetails(author: AuthorInput): AuthorDetailed {
   return {
-    name: author.name,
+    name: author.name || 'Unknown',
     gender: author.gender || 'Unknown',
     ...(author.culturalRegion && { culturalRegion: author.culturalRegion }),
     ...(author.nationality && { nationality: author.nationality }),
@@ -154,11 +269,12 @@ function buildAuthorDetails(author) {
 
 /**
  * Build industry identifiers from edition
- * @param {Object} primaryEdition - Edition object
- * @returns {Array} Array of ISBN identifiers
+ *
+ * @param primaryEdition - Edition object
+ * @returns Array of ISBN identifiers
  */
-function buildIndustryIdentifiers(primaryEdition) {
-  const identifiers = []
+function buildIndustryIdentifiers(primaryEdition: Edition | null): IndustryIdentifier[] {
+  const identifiers: IndustryIdentifier[] = []
 
   if (primaryEdition?.isbn13) {
     identifiers.push({

@@ -6,20 +6,139 @@
  * CRITICAL: Uses direct function calls instead of RPC to eliminate circular dependencies!
  */
 
-import { getCacheTTL } from '../config/cache-ttl.ts'
-import { scanImageWithGemini } from '../providers/gemini-provider.js'
-import { categorizeBooks } from '../utils/confidence.js'
-import { enrichMultipleBooks } from './enrichment.ts'
+import { getCacheTTL } from '../config/cache-ttl'
+import { scanImageWithGemini } from '../providers/gemini-provider'
+import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical'
+import type { Env } from '../types/env'
+import type { BookshelfDetectedBook } from '../types/gemini-schemas'
+import { categorizeBooks } from '../utils/confidence'
+import { enrichMultipleBooks } from './enrichment'
 import { enrichBooksParallel } from './parallel-enrichment.js'
+
+/**
+ * Scan result from Gemini provider (matches gemini-provider.ts interface)
+ */
+interface ScanResult {
+  books: BookshelfDetectedBook[]
+  suggestions: string[]
+  metadata: {
+    provider: string
+    model: string
+    timestamp: string
+    processingTimeMs: number
+    tokenUsage: {
+      promptTokens: number
+      outputTokens: number
+      totalTokens: number
+    }
+    error?: string
+  }
+}
+
+/**
+ * Durable Object stub interface for job state management
+ */
+interface JobStateManagerStub {
+  initializeJobState(jobType: string, totalStages: number): Promise<void>
+  updateProgress(
+    jobType: string,
+    progress: {
+      progress: number
+      status: string
+      processedCount: number
+      currentItem: string
+    },
+  ): Promise<void>
+  complete(jobType: string, payload: unknown): Promise<void>
+  sendError(jobType: string, error: { message: string; code: string }): Promise<void>
+}
+
+/**
+ * Enriched book with all metadata
+ */
+interface EnrichedBook extends BookshelfDetectedBook {
+  boundingBox?: {
+    x1: number
+    y1: number
+    x2: number
+    y2: number
+  }
+  enrichment?: {
+    status: 'success' | 'not_found' | 'error'
+    work: WorkDTO | null
+    editions: EditionDTO[]
+    authors: AuthorDTO[]
+    provider: string
+    cachedResult: boolean
+  }
+}
+
+/**
+ * Categorized books by confidence level
+ */
+interface CategorizedBooks {
+  high: EnrichedBook[]
+  medium: EnrichedBook[]
+  low: EnrichedBook[]
+}
+
+/**
+ * Scan completion payload
+ */
+interface ScanCompletionPayload {
+  totalDetected: number
+  approved: number
+  needsReview: number
+  resultsUrl: string
+  metadata: {
+    modelUsed: string
+    processingTime: number
+  }
+}
+
+/**
+ * Book metadata for results storage
+ */
+interface BookResult {
+  title: string
+  author?: string | null
+  isbn: string | null
+  confidence?: number | null
+  boundingBox?: {
+    x1: number
+    y1: number
+    x2: number
+    y2: number
+  }
+  enrichmentStatus: string
+  coverUrl: string | null
+  publisher: string | null
+  publicationYear: number | null
+}
+
+/**
+ * Full results stored in KV
+ */
+interface FullResults {
+  totalDetected: number
+  approved: number
+  needsReview: number
+  books: BookResult[]
+  metadata: {
+    modelUsed: string
+    processingTime: number
+    timestamp: number
+  }
+}
 
 /**
  * Debug logging helper - only logs verbose details in DEBUG mode
  * Prevents production log spam (Issue #114)
  *
- * @param {Object} env - Worker environment
- * @param {Function} logFn - Function to execute for logging
+ * @param env - Worker environment
+ * @param logFn - Function to execute for logging
  */
-function debugLog(env, logFn) {
+function debugLog(env: Env, logFn: () => void): void {
   if (env.LOG_LEVEL === 'DEBUG') {
     logFn()
   }
@@ -41,14 +160,21 @@ const PROGRESS_STAGES = {
 /**
  * Process bookshelf image scan with AI vision
  *
- * @param {string} jobId - Unique job identifier
- * @param {ArrayBuffer} imageData - Raw image data
- * @param {Request} request - Request object with X-AI-Provider header
- * @param {Object} env - Worker environment bindings
- * @param {Object} doStub - ProgressWebSocketDO stub for status updates
- * @param {ExecutionContext} ctx - Execution context for waitUntil
+ * @param jobId - Unique job identifier
+ * @param imageData - Raw image data
+ * @param _request - Request object with X-AI-Provider header
+ * @param env - Worker environment bindings
+ * @param doStub - JobStateManagerDO stub for status updates
+ * @param ctx - Execution context for waitUntil
  */
-export async function processBookshelfScan(jobId, imageData, _request, env, doStub, ctx) {
+export async function processBookshelfScan(
+  jobId: string,
+  imageData: ArrayBuffer,
+  _request: Request,
+  env: Env,
+  doStub: JobStateManagerStub,
+  ctx: ExecutionContext,
+): Promise<void> {
   const startTime = Date.now()
 
   try {
@@ -99,7 +225,7 @@ export async function processBookshelfScan(jobId, imageData, _request, env, doSt
 
     console.log(`[AI Scanner] Job ${jobId} - Using Gemini 2.0 Flash`)
 
-    let scanResult
+    let scanResult: ScanResult
     let modelUsed = 'unknown' // Default fallback
     try {
       scanResult = await scanImageWithGemini(imageData, env)
@@ -124,7 +250,8 @@ export async function processBookshelfScan(jobId, imageData, _request, env, doSt
       modelUsed = scanResult.metadata?.model || 'unknown'
       console.log(`[AI Scanner] Model used: ${modelUsed}`)
     } catch (aiError) {
-      console.error('[AI Scanner] Gemini processing failed:', aiError.message)
+      const errorMessage = aiError instanceof Error ? aiError.message : 'Unknown AI error'
+      console.error('[AI Scanner] Gemini processing failed:', errorMessage)
       throw aiError
     }
 
@@ -146,7 +273,7 @@ export async function processBookshelfScan(jobId, imageData, _request, env, doSt
     // OPTIMIZED: Parallel enrichment with 10 concurrent requests
     const enrichedBooks = await enrichBooksParallel(
       detectedBooks,
-      async (book) => {
+      async (book: BookshelfDetectedBook): Promise<EnrichedBook> => {
         // Direct service call - NO RPC, no circular dependency!
         // Issue #205: Migrated from V1 handleSearchAdvanced to enrichMultipleBooks service
         // ISSUE #114: Guard verbose logging - only in DEBUG mode
@@ -188,7 +315,7 @@ export async function processBookshelfScan(jobId, imageData, _request, env, doSt
           },
         }
       },
-      async (completed) => {
+      async (completed: number) => {
         // Progress callback - update DO for real-time WebSocket updates
         // Note: `completed` is already 1-indexed from enrichBooksParallel (1, 2, 3...N)
         const enrichmentProgress =
@@ -208,7 +335,7 @@ export async function processBookshelfScan(jobId, imageData, _request, env, doSt
     console.log(`[AI Scanner] Enrichment complete - ${enrichedBooks.length} books enriched`)
 
     // Categorize books by confidence level
-    const categorized = categorizeBooks(enrichedBooks)
+    const categorized = categorizeBooks(enrichedBooks) as CategorizedBooks
 
     console.log(
       `[AI Scanner] Categorization: ${categorized.high.length} high, ${categorized.medium.length} medium, ${categorized.low.length} low confidence`,
@@ -219,7 +346,7 @@ export async function processBookshelfScan(jobId, imageData, _request, env, doSt
 
     // ISSUE #133: Store full results in KV to avoid multi-MB WebSocket payloads
     // Build unified books array using standard structure
-    const books = enrichedBooks.map((b) => ({
+    const books: BookResult[] = enrichedBooks.map((b) => ({
       title: b.title,
       author: b.author,
       isbn: b.isbn || null,
@@ -233,7 +360,7 @@ export async function processBookshelfScan(jobId, imageData, _request, env, doSt
 
     // Store complete results in KV with 24-hour expiration
     const resultsKey = `scan-results:${jobId}`
-    const fullResults = {
+    const fullResults: FullResults = {
       totalDetected: detectedBooks.length,
       approved: categorized.high.length,
       needsReview: categorized.medium.length + categorized.low.length,
@@ -256,7 +383,7 @@ export async function processBookshelfScan(jobId, imageData, _request, env, doSt
     })
 
     // Send summary-only completion via WebSocket (avoid large payloads)
-    const completionPayload = {
+    const completionPayload: ScanCompletionPayload = {
       totalDetected: detectedBooks.length,
       approved: categorized.high.length,
       needsReview: categorized.medium.length + categorized.low.length,
@@ -280,11 +407,12 @@ export async function processBookshelfScan(jobId, imageData, _request, env, doSt
       `[AI Scanner] Scan complete for job ${jobId}: ${detectedBooks.length} books, ${totalTime}ms`,
     )
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown scan error'
     console.error(`[AI Scanner] Job ${jobId} failed:`, error)
 
     // Send error via Durable Object
     await doStub.sendError('ai_scan', {
-      message: error.message || 'Unknown scan error',
+      message: errorMessage,
       code: 'AI_SCAN_FAILED',
     })
   }

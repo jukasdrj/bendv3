@@ -1,6 +1,6 @@
 // test/gemini-csv-provider.test.js
 import { describe, test, expect, vi } from "vitest";
-import { parseCSVWithGemini } from "../src/providers/gemini-csv-provider.js";
+import { parseCSVWithGemini } from "../src/providers/gemini-csv-provider.ts";
 
 describe("Gemini CSV Provider", () => {
   test("calls Gemini API with prompt and CSV content", async () => {

@@ -4,8 +4,8 @@
  * Validates implementation of Gemini API best practice: cost monitoring
  */
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { parseCSVWithGemini } from '../src/providers/gemini-csv-provider.js';
-import { scanImageWithGemini } from '../src/providers/gemini-provider.js';
+import { parseCSVWithGemini } from '../src/providers/gemini-csv-provider.ts';
+import { scanImageWithGemini } from '../src/providers/gemini-provider.ts';
 
 describe('Token Usage Tracking - CSV Provider', () => {
   beforeEach(() => {

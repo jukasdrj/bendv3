@@ -3,7 +3,7 @@
 import type { ExecutionContext } from '@cloudflare/workers-types'
 import { getAllCacheTTLs } from '../config/cache-ttl.ts'
 import type { Env } from '../types/env.js'
-import { getCached, setCached } from '../utils/cache.js'
+import { getCached, setCached } from '../utils/cache.ts'
 
 /**
  * Cached data with metadata
@@ -37,10 +37,10 @@ export interface CacheSetOptions {
  */
 export class KVCacheService {
   private env: Env
-  private ctx: ExecutionContext | null
+  private ctx: ExecutionContext
   private ttls: ReturnType<typeof getAllCacheTTLs>
 
-  constructor(env: Env, ctx: ExecutionContext | null = null) {
+  constructor(env: Env, ctx: ExecutionContext) {
     this.env = env
     this.ctx = ctx
     // Get TTLs from centralized configuration

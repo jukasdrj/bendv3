@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { aggregateMetrics } from '../src/services/metrics-aggregator.js';
+import { aggregateMetrics } from '../src/services/metrics-aggregator.ts';
 
 describe('aggregateMetrics', () => {
   let mockEnv;

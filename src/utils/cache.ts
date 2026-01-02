@@ -3,16 +3,59 @@
  * Migrated from books-api-proxy caching logic
  */
 
+import type { Env } from '../types/env'
+
+/**
+ * Cache event types for tracking
+ */
+type CacheEventType = 'hit' | 'miss' | 'write'
+
+/**
+ * Cache event data structure
+ */
+interface CacheEvent {
+  type: CacheEventType
+  prefix: string
+  key: string
+  timestamp: number
+  hotTtlExpiry?: number
+}
+
+/**
+ * Cached data with metadata
+ */
+interface CachedData<T = unknown> {
+  data: T
+  cachedAt: number
+  ttl: number
+}
+
+/**
+ * Cache response with metadata
+ */
+interface CacheResponse<T = unknown> {
+  data: T
+  cacheMetadata: {
+    hit: boolean
+    age: number
+    ttl: number
+  }
+}
+
 /**
  * Track cache event in CacheMetricsDO (fire-and-forget)
- * This function dispatches events without blocking or requiring ctx
+ * This function dispatches events without blocking
+ *
+ * @param env - Worker environment bindings
+ * @param ctx - Execution context for waitUntil
+ * @param event - Cache event to track
  */
-function trackCacheEvent(env, ctx, event) {
+function trackCacheEvent(env: Env, ctx: ExecutionContext, event: CacheEvent): void {
   if (!env.CACHE_METRICS_DO) {
     return // Skip if DO not available
   }
 
-  const doFetch = async () => {
+  const doFetch = async (): Promise<void> => {
     try {
       const id = env.CACHE_METRICS_DO.idFromName('cache-metrics-singleton')
       const stub = env.CACHE_METRICS_DO.get(id)
@@ -23,36 +66,43 @@ function trackCacheEvent(env, ctx, event) {
     }
   }
 
-  // Use ctx.waitUntil if available, otherwise fire-and-forget
-  if (ctx?.waitUntil) {
-    ctx.waitUntil(doFetch())
-  } else {
-    // Fire-and-forget (best effort) - don't await
-    doFetch()
-  }
+  // Use ctx.waitUntil for non-blocking tracking
+  ctx.waitUntil(doFetch())
 }
 
 /**
  * Extract prefix from cache key (e.g., "book:isbn:123" -> "book")
+ *
+ * @param key - Cache key to extract prefix from
+ * @returns Prefix portion of the key
  */
-function extractPrefix(key) {
+function extractPrefix(key: string): string {
   const parts = key.split(':')
   return parts[0] || 'unknown'
 }
 
 /**
  * Get cached data from KV store with metadata
- * @param {string} key - Cache key
- * @param {Object} env - Worker environment bindings
- * @param {ExecutionContext} ctx - Execution context for waitUntil (optional)
- * @returns {Promise<Object|null>} Cached data with metadata or null if not found
+ *
+ * @param key - Cache key
+ * @param env - Worker environment bindings
+ * @param ctx - Execution context for waitUntil
+ * @returns Cached data with metadata or null if not found
  */
-export async function getCached(key, env, ctx = null) {
+export async function getCached<T = unknown>(
+  key: string,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<CacheResponse<T> | null> {
   const timestamp = Date.now()
   const prefix = extractPrefix(key)
 
   try {
-    const { value, metadata } = await env.CACHE.getWithMetadata(key, 'json')
+    const { value, metadata } = await env.CACHE.getWithMetadata<
+      CachedData<T>,
+      { hotTtlExpiry?: number }
+    >(key, 'json')
+
     if (value) {
       // Verify cache format is valid (v3.0+ format with data and cachedAt)
       if (!value.data || !value.cachedAt) {
@@ -105,20 +155,27 @@ export async function getCached(key, env, ctx = null) {
 
 /**
  * Set cached data in KV store with TTL and metadata
- * @param {string} key - Cache key
- * @param {Object} value - Data to cache
- * @param {number} ttl - Time to live in seconds
- * @param {Object} env - Worker environment bindings
- * @param {ExecutionContext} ctx - Execution context for waitUntil (optional)
- * @param {number} hotTtl - Hot TTL in seconds for effectiveness tracking (optional)
- * @returns {Promise<void>}
+ *
+ * @param key - Cache key
+ * @param value - Data to cache
+ * @param ttl - Time to live in seconds
+ * @param env - Worker environment bindings
+ * @param ctx - Execution context for waitUntil
+ * @param hotTtl - Hot TTL in seconds for effectiveness tracking (optional)
  */
-export async function setCached(key, value, ttl, env, ctx = null, hotTtl = null) {
+export async function setCached<T = unknown>(
+  key: string,
+  value: T,
+  ttl: number,
+  env: Env,
+  ctx: ExecutionContext,
+  hotTtl: number | null = null,
+): Promise<void> {
   const timestamp = Date.now()
   const prefix = extractPrefix(key)
 
   try {
-    const cachedWithMeta = {
+    const cachedWithMeta: CachedData<T> = {
       data: value,
       cachedAt: timestamp, // Timestamp for age calculation
       ttl: ttl, // Original TTL for headers

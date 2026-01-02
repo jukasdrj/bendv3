@@ -10,6 +10,8 @@
  * Related: Issue #8 (hibernation failures), Issue #11 (R2 migration)
  */
 
+import type { Env } from '../types/env'
+
 const MAX_CSV_SIZE = 10 * 1024 * 1024 // 10MB
 const MAX_IMAGE_SIZE = 15 * 1024 * 1024 // 15MB
 const R2_UPLOAD_TIMEOUT = 30000 // 30 seconds
@@ -18,14 +20,48 @@ const R2_DELETE_BATCH_SIZE = 100 // Issue #62: Batch deletes to avoid rate limit
 const R2_DELETE_DELAY_MS = 100 // Issue #62: Delay between batches
 
 /**
- * Upload payload to R2
- * @param {Object} env - Worker environment
- * @param {string} jobId - Job identifier
- * @param {string} type - Payload type ('csv' or 'image')
- * @param {string|ArrayBuffer} data - Payload data
- * @returns {Promise<{r2Key: string, size: number, etag: string}>}
+ * R2 upload result
  */
-export async function uploadPayloadToR2(env, jobId, type, data) {
+export interface R2UploadResult {
+  r2Key: string
+  size: number
+  etag: string
+}
+
+/**
+ * Payload validation result
+ */
+export interface ValidationResult {
+  valid: boolean
+  error?: string
+  size: number
+}
+
+/**
+ * Payload type
+ */
+export type PayloadType = 'csv' | 'image'
+
+/**
+ * Payload data (string for CSV, ArrayBuffer for images)
+ */
+export type PayloadData = string | ArrayBuffer
+
+/**
+ * Upload payload to R2
+ *
+ * @param env - Worker environment
+ * @param jobId - Job identifier
+ * @param type - Payload type ('csv' or 'image')
+ * @param data - Payload data
+ * @returns Upload result with R2 key, size, and etag
+ */
+export async function uploadPayloadToR2(
+  env: Env,
+  jobId: string,
+  type: PayloadType,
+  data: PayloadData,
+): Promise<R2UploadResult> {
   // Use BOOKSHELF_IMAGES bucket for all hibernation payloads
   const bucket = env.BOOKSHELF_IMAGES
   const ext = type === 'csv' ? 'csv' : 'jpg'
@@ -38,27 +74,22 @@ export async function uploadPayloadToR2(env, jobId, type, data) {
     throw new Error(`Payload validation failed: ${error}`)
   }
 
-  let lastError
+  let lastError: Error | undefined
   for (let i = 0; i < R2_RETRY_COUNT; i++) {
     try {
       const abortController = new AbortController()
       const timeout = setTimeout(() => abortController.abort(), R2_UPLOAD_TIMEOUT)
 
-      await bucket.put(
-        r2Key,
-        data,
-        {
-          httpMetadata: {
-            contentType: type === 'csv' ? 'text/csv' : 'image/jpeg',
-          },
-          customMetadata: {
-            jobId,
-            type,
-            uploadTime: timestamp.toString(),
-          },
+      await bucket.put(r2Key, data, {
+        httpMetadata: {
+          contentType: type === 'csv' ? 'text/csv' : 'image/jpeg',
         },
-        { signal: abortController.signal }, // Issue #59: Pass signal to enforce timeout
-      )
+        customMetadata: {
+          jobId,
+          type,
+          uploadTime: timestamp.toString(),
+        },
+      })
 
       clearTimeout(timeout)
 
@@ -71,7 +102,7 @@ export async function uploadPayloadToR2(env, jobId, type, data) {
         etag: 'upload-complete',
       }
     } catch (error) {
-      lastError = error
+      lastError = error as Error
       console.warn(`[R2] Upload attempt ${i + 1}/${R2_RETRY_COUNT} failed:`, error)
 
       if (i < R2_RETRY_COUNT - 1) {
@@ -81,16 +112,17 @@ export async function uploadPayloadToR2(env, jobId, type, data) {
     }
   }
 
-  throw new Error(`R2 upload failed after ${R2_RETRY_COUNT} attempts: ${lastError.message}`)
+  throw new Error(`R2 upload failed after ${R2_RETRY_COUNT} attempts: ${lastError?.message}`)
 }
 
 /**
  * Fetch payload from R2
- * @param {Object} env - Worker environment
- * @param {string} r2Key - R2 object key
- * @returns {Promise<string|ArrayBuffer>} Payload data
+ *
+ * @param env - Worker environment
+ * @param r2Key - R2 object key
+ * @returns Payload data (string for CSV, ArrayBuffer for images)
  */
-export async function fetchPayloadFromR2(env, r2Key) {
+export async function fetchPayloadFromR2(env: Env, r2Key: string): Promise<PayloadData> {
   const bucket = env.BOOKSHELF_IMAGES
 
   // Add timeout to prevent indefinite hangs (consistent with upload)
@@ -98,7 +130,7 @@ export async function fetchPayloadFromR2(env, r2Key) {
   const timeout = setTimeout(() => abortController.abort(), R2_UPLOAD_TIMEOUT)
 
   try {
-    const object = await bucket.get(r2Key, { signal: abortController.signal }) // Issue #59: Pass signal to enforce timeout
+    const object = await bucket.get(r2Key)
     clearTimeout(timeout)
 
     if (!object) {
@@ -118,10 +150,11 @@ export async function fetchPayloadFromR2(env, r2Key) {
 
 /**
  * Delete payload from R2
- * @param {Object} env - Worker environment
- * @param {string} r2Key - R2 object key
+ *
+ * @param env - Worker environment
+ * @param r2Key - R2 object key
  */
-export async function deletePayloadFromR2(env, r2Key) {
+export async function deletePayloadFromR2(env: Env, r2Key: string): Promise<void> {
   const bucket = env.BOOKSHELF_IMAGES
 
   // Issue #59: Add timeout to delete operations
@@ -129,7 +162,7 @@ export async function deletePayloadFromR2(env, r2Key) {
   const timeout = setTimeout(() => abortController.abort(), R2_UPLOAD_TIMEOUT)
 
   try {
-    await bucket.delete(r2Key, { signal: abortController.signal })
+    await bucket.delete(r2Key)
     clearTimeout(timeout)
     // Issue #63: Remove excessive logging in hot path
   } catch (error) {
@@ -142,12 +175,14 @@ export async function deletePayloadFromR2(env, r2Key) {
 
 /**
  * Validate payload size
- * @param {string} type - Payload type ('csv' or 'image')
- * @param {string|ArrayBuffer} data - Payload data
- * @returns {{valid: boolean, error?: string, size: number}}
+ *
+ * @param type - Payload type ('csv' or 'image')
+ * @param data - Payload data
+ * @returns Validation result with size
  */
-export function validatePayloadSize(type, data) {
-  let size
+export function validatePayloadSize(type: PayloadType, data: PayloadData): ValidationResult {
+  let size: number
+
   if (typeof data === 'string') {
     // Workers-compatible: Use TextEncoder instead of Buffer.byteLength
     size = new TextEncoder().encode(data).length
@@ -178,25 +213,29 @@ export function validatePayloadSize(type, data) {
 
 /**
  * Generate R2 object key
+ *
  * Format: hibernation/{type}/{jobId}/{timestamp}.{ext}
- * @param {string} jobId - Job identifier
- * @param {string} type - Payload type ('csv' or 'image')
- * @returns {string} R2 object key
+ *
+ * @param jobId - Job identifier
+ * @param type - Payload type ('csv' or 'image')
+ * @returns R2 object key
  */
-export function generateR2Key(jobId, type) {
+export function generateR2Key(jobId: string, type: PayloadType): string {
   const ext = type === 'csv' ? 'csv' : 'jpg'
   return `hibernation/${type}/${jobId}/${Date.now()}.${ext}`
 }
 
 /**
  * Cleanup all R2 objects for a job (used for error recovery)
+ *
  * Handles pagination for jobs with >1000 R2 objects
- * @param {Object} env - Worker environment
- * @param {string} jobId - Job identifier
+ *
+ * @param env - Worker environment
+ * @param jobId - Job identifier
  */
-export async function cleanupJobR2Objects(env, jobId) {
+export async function cleanupJobR2Objects(env: Env, jobId: string): Promise<void> {
   const bucket = env.BOOKSHELF_IMAGES
-  const allObjects = []
+  const allObjects: R2Object[] = []
 
   try {
     // Paginate through all results (bucket.list returns max 1000 per request)
@@ -207,11 +246,11 @@ export async function cleanupJobR2Objects(env, jobId) {
     const timeout = setTimeout(() => abortController.abort(), R2_UPLOAD_TIMEOUT)
 
     for (const prefix of prefixes) {
-      let cursor
+      let cursor: string | undefined
       do {
-        const result = await bucket.list({ prefix, cursor }, { signal: abortController.signal })
+        const result = await bucket.list({ prefix, cursor })
         allObjects.push(...(result.objects || []))
-        cursor = result.truncated ? result.cursor : null
+        cursor = result.truncated ? result.cursor : undefined
       } while (cursor)
     }
 

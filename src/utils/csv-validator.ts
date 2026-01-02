@@ -1,16 +1,33 @@
-// src/utils/csv-validator.js
+// src/utils/csv-validator.ts
 
+/**
+ * Maximum number of rows allowed in CSV import
+ */
 export const MAX_ROWS = 10000
+
+/**
+ * Number of rows to sample for validation
+ */
 const SAMPLE_VALIDATION_ROWS = 10
+
+/**
+ * CSV validation result
+ */
+export interface ValidationResult {
+  valid: boolean
+  error?: string
+  rowCount?: number
+  columnCount?: number
+}
 
 /**
  * Counts columns in a CSV line, respecting quoted fields and escaped quotes.
  * Handles commas inside quotes and CSV-spec-compliant escaped quotes ("") correctly.
  *
- * @param {string} line - CSV line to count columns in
- * @returns {number} Number of columns in the line
+ * @param line - CSV line to count columns in
+ * @returns Number of columns in the line
  */
-function countColumns(line) {
+function countColumns(line: string): number {
   let count = 1
   let inQuotes = false
 
@@ -46,14 +63,10 @@ function countColumns(line) {
  * - No unclosed quotes
  * - Consistent column count (sampled from first 10 rows)
  *
- * @param {string} csvText - Raw CSV content to validate
- * @returns {{ valid: boolean, error?: string, rowCount?: number, columnCount?: number }}
- *   - valid: true if CSV passes all checks
- *   - error: Error message if validation fails
- *   - rowCount: Number of data rows (excluding header) if valid
- *   - columnCount: Number of columns if valid
+ * @param csvText - Raw CSV content to validate
+ * @returns Validation result with success status and optional error/metadata
  */
-export function validateCSV(csvText) {
+export function validateCSV(csvText: string): ValidationResult {
   // Check for empty input
   if (!csvText || csvText.trim().length === 0) {
     return {

@@ -16,7 +16,7 @@ import { processCSVImportCore } from "../../src/handlers/csv-import.ts";
 let mockParseCSVWithGemini = vi.fn();
 let mockValidateCSV = vi.fn();
 
-vi.mock("../../src/providers/gemini-csv-provider.js", () => ({
+vi.mock("../../src/providers/gemini-csv-provider.ts", () => ({
   parseCSVWithGemini: (...args) => mockParseCSVWithGemini(...args),
 }));
 

@@ -7,12 +7,26 @@
  *
  * For now, this function returns empty stats and logs a warning.
  * TODO: Implement KV-based access tracking or GraphQL API integration.
- *
- * @param {Object} env - Worker environment with CACHE_ANALYTICS binding
- * @param {number} days - Number of days to look back
- * @returns {Promise<Object>} Map of cacheKey → accessCount
  */
-export async function queryAccessFrequency(_env, _days) {
+
+import type { Env } from '../types/env'
+
+/**
+ * Access frequency stats map (key -> count)
+ */
+export type AccessFrequencyStats = Record<string, number>
+
+/**
+ * Query cache access frequency from Analytics Engine
+ *
+ * @param _env - Worker environment with CACHE_ANALYTICS binding (unused)
+ * @param _days - Number of days to look back (unused)
+ * @returns Map of cacheKey → accessCount (currently always empty)
+ */
+export async function queryAccessFrequency(
+  _env: Env,
+  _days: number,
+): Promise<AccessFrequencyStats> {
   console.warn(
     '[Analytics] Analytics Engine bindings are write-only in Workers. Query functionality requires GraphQL API integration.',
   )

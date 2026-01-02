@@ -1,6 +1,6 @@
 // test/prompts.test.js
 import { describe, test, expect } from 'vitest';
-import { buildCSVParserPrompt, PROMPT_VERSION } from '../src/prompts/csv-parser-prompt.js';
+import { buildCSVParserPrompt, PROMPT_VERSION } from '../src/prompts/csv-parser-prompt.ts';
 
 describe('CSV Parser Prompt', () => {
   test('includes few-shot examples', () => {

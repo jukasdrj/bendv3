@@ -13,7 +13,10 @@ describe('KVCacheService', () => {
         put: async () => {},
       }
     };
-    service = new KVCacheService(mockEnv);
+    const mockCtx = {
+      waitUntil: vi.fn()
+    };
+    service = new KVCacheService(mockEnv, mockCtx);
   });
 
   test('initializes with extended TTLs', () => {

@@ -1,6 +1,6 @@
 // src/utils/cache-keys.ts
 
-import { PROMPT_VERSION } from '../prompts/csv-parser-prompt.js'
+import { PROMPT_VERSION } from '../prompts/csv-parser-prompt.ts'
 import { normalizeISBN } from './normalization.js'
 
 /**

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { handleMetricsRequest } from '../../src/handlers/metrics-handler.js'
-import { aggregateMetrics } from '../../src/services/metrics-aggregator.js'
+import { aggregateMetrics } from '../../src/services/metrics-aggregator.ts'
 
 describe('End-to-End Metrics Collection', () => {
   let mockEnv

@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // Import the service directly - no vi.mock needed with dependency injection
-import { processCSVImport } from "../../src/services/csv-processor.js";
+import { processCSVImport } from "../../src/services/csv-processor";
 
 describe("CSV Processor Service", () => {
   let mockProgressReporter;

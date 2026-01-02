@@ -10,24 +10,111 @@
  * 3. Return: Complete ISBN list for harvest
  */
 
-import { RateLimiter } from '../utils/rate-limiter.ts'
-import { getTopEditions } from './edition-discovery.js'
+import type { Env } from '../types/env'
+import { RateLimiter } from '../utils/rate-limiter'
+import { getTopEditions, type TopEdition } from './edition-discovery'
+
+/**
+ * OpenLibrary author search result
+ */
+interface OpenLibraryAuthorDoc {
+  key: string
+  name: string
+}
+
+/**
+ * OpenLibrary author search response
+ */
+interface OpenLibraryAuthorSearchResponse {
+  docs?: OpenLibraryAuthorDoc[]
+}
+
+/**
+ * OpenLibrary work entry
+ */
+interface OpenLibraryWork {
+  title?: string
+  first_publish_year?: string
+}
+
+/**
+ * OpenLibrary works response
+ */
+interface OpenLibraryWorksResponse {
+  entries?: OpenLibraryWork[]
+}
+
+/**
+ * OpenLibrary author bibliography
+ */
+interface AuthorBibliography {
+  authorKey: string
+  authorName: string
+  works: OpenLibraryWork[]
+}
+
+/**
+ * Expansion statistics
+ */
+interface ExpansionStats {
+  worksDiscovered: number
+  worksProcessed: number
+  editionsDiscovered: number
+  isbnsHarvested: number
+  skipped: number
+}
+
+/**
+ * Expansion options
+ */
+interface ExpansionOptions {
+  maxWorks?: number
+  editionsPerWork?: number
+  minPublicationYear?: number
+}
+
+/**
+ * Successful expansion result
+ */
+interface SuccessResult {
+  success: true
+  author: string
+  stats: ExpansionStats
+  isbns: string[]
+}
+
+/**
+ * Failed expansion result
+ */
+interface ErrorResult {
+  success: false
+  author: string
+  error: string
+  stats: ExpansionStats
+  isbns: string[]
+}
+
+/**
+ * Bibliography expansion result
+ */
+type ExpansionResult = SuccessResult | ErrorResult
 
 /**
  * Expand author bibliography into ISBNs
- * @param {string} authorName - Author name to expand
- * @param {Object} env - Worker environment bindings
- * @param {Object} options - Expansion options
- * @param {number} options.maxWorks - Max works to process (default: 20)
- * @param {number} options.editionsPerWork - Editions per work (default: 3)
- * @param {number} options.minPublicationYear - Filter by year (default: 2000)
- * @returns {Promise<{success: boolean, author: string, stats: Object, isbns: string[]}>}
+ * @param authorName - Author name to expand
+ * @param env - Worker environment bindings
+ * @param options - Expansion options
+ * @returns Expansion result with ISBNs and statistics
  */
-export async function expandAuthorBibliography(authorName, env, options = {}) {
+export async function expandAuthorBibliography(
+  authorName: string,
+  env: Env,
+  options: ExpansionOptions = {},
+): Promise<ExpansionResult> {
   const { maxWorks = 20, editionsPerWork = 3, minPublicationYear = 2000 } = options
 
-  const allISBNs = new Set()
-  const stats = {
+  const allISBNs = new Set<string>()
+  const stats: ExpansionStats = {
     worksDiscovered: 0,
     worksProcessed: 0,
     editionsDiscovered: 0,
@@ -43,7 +130,7 @@ export async function expandAuthorBibliography(authorName, env, options = {}) {
 
     if (!bibliography || !bibliography.works || bibliography.works.length === 0) {
       console.warn(`No works found for author: ${authorName}`)
-      return { success: false, author: authorName, stats, isbns: [] }
+      return { success: false, author: authorName, stats, isbns: [], error: 'No works found' }
     }
 
     stats.worksDiscovered = bibliography.works.length
@@ -80,7 +167,7 @@ export async function expandAuthorBibliography(authorName, env, options = {}) {
         // Discover editions for this Work
         const editions = await getTopEditions(
           {
-            title: work.title,
+            title: work.title!,
             authors: [authorName],
           },
           env,
@@ -96,7 +183,7 @@ export async function expandAuthorBibliography(authorName, env, options = {}) {
         }
 
         // Add ISBNs to set
-        editions.forEach((ed) => {
+        editions.forEach((ed: TopEdition) => {
           if (ed.isbn) {
             allISBNs.add(ed.isbn)
             stats.editionsDiscovered++
@@ -132,11 +219,12 @@ export async function expandAuthorBibliography(authorName, env, options = {}) {
       isbns: Array.from(allISBNs),
     }
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error(`Bibliography expansion failed for ${authorName}:`, error)
     return {
       success: false,
       author: authorName,
-      error: error.message,
+      error: errorMessage,
       stats,
       isbns: [],
     }
@@ -145,23 +233,36 @@ export async function expandAuthorBibliography(authorName, env, options = {}) {
 
 /**
  * Fetch author works from OpenLibrary API
- * @param {string} authorName - Author name
- * @returns {Promise<{works: Array}>} Author bibliography
+ * @param authorName - Author name
+ * @returns Author bibliography with works
  */
-async function fetchOpenLibraryAuthorWorks(authorName) {
+async function fetchOpenLibraryAuthorWorks(authorName: string): Promise<AuthorBibliography | null> {
   try {
     // Step 1: Search for author to get OpenLibrary author key
     const searchUrl = new URL('https://openlibrary.org/search/authors.json')
     searchUrl.searchParams.set('q', authorName)
 
-    const searchResponse = await fetch(searchUrl.toString())
+    const searchController = new AbortController()
+    const searchTimeout = setTimeout(() => searchController.abort(), 10000)
+    let searchResponse: Response
+    try {
+      searchResponse = await fetch(searchUrl.toString(), { signal: searchController.signal })
+      clearTimeout(searchTimeout)
+    } catch (err) {
+      clearTimeout(searchTimeout)
+      if ((err as Error).name === 'AbortError') {
+        console.error('OpenLibrary author search timed out after 10 seconds')
+        return null
+      }
+      throw err
+    }
 
     if (!searchResponse.ok) {
       console.error(`OpenLibrary author search failed: ${searchResponse.status}`)
       return null
     }
 
-    const searchData = await searchResponse.json()
+    const searchData = (await searchResponse.json()) as OpenLibraryAuthorSearchResponse
 
     if (!searchData.docs || searchData.docs.length === 0) {
       console.warn(`Author not found in OpenLibrary: ${authorName}`)
@@ -175,14 +276,27 @@ async function fetchOpenLibraryAuthorWorks(authorName) {
     // Step 2: Fetch author's works
     const worksUrl = `https://openlibrary.org/authors/${authorKey}/works.json?limit=500`
 
-    const worksResponse = await fetch(worksUrl)
+    const worksController = new AbortController()
+    const worksTimeout = setTimeout(() => worksController.abort(), 10000)
+    let worksResponse: Response
+    try {
+      worksResponse = await fetch(worksUrl, { signal: worksController.signal })
+      clearTimeout(worksTimeout)
+    } catch (err) {
+      clearTimeout(worksTimeout)
+      if ((err as Error).name === 'AbortError') {
+        console.error('OpenLibrary works fetch timed out after 10 seconds')
+        return null
+      }
+      throw err
+    }
 
     if (!worksResponse.ok) {
       console.error(`OpenLibrary works fetch failed: ${worksResponse.status}`)
       return null
     }
 
-    const worksData = await worksResponse.json()
+    const worksData = (await worksResponse.json()) as OpenLibraryWorksResponse
 
     return {
       authorKey,

@@ -1,5 +1,5 @@
-import { buildCSVParserPrompt } from '../prompts/csv-parser-prompt.js'
-import { parseCSVWithGemini } from '../providers/gemini-csv-provider.js'
+import { buildCSVParserPrompt } from '../prompts/csv-parser-prompt.ts'
+import { parseCSVWithGemini } from '../providers/gemini-csv-provider.ts'
 
 /**
  * POST /api/warming/upload - Cache warming via CSV upload

@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ProgressWebSocketDO } from "../../src/durable-objects/progress-socket.js";
 
 // Mock dependencies
-vi.mock("../../src/providers/gemini-csv-provider.js", () => ({
+vi.mock("../../src/providers/gemini-csv-provider.ts", () => ({
   parseCSVWithGemini: vi.fn(async () => [
     { title: "Test Book", author: "Test Author", isbn: "1234567890" },
   ]),
@@ -172,7 +172,7 @@ describe("Durable Object Alarm - Environment Bindings", () => {
 
       // Verify Gemini API was called with correct API key from env
       const { parseCSVWithGemini } = await import(
-        "../../src/providers/gemini-csv-provider.js"
+        "../../src/providers/gemini-csv-provider.ts"
       );
       expect(parseCSVWithGemini).toHaveBeenCalledWith(
         expect.any(String), // CSV text

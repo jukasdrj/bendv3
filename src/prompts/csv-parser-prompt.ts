@@ -1,8 +1,19 @@
-// src/prompts/csv-parser-prompt.js
+// src/prompts/csv-parser-prompt.ts
 
+/**
+ * Prompt version for tracking changes
+ */
 export const PROMPT_VERSION = 'v1'
 
-export function buildCSVParserPrompt() {
+/**
+ * Build the CSV parser prompt for Gemini AI
+ *
+ * This prompt instructs the AI to parse CSV exports from Goodreads, LibraryThing,
+ * or StoryGraph and return structured JSON with normalized book data.
+ *
+ * @returns Complete prompt string for CSV parsing
+ */
+export function buildCSVParserPrompt(): string {
   return `You are a book data parser. Parse this CSV file and return a JSON array of books.
 
 INPUT FORMAT: The CSV may be from Goodreads, LibraryThing, or StoryGraph.

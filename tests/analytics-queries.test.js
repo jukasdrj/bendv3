@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { queryAccessFrequency } from '../src/utils/analytics-queries.js';
+import { queryAccessFrequency } from '../src/utils/analytics-queries.ts';
 
 describe('queryAccessFrequency', () => {
   it('should return empty stats (Analytics Engine is write-only in Workers)', async () => {

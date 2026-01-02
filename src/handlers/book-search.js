@@ -9,11 +9,11 @@
 
 import { CacheKeyFactory } from '../services/cache-key-factory.ts'
 import * as externalApis from '../services/external-apis.ts'
-import { UnifiedCacheService } from '../services/unified-cache.js'
+import { UnifiedCacheService } from '../services/unified-cache.ts'
 import { writeCacheMetrics } from '../utils/analytics.ts'
 import { detectImageQuality } from '../utils/book-metadata.ts'
-import { setCached } from '../utils/cache.js'
-import { transformWorkToGoogleFormat } from '../utils/transform-work.js'
+import { setCached } from '../utils/cache.ts'
+import { transformWorkToGoogleFormat } from '../utils/transform-work.ts'
 
 /**
  * Search books by title with multi-provider orchestration

@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
-import { processCSVImport } from '../services/csv-processor.js'
-import { ProgressReporter } from '../utils/progress-reporter.js'
+import { processCSVImport } from '../services/csv-processor'
+import { ProgressReporter } from '../utils/progress-reporter'
 
 /**
  * Job State Manager Durable Object
@@ -873,7 +873,7 @@ export class JobStateManagerDO extends DurableObject {
 
           try {
             // Use Gemini Vision to detect books in this photo
-            const { scanImageWithGemini } = await import('../providers/gemini-provider.js')
+            const { scanImageWithGemini } = await import('../providers/gemini-provider.ts')
             const scanResult = await scanImageWithGemini(image.buffer, this.env)
 
             console.log(
@@ -921,7 +921,7 @@ export class JobStateManagerDO extends DurableObject {
         })
 
         // Enrich books with metadata
-        const { enrichBooksParallel } = await import('../services/parallel-enrichment.js')
+        const { enrichBooksParallel } = await import('../services/parallel-enrichment')
         const { enrichMultipleBooks } = await import('../services/enrichment.ts')
         const { categorizeBooks } = await import('../utils/confidence.js')
         const { getCacheTTL } = await import('../config/cache-ttl.ts')

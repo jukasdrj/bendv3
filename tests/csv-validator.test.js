@@ -1,6 +1,6 @@
 // test/csv-validator.test.js
 import { describe, test, expect } from 'vitest';
-import { validateCSV } from '../src/utils/csv-validator.js';
+import { validateCSV } from '../src/utils/csv-validator.ts';
 
 describe('CSV Validator', () => {
   test('validates well-formed CSV', () => {

@@ -1,5 +1,5 @@
 import { checkAlertThresholds, markAlertSent, shouldSendAlert } from '../services/alert-monitor.js'
-import { aggregateMetrics } from '../services/metrics-aggregator.js'
+import { aggregateMetrics } from '../services/metrics-aggregator.ts'
 
 /**
  * Scheduled handler for alert monitoring

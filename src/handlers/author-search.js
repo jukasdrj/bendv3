@@ -6,8 +6,8 @@
 
 import { CacheKeyFactory } from '../services/cache-key-factory.ts'
 import * as externalApis from '../services/external-apis.ts'
-import { UnifiedCacheService } from '../services/unified-cache.js'
-import { setCached } from '../utils/cache.js'
+import { UnifiedCacheService } from '../services/unified-cache.ts'
+import { setCached } from '../utils/cache.ts'
 
 /**
  * Search books by author with pagination
@@ -152,7 +152,7 @@ export async function searchByAuthor(authorName, options, env, ctx) {
 
     // Cache for 6 hours (per-page caching)
     const ttl = 6 * 60 * 60 // 21600 seconds
-    ctx.waitUntil(setCached(cacheKey, responseData, ttl, env))
+    ctx.waitUntil(setCached(cacheKey, responseData, ttl, env, ctx))
 
     // Write cache metrics
     ctx.waitUntil(

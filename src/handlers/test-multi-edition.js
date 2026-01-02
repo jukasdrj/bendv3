@@ -5,7 +5,7 @@
  * GET /api/test-multi-edition?count=5
  */
 
-import { getTopEditions } from '../services/edition-discovery.js'
+import { getTopEditions } from '../services/edition-discovery'
 
 export async function handleTestMultiEdition(request, env) {
   const url = new URL(request.url)
