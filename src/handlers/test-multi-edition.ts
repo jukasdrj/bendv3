@@ -5,11 +5,54 @@
  * GET /api/test-multi-edition?count=5
  */
 
-import { getTopEditions } from '../services/edition-discovery'
+import { getTopEditions } from '../services/edition-discovery.ts'
+import type { Env } from '../types/env'
 
-export async function handleTestMultiEdition(request, env) {
+interface GoogleBooksVolumeInfo {
+  title: string
+  authors?: string[]
+}
+
+interface GoogleBooksItem {
+  volumeInfo: GoogleBooksVolumeInfo
+}
+
+interface GoogleBooksResponse {
+  items?: GoogleBooksItem[]
+}
+
+interface EditionResult {
+  isbn: string
+  title: string
+  score: number
+  publisher?: string
+  publishedDate?: string
+}
+
+interface TestResult {
+  seedISBN: string
+  title?: string
+  authors?: string[]
+  editionsFound?: number
+  editions?: Array<{
+    isbn: string
+    title: string
+    score: number
+    publisher?: string
+    publishedDate?: string
+  }>
+  error?: string
+}
+
+interface TestSummary {
+  worksProcessed: number
+  totalEditions: number
+  avgEditionsPerWork: number
+}
+
+export async function handleTestMultiEdition(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url)
-  const count = parseInt(url.searchParams.get('count') || '5', 10)
+  const count = Number.parseInt(url.searchParams.get('count') || '5', 10)
 
   // Test ISBNs (first 5 from curated list)
   const testISBNs = [
@@ -20,7 +63,7 @@ export async function handleTestMultiEdition(request, env) {
     '9780062300547', // The Girl on the Train
   ].slice(0, count)
 
-  const results = []
+  const results: TestResult[] = []
 
   for (const isbn of testISBNs) {
     try {
@@ -28,8 +71,24 @@ export async function handleTestMultiEdition(request, env) {
       const metadataUrl = new URL('https://www.googleapis.com/books/v1/volumes')
       metadataUrl.searchParams.set('q', `isbn:${isbn}`)
 
-      const metadataResponse = await fetch(metadataUrl.toString())
-      const metadataData = await metadataResponse.json()
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+
+      let metadataResponse: Response
+      try {
+        metadataResponse = await fetch(metadataUrl.toString(), {
+          signal: controller.signal,
+        })
+        clearTimeout(timeout)
+      } catch (err) {
+        clearTimeout(timeout)
+        if ((err as Error).name === 'AbortError') {
+          throw new Error('Google Books request timed out after 10 seconds')
+        }
+        throw err
+      }
+
+      const metadataData = (await metadataResponse.json()) as GoogleBooksResponse
 
       if (!metadataData.items || metadataData.items.length === 0) {
         results.push({
@@ -53,7 +112,7 @@ export async function handleTestMultiEdition(request, env) {
         title,
         authors,
         editionsFound: editions.length,
-        editions: editions.map((ed) => ({
+        editions: editions.map((ed: EditionResult) => ({
           isbn: ed.isbn,
           title: ed.title,
           score: ed.score,
@@ -64,7 +123,7 @@ export async function handleTestMultiEdition(request, env) {
     } catch (error) {
       results.push({
         seedISBN: isbn,
-        error: error.message,
+        error: (error as Error).message,
       })
     }
   }
@@ -73,15 +132,17 @@ export async function handleTestMultiEdition(request, env) {
   const totalEditions = results.reduce((sum, r) => sum + (r.editionsFound || 0), 0)
   const avgEditionsPerWork = (totalEditions / results.length).toFixed(1)
 
+  const summary: TestSummary = {
+    worksProcessed: results.length,
+    totalEditions,
+    avgEditionsPerWork: Number.parseFloat(avgEditionsPerWork),
+  }
+
   return new Response(
     JSON.stringify(
       {
         success: true,
-        summary: {
-          worksProcessed: results.length,
-          totalEditions,
-          avgEditionsPerWork: parseFloat(avgEditionsPerWork),
-        },
+        summary,
         results,
       },
       null,

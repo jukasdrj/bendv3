@@ -1,5 +1,5 @@
-import { searchByAuthor } from '../handlers/author-search.js'
-import { searchByTitle } from '../handlers/book-search.js'
+import { searchByAuthor } from '../handlers/author-search'
+import { searchByTitle } from '../handlers/book-search'
 import { enrichBooksParallel } from '../services/parallel-enrichment'
 
 /**

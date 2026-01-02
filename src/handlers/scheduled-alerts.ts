@@ -1,16 +1,43 @@
-import { checkAlertThresholds, markAlertSent, shouldSendAlert } from '../services/alert-monitor.js'
-import { aggregateMetrics } from '../services/metrics-aggregator.ts'
-
 /**
  * Scheduled handler for alert monitoring
  *
  * NOTE: This implementation logs alerts only. Email alerts are disabled.
  * To enable email alerts, implement sendAlertEmail() and uncomment email logic.
  *
- * @param {Object} env - Worker environment
- * @param {ExecutionContext} ctx - Execution context
+ * Triggered by Cloudflare Cron binding (typically every 15 minutes)
+ * to check system health metrics and generate alerts when thresholds
+ * are exceeded.
  */
-export async function handleScheduledAlerts(env, _ctx) {
+
+import {
+  type Alert,
+  checkAlertThresholds,
+  markAlertSent,
+  shouldSendAlert,
+} from '../services/alert-monitor'
+import { type AggregatedMetrics, aggregateMetrics } from '../services/metrics-aggregator'
+import type { Env } from '../types/env'
+
+/**
+ * Alert data stored in KV for dashboard access
+ */
+interface StoredAlertData {
+  alerts: Alert[]
+  metrics: {
+    hitRate: number
+    edgeHitRate: number
+    kvHitRate: number
+    totalRequests: number
+  }
+  timestamp: string
+}
+
+/**
+ * Handle scheduled alert check
+ * @param _event - Scheduled event from Cloudflare Cron (unused)
+ * @param env - Worker environment bindings
+ */
+export async function handleScheduledAlerts(_event: unknown, env: Env): Promise<void> {
   try {
     console.log('[Alert Monitor] Running alert check...')
 
@@ -21,12 +48,12 @@ export async function handleScheduledAlerts(env, _ctx) {
     const alerts = checkAlertThresholds(metrics)
 
     if (alerts.length === 0) {
-      console.log('[Alert Monitor] ✅ No alerts triggered - system healthy')
+      console.log('[Alert Monitor] OK - No alerts triggered - system healthy')
       return
     }
 
     console.log(
-      `[Alert Monitor] ⚠️  Generated ${alerts.length} alerts:`,
+      `[Alert Monitor] WARNING - Generated ${alerts.length} alerts:`,
       alerts.map((a) => a.type),
     )
 
@@ -38,7 +65,7 @@ export async function handleScheduledAlerts(env, _ctx) {
     }
 
     // 4. Log alert details (email disabled)
-    console.log('[Alert Monitor] 🚨 NEW ALERTS DETECTED:')
+    console.log('[Alert Monitor] CRITICAL - NEW ALERTS DETECTED:')
     alerts.forEach((alert) => {
       console.log(`  [${alert.severity.toUpperCase()}] ${alert.message}`)
       console.log(`    Current: ${alert.value.toFixed(1)} | Threshold: ${alert.threshold}`)
@@ -52,7 +79,7 @@ export async function handleScheduledAlerts(env, _ctx) {
 
     // 5. Store alerts in KV for dashboard retrieval (Issue #99)
     const timestamp = new Date().toISOString()
-    const alertData = {
+    const alertData: StoredAlertData = {
       alerts,
       metrics: {
         hitRate: metrics.hitRates.combined,
@@ -81,6 +108,8 @@ export async function handleScheduledAlerts(env, _ctx) {
     // console.log(`[Alert Monitor] Alert email sent to ${alertEmail}`);
   } catch (error) {
     console.error('[Alert Monitor] Alert check failed:', error)
-    console.error(error.stack)
+    if (error instanceof Error) {
+      console.error(error.stack)
+    }
   }
 }

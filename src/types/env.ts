@@ -109,6 +109,7 @@ export interface Env {
   SLACK_WEBHOOK_URL?: string
   ALERT_FROM_EMAIL?: string
   ALERT_TO_EMAIL?: string
+  METRICS_API_KEY?: string // API key for /metrics endpoint
 
   // R2 Buckets
   BOOKSHELF_IMAGES: R2Bucket // User-uploaded bookshelf photos

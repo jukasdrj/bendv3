@@ -1,5 +1,61 @@
 /**
- * Alert thresholds configuration (Task 3.4 - Issue #38)
+ * Alert thresholds and monitoring utilities
+ *
+ * Provides functions for checking metrics against alert thresholds,
+ * deduplicating alerts, and tracking alert send status.
+ */
+
+import type { Env } from '../types/env'
+
+/**
+ * Alert severity levels
+ */
+export type AlertSeverity = 'critical' | 'warning'
+
+/**
+ * Alert type categories
+ */
+export type AlertType =
+  | 'miss_rate'
+  | 'edge_hit_rate'
+  | 'p99_latency'
+  | 'contract_violations'
+  | 'websocket_disconnect_rate'
+  | 'd1_p95_latency'
+  | 'error_rate'
+
+/**
+ * Alert object structure
+ */
+export interface Alert {
+  severity: AlertSeverity
+  type: AlertType
+  value: number
+  threshold: number
+  message: string
+}
+
+/**
+ * Metrics for alert checking
+ */
+export interface MetricsForAlerts {
+  hitRates: {
+    combined: number
+    edge: number
+    kv: number
+  }
+  latency?: {
+    edge_hit?: { p99: number }
+    kv_hit?: { p99: number }
+  }
+  contractViolations?: number
+  websocketDisconnectRate?: number
+  d1Latency?: { p95: number }
+  errorRate?: number
+}
+
+/**
+ * Alert thresholds configuration
  */
 const ALERT_THRESHOLDS = {
   critical: {
@@ -16,16 +72,19 @@ const ALERT_THRESHOLDS = {
     edge_hit_rate: 75, // < 75% edge hits
     kv_storage: 1000, // > 1GB KV storage
   },
-}
+} as const
 
 /**
  * Check metrics against alert thresholds
  *
- * @param {Object} metrics - Aggregated metrics
- * @returns {Array<Object>} Array of alerts
+ * Evaluates aggregated metrics against configured thresholds
+ * for critical and warning levels. Returns array of triggered alerts.
+ *
+ * @param metrics - Aggregated metrics object
+ * @returns Array of triggered alerts
  */
-export function checkAlertThresholds(metrics) {
-  const alerts = []
+export function checkAlertThresholds(metrics: MetricsForAlerts): Alert[] {
+  const alerts: Alert[] = []
 
   // Critical: High miss rate
   const missRate = 100 - metrics.hitRates.combined
@@ -70,7 +129,7 @@ export function checkAlertThresholds(metrics) {
     })
   }
 
-  // Critical: API contract violations (Task 3.4 - Issue #38)
+  // Critical: API contract violations
   const contractViolations = metrics.contractViolations || 0
   if (contractViolations > ALERT_THRESHOLDS.critical.contract_violations) {
     alerts.push({
@@ -82,7 +141,7 @@ export function checkAlertThresholds(metrics) {
     })
   }
 
-  // Critical: High WebSocket disconnect rate (Task 3.4 - Issue #38)
+  // Critical: High WebSocket disconnect rate
   const wsDisconnectRate = metrics.websocketDisconnectRate || 0
   if (wsDisconnectRate > ALERT_THRESHOLDS.critical.websocket_disconnect_rate) {
     alerts.push({
@@ -94,7 +153,7 @@ export function checkAlertThresholds(metrics) {
     })
   }
 
-  // Warning: D1 latency P95 (Task 3.4 - Issue #38)
+  // Warning: D1 latency P95
   const d1P95 = metrics.d1Latency?.p95 || 0
   if (d1P95 > ALERT_THRESHOLDS.warning.d1_p95_latency) {
     alerts.push({
@@ -106,7 +165,7 @@ export function checkAlertThresholds(metrics) {
     })
   }
 
-  // Critical: High error rate (Task 3.4 - Issue #38)
+  // Critical: High error rate
   const errorRate = metrics.errorRate || 0
   if (errorRate > ALERT_THRESHOLDS.critical.error_rate) {
     alerts.push({
@@ -124,11 +183,14 @@ export function checkAlertThresholds(metrics) {
 /**
  * Check if alert should be sent (deduplication)
  *
- * @param {Array<Object>} alerts - Alerts to check
- * @param {Object} env - Worker environment
- * @returns {Promise<boolean>} True if should send
+ * Verifies whether an alert has been sent recently to avoid
+ * duplicate notifications. Uses 4-hour deduplication window.
+ *
+ * @param alerts - Alerts to check
+ * @param env - Worker environment with CACHE binding
+ * @returns True if alert should be sent (not a recent duplicate)
  */
-export async function shouldSendAlert(alerts, env) {
+export async function shouldSendAlert(alerts: Alert[], env: Env): Promise<boolean> {
   if (alerts.length === 0) return false
 
   // Generate alert key from alert types
@@ -156,10 +218,13 @@ export async function shouldSendAlert(alerts, env) {
 /**
  * Mark alert as sent
  *
- * @param {Array<Object>} alerts - Alerts that were sent
- * @param {Object} env - Worker environment
+ * Records current timestamp in KV to enable deduplication
+ * checking. Uses 4-hour TTL to prevent stale entries.
+ *
+ * @param alerts - Alerts that were sent
+ * @param env - Worker environment with CACHE binding
  */
-export async function markAlertSent(alerts, env) {
+export async function markAlertSent(alerts: Alert[], env: Env): Promise<void> {
   const alertKey = alerts
     .map((a) => a.type)
     .sort()

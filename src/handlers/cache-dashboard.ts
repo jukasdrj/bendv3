@@ -11,8 +11,8 @@
  */
 
 import type { Context } from 'hono'
-import { checkAlertThresholds } from '../services/alert-monitor.js'
-import { aggregateMetrics } from '../services/metrics-aggregator.ts'
+import { checkAlertThresholds } from '../services/alert-monitor'
+import { aggregateMetrics } from '../services/metrics-aggregator'
 import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
 
 /**

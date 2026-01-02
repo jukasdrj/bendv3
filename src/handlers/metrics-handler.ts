@@ -1,4 +1,6 @@
-import { createErrorResponse, ErrorCodes } from '../utils/response-builder.js'
+import type { Context } from 'hono'
+import type { Env } from '../types/env'
+import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
 
 /**
  * GET /metrics - Comprehensive metrics API endpoint
@@ -9,27 +11,182 @@ import { createErrorResponse, ErrorCodes } from '../utils/response-builder.js'
  *  - period: 'minute' | 'hour' | 'day' | 'total' (default: 'hour')
  *  - format: 'json' | 'prometheus' (default: 'json')
  *
- * @param {Request} request
- * @param {Object} env
- * @param {ExecutionContext} ctx
- * @returns {Response} Metrics data
+ * @param c - Hono context with Bindings and Execution Context
+ * @returns Metrics data in requested format
  */
-export async function handleMetricsRequest(request, env, ctx) {
+
+/**
+ * WebSocket metrics structure
+ */
+interface WebSocketMetrics {
+  connectionsEstablished?: number
+  totalConnectionDuration?: number
+  disconnectReasons?: Record<string, number>
+}
+
+/**
+ * D1 database metrics
+ */
+interface D1Metrics {
+  queryCount?: number
+  readQueries?: number
+  writeQueries?: number
+  errorCount?: number
+  totalLatencyMs?: number
+  latencyBuckets?: {
+    fast?: number
+    normal?: number
+    slow?: number
+    verySlow?: number
+  }
+}
+
+/**
+ * API contract validation metrics
+ */
+interface ApiContractMetrics {
+  totalValidations?: number
+  validationFailures?: number
+  failuresByEndpoint?: Record<string, number>
+  failuresByField?: Record<string, number>
+}
+
+/**
+ * External API provider metrics
+ */
+interface ProviderMetrics {
+  requestCount?: number
+  errorCount?: number
+  quotaRemaining?: number
+  tokensUsed?: number
+}
+
+interface ExternalApiMetrics {
+  googleBooks?: ProviderMetrics
+  isbndb?: ProviderMetrics
+  gemini?: ProviderMetrics
+}
+
+/**
+ * Cache metrics structure
+ */
+interface CacheMetricsData {
+  total?: {
+    reads?: number
+    hits?: number
+    misses?: number
+    writes?: number
+    churns?: number
+  }
+}
+
+/**
+ * Aggregated metrics from all subsystems
+ */
+interface AggregatedMetrics {
+  timestamp: string
+  period: string
+  cache?: CacheMetricsData
+  websocket?: WebSocketMetrics
+  d1?: D1Metrics
+  apiContract?: ApiContractMetrics
+  externalApi?: ExternalApiMetrics
+}
+
+/**
+ * Derived metrics calculated from raw stats
+ */
+interface DerivedWebSocketMetrics {
+  avgConnectionDuration: string
+  totalDisconnects: number
+  disconnectReasons: Record<string, number>
+}
+
+interface DerivedD1Metrics {
+  avgLatency: string
+  readWriteRatio: string | number
+  errorRate: string
+  latencyDistribution: Record<string, number>
+}
+
+interface FailureEndpoint {
+  endpoint: string
+  count: number
+}
+
+interface DerivedApiContractMetrics {
+  failureRate: string
+  topFailingEndpoints: FailureEndpoint[]
+  topFailingFields: FailureEndpoint[]
+}
+
+interface GoogleBooksQuota {
+  quotaUsed: number
+  quotaRemaining: number
+  quotaPercentageUsed: string
+  errorRate: string
+}
+
+interface DerivedExternalApiMetrics {
+  googleBooks: GoogleBooksQuota
+  isbndb: GoogleBooksQuota
+  gemini: {
+    requestCount: number
+    tokensUsed: number
+    errorRate: string
+  }
+}
+
+interface DerivedMetrics {
+  websocket?: DerivedWebSocketMetrics
+  d1?: DerivedD1Metrics
+  apiContract?: DerivedApiContractMetrics
+  externalApi?: DerivedExternalApiMetrics
+  cache?: {
+    hitRate: string
+    churnRate: string
+  }
+}
+
+/**
+ * Health assessment issue
+ */
+interface HealthIssue {
+  severity: 'warning' | 'error'
+  component: string
+  message: string
+  since: string
+}
+
+interface HealthAssessment {
+  status: 'healthy' | 'degraded' | 'unhealthy'
+  issues: HealthIssue[]
+}
+
+/**
+ * Complete metrics response with health assessment
+ */
+interface MetricsResponse extends AggregatedMetrics {
+  derived?: DerivedMetrics
+  health?: HealthAssessment
+}
+
+export async function handleMetricsRequest(c: Context<{ Bindings: Env }>): Promise<Response> {
   try {
     // SECURITY: Validate authentication token
-    const auth = request.headers.get('Authorization')
+    const auth = c.req.header('Authorization')
     if (!auth || !auth.startsWith('Bearer ')) {
       return createErrorResponse(
         'Missing or invalid Authorization header. Use: Authorization: Bearer <metrics_token>',
         401,
         ErrorCodes.UNAUTHORIZED,
         { endpoint: '/metrics' },
-        request,
+        null,
       )
     }
 
     const token = auth.substring(7) // Remove "Bearer " prefix
-    const expectedToken = env.METRICS_API_KEY || 'metrics_default_key'
+    const expectedToken = c.env.METRICS_API_KEY || 'metrics_default_key'
 
     if (token !== expectedToken) {
       return createErrorResponse(
@@ -37,11 +194,11 @@ export async function handleMetricsRequest(request, env, ctx) {
         403,
         ErrorCodes.FORBIDDEN,
         { endpoint: '/metrics' },
-        request,
+        null,
       )
     }
 
-    const url = new URL(request.url)
+    const url = new URL(c.req.url)
     const period = url.searchParams.get('period') || 'hour'
     const format = url.searchParams.get('format') || 'json'
 
@@ -53,13 +210,13 @@ export async function handleMetricsRequest(request, env, ctx) {
         400,
         ErrorCodes.INVALID_REQUEST,
         { parameter: 'period', provided: period, valid: validPeriods },
-        request,
+        null,
       )
     }
 
     // Check cache first (5min TTL)
     const cacheKey = `metrics:v2:${period}`
-    const cached = await env.CACHE.get(cacheKey)
+    const cached = await c.env.CACHE.get(cacheKey)
     if (cached) {
       return new Response(cached, {
         headers: {
@@ -70,7 +227,7 @@ export async function handleMetricsRequest(request, env, ctx) {
     }
 
     // Fetch fresh metrics from CacheMetricsDO
-    const metrics = await fetchMetricsFromDO(env, period)
+    const metrics = await fetchMetricsFromDO(c.env, period)
 
     // Add derived metrics
     metrics.derived = calculateDerivedMetrics(metrics)
@@ -83,8 +240,8 @@ export async function handleMetricsRequest(request, env, ctx) {
       format === 'prometheus' ? formatPrometheus(metrics) : JSON.stringify(metrics, null, 2)
 
     // Cache for 5 minutes
-    ctx.waitUntil(
-      env.CACHE.put(cacheKey, body, {
+    c.executionCtx.waitUntil(
+      c.env.CACHE.put(cacheKey, body, {
         expirationTtl: 300,
       }),
     )
@@ -100,26 +257,28 @@ export async function handleMetricsRequest(request, env, ctx) {
       'Failed to fetch metrics',
       500,
       ErrorCodes.INTERNAL_ERROR,
-      { details: error.message },
-      request,
+      { details: error instanceof Error ? error.message : String(error) },
+      null,
     )
   }
 }
 
 /**
  * Fetch metrics from CacheMetricsDO
- * @param {Object} env - Worker environment
- * @param {string} period - Time period (minute, hour, day, total)
- * @returns {Promise<Object>} Metrics for the specified period
+ * @param env - Worker environment
+ * @param period - Time period (minute, hour, day, total)
+ * @returns Metrics for the specified period
  */
-async function fetchMetricsFromDO(env, period) {
+async function fetchMetricsFromDO(env: Env, period: string): Promise<MetricsResponse> {
   try {
     // Get CacheMetricsDO stub
     const id = env.CACHE_METRICS_DO.idFromName('global')
     const stub = env.CACHE_METRICS_DO.get(id)
 
     // Fetch all stats
-    const allStats = await stub.getStats()
+    const allStats = (await (
+      stub as unknown as { getStats: () => Promise<Record<string, unknown>> }
+    ).getStats()) as Record<string, unknown>
 
     // Map period name to stats structure
     const periodKey = `current${period.charAt(0).toUpperCase() + period.slice(1)}`
@@ -129,33 +288,47 @@ async function fetchMetricsFromDO(env, period) {
       period: period,
 
       // Cache metrics
-      cache: allStats[periodKey] || allStats.total,
+      cache: (allStats[periodKey] as CacheMetricsData) || (allStats.total as CacheMetricsData),
 
       // WebSocket metrics
-      websocket: allStats.websocket?.[periodKey] || allStats.websocket?.total || {},
+      websocket:
+        ((allStats.websocket as Record<string, unknown>)?.[periodKey] as WebSocketMetrics) ||
+        ((allStats.websocket as Record<string, unknown>)?.total as WebSocketMetrics) ||
+        {},
 
       // D1 metrics
-      d1: allStats.d1?.[periodKey] || allStats.d1?.total || {},
+      d1:
+        ((allStats.d1 as Record<string, unknown>)?.[periodKey] as D1Metrics) ||
+        ((allStats.d1 as Record<string, unknown>)?.total as D1Metrics) ||
+        {},
 
       // API contract metrics
-      apiContract: allStats.apiContract?.[periodKey] || allStats.apiContract?.total || {},
+      apiContract:
+        ((allStats.apiContract as Record<string, unknown>)?.[periodKey] as ApiContractMetrics) ||
+        ((allStats.apiContract as Record<string, unknown>)?.total as ApiContractMetrics) ||
+        {},
 
       // External API metrics
-      externalApi: allStats.externalApi?.[periodKey] || allStats.externalApi?.total || {},
+      externalApi:
+        ((allStats.externalApi as Record<string, unknown>)?.[periodKey] as ExternalApiMetrics) ||
+        ((allStats.externalApi as Record<string, unknown>)?.total as ExternalApiMetrics) ||
+        {},
     }
   } catch (error) {
     console.error('[Metrics Handler] Failed to fetch from DO:', error)
-    throw new Error(`Failed to fetch metrics from Durable Object: ${error.message}`)
+    throw new Error(
+      `Failed to fetch metrics from Durable Object: ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
 }
 
 /**
  * Calculate derived metrics from raw stats
- * @param {Object} metrics - Raw metrics object
- * @returns {Object} Derived metrics
+ * @param metrics - Raw metrics object
+ * @returns Derived metrics
  */
-function calculateDerivedMetrics(metrics) {
-  const derived = {}
+function calculateDerivedMetrics(metrics: MetricsResponse): DerivedMetrics {
+  const derived: DerivedMetrics = {}
 
   // WebSocket derived metrics
   if (metrics.websocket) {
@@ -180,7 +353,9 @@ function calculateDerivedMetrics(metrics) {
     derived.d1 = {
       avgLatency: totalQueries > 0 ? `${(totalLatency / totalQueries).toFixed(2)}ms` : '0ms',
       readWriteRatio:
-        d1.writeQueries > 0 ? ((d1.readQueries || 0) / d1.writeQueries).toFixed(2) : 'N/A',
+        d1.writeQueries && d1.writeQueries > 0
+          ? ((d1.readQueries || 0) / d1.writeQueries).toFixed(2)
+          : 'N/A',
       errorRate:
         totalQueries > 0 ? `${(((d1.errorCount || 0) / totalQueries) * 100).toFixed(2)}%` : '0%',
       latencyDistribution: d1.latencyBuckets || {},
@@ -200,11 +375,11 @@ function calculateDerivedMetrics(metrics) {
       topFailingEndpoints: Object.entries(contract.failuresByEndpoint || {})
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
-        .map(([endpoint, count]) => ({ endpoint, count })),
+        .map(([endpoint, count]) => ({ endpoint, count: count as number })),
       topFailingFields: Object.entries(contract.failuresByField || {})
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
-        .map(([field, count]) => ({ field, count })),
+        .map(([field, count]) => ({ endpoint: field, count: count as number })),
     }
   }
 
@@ -220,7 +395,7 @@ function calculateDerivedMetrics(metrics) {
           ? `${(((1000 - ext.googleBooks.quotaRemaining) / 1000) * 100).toFixed(1)}%`
           : '0%',
         errorRate:
-          ext.googleBooks?.requestCount > 0
+          ext.googleBooks?.requestCount && ext.googleBooks.requestCount > 0
             ? `${(((ext.googleBooks.errorCount || 0) / ext.googleBooks.requestCount) * 100).toFixed(
                 2,
               )}%`
@@ -233,7 +408,7 @@ function calculateDerivedMetrics(metrics) {
           ? `${(((5000 - ext.isbndb.quotaRemaining) / 5000) * 100).toFixed(1)}%`
           : '0%',
         errorRate:
-          ext.isbndb?.requestCount > 0
+          ext.isbndb?.requestCount && ext.isbndb.requestCount > 0
             ? `${(((ext.isbndb.errorCount || 0) / ext.isbndb.requestCount) * 100).toFixed(2)}%`
             : '0%',
       },
@@ -241,7 +416,7 @@ function calculateDerivedMetrics(metrics) {
         requestCount: ext.gemini?.requestCount || 0,
         tokensUsed: ext.gemini?.tokensUsed || 0,
         errorRate:
-          ext.gemini?.requestCount > 0
+          ext.gemini?.requestCount && ext.gemini.requestCount > 0
             ? `${(((ext.gemini.errorCount || 0) / ext.gemini.requestCount) * 100).toFixed(2)}%`
             : '0%',
       },
@@ -257,7 +432,9 @@ function calculateDerivedMetrics(metrics) {
     derived.cache = {
       hitRate: totalReads > 0 ? `${(((total.hits || 0) / totalReads) * 100).toFixed(2)}%` : '0%',
       churnRate:
-        total.writes > 0 ? `${(((total.churns || 0) / total.writes) * 100).toFixed(2)}%` : '0%',
+        total.writes && total.writes > 0
+          ? `${(((total.churns || 0) / total.writes) * 100).toFixed(2)}%`
+          : '0%',
     }
   }
 
@@ -266,11 +443,11 @@ function calculateDerivedMetrics(metrics) {
 
 /**
  * Assess overall system health based on metrics
- * @param {Object} metrics - Aggregated metrics
- * @returns {Object} Health status and issues
+ * @param metrics - Aggregated metrics
+ * @returns Health status and issues
  */
-function assessHealth(metrics) {
-  const issues = []
+function assessHealth(metrics: MetricsResponse): HealthAssessment {
+  const issues: HealthIssue[] = []
 
   // Check cache health
   if (metrics.cache && metrics.derived?.cache) {
@@ -372,11 +549,11 @@ function assessHealth(metrics) {
 
 /**
  * Format metrics for Prometheus scraping
- * @param {Object} metrics - Aggregated metrics
- * @returns {string} Prometheus-formatted metrics
+ * @param metrics - Aggregated metrics
+ * @returns Prometheus-formatted metrics
  */
-function formatPrometheus(metrics) {
-  const lines = []
+function formatPrometheus(metrics: MetricsResponse): string {
+  const lines: string[] = []
 
   // Cache metrics
   if (metrics.cache?.total) {

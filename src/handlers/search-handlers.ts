@@ -7,35 +7,76 @@
  * - Request coalescing to prevent duplicate in-flight calls
  */
 
-import * as externalApis from '../services/external-apis.ts'
-import { createErrorResponse, ErrorCodes } from '../utils/response-builder.js'
-import { transformWorkToGoogleFormat } from '../utils/transform-work.ts'
+import * as externalApis from '../services/external-apis'
+import type { Env } from '../types/env'
+import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
+import { transformWorkToGoogleFormat } from '../utils/transform-work'
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface SearchParams {
+  bookTitle?: string
+  authorName?: string
+  isbn?: string
+}
+
+interface SearchOptions {
+  maxResults?: number
+}
+
+interface NegativeCacheEntry {
+  type: 'no_results' | 'error'
+  error: string
+  status: number
+  timestamp: number
+}
+
+interface AdvancedSearchResponse {
+  items: unknown[]
+  resultCount: number
+}
+
+interface ProviderResult {
+  works?: unknown[]
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
 
 // Request coalescing: Map of in-flight requests by cache key
-const IN_FLIGHT_REQUESTS = new Map()
+const IN_FLIGHT_REQUESTS = new Map<string, Promise<Response>>()
 
 // Request timeout (30 seconds)
 const REQUEST_TIMEOUT_MS = 30000
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
 /**
- * Wrap a promise with timeout and automatic cleanup
- * Ensures Map entries are always removed, even on timeout
+ * Wrap a promise with timeout and automatic cleanup.
+ * Ensures Map entries are always removed, even on timeout.
  *
- * @param {Promise} promise - Promise to wrap
- * @param {number} timeoutMs - Timeout in milliseconds
- * @param {string} cacheKey - Cache key to clean up
- * @returns {Promise} Promise that rejects on timeout
+ * @param promise - Promise to wrap
+ * @param timeoutMs - Timeout in milliseconds
+ * @param cacheKey - Cache key to clean up
+ * @returns Promise that rejects on timeout
  */
-async function withTimeout(promise, timeoutMs, cacheKey) {
-  let timeoutId
-  let _timeoutOccurred = false
+async function withTimeout(
+  promise: Promise<Response>,
+  timeoutMs: number,
+  cacheKey: string,
+): Promise<Response> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
 
   try {
     return await Promise.race([
       promise,
-      new Promise((_, reject) => {
+      new Promise<Response>((_, reject) => {
         timeoutId = setTimeout(() => {
-          _timeoutOccurred = true
           // Clean up Map entry on timeout
           IN_FLIGHT_REQUESTS.delete(cacheKey)
           console.error(`⏱️ Request timeout after ${timeoutMs}ms: ${cacheKey}`)
@@ -55,9 +96,12 @@ async function withTimeout(promise, timeoutMs, cacheKey) {
 }
 
 /**
- * Generate cache key for search parameters
+ * Generate cache key for search parameters.
+ *
+ * @param searchParams - Search parameters
+ * @returns Cache key string
  */
-function generateSearchCacheKey(searchParams) {
+function generateSearchCacheKey(searchParams: SearchParams): string {
   const { bookTitle, authorName, isbn } = searchParams
   const parts = [
     isbn || '',
@@ -68,10 +112,14 @@ function generateSearchCacheKey(searchParams) {
 }
 
 /**
- * Check for negative cache entry (previous failed lookup)
- * Returns null if no negative cache, or cached error if exists
+ * Check for negative cache entry (previous failed lookup).
+ * Returns null if no negative cache, or cached error if exists.
+ *
+ * @param cacheKey - Cache key
+ * @param env - Worker environment
+ * @returns Negative cache entry or null
  */
-async function checkNegativeCache(cacheKey, env) {
+async function checkNegativeCache(cacheKey: string, env: Env): Promise<NegativeCacheEntry | null> {
   try {
     const negativeKey = `negative:${cacheKey}`
     const cached = await env.CACHE.get(negativeKey, 'json')
@@ -81,7 +129,7 @@ async function checkNegativeCache(cacheKey, env) {
       // Return cached error if less than 5 minutes old
       if (age < 300000) {
         console.log(`⚠️ Negative cache HIT: ${cacheKey} (age: ${Math.round(age / 1000)}s)`)
-        return cached
+        return cached as NegativeCacheEntry
       }
     }
   } catch (error) {
@@ -91,13 +139,19 @@ async function checkNegativeCache(cacheKey, env) {
 }
 
 /**
- * Store failed lookup in negative cache (5-minute TTL)
- * @param {string} cacheKey - Cache key
- * @param {Object} error - Error object with message and status
- * @param {string} type - Type: 'no_results' or 'error'
- * @param {Object} env - Worker environment
+ * Store failed lookup in negative cache (5-minute TTL).
+ *
+ * @param cacheKey - Cache key
+ * @param error - Error object with message and status
+ * @param type - Type: 'no_results' or 'error'
+ * @param env - Worker environment
  */
-async function storeNegativeCache(cacheKey, error, type, env) {
+async function storeNegativeCache(
+  cacheKey: string,
+  error: { message?: string; status?: number },
+  type: 'no_results' | 'error',
+  env: Env,
+): Promise<void> {
   try {
     const negativeKey = `negative:${cacheKey}`
     await env.CACHE.put(
@@ -118,19 +172,30 @@ async function storeNegativeCache(cacheKey, error, type, env) {
   }
 }
 
+// ============================================================================
+// Public Functions
+// ============================================================================
+
 /**
- * Advanced search handler for multi-provider book search
- * Previously called via RPC from bookshelf-ai-worker
+ * Advanced search handler for multi-provider book search.
+ * Previously called via RPC from bookshelf-ai-worker.
  *
- * @param {Object} searchParams - Search parameters
- * @param {string} searchParams.bookTitle - Book title to search
- * @param {string} searchParams.authorName - Author name to search
- * @param {Object} options - Search options
- * @param {number} options.maxResults - Maximum results to return (default: 1)
- * @param {Object} env - Worker environment bindings
- * @returns {Promise<Object>} Search results with items array (Google Books format)
+ * Performs parallel searches across Google Books and OpenLibrary,
+ * with request coalescing to prevent duplicate in-flight calls.
+ *
+ * @param searchParams - Search parameters
+ * @param searchParams.bookTitle - Book title to search
+ * @param searchParams.authorName - Author name to search
+ * @param options - Search options
+ * @param options.maxResults - Maximum results to return (default: 1)
+ * @param env - Worker environment bindings
+ * @returns Search results with items array (Google Books format)
  */
-export async function handleAdvancedSearch(searchParams, options = {}, env) {
+export async function handleAdvancedSearch(
+  searchParams: SearchParams,
+  options: SearchOptions = {},
+  env: Env,
+): Promise<Response> {
   const { bookTitle, authorName } = searchParams
   const maxResults = options.maxResults || 1
   const cacheKey = generateSearchCacheKey(searchParams)
@@ -142,7 +207,7 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
   if (negativeCache) {
     // Maintain consistent API contract: always return success: true for "no results"
     if (negativeCache.type === 'no_results') {
-      return new Response(JSON.stringify({ items: [], resultCount: 0 }), {
+      return new Response(JSON.stringify({ items: [], resultCount: 0 } as AdvancedSearchResponse), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })
@@ -158,7 +223,7 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
   // Check for in-flight request (request coalescing)
   if (IN_FLIGHT_REQUESTS.has(cacheKey)) {
     console.log(`🔄 Request coalescing: Waiting for in-flight request (${cacheKey})`)
-    return IN_FLIGHT_REQUESTS.get(cacheKey)
+    return IN_FLIGHT_REQUESTS.get(cacheKey) as Promise<Response>
   }
 
   // Create new request promise
@@ -167,7 +232,11 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
       // Try Google Books first (most reliable for enrichment)
       const query = [bookTitle, authorName].filter(Boolean).join(' ')
 
-      const googleResult = await externalApis.searchGoogleBooks(query, { maxResults }, env)
+      const googleResult = (await externalApis.searchGoogleBooks(
+        query,
+        { maxResults },
+        env,
+      )) as ProviderResult | null
 
       if (googleResult?.works && googleResult.works.length > 0) {
         // Convert normalized works to Google Books format using shared utility
@@ -175,7 +244,10 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
 
         const resultItems = items.slice(0, maxResults)
         return new Response(
-          JSON.stringify({ items: resultItems, resultCount: resultItems.length }),
+          JSON.stringify({
+            items: resultItems,
+            resultCount: resultItems.length,
+          } as AdvancedSearchResponse),
           {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -186,7 +258,11 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
       // Fallback to OpenLibrary if Google Books fails
       console.log(`[AdvancedSearch] Google Books returned no results, trying OpenLibrary...`)
 
-      const olResult = await externalApis.searchOpenLibrary(query, { maxResults }, env)
+      const olResult = (await externalApis.searchOpenLibrary(
+        query,
+        { maxResults },
+        env,
+      )) as ProviderResult | null
 
       if (olResult?.works && olResult.works.length > 0) {
         // Convert OpenLibrary works to Google Books format using shared utility
@@ -194,7 +270,10 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
 
         const resultItems = items.slice(0, maxResults)
         return new Response(
-          JSON.stringify({ items: resultItems, resultCount: resultItems.length }),
+          JSON.stringify({
+            items: resultItems,
+            resultCount: resultItems.length,
+          } as AdvancedSearchResponse),
           {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -211,19 +290,28 @@ export async function handleAdvancedSearch(searchParams, options = {}, env) {
         env,
       )
 
-      return new Response(JSON.stringify({ items: [], resultCount: 0 }), {
+      return new Response(JSON.stringify({ items: [], resultCount: 0 } as AdvancedSearchResponse), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Search failed'
+      const errorStatus =
+        error instanceof Error && 'status' in error ? (error.status as number) : undefined
+
       console.error(`[AdvancedSearch] Error searching for "${bookTitle}":`, error)
 
       // Store negative cache for 5xx errors only (not client errors)
-      if (!error.status || error.status >= 500) {
-        await storeNegativeCache(cacheKey, error, 'error', env)
+      if (!errorStatus || errorStatus >= 500) {
+        await storeNegativeCache(
+          cacheKey,
+          { message: errorMessage, status: errorStatus || 500 },
+          'error',
+          env,
+        )
       }
 
-      return createErrorResponse(error.message || 'Search failed', 500, ErrorCodes.INTERNAL_ERROR)
+      return createErrorResponse(errorMessage || 'Search failed', 500, ErrorCodes.INTERNAL_ERROR)
     } finally {
       // Clean up in-flight request
       IN_FLIGHT_REQUESTS.delete(cacheKey)

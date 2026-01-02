@@ -3,12 +3,48 @@
  *
  * Beautiful HTML dashboard for ISBNdb cover harvest monitoring.
  * Showcases Cloudflare Workers capabilities with real-time stats.
+ *
+ * GET /api/harvest/dashboard - Returns HTML dashboard with harvest statistics
  */
+
+import type { Context } from 'hono'
+import type { Env } from '../types/env'
+
+/**
+ * Cover source breakdown statistics
+ */
+interface CoversBySource {
+  isbndb: number
+  google: number
+  openlibrary: number
+}
+
+/**
+ * Harvest statistics from KV and R2
+ */
+interface HarvestStats {
+  totalCovers: number
+  totalSizeMB: string
+  avgCompressionSavings: number
+  coversBySource: CoversBySource
+  lastUpdated: string
+  storageUsed: string
+  apiQuotaUsed: string
+  cacheHitRate: string
+  error?: string
+}
 
 /**
  * Get current harvest statistics from KV and R2
+ *
+ * Retrieves cover count and analyzes metadata to determine source
+ * distribution and estimate storage usage. Uses sampling for large
+ * datasets to optimize performance.
+ *
+ * @param env - Worker environment with CACHE namespace
+ * @returns Harvest statistics for display in dashboard
  */
-async function getHarvestStats(env) {
+async function getHarvestStats(env: Env): Promise<HarvestStats> {
   try {
     // Get all cover keys from KV (cover:* pattern)
     const list = await env.CACHE.list({ prefix: 'cover:' })
@@ -19,9 +55,7 @@ async function getHarvestStats(env) {
     const recentCovers = list.keys.slice(0, 100)
 
     let totalSize = 0
-    const _totalSavings = 0
-    const coversBySource = { isbndb: 0, google: 0, openlibrary: 0 }
-    const _imageQuality = { high: 0, medium: 0, low: 0, none: 0 }
+    const coversBySource: CoversBySource = { isbndb: 0, google: 0, openlibrary: 0 }
 
     // Analyze sample of covers
     for (const key of recentCovers) {
@@ -29,13 +63,13 @@ async function getHarvestStats(env) {
       if (!data) continue
 
       try {
-        const metadata = JSON.parse(data)
+        const metadata = JSON.parse(data) as Record<string, unknown>
 
         // Estimate size (we don't track actual size, use average of ~50KB per cover)
         totalSize += 50 * 1024 // 50KB average
 
         // Determine source
-        const source = metadata.source || 'isbndb'
+        const source = (metadata.source as string) || 'isbndb'
         if (source === 'isbndb' || source.includes('isbndb')) coversBySource.isbndb++
         else if (source === 'google-books' || source.includes('google')) coversBySource.google++
         else if (source.includes('openlibrary')) coversBySource.openlibrary++
@@ -72,15 +106,22 @@ async function getHarvestStats(env) {
       storageUsed: '0 MB',
       apiQuotaUsed: 'N/A',
       cacheHitRate: 'N/A',
-      error: error.message,
+      error: error instanceof Error ? error.message : String(error),
     }
   }
 }
 
 /**
- * Render HTML dashboard
+ * Render HTML dashboard with statistics
+ *
+ * Creates a responsive, visually appealing dashboard with real-time
+ * statistics about cover harvest progress. Uses Cloudflare brand
+ * colors and responsive grid layout.
+ *
+ * @param stats - Harvest statistics to display
+ * @returns HTML dashboard page
  */
-function renderDashboard(stats) {
+function renderDashboard(stats: HarvestStats): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -322,7 +363,7 @@ function renderDashboard(stats) {
 <body>
   <div class="container">
     <div class="header">
-      <h1>📚 ISBNdb Cover Harvest Dashboard</h1>
+      <h1>ISBNdb Cover Harvest Dashboard</h1>
       <p><span class="live-indicator"></span>Real-time monitoring powered by Cloudflare Workers</p>
     </div>
 
@@ -396,21 +437,21 @@ function renderDashboard(stats) {
       <div class="source-breakdown">
         <div class="source-item">
           <div class="source-name">Phase 1: Edition Discovery</div>
-          <div class="stat-subtitle"><span class="badge badge-success">✓ Active</span></div>
+          <div class="stat-subtitle"><span class="badge badge-success">Active</span></div>
           <p style="color: var(--cf-text-dim); font-size: 0.85rem; margin-top: 0.5rem;">
             Google Books API integration with 100-point scoring algorithm
           </p>
         </div>
         <div class="source-item">
           <div class="source-name">Phase 2: Enhanced Harvest</div>
-          <div class="stat-subtitle"><span class="badge badge-success">✓ Active</span></div>
+          <div class="stat-subtitle"><span class="badge badge-success">Active</span></div>
           <p style="color: var(--cf-text-dim); font-size: 0.85rem; margin-top: 0.5rem;">
             350 Works × 2-3 editions = 700-1050 ISBNs/day
           </p>
         </div>
         <div class="source-item">
           <div class="source-name">Analytics Integration</div>
-          <div class="stat-subtitle"><span class="badge badge-warning">⏳ Pending 24h</span></div>
+          <div class="stat-subtitle"><span class="badge badge-warning">Pending 24h</span></div>
           <p style="color: var(--cf-text-dim); font-size: 0.85rem; margin-top: 0.5rem;">
             Popular search ISBNs from Analytics Engine
           </p>
@@ -434,10 +475,16 @@ function renderDashboard(stats) {
 
 /**
  * Handle dashboard request
+ *
+ * Fetches current harvest statistics and renders an interactive
+ * HTML dashboard showing real-time progress and statistics.
+ *
+ * @param c - Hono context with Bindings
+ * @returns HTML dashboard response
  */
-export async function handleHarvestDashboard(_request, env) {
+export async function handleHarvestDashboard(c: Context<{ Bindings: Env }>): Promise<Response> {
   try {
-    const stats = await getHarvestStats(env)
+    const stats = await getHarvestStats(c.env)
     const html = renderDashboard(stats)
 
     return new Response(html, {

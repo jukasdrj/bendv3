@@ -20,7 +20,7 @@ import { RateLimiterDO } from './durable-objects/rate-limiter.js'
 import { WebSocketConnectionDO } from './durable-objects/websocket-connection.js'
 import { handleScheduledAlerts } from './handlers/scheduled-alerts.js'
 import { handleScheduledCacheWarming } from './handlers/scheduled-cache-warming.js'
-import { handleScheduledHarvest } from './handlers/scheduled-harvest.js'
+import { handleScheduledHarvest } from './handlers/scheduled-harvest'
 import honoRouter from './router'
 import type { Env } from './types/env'
 // Cloudflare Workflows (Issue #71 - LAUNCH BLOCKER)
@@ -62,7 +62,7 @@ export default {
           console.log('[Cron] Running daily author expansion + cover harvest job')
           // Import author expansion harvest
           const { executeAuthorExpansionHarvest } = await import(
-            './handlers/author-expansion-harvest.js'
+            './handlers/author-expansion-harvest'
           )
           await executeAuthorExpansionHarvest(env, 10, 200) // Reduced to 10 authors for limited scale test (Issue #137)
           break

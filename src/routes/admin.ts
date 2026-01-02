@@ -27,9 +27,7 @@ export function createAdminRoutes() {
   router.post('/trigger-harvest', async (c) => {
     try {
       console.log('[Admin] Manual harvest trigger requested')
-      const { executeAuthorExpansionHarvest } = await import(
-        '../handlers/author-expansion-harvest.js'
-      )
+      const { executeAuthorExpansionHarvest } = await import('../handlers/author-expansion-harvest')
 
       // Get parameters from query string or use defaults
       const authorCount = parseInt(c.req.query('authors') || '10', 10)

@@ -6,13 +6,42 @@
  *
  * Schedule: Hourly (0 * * * *)
  * Throughput: 1000 ISBNs/hour = 24,000/day (well within 15k API call quota)
- *
- * @param {Object} env - Worker environment bindings
- * @returns {Promise<Object>} Harvest result stats
  */
-import { createAlexandriaClient } from '../services/alexandria-client'
 
-export async function handleScheduledHarvest(env) {
+import type { ExecutionContext, ScheduledEvent } from '@cloudflare/workers-types'
+import { createAlexandriaClient } from '../services/alexandria-client'
+import type { Env } from '../types/env'
+
+/**
+ * Harvest result statistics
+ */
+interface HarvestResult {
+  queried: number
+  found_in_isbndb: number
+  editions_updated: number
+  covers_queued: number
+  duration_ms: number
+}
+
+/**
+ * Handles scheduled cover harvest from Alexandria
+ *
+ * This handler is triggered hourly by Cloudflare Cron to harvest book covers
+ * from ISBNdb for editions that are missing metadata. It calls Alexandria's
+ * batch harvest endpoint which processes 1000 ISBNs per request.
+ *
+ * @param event - The scheduled event trigger
+ * @param env - Worker environment bindings
+ * @param ctx - Execution context (for additional lifecycle control)
+ * @returns Promise that resolves when harvest completes
+ *
+ * @throws Never throws - errors are caught and logged
+ */
+export async function handleScheduledHarvest(
+  _event: ScheduledEvent,
+  env: Env,
+  _ctx: ExecutionContext,
+): Promise<void> {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log('📚 STARTING HOURLY COVER HARVEST')
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
@@ -37,7 +66,7 @@ export async function handleScheduledHarvest(env) {
       throw new Error(`Alexandria harvest failed: ${response.status}`)
     }
 
-    const result = await response.json()
+    const result: HarvestResult = await response.json()
 
     console.log('[Harvest] Result:', {
       queried: result.queried,
@@ -46,16 +75,8 @@ export async function handleScheduledHarvest(env) {
       queued: result.covers_queued,
       duration: `${result.duration_ms}ms`,
     })
-
-    return {
-      success: true,
-      data: result,
-    }
   } catch (error) {
-    console.error('[Harvest] Fatal error:', error)
-    return {
-      success: false,
-      error: error.message,
-    }
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error('[Harvest] Fatal error:', errorMessage)
   }
 }

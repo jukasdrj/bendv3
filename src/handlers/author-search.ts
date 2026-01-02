@@ -1,45 +1,90 @@
-// src/handlers/author-search.js
 /**
  * Author bibliography search handler with pagination
  * Uses OpenLibrary API for author work lookups
  */
 
-import { CacheKeyFactory } from '../services/cache-key-factory.ts'
-import * as externalApis from '../services/external-apis.ts'
-import { UnifiedCacheService } from '../services/unified-cache.ts'
-import { setCached } from '../utils/cache.ts'
+import { CacheKeyFactory } from '../services/cache-key-factory'
+import * as externalApis from '../services/external-apis'
+import { UnifiedCacheService } from '../services/unified-cache'
+import type { Env } from '../types/env'
+import { writeCacheMetrics } from '../utils/analytics'
+import { setCached } from '../utils/cache'
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface AuthorSearchOptions {
+  limit?: number
+  offset?: number
+  sortBy?: 'publicationYear' | 'publicationYearAsc' | 'title' | 'popularity'
+}
+
+interface AuthorInfo {
+  name: string
+  openLibraryKey: string | null
+  totalWorks: number
+}
+
+interface PaginationInfo {
+  total: number
+  limit: number
+  offset: number
+  hasMore: boolean
+  nextOffset: number | null
+}
+
+interface AuthorSearchResult {
+  success: boolean
+  provider: string
+  author: AuthorInfo
+  works: unknown[]
+  pagination: PaginationInfo
+  cached: boolean
+  cacheSource?: string
+  responseTime: number
+}
+
+interface AuthorSearchError {
+  success: boolean
+  error: string
+  details?: string
+  works: unknown[]
+  pagination: null
+}
+
+interface CacheMetricsPayload {
+  endpoint: string
+  cacheHit: boolean
+  responseTime: number
+  itemCount: number
+  authorName: string
+}
+
+interface WorkItem {
+  title?: string
+  firstPublicationYear?: number
+  editions?: unknown[]
+}
 
 /**
- * Search books by author with pagination
- * @param {string} authorName - Author name to search
- * @param {Object} options - Search options
- * @param {number} options.limit - Results per page (default: 50, max: 100)
- * @param {number} options.offset - Pagination offset (default: 0)
- * @param {string} options.sortBy - Sort order (publicationYear, title, popularity)
- * @param {Object} env - Worker environment bindings
- * @param {Object} ctx - Execution context
- * @returns {Promise<{
- *   success: boolean,
- *   provider: string,
- *   author: {
- *     name: string,
- *     openLibraryKey: string | null,
- *     totalWorks: number
- *   },
- *   works: Array<any>,
- *   pagination: {
- *     total: number,
- *     limit: number,
- *     offset: number,
- *     hasMore: boolean,
- *     nextOffset: number | null
- *   },
- *   cached: boolean,
- *   cacheSource?: string,
- *   responseTime: number
- * }>} Author bibliography with pagination and cache metadata
+ * Search books by author with pagination.
+ *
+ * @param authorName - Author name to search
+ * @param options - Search options
+ * @param options.limit - Results per page (default: 50, max: 100)
+ * @param options.offset - Pagination offset (default: 0)
+ * @param options.sortBy - Sort order (publicationYear, title, popularity)
+ * @param env - Worker environment bindings
+ * @param ctx - Execution context
+ * @returns Author bibliography with pagination and cache metadata
  */
-export async function searchByAuthor(authorName, options, env, ctx) {
+export async function searchByAuthor(
+  authorName: string,
+  options: AuthorSearchOptions,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<AuthorSearchResult | AuthorSearchError> {
   const { limit = 50, offset = 0, sortBy = 'publicationYear' } = options
 
   // Validate pagination parameters
@@ -99,7 +144,7 @@ export async function searchByAuthor(authorName, options, env, ctx) {
     }
 
     // Apply pagination to works
-    const allWorks = olResult.works || []
+    const allWorks = (olResult.works || []) as WorkItem[]
     const totalWorks = allWorks.length
 
     // Apply sorting
@@ -108,33 +153,13 @@ export async function searchByAuthor(authorName, options, env, ctx) {
     // Slice for pagination
     const paginatedWorks = sortedWorks.slice(validatedOffset, validatedOffset + validatedLimit)
 
-    /**
-     * @type {{
-     *   success: boolean,
-     *   provider: string,
-     *   author: {
-     *     name: string,
-     *     openLibraryKey: string | null,
-     *     totalWorks: number
-     *   },
-     *   works: Array<any>,
-     *   pagination: {
-     *     total: number,
-     *     limit: number,
-     *     offset: number,
-     *     hasMore: boolean,
-     *     nextOffset: number | null
-     *   },
-     *   cached: boolean,
-     *   responseTime: number
-     * }}
-     */
-    const responseData = {
+    const responseData: AuthorSearchResult = {
       success: true,
       provider: 'openlibrary',
       author: {
         name: authorName,
-        openLibraryKey: olResult.author?.openLibraryKey || null,
+        openLibraryKey:
+          (olResult.author as { openLibraryKey?: string | null })?.openLibraryKey || null,
         totalWorks: totalWorks,
       },
       works: paginatedWorks,
@@ -167,11 +192,12 @@ export async function searchByAuthor(authorName, options, env, ctx) {
 
     return responseData
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error(`Author search failed for "${authorName}":`, error)
     return {
       success: false,
       error: 'Author search failed',
-      details: error.message,
+      details: errorMessage,
       works: [],
       pagination: null,
     }
@@ -179,12 +205,16 @@ export async function searchByAuthor(authorName, options, env, ctx) {
 }
 
 /**
- * Apply sorting to works array
- * @param {Array} works - Array of work objects
- * @param {string} sortBy - Sort order
- * @returns {Array} Sorted works
+ * Apply sorting to works array.
+ *
+ * @param works - Array of work objects
+ * @param sortBy - Sort order
+ * @returns Sorted works
  */
-function applySorting(works, sortBy) {
+function applySorting(
+  works: WorkItem[],
+  sortBy?: 'publicationYear' | 'publicationYearAsc' | 'title' | 'popularity',
+): WorkItem[] {
   const sortedWorks = [...works]
 
   switch (sortBy) {
@@ -214,11 +244,12 @@ function applySorting(works, sortBy) {
 }
 
 /**
- * Write cache metrics to Analytics Engine
- * @param {Object} env - Worker environment bindings
- * @param {Object} metrics - Metrics to write
+ * Write cache metrics to Analytics Engine.
+ *
+ * @param env - Worker environment bindings
+ * @param metrics - Metrics to write
  */
-async function writeCacheMetrics(env, metrics) {
+async function _writeCacheMetricsInternal(env: Env, metrics: CacheMetricsPayload): Promise<void> {
   if (!env.CACHE_ANALYTICS) {
     console.warn('CACHE_ANALYTICS binding not available')
     return

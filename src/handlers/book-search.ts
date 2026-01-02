@@ -7,33 +7,72 @@
  * - ISBN search: 7 day TTL (604800 seconds) - ISBN data is stable
  */
 
-import { CacheKeyFactory } from '../services/cache-key-factory.ts'
-import * as externalApis from '../services/external-apis.ts'
-import { UnifiedCacheService } from '../services/unified-cache.ts'
-import { writeCacheMetrics } from '../utils/analytics.ts'
-import { detectImageQuality } from '../utils/book-metadata.ts'
-import { setCached } from '../utils/cache.ts'
-import { transformWorkToGoogleFormat } from '../utils/transform-work.ts'
+import { CacheKeyFactory } from '../services/cache-key-factory'
+import * as externalApis from '../services/external-apis'
+import { UnifiedCacheService } from '../services/unified-cache'
+import type { Env } from '../types/env'
+import { writeCacheMetrics } from '../utils/analytics'
+import { detectImageQuality } from '../utils/book-metadata'
+import { setCached } from '../utils/cache'
+import { transformWorkToGoogleFormat } from '../utils/transform-work'
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface SearchOptions {
+  maxResults?: number
+}
+
+interface CacheHeaderRecord {
+  [key: string]: string
+}
+
+interface SearchResult {
+  kind: string
+  totalItems: number
+  items: unknown[]
+  provider: string
+  cached: boolean
+  cacheSource?: string
+  responseTime: number
+  _cacheHeaders: CacheHeaderRecord
+}
+
+interface SearchError {
+  error: string
+  details: string
+  items: unknown[]
+  _cacheHeaders: CacheHeaderRecord
+}
+
+interface WorkItem {
+  volumeInfo?: {
+    title?: string
+    industryIdentifiers?: Array<{ type: string; identifier: string }>
+    imageLinks?: {
+      thumbnail?: string
+      smallThumbnail?: string
+    }
+  }
+}
 
 /**
  * Search books by title with multi-provider orchestration
- * @param {string} title - Book title to search
- * @param {Object} options - Search options
- * @param {number} options.maxResults - Maximum results to return (default: 20)
- * @param {Object} env - Worker environment bindings
- * @param {Object} ctx - Execution context
- * @returns {Promise<{
- *   kind: string,
- *   totalItems: number,
- *   items: Array<any>,
- *   provider: string,
- *   cached: boolean,
- *   cacheSource?: string,
- *   responseTime: number,
- *   _cacheHeaders: Record<string, string>
- * }>} Search results in Google Books format with cache metadata
+ *
+ * @param title - Book title to search
+ * @param options - Search options
+ * @param options.maxResults - Maximum results to return (default: 20)
+ * @param env - Worker environment bindings
+ * @param ctx - Execution context
+ * @returns Search results in Google Books format with cache metadata
  */
-export async function searchByTitle(title, options, env, ctx) {
+export async function searchByTitle(
+  title: string,
+  options: SearchOptions,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<SearchResult | SearchError> {
   const { maxResults = 20 } = options
   const cacheKey = CacheKeyFactory.bookTitle(title, maxResults)
 
@@ -69,7 +108,7 @@ export async function searchByTitle(title, options, env, ctx) {
     return {
       ...data,
       cached: true,
-      cacheSource: source, // NEW: Include cache source (EDGE or KV)
+      cacheSource: source, // Include cache source (EDGE or KV)
       _cacheHeaders: headers,
     }
   }
@@ -85,15 +124,13 @@ export async function searchByTitle(title, options, env, ctx) {
 
     const results = await Promise.allSettled(searchPromises)
 
-    let finalItems = []
-    const successfulProviders = []
+    let finalItems: unknown[] = []
+    const successfulProviders: string[] = []
 
     // Process Google Books results
     if (results[0].status === 'fulfilled' && results[0].value) {
-      const googleData = results[0].value
-      // NormalizedResponse has works/editions structure, not items
+      const googleData = results[0].value as { works?: unknown[] }
       if (googleData.works && googleData.works.length > 0) {
-        // Transform works to Google Books format
         const transformedItems = googleData.works.map((work) => transformWorkToGoogleFormat(work))
         finalItems = [...finalItems, ...transformedItems]
         successfulProviders.push('google')
@@ -102,9 +139,8 @@ export async function searchByTitle(title, options, env, ctx) {
 
     // Process OpenLibrary results
     if (results[1].status === 'fulfilled' && results[1].value) {
-      const olData = results[1].value
+      const olData = results[1].value as { works?: unknown[] }
       if (olData.works && olData.works.length > 0) {
-        // Transform OpenLibrary works to Google Books format
         const transformedItems = olData.works.map((work) => transformWorkToGoogleFormat(work))
         finalItems = [...finalItems, ...transformedItems]
         successfulProviders.push('openlibrary')
@@ -114,18 +150,7 @@ export async function searchByTitle(title, options, env, ctx) {
     // Deduplication by ISBN with title fallback
     const dedupedItems = deduplicateByISBN(finalItems)
 
-    /**
-     * @type {{
-     *   kind: string,
-     *   totalItems: number,
-     *   items: Array<any>,
-     *   provider: string,
-     *   cached: boolean,
-     *   responseTime: number,
-     *   _cacheHeaders: Record<string, string>
-     * }}
-     */
-    const responseData = {
+    const responseData: SearchResult = {
       kind: 'books#volumes',
       totalItems: dedupedItems.length,
       items: dedupedItems.slice(0, maxResults),
@@ -154,26 +179,33 @@ export async function searchByTitle(title, options, env, ctx) {
 
     return responseData
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error(`Title search failed for "${title}":`, error)
     return {
       error: 'Title search failed',
-      details: error.message,
+      details: errorMessage,
       items: [],
-      _cacheHeaders: generateCacheHeaders(false, 0, 0, []),
+      _cacheHeaders: await generateCacheHeaders(false, 0, 0, [], env),
     }
   }
 }
 
 /**
  * Search books by ISBN with multi-provider orchestration
- * @param {string} isbn - ISBN-10 or ISBN-13
- * @param {Object} options - Search options
- * @param {number} options.maxResults - Maximum results to return (default: 1)
- * @param {Object} env - Worker environment bindings
- * @param {Object} ctx - Execution context
- * @returns {Promise<Object>} Book details in Google Books format
+ *
+ * @param isbn - ISBN-10 or ISBN-13
+ * @param options - Search options
+ * @param options.maxResults - Maximum results to return (default: 1)
+ * @param env - Worker environment bindings
+ * @param ctx - Execution context
+ * @returns Book details in Google Books format
  */
-export async function searchByISBN(isbn, options, env, ctx) {
+export async function searchByISBN(
+  isbn: string,
+  options: SearchOptions,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<SearchResult | SearchError> {
   const { maxResults = 1 } = options
   const cacheKey = CacheKeyFactory.bookISBN(isbn)
 
@@ -210,7 +242,7 @@ export async function searchByISBN(isbn, options, env, ctx) {
     return {
       ...data,
       cached: true,
-      cacheSource: source, // NEW: Include cache source (EDGE or KV)
+      cacheSource: source, // Include cache source (EDGE or KV)
       _cacheHeaders: headers,
     }
   }
@@ -226,13 +258,12 @@ export async function searchByISBN(isbn, options, env, ctx) {
 
     const results = await Promise.allSettled(searchPromises)
 
-    let finalItems = []
-    const successfulProviders = []
+    let finalItems: unknown[] = []
+    const successfulProviders: string[] = []
 
     // Process Google Books results
     if (results[0].status === 'fulfilled' && results[0].value) {
-      const googleData = results[0].value
-      // NormalizedResponse has works/editions structure, not items
+      const googleData = results[0].value as { works?: unknown[] }
       if (googleData.works && googleData.works.length > 0) {
         const transformedItems = googleData.works.map((work) => transformWorkToGoogleFormat(work))
         finalItems = [...finalItems, ...transformedItems]
@@ -242,7 +273,7 @@ export async function searchByISBN(isbn, options, env, ctx) {
 
     // Process OpenLibrary results
     if (results[1].status === 'fulfilled' && results[1].value) {
-      const olData = results[1].value
+      const olData = results[1].value as { works?: unknown[] }
       if (olData.works && olData.works.length > 0) {
         const transformedItems = olData.works.map((work) => transformWorkToGoogleFormat(work))
         finalItems = [...finalItems, ...transformedItems]
@@ -253,14 +284,14 @@ export async function searchByISBN(isbn, options, env, ctx) {
     // Simple deduplication by ISBN
     const dedupedItems = deduplicateByISBN(finalItems)
 
-    const responseData = {
+    const responseData: SearchResult = {
       kind: 'books#volumes',
       totalItems: dedupedItems.length,
       items: dedupedItems.slice(0, maxResults),
       provider: `orchestrated:${successfulProviders.join('+')}`,
       cached: false,
       responseTime: Date.now() - startTime,
-      _cacheHeaders: generateCacheHeaders(false, 0, 7 * 24 * 60 * 60, dedupedItems), // TTL: 7d
+      _cacheHeaders: await generateCacheHeaders(false, 0, 7 * 24 * 60 * 60, dedupedItems, env), // TTL: 7d
     }
 
     // Cache for 7 days (ISBN data is stable)
@@ -283,23 +314,28 @@ export async function searchByISBN(isbn, options, env, ctx) {
 
     return responseData
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error(`ISBN search failed for "${isbn}":`, error)
     return {
       error: 'ISBN search failed',
-      details: error.message,
+      details: errorMessage,
       items: [],
-      _cacheHeaders: generateCacheHeaders(false, 0, 0, []),
+      _cacheHeaders: await generateCacheHeaders(false, 0, 0, [], env),
     }
   }
 }
 
 /**
  * Deduplicate items by title (case-insensitive)
+ *
+ * @param items - Items to deduplicate
+ * @returns Deduplicated items
  */
-function _deduplicateByTitle(items) {
-  const seen = new Set()
+function _deduplicateByTitle(items: unknown[]): unknown[] {
+  const seen = new Set<string>()
   return items.filter((item) => {
-    const title = item.volumeInfo?.title?.toLowerCase() || ''
+    const workItem = item as WorkItem
+    const title = workItem.volumeInfo?.title?.toLowerCase() || ''
     if (seen.has(title)) {
       return false
     }
@@ -309,23 +345,27 @@ function _deduplicateByTitle(items) {
 }
 
 /**
- * Deduplicate items by ISBN with title fallback
- * For books without ISBNs (common for pre-1970 books), falls back to title deduplication
+ * Deduplicate items by ISBN with title fallback.
+ * For books without ISBNs (common for pre-1970 books), falls back to title deduplication.
+ *
+ * @param items - Items to deduplicate
+ * @returns Deduplicated items array
  */
-function deduplicateByISBN(items) {
-  const seen = new Set()
-  const seenTitles = new Set()
+function deduplicateByISBN(items: unknown[]): unknown[] {
+  const seen = new Set<string>()
+  const seenTitles = new Set<string>()
 
   return items.filter((item) => {
-    const identifiers = item.volumeInfo?.industryIdentifiers || []
+    const workItem = item as WorkItem
+    const identifiers = workItem.volumeInfo?.industryIdentifiers || []
     const isbns = identifiers
       .filter((id) => id.type === 'ISBN_13' || id.type === 'ISBN_10')
       .map((id) => id.identifier)
 
     // If book has ISBNs, dedupe by ISBN
     if (isbns && isbns.length > 0) {
-      const hasNewISBN = isbns.some((isbn) => {
-        const normalized = isbn.replace(/[-\s]/g, '')
+      const hasNewISBN = isbns.some((isbnValue) => {
+        const normalized = isbnValue.replace(/[-\s]/g, '')
         if (seen.has(normalized)) return false
         seen.add(normalized)
         return true
@@ -334,8 +374,8 @@ function deduplicateByISBN(items) {
     }
 
     // Fallback: If no ISBN, dedupe by normalized title
-    if (item.volumeInfo?.title) {
-      const normalizedTitle = item.volumeInfo.title
+    if (workItem.volumeInfo?.title) {
+      const normalizedTitle = workItem.volumeInfo.title
         .toLowerCase()
         .replace(/[^\w\s]/g, '') // Remove punctuation
         .trim()
@@ -354,15 +394,22 @@ function deduplicateByISBN(items) {
 
 /**
  * Generate cache health headers for response
- * @param {boolean} cacheHit - Whether request was served from cache
- * @param {number} age - Cache age in seconds
- * @param {number} ttl - Cache TTL in seconds
- * @param {Array} items - Search result items for quality analysis
- * @param {Object} env - Worker environment bindings
- * @returns {Promise<Object>} Headers object
+ *
+ * @param cacheHit - Whether request was served from cache
+ * @param age - Cache age in seconds
+ * @param ttl - Cache TTL in seconds
+ * @param items - Search result items for quality analysis
+ * @param env - Worker environment bindings
+ * @returns Headers object
  */
-async function generateCacheHeaders(cacheHit, age, ttl, items = [], env) {
-  const headers = {}
+async function generateCacheHeaders(
+  cacheHit: boolean,
+  age: number,
+  ttl: number,
+  items: unknown[] = [],
+  env: Env,
+): Promise<CacheHeaderRecord> {
+  const headers: CacheHeaderRecord = {}
 
   // Cache status
   headers['X-Cache-Status'] = cacheHit ? 'HIT' : 'MISS'
@@ -385,19 +432,20 @@ async function generateCacheHeaders(cacheHit, age, ttl, items = [], env) {
 }
 
 /**
- * Analyzes cover image quality from URLs (provider-agnostic)
- * Uses detectImageQuality utility for accurate dimension-based analysis
+ * Analyzes cover image quality from URLs (provider-agnostic).
+ * Uses detectImageQuality utility for accurate dimension-based analysis.
  *
- * @param {Array} items - Search result items in Google Books format
- * @param {Object} env - Worker environment bindings
- * @returns {Promise<string>} 'high' | 'medium' | 'low' | 'missing'
+ * @param items - Search result items in Google Books format
+ * @param env - Worker environment bindings
+ * @returns Quality level: 'high' | 'medium' | 'low' | 'missing'
  */
-async function analyzeImageQuality(items, env) {
+async function analyzeImageQuality(items: unknown[], env: Env): Promise<string> {
   if (!items || items.length === 0) return 'missing'
 
   // Collect all cover URLs for parallel processing
   const coverUrls = items.map((item) => {
-    const imageLinks = item.volumeInfo?.imageLinks
+    const workItem = item as WorkItem
+    const imageLinks = workItem.volumeInfo?.imageLinks
     return imageLinks?.thumbnail || imageLinks?.smallThumbnail || ''
   })
 
@@ -436,18 +484,20 @@ async function analyzeImageQuality(items, env) {
 }
 
 /**
- * Calculates data completeness percentage
- * @param {Array} items - Search result items in Google Books format
- * @returns {number} Percentage (0-100) of items with ISBN + cover
+ * Calculates data completeness percentage.
+ *
+ * @param items - Search result items in Google Books format
+ * @returns Percentage (0-100) of items with ISBN + cover
  */
-function calculateDataCompleteness(items) {
+function calculateDataCompleteness(items: unknown[]): number {
   if (!items || items.length === 0) return 0
 
   let completeCount = 0
 
   for (const item of items) {
-    const volumeInfo = item.volumeInfo
-    const hasISBN = volumeInfo?.industryIdentifiers?.length > 0
+    const workItem = item as WorkItem
+    const volumeInfo = workItem.volumeInfo
+    const hasISBN = (volumeInfo?.industryIdentifiers?.length || 0) > 0
     const hasCover = volumeInfo?.imageLinks?.thumbnail || volumeInfo?.imageLinks?.smallThumbnail
 
     if (hasISBN && hasCover) {
@@ -457,5 +507,3 @@ function calculateDataCompleteness(items) {
 
   return Math.round((completeCount / items.length) * 100)
 }
-
-// writeCacheMetrics moved to src/utils/analytics.js for reuse across handlers
