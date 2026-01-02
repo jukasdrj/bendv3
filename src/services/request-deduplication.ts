@@ -22,7 +22,7 @@ const inflightRequests = new Map<string, Promise<any>>()
  * @param ttlMs - TTL for cleanup (default 5 seconds)
  * @returns Promise with the resource data
  */
-export async function deduplicate<T>(key: string, fn: () => Promise<T>, ttlMs = 5000): Promise<T> {
+export async function deduplicate<T>(key: string, fn: () => Promise<T>, _ttlMs = 5000): Promise<T> {
   // Return existing promise if request is already inflight
   if (inflightRequests.has(key)) {
     console.log(`[RequestDedup] 🔄 Deduplicating request for key: ${key}`)

@@ -31,6 +31,7 @@ import { generateBookEmbedding, storeEmbedding } from '../services/embedding-ser
 // Alexandria now returns per-work embedded authors array, no client-side matching needed
 import { enrichMultipleBooks } from '../services/enrichment'
 import type { Env } from '../types/env'
+import { isValidEnrichedBookCacheEntry } from '../utils/book-validation'
 import { normalizeTitle } from '../utils/normalization'
 import { registerDiscoveryRoutes } from './discovery'
 import {
@@ -47,7 +48,6 @@ import { registerAlexandriaWebhookRoutes } from './webhooks/alexandria'
 
 // Constants for V3 API data transformation
 const DEFAULT_PROVIDER_QUALITY = 95 // Default quality score for provider data
-const MAX_SEARCH_RESULTS = 100 // Maximum results to fetch for client-side pagination
 
 export function createV3Router() {
   const app = new OpenAPIHono<{
@@ -158,14 +158,17 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
     console.log(`[V3 Search] Query: "${q}", mode: ${mode}, page: ${page}, limit: ${limit}`)
 
     try {
+      // Get configurable max search results from env (default: 100)
+      const maxSearchResults = Number.parseInt(c.env.V3_MAX_SEARCH_RESULTS || '100', 10)
+
       // Normalize title for consistent cache keys
       const normalizedTitle = normalizeTitle(q)
 
       // Fetch results from Alexandria (no server-side pagination support yet)
-      // LIMITATION: Client-side pagination limited to first MAX_SEARCH_RESULTS
-      // For queries with >100 results, only first 100 are accessible
+      // LIMITATION: Client-side pagination limited to first maxSearchResults
+      // For queries with >maxSearchResults results, only first N are accessible
       const result = await findBooksByTitle(normalizedTitle, undefined, c.env, {
-        maxResults: MAX_SEARCH_RESULTS,
+        maxResults: maxSearchResults,
       })
 
       if (!result || !result.works || result.works.length === 0) {
@@ -399,9 +402,9 @@ for semantic search.`,
     // ========================================================================
     // STREAMING MODE: For large batches to prevent OOM and improve UX
     // ========================================================================
-    const STREAMING_THRESHOLD = 50 // Use streaming for >50 ISBNs
+    const streamingThreshold = Number.parseInt(c.env.V3_ENRICH_STREAMING_THRESHOLD || '50', 10)
 
-    if (isbns.length > STREAMING_THRESHOLD && !includeEmbedding) {
+    if (isbns.length > streamingThreshold && !includeEmbedding) {
       // Import streaming utilities
       const { createStreamingResponse, createBookEnrichmentStream } = await import(
         '../utils/streaming-response'
@@ -416,30 +419,12 @@ for semantic search.`,
           const cacheKey = `book:isbn:${isbn}`
           const cached = await c.env.CACHE.get<any>(cacheKey, 'json')
 
-          // Validate cached data (using the same logic from sync mode)
-          const isValidEnrichedBook = (data: unknown): data is any => {
-            if (!data || typeof data !== 'object') return false
-            const obj = data as Record<string, unknown>
-            return (
-              typeof obj.isbn === 'string' &&
-              typeof obj.title === 'string' &&
-              Array.isArray(obj.authors) &&
-              typeof obj.provider === 'string' &&
-              typeof obj.quality === 'number' &&
-              'vectorized' in obj &&
-              !('works' in obj) &&
-              !('editions' in obj)
-            )
-          }
-
-          if (cached && isValidEnrichedBook(cached)) {
+          // Validate cached data using shared utility
+          if (cached && isValidEnrichedBookCacheEntry(cached)) {
             return { success: true, book: cached, isbn }
           }
 
-          // Import enrichment logic
-          const { enrichMultipleBooks } = await import('../services/enrichment')
-
-          // Fetch from external APIs
+          // Fetch from external APIs (using top-level import)
           const result = await enrichMultipleBooks(
             { isbn },
             c.env,
@@ -472,13 +457,13 @@ for semantic search.`,
             workKey: work.openLibraryWorkID || work.openLibraryID,
             editionKey: edition?.openLibraryEditionID,
             provider: 'alexandria' as const,
-            quality: 85, // DEFAULT_PROVIDER_QUALITY
+            quality: DEFAULT_PROVIDER_QUALITY,
             vectorized: false,
           }
 
-          // Cache the result
+          // Cache the result (24 hours TTL for consistency with sync enrichment)
           c.executionCtx.waitUntil(
-            c.env.CACHE.put(cacheKey, JSON.stringify(book), { expirationTtl: 7200 }),
+            c.env.CACHE.put(cacheKey, JSON.stringify(book), { expirationTtl: 86400 }),
           )
 
           return { success: true, book, isbn }
@@ -512,25 +497,7 @@ for semantic search.`,
       const notFound: string[] = []
 
       // Process ISBNs in parallel batches to prevent timeout
-      const CONCURRENCY = 50 // Process up to 50 ISBNs in parallel to stay within timeout
-
-      // Helper to validate cached data has correct V3 EnrichedBook structure
-      // Detects stale cache entries from old works/editions/authors format
-      const isValidEnrichedBook = (data: unknown): data is EnrichedBook => {
-        if (!data || typeof data !== 'object') return false
-        const obj = data as Record<string, unknown>
-        // V3 EnrichedBook must have these flat fields (not nested works/editions)
-        return (
-          typeof obj.isbn === 'string' &&
-          typeof obj.title === 'string' &&
-          Array.isArray(obj.authors) &&
-          typeof obj.provider === 'string' &&
-          typeof obj.quality === 'number' && // Required by EnrichedBook
-          'vectorized' in obj && // Required for cache hit condition
-          !('works' in obj) && // Reject old nested format
-          !('editions' in obj)
-        )
-      }
+      const concurrency = Number.parseInt(c.env.V3_ENRICH_CONCURRENCY || '50', 10)
 
       const processSingleISBN = async (isbn: string) => {
         try {
@@ -539,12 +506,16 @@ for semantic search.`,
           const cached = await c.env.CACHE.get<EnrichedBook>(cacheKey, 'json')
 
           // Validate cached data has correct V3 structure (not stale nested format)
-          if (cached && isValidEnrichedBook(cached) && (!includeEmbedding || cached.vectorized)) {
+          if (
+            cached &&
+            isValidEnrichedBookCacheEntry(cached) &&
+            (!includeEmbedding || cached.vectorized)
+          ) {
             return { success: true, book: cached }
           }
 
           // If cache had invalid format, log and proactively delete stale entry
-          if (cached && !isValidEnrichedBook(cached)) {
+          if (cached && !isValidEnrichedBookCacheEntry(cached)) {
             console.warn(`[V3 Enrich] Stale cache format detected for ${isbn}, refreshing`)
             // Non-blocking deletion of stale cache entry
             c.executionCtx.waitUntil(c.env.CACHE.delete(cacheKey))
@@ -635,8 +606,8 @@ for semantic search.`,
       }
 
       // Process in parallel batches with controlled concurrency
-      for (let i = 0; i < isbns.length; i += CONCURRENCY) {
-        const batch = isbns.slice(i, i + CONCURRENCY)
+      for (let i = 0; i < isbns.length; i += concurrency) {
+        const batch = isbns.slice(i, i + concurrency)
         const results = await Promise.allSettled(batch.map((isbn) => processSingleISBN(isbn)))
 
         results.forEach((result) => {
