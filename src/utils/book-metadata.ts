@@ -66,7 +66,7 @@ async function generateUrlHash(url: string): Promise<string> {
  */
 export async function detectImageQuality(
   coverUrl: string | null | undefined,
-  env: Env
+  env: Env,
 ): Promise<ImageQualityResult> {
   if (!coverUrl) {
     return { quality: 'missing', width: 0, height: 0 }
@@ -156,7 +156,10 @@ export async function detectImageQuality(
  * @param url - Image URL for pattern matching
  * @returns Image dimensions
  */
-async function extractDimensionsFromResponse(_response: Response, url: string): Promise<ImageDimensions> {
+async function extractDimensionsFromResponse(
+  _response: Response,
+  url: string,
+): Promise<ImageDimensions> {
   // Skip content-length heuristics and fall back to URL inference
   // Content-Length doesn't reliably indicate image dimensions
   return inferDimensionsFromUrl(url)
@@ -219,7 +222,7 @@ export function generateSearchLinks(
   isbn?: string | null,
   title?: string | null,
   author?: string | null,
-  volumeId: string | null = null
+  volumeId: string | null = null,
 ): SearchLinks {
   const links: SearchLinks = {}
 

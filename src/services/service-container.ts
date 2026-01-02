@@ -155,14 +155,14 @@ export function createServiceContainer(env: Env): ServiceContainer {
     return new BookRepository(container.getEnv())
   })
 
-  container.register(ServiceId.EnrichmentService, (container) => {
+  container.register(ServiceId.EnrichmentService, (_container) => {
     // Import the enrichment function as a service wrapper
     return {
       enrichMultipleBooks: require('./enrichment').enrichMultipleBooks,
     }
   })
 
-  container.register(ServiceId.CoverService, (container) => {
+  container.register(ServiceId.CoverService, (_container) => {
     const coverService = require('./alexandria-cover-service')
     return {
       processBookCover: coverService.processBookCover,
@@ -170,14 +170,14 @@ export function createServiceContainer(env: Env): ServiceContainer {
     }
   })
 
-  container.register(ServiceId.CircuitBreaker, (container) => {
+  container.register(ServiceId.CircuitBreaker, (_container) => {
     const { withCircuitBreaker } = require('./circuit-breaker')
     return {
       execute: withCircuitBreaker,
     }
   })
 
-  container.register(ServiceId.DeduplicationService, (container) => {
+  container.register(ServiceId.DeduplicationService, (_container) => {
     const { deduplicate } = require('./request-deduplication')
     return {
       deduplicate,
@@ -221,7 +221,7 @@ export function createMockServiceContainer(env: Partial<Env> = {}): ServiceConta
   }))
 
   container.register(ServiceId.DeduplicationService, () => ({
-    deduplicate: jest.fn((key, fn) => fn()), // Default passthrough
+    deduplicate: jest.fn((_key, fn) => fn()), // Default passthrough
   }))
 
   return container

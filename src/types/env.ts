@@ -42,6 +42,11 @@ export interface Env {
   CONCURRENCY_LIMIT: string
   AGGRESSIVE_CACHING: string
 
+  // V3 API Configuration
+  V3_MAX_SEARCH_RESULTS?: string // Default: 100
+  V3_ENRICH_STREAMING_THRESHOLD?: string // Default: 50
+  V3_ENRICH_CONCURRENCY?: string // Default: 50
+
   // Content-specific Cache TTLs (all optional, see src/config/cache-ttl.js for defaults)
   CACHE_TTL_ISBN?: string // Default: 31536000 (365 days)
   CACHE_TTL_TITLE?: string // Default: 604800 (7 days)

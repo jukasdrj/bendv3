@@ -1,8 +1,8 @@
 // src/services/kv-cache.ts
 
-import type { Env } from '../types/env.js'
 import type { ExecutionContext } from '@cloudflare/workers-types'
 import { getAllCacheTTLs } from '../config/cache-ttl.js'
+import type { Env } from '../types/env.js'
 import { getCached, setCached } from '../utils/cache.js'
 
 /**
@@ -118,7 +118,7 @@ export class KVCacheService {
     cacheKey: string,
     data: any,
     endpoint: string,
-    options: CacheSetOptions = {}
+    options: CacheSetOptions = {},
   ): Promise<void> {
     try {
       const baseTTL = options.ttl || (this.ttls as any)[endpoint] || this.ttls.title

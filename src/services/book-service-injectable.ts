@@ -13,16 +13,14 @@
 
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical'
 import type { BookRecord } from '../types/database'
-import type { CoverProcessingTask } from '../utils/concurrency-limiter'
+import type { Env } from '../types/env'
 import type {
-  ICoverService,
   IBookRepository,
+  ICoverService,
   IDeduplicationService,
   IEnrichmentService,
   ServiceContainer,
-  ServiceId,
 } from './service-container'
-import type { Env } from '../types/env'
 
 interface SearchOptions {
   maxResults?: number
@@ -261,7 +259,7 @@ export class InjectableBookService {
   private async processAndSaveBook(
     isbn: string,
     result: any,
-    ctx?: ExecutionContext,
+    _ctx?: ExecutionContext,
   ): Promise<void> {
     try {
       const work = result.works[0]

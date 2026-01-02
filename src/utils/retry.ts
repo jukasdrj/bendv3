@@ -19,7 +19,7 @@
 export async function retryWithBackoff<T>(
   asyncFn: () => Promise<T>,
   maxRetries = 3,
-  initialDelay = 1000
+  initialDelay = 1000,
 ): Promise<T> {
   let lastError: Error | null = null
 

@@ -74,7 +74,7 @@ export function getRateLimitForEndpoint(pathname: string): number {
 export async function checkRateLimit(
   request: Request,
   env: Env,
-  maxRequests: number | null = null
+  maxRequests: number | null = null,
 ): Promise<Response | null> {
   // Extract client IP (Cloudflare provides this in CF-Connecting-IP header)
   const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown'
@@ -100,7 +100,7 @@ export async function checkRateLimit(
       }),
     )
 
-    const result = await response.json() as RateLimitCheckResponse
+    const result = (await response.json()) as RateLimitCheckResponse
     const { allowed, remaining, resetAt } = result
 
     if (!allowed) {

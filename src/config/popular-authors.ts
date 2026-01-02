@@ -87,9 +87,7 @@ export function getAuthorsByPriority(priority: 1 | 2 | 3): AuthorInfo[] {
  * @returns Array of author names
  */
 export function getAllAuthorNames(): string[] {
-  return [...POPULAR_AUTHORS]
-    .sort((a, b) => a.priority - b.priority)
-    .map((author) => author.name)
+  return [...POPULAR_AUTHORS].sort((a, b) => a.priority - b.priority).map((author) => author.name)
 }
 
 /**
