@@ -924,7 +924,7 @@ export class JobStateManagerDO extends DurableObject {
         const { enrichBooksParallel } = await import('../services/parallel-enrichment.js')
         const { enrichMultipleBooks } = await import('../services/enrichment.ts')
         const { categorizeBooks } = await import('../utils/confidence.js')
-        const { getCacheTTL } = await import('../config/cache-ttl.js')
+        const { getCacheTTL } = await import('../config/cache-ttl.ts')
 
         const enrichedBooks = await enrichBooksParallel(
           deduplicatedBooks,

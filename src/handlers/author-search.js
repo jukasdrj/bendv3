@@ -4,7 +4,7 @@
  * Uses OpenLibrary API for author work lookups
  */
 
-import { CacheKeyFactory } from '../services/cache-key-factory.js'
+import { CacheKeyFactory } from '../services/cache-key-factory.ts'
 import * as externalApis from '../services/external-apis.ts'
 import { UnifiedCacheService } from '../services/unified-cache.js'
 import { setCached } from '../utils/cache.js'

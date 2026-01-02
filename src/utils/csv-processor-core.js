@@ -13,7 +13,7 @@
 
 import { buildCSVParserPrompt } from '../prompts/csv-parser-prompt.js'
 import { parseCSVWithGemini as parseCSVWithGeminiImpl } from '../providers/gemini-csv-provider.js'
-import { generateCSVCacheKey } from './cache-keys.js'
+import { generateCSVCacheKey } from './cache-keys.ts'
 import { validateCSV as validateCSVImpl } from './csv-validator.js'
 
 /**

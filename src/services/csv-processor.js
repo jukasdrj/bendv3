@@ -13,7 +13,7 @@
  * Related: Issue #217 - Dependency injection for workerd-compatible testing
  */
 
-import { getCacheTTL } from '../config/cache-ttl.js'
+import { getCacheTTL } from '../config/cache-ttl.ts'
 import {
   buildServiceCompletionPayload,
   defaultDeps,

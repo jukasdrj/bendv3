@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
-import { getCorsHeaders } from '../middleware/cors.js'
+import { getCorsHeaders } from '../middleware/cors.ts'
 
 /**
  * WebSocket Connection Durable Object

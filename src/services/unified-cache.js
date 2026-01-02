@@ -1,8 +1,8 @@
 // src/services/unified-cache.js
 
-import { getCacheTTL } from '../config/cache-ttl.js'
+import { getCacheTTL } from '../config/cache-ttl.ts'
 import { EdgeCacheService } from './edge-cache.js'
-import { KVCacheService } from './kv-cache.js'
+import { KVCacheService } from './kv-cache.ts'
 
 /**
  * Unified Cache Service - Single entry point for all cache operations

@@ -1,7 +1,7 @@
 // src/services/kv-cache.ts
 
 import type { ExecutionContext } from '@cloudflare/workers-types'
-import { getAllCacheTTLs } from '../config/cache-ttl.js'
+import { getAllCacheTTLs } from '../config/cache-ttl.ts'
 import type { Env } from '../types/env.js'
 import { getCached, setCached } from '../utils/cache.js'
 

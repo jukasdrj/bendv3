@@ -9,7 +9,7 @@
  * - covers: prefers edition.coverImageURL with placeholder fallback
  */
 
-import { generateSearchLinks, getPlaceholderCover } from './book-metadata.js'
+import { generateSearchLinks, getPlaceholderCover } from './book-metadata.ts'
 
 /**
  * Transform a normalized Work object to Google Books format

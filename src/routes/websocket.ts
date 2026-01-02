@@ -11,7 +11,7 @@
  */
 
 import { OpenAPIHono } from '@hono/zod-openapi'
-import { checkRateLimit } from '../middleware/rate-limiter'
+import { checkRateLimit } from '../middleware/rate-limiter.ts'
 import type { Env } from '../types/env'
 import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
 

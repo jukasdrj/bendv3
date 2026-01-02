@@ -11,7 +11,7 @@
  */
 
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../../types/canonical.js'
-import { getPlaceholderCover } from '../../utils/book-metadata.js'
+import { getPlaceholderCover } from '../../utils/book-metadata.ts'
 import { extractYear } from '../../utils/date-utils.js'
 
 /**

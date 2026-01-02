@@ -173,6 +173,10 @@ export function registerDiscoveryRoutes(
         version: '3.2.0',
       }
 
+      // Add edge caching for static capabilities response
+      // Cache for 5 minutes (300s) on Cloudflare edge
+      c.header('Cache-Control', 'public, max-age=300, s-maxage=300')
+
       return c.json(capabilities, 200)
     } catch (error: any) {
       console.error('[V3 Capabilities] Error:', error)

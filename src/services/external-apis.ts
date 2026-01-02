@@ -27,7 +27,7 @@ import {
 // Re-export Alexandria API functions
 export { searchAlexandria, searchAlexandriaByISBN } from './alexandria-api'
 
-import { getCacheTTL } from '../config/cache-ttl.js'
+import { getCacheTTL } from '../config/cache-ttl.ts'
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical.js'
 import { logExternalApiCall } from '../utils/analytics-logger.ts'
 import { getCached, setCached } from '../utils/cache.js'

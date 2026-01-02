@@ -29,7 +29,7 @@
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { CacheKeyFactory } from '../services/cache-key-factory.js'
+import { CacheKeyFactory } from '../services/cache-key-factory.ts'
 import type {
   BookEntry,
   CoverData,

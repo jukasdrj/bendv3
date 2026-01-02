@@ -8,10 +8,11 @@
  * - Nov 21, 2025: Manual router removed (Issue #243)
  * - Archived manual router code: docs/archive/manual-router-legacy-2025-11-21.js
  * - Now uses Hono router exclusively for all HTTP routing
+ * - Jan 2, 2026: Migrated to TypeScript (Week 2 Phase 1)
  */
 
 import { processAuthorBatch } from './consumers/author-warming-consumer.js'
-import { handleRecommendationsCron } from './cron/recommendations-cron.ts'
+import { handleRecommendationsCron } from './cron/recommendations-cron'
 import { CacheMetricsDO } from './durable-objects/cache-metrics.js'
 import { JobStateManagerDO } from './durable-objects/job-state-manager.js'
 import { LatencyTestDO } from './durable-objects/latency-test-do.js'
@@ -20,12 +21,13 @@ import { WebSocketConnectionDO } from './durable-objects/websocket-connection.js
 import { handleScheduledAlerts } from './handlers/scheduled-alerts.js'
 import { handleScheduledCacheWarming } from './handlers/scheduled-cache-warming.js'
 import { handleScheduledHarvest } from './handlers/scheduled-harvest.js'
-import honoRouter from './router.ts'
+import honoRouter from './router'
+import type { Env } from './types/env'
 // Cloudflare Workflows (Issue #71 - LAUNCH BLOCKER)
-import { BookImportWorkflow } from './workflows/import-book.ts'
+import { BookImportWorkflow } from './workflows/import-book'
 
 // Export Durable Object classes for Cloudflare Workers runtime
-export { RateLimiterDO, WebSocketConnectionDO, JobStateManagerDO, CacheMetricsDO, LatencyTestDO }
+export { CacheMetricsDO, JobStateManagerDO, LatencyTestDO, RateLimiterDO, WebSocketConnectionDO }
 
 // Export Workflow classes for Cloudflare Workflows runtime (Issue #71)
 export { BookImportWorkflow }
@@ -34,7 +36,7 @@ export { BookImportWorkflow }
  * Main fetch handler - routes all HTTP requests to Hono router
  */
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     console.log(
       `[Worker] Routing request via Hono: ${request.method} ${new URL(request.url).pathname}`,
     )
@@ -44,7 +46,7 @@ export default {
   /**
    * Scheduled handler - executes cron jobs defined in wrangler.jsonc
    */
-  async scheduled(event, env, ctx) {
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     const cronName = event.cron
     console.log(`[Cron] Executing scheduled job: ${cronName}`)
 
@@ -102,7 +104,7 @@ export default {
    *
    * Note: Enrichment is handled by Alexandria (producer sends to alexandria-enrichment-queue)
    */
-  async queue(batch, env, ctx) {
+  async queue(batch: MessageBatch, env: Env, ctx: ExecutionContext): Promise<void> {
     const queueName = batch.queue
     console.log(`[Queue] Processing ${batch.messages.length} messages from ${queueName}`)
 

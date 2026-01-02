@@ -18,9 +18,9 @@
  * Issue: #140 - Switch to ISBNdb-Primary Pipeline
  */
 
-import { getCacheTTL } from '../config/cache-ttl.js'
+import { getCacheTTL } from '../config/cache-ttl.ts'
 import type { Env } from '../types/env.js'
-import { KVCacheService } from './kv-cache.js'
+import { KVCacheService } from './kv-cache.ts'
 import {
   normalizeISBNdbToAuthor,
   normalizeISBNdbToEdition,

@@ -2,7 +2,7 @@
 // Issue #179: Retry logic with exponential backoff for Gemini API failures
 
 import { CSV_BOOK_SCHEMA } from '../types/gemini-schemas.js'
-import { retryWithBackoff } from '../utils/retry.js'
+import { retryWithBackoff } from '../utils/retry.ts'
 
 const GEMINI_API_ENDPOINT =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'

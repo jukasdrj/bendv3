@@ -15,7 +15,7 @@
  * @see src/services/alexandria-client.ts for RPC client implementation
  */
 
-import { getCacheTTL } from '../config/cache-ttl.js'
+import { getCacheTTL } from '../config/cache-ttl.ts'
 import type { AuthorDTO } from '../types/canonical.js'
 import { logExternalApiCall } from '../utils/analytics-logger.ts'
 import { getCached, setCached } from '../utils/cache.js'

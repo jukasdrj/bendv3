@@ -10,7 +10,7 @@
  * 3. Return: Complete ISBN list for harvest
  */
 
-import { RateLimiter } from '../utils/rate-limiter.js'
+import { RateLimiter } from '../utils/rate-limiter.ts'
 import { getTopEditions } from './edition-discovery.js'
 
 /**

@@ -7,11 +7,11 @@
  * - ISBN search: 7 day TTL (604800 seconds) - ISBN data is stable
  */
 
-import { CacheKeyFactory } from '../services/cache-key-factory.js'
+import { CacheKeyFactory } from '../services/cache-key-factory.ts'
 import * as externalApis from '../services/external-apis.ts'
 import { UnifiedCacheService } from '../services/unified-cache.js'
-import { writeCacheMetrics } from '../utils/analytics.js'
-import { detectImageQuality } from '../utils/book-metadata.js'
+import { writeCacheMetrics } from '../utils/analytics.ts'
+import { detectImageQuality } from '../utils/book-metadata.ts'
 import { setCached } from '../utils/cache.js'
 import { transformWorkToGoogleFormat } from '../utils/transform-work.js'
 

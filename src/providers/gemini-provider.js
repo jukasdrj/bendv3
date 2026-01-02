@@ -8,7 +8,7 @@
  */
 
 import { BOOKSHELF_RESPONSE_SCHEMA } from '../types/gemini-schemas.js'
-import { retryWithBackoff } from '../utils/retry.js'
+import { retryWithBackoff } from '../utils/retry.ts'
 
 // Configurable model selection (Issue #101: Flash-Lite migration)
 // Override via GEMINI_VISION_MODEL env var if needed (rollback: set to "gemini-2.5-flash")

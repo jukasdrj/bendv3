@@ -6,7 +6,7 @@
  * CRITICAL: Uses direct function calls instead of RPC to eliminate circular dependencies!
  */
 
-import { getCacheTTL } from '../config/cache-ttl.js'
+import { getCacheTTL } from '../config/cache-ttl.ts'
 import { scanImageWithGemini } from '../providers/gemini-provider.js'
 import { categorizeBooks } from '../utils/confidence.js'
 import { enrichMultipleBooks } from './enrichment.ts'
