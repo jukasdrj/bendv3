@@ -421,10 +421,7 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
         }
       }
     } catch (error) {
-      console.error(
-        `[${this.jobId}] [cid: ${this.correlationId}] Failed to parse message:`,
-        error,
-      )
+      console.error(`[${this.jobId}] [cid: ${this.correlationId}] Failed to parse message:`, error)
     }
   }
 

@@ -29,7 +29,7 @@ import {
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { RequestContext } from '../../middleware/request-context'
 import type { Env } from '../../types/env'
-import { deleteR2Objects } from '../../utils/r2-utils'
+import { deleteR2Objects } from '../../utils/r2/r2-utils'
 import {
   buildStreamUrl,
   createJobLinks,
