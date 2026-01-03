@@ -61,6 +61,7 @@ app.use(
       const allowedOrigins = [
         'https://bookstrack.oooefam.net',
         'https://harvest.oooefam.net',
+        'https://books.oooefam.net',
         'https://bookstrack-web.pages.dev',
         'https://ca2dc966.bookstrack-web.pages.dev',
         'capacitor://localhost',
