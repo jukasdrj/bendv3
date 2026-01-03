@@ -188,54 +188,39 @@ export interface components {
             timestamp: string;
             requestId?: string;
             cached?: boolean;
-            processingTimeMs?: number;
+            /** @description Request processing time in milliseconds */
+            processingTime?: number;
         };
+        /** @description API capabilities (iOS-compatible flat format) */
         CapabilitiesResponse: {
-            success: boolean;
-            data: {
-                /** @description Current API version */
-                apiVersion: string;
-                features: components["schemas"]["Feature"][];
-                limits: components["schemas"]["Limits"];
-                deprecations: components["schemas"]["Deprecation"][];
-            };
-            metadata: components["schemas"]["ResponseMetadata"];
-        };
-        Feature: {
-            /** @description Feature identifier */
-            name: string;
-            /** @description Whether feature is available */
-            enabled: boolean;
-            /** @description Feature version */
+            features: components["schemas"]["CapabilitiesFeatures"];
+            limits: components["schemas"]["CapabilitiesLimits"];
+            /** @description API version */
             version: string;
-            /** @description Related API endpoints */
-            endpoints: string[];
-            rateLimit?: {
-                /** @description Max requests per window */
-                requests?: number;
-                /** @description Rate limit window in milliseconds */
-                windowMs?: number;
-            };
-            /** @description Additional notes */
-            notes?: string;
         };
-        Limits: {
-            /** @description Maximum items per batch request */
-            maxBatchSize: number;
+        CapabilitiesFeatures: {
+            /** @description Semantic search enabled */
+            semantic_search: boolean;
+            /** @description Similar books search enabled */
+            similar_books: boolean;
+            /** @description Weekly recommendations enabled */
+            weekly_recommendations: boolean;
+            /** @description SSE streaming enabled */
+            sse_streaming: boolean;
+            /** @description Batch enrichment enabled */
+            batch_enrichment: boolean;
+            /** @description CSV import enabled */
+            csv_import: boolean;
+        };
+        CapabilitiesLimits: {
+            /** @description Semantic search requests per minute */
+            semantic_search_rpm: number;
+            /** @description Text search requests per minute */
+            text_search_rpm: number;
             /** @description Maximum rows in CSV import */
-            maxCsvRows: number;
-            /** @description Maximum image size for scans */
-            maxImageSizeMb: number;
-            /** @description Max concurrent async jobs per user */
-            maxConcurrentJobs: number;
-        };
-        Deprecation: {
-            /** @description Deprecated endpoint path */
-            endpoint: string;
-            /** @description Sunset date (ISO 8601) */
-            sunsetDate: string;
-            /** @description Replacement endpoint or migration guide */
-            replacement: string;
+            csv_max_rows: number;
+            /** @description Maximum photos in batch scan */
+            batch_max_photos: number;
         };
         RecommendationsResponse: {
             success: boolean;
