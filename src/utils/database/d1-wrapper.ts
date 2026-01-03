@@ -8,7 +8,7 @@
  *
  * Usage:
  * ```typescript
- * import { wrapD1Database } from './utils/d1-wrapper'
+ * import { wrapD1Database } from './utils/database/d1-wrapper'
  *
  * const db = wrapD1Database(env.DB, env)
  * const result = await db.prepare('SELECT * FROM books WHERE isbn = ?').bind(isbn).first()

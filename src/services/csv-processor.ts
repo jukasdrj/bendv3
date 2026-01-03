@@ -20,8 +20,8 @@ import {
   defaultDeps,
   type ProcessorDependencies,
   processCSVCore,
-} from '../utils/csv-processor-core'
-import type { ProgressReporter } from '../utils/progress-reporter'
+} from '../utils/jobs/csv-processor-core'
+import type { ProgressReporter } from '../utils/jobs/progress-reporter'
 
 /**
  * Process CSV import with progress tracking

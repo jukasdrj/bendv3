@@ -1,6 +1,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { wrapD1Database } from '../../src/utils/d1-wrapper.ts'
+import { wrapD1Database } from '../../src/utils/database/d1-wrapper.ts'
 
 describe('D1 Wrapper Batch Metrics', () => {
   let mockDb

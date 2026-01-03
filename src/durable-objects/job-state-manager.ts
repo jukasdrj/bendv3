@@ -2,7 +2,7 @@ import { DurableObject } from 'cloudflare:workers'
 import type { ExecutionContext } from '@cloudflare/workers-types'
 import { processCSVImport } from '../services/csv-processor'
 import type { Env } from '../types/env'
-import { ProgressReporter } from '../utils/progress-reporter'
+import { ProgressReporter } from '../utils/jobs/progress-reporter'
 
 /**
  * Job State Manager Durable Object
