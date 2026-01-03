@@ -1,9 +1,14 @@
 # BooksTrack Backend
 
+[![npm version](https://img.shields.io/npm/v/@jukasdrj/bookstrack-api-client.svg)](https://www.npmjs.com/package/@jukasdrj/bookstrack-api-client)
+[![TypeScript](https://img.shields.io/badge/TypeScript-98.7%25-blue.svg)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 **Cloudflare Workers API** for book search, enrichment, and AI-powered scanning.
 
-**Production URL:** https://api.oooefam.net  
+**Production URL:** https://api.oooefam.net
 **Harvest Dashboard:** https://harvest.oooefam.net 📊 (Real-time monitoring)
+**TypeScript SDK:** [`@jukasdrj/bookstrack-api-client`](https://www.npmjs.com/package/@jukasdrj/bookstrack-api-client)
 
 ## Repository Structure
 
@@ -106,6 +111,43 @@ See `ARCHITECTURE_OVERVIEW.md` for architecture details.
 ### Previous API Versions (Removed)
 - ⛔ **V1 API:** Removed December 2025 - See [docs/archive/v1-api-2026-03/](docs/archive/v1-api-2026-03/)
 - ⛔ **V2 API:** Removed March 2026
+
+## TypeScript SDK
+
+Official type-safe SDK for BooksTrack V3 API:
+
+```bash
+npm install @jukasdrj/bookstrack-api-client
+```
+
+**Features:**
+- ✅ Auto-generated from OpenAPI spec (always in sync)
+- ✅ Full TypeScript support with type inference
+- ✅ SSE streaming utilities for jobs
+- ✅ Works in browser, Node.js, and Cloudflare Workers
+- ✅ Tree-shakable and lightweight (~2KB gzipped)
+
+**Quick Example:**
+```typescript
+import { createBooksTrackClient } from '@jukasdrj/bookstrack-api-client'
+
+const client = createBooksTrackClient({
+  baseUrl: 'https://api.oooefam.net'
+})
+
+// Type-safe API calls with autocomplete
+const { data } = await client.GET('/v3/books/{isbn}', {
+  params: { path: { isbn: '9780439708180' } }
+})
+
+console.log(data.data.title) // "Harry Potter and the Sorcerer's Stone"
+```
+
+**Documentation:**
+- 📦 [npm package](https://www.npmjs.com/package/@jukasdrj/bookstrack-api-client)
+- 📖 [Full SDK docs](packages/api-client/README.md)
+- 🌊 [Streaming guide](packages/api-client/STREAMING_GUIDE.md)
+- 📝 [Changelog](packages/api-client/CHANGELOG.md)
 
 ## Quick Start
 
@@ -280,6 +322,7 @@ npx wrangler tail --remote --format pretty
 ### Interactive API Documentation
 - **V3 Swagger UI:** https://api.oooefam.net/v3/docs
 - **V3 OpenAPI Spec:** https://api.oooefam.net/v3/openapi.json
+- **API Versioning Strategy:** [docs/API_VERSIONING.md](docs/API_VERSIONING.md)
 
 ### Development Status
 - **TypeScript Migration:** 147/149 files (98.7% complete)

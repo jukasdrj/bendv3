@@ -1,5 +1,9 @@
 # @bookstrack/api-client
 
+[![npm version](https://img.shields.io/npm/v/@jukasdrj/bookstrack-api-client.svg)](https://www.npmjs.com/package/@jukasdrj/bookstrack-api-client)
+[![npm downloads](https://img.shields.io/npm/dm/@jukasdrj/bookstrack-api-client.svg)](https://www.npmjs.com/package/@jukasdrj/bookstrack-api-client)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 **Official TypeScript SDK for BooksTrack V3 API**
 
 Auto-generated from OpenAPI specification using `openapi-typescript` + `openapi-fetch`.
@@ -18,13 +22,19 @@ Auto-generated from OpenAPI specification using `openapi-typescript` + `openapi-
 ## Installation
 
 ```bash
-npm install @bookstrack/api-client
+npm install @jukasdrj/bookstrack-api-client
 ```
 
-**Note:** This package is published to GitHub Packages. Ensure your `.npmrc` is configured:
+Or with yarn:
 
+```bash
+yarn add @jukasdrj/bookstrack-api-client
 ```
-@bookstrack:registry=https://npm.pkg.github.com
+
+Or with pnpm:
+
+```bash
+pnpm add @jukasdrj/bookstrack-api-client
 ```
 
 ---
@@ -34,7 +44,7 @@ npm install @bookstrack/api-client
 ### Basic Usage
 
 ```typescript
-import { createBooksTrackClient } from '@bookstrack/api-client'
+import { createBooksTrackClient } from '@jukasdrj/bookstrack-api-client'
 
 const client = createBooksTrackClient({
   baseUrl: 'https://api.oooefam.net'
@@ -268,7 +278,7 @@ npm publish
 
 ```typescript
 import { useQuery } from '@tanstack/react-query'
-import { client } from '@bookstrack/api-client'
+import { client } from '@jukasdrj/bookstrack-api-client'
 
 function BookSearch({ isbn }: { isbn: string }) {
   const { data, error, isLoading } = useQuery({
@@ -293,7 +303,7 @@ function BookSearch({ isbn }: { isbn: string }) {
 
 ```typescript
 import { ref } from 'vue'
-import { client } from '@bookstrack/api-client'
+import { client } from '@jukasdrj/bookstrack-api-client'
 
 export function useBookSearch(isbn: string) {
   const book = ref(null)
@@ -322,7 +332,7 @@ export function useBookSearch(isbn: string) {
 
 ```typescript
 import { writable } from 'svelte/store'
-import { client } from '@bookstrack/api-client'
+import { client } from '@jukasdrj/bookstrack-api-client'
 
 export function createBookStore() {
   const { subscribe, set, update } = writable({
@@ -365,7 +375,7 @@ const book = await res.json()
 ### After (SDK)
 
 ```typescript
-import { client } from '@bookstrack/api-client'
+import { client } from '@jukasdrj/bookstrack-api-client'
 
 const { data } = await client.GET('/v1/search/isbn', {
   params: { query: { isbn: '123' } }

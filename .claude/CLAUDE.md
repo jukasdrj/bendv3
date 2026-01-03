@@ -533,6 +533,8 @@ Request → KV Cache (hit?) → Alexandria RPC → Fallback Providers → KV Wri
 - `GET /v3/openapi.json` - OpenAPI spec
 - `GET /v3/docs` - Swagger UI
 
+**📖 API Versioning:** See [docs/API_VERSIONING.md](../docs/API_VERSIONING.md) for versioning strategy, deprecation policy, and migration guides.
+
 ### Webhooks
 - `POST /v3/webhooks/alexandria/books/:isbn` - Alexandria book processing callback
   - **Security:** Requires HMAC-SHA256 signature verification using `env.ALEXANDRIA_WEBHOOK_SECRET`
