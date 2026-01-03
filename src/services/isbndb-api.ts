@@ -8,8 +8,81 @@
  * Rate Limit: 1000 req/day (paid tier)
  */
 
+/**
+ * ISBNdb book response data
+ */
+interface ISBNdbBookData {
+  image: string
+  title: string
+  authors: string[]
+  publisher: string | null
+  publishedDate: string | null
+}
+
+/**
+ * ISBNdb batch book result with ISBN
+ */
+interface ISBNdbBatchResult extends ISBNdbBookData {
+  isbn: string
+}
+
+/**
+ * ISBNdb author search response
+ */
+interface ISBNdbAuthorSearchResult {
+  total: number
+  books: ISBNdbBatchResult[]
+}
+
+/**
+ * ISBNdb API raw book response
+ */
+interface ISBNdbRawBookResponse {
+  book?: {
+    image?: string
+    title?: string
+    authors?: string[]
+    publisher?: string
+    date_published?: string
+  }
+}
+
+/**
+ * ISBNdb API raw batch response
+ */
+interface ISBNdbRawBatchResponse {
+  books?: Array<{
+    isbn13?: string
+    isbn?: string
+    image?: string
+    title?: string
+    authors?: string[]
+    publisher?: string
+    date_published?: string
+  }>
+}
+
+/**
+ * ISBNdb API raw author search response
+ */
+interface ISBNdbRawAuthorResponse {
+  total?: number
+  books?: Array<{
+    isbn13?: string
+    isbn?: string
+    image?: string
+    title?: string
+    authors?: string[]
+    publisher?: string
+    date_published?: string
+  }>
+}
+
 export class ISBNdbAPI {
-  constructor(apiKey) {
+  private apiKey: string
+  private baseUrl: string
+
+  constructor(apiKey: string) {
     if (!apiKey) {
       throw new Error('ISBNDB_API_KEY not configured')
     }
@@ -19,10 +92,10 @@ export class ISBNdbAPI {
 
   /**
    * Fetch book data by ISBN
-   * @param {string} isbn - ISBN-10 or ISBN-13
-   * @returns {Promise<{image: string, title: string, authors: string[]}|null>}
+   * @param isbn - ISBN-10 or ISBN-13
+   * @returns Promise resolving to book data or null if not found
    */
-  async fetchBook(isbn) {
+  async fetchBook(isbn: string): Promise<ISBNdbBookData | null> {
     try {
       const response = await fetch(`${this.baseUrl}/book/${isbn}`, {
         method: 'GET',
@@ -42,7 +115,7 @@ export class ISBNdbAPI {
         throw new Error(`ISBNdb API error: ${response.status} - ${errorText}`)
       }
 
-      const data = await response.json()
+      const data = (await response.json()) as ISBNdbRawBookResponse
 
       // Validate response structure
       if (!data.book) {
@@ -64,7 +137,7 @@ export class ISBNdbAPI {
         publishedDate: data.book.date_published || null,
       }
     } catch (error) {
-      console.error(`ISBNdb API error for ${isbn}:`, error.message)
+      console.error(`ISBNdb API error for ${isbn}:`, (error as Error).message)
       throw error
     }
   }
@@ -73,10 +146,10 @@ export class ISBNdbAPI {
    * Fetch multiple books in a single batch request
    * Premium/Pro/Enterprise plans only: up to 1000 books per request
    *
-   * @param {string[]} isbns - Array of ISBNs to fetch (max 1000)
-   * @returns {Promise<Array<{isbn: string, image: string, title: string, authors: string[], publisher: string, publishedDate: string}>>}
+   * @param isbns - Array of ISBNs to fetch (max 1000)
+   * @returns Promise resolving to array of books with ISBNs
    */
-  async fetchBatch(isbns) {
+  async fetchBatch(isbns: string[]): Promise<ISBNdbBatchResult[]> {
     if (!isbns || isbns.length === 0) {
       return []
     }
@@ -102,7 +175,7 @@ export class ISBNdbAPI {
         throw new Error(`ISBNdb batch API error: ${response.status} - ${errorText}`)
       }
 
-      const data = await response.json()
+      const data = (await response.json()) as ISBNdbRawBatchResponse
 
       // Response format: { books: [...] }
       if (!data.books || !Array.isArray(data.books)) {
@@ -114,8 +187,8 @@ export class ISBNdbAPI {
       const books = data.books
         .filter((book) => book?.image) // Only keep books with covers
         .map((book) => ({
-          isbn: book.isbn13 || book.isbn || null,
-          image: book.image,
+          isbn: book.isbn13 || book.isbn || '',
+          image: book.image || '',
           title: book.title || 'Unknown',
           authors: book.authors || [],
           publisher: book.publisher || null,
@@ -127,11 +200,11 @@ export class ISBNdbAPI {
 
       return books
     } catch (error) {
-      console.error(`ISBNdb batch API error for ${batchISBNs.length} ISBNs:`, error.message)
+      console.error(`ISBNdb batch API error for ${batchISBNs.length} ISBNs:`, (error as Error).message)
 
       // Fallback: If batch fails, try individual requests for first 10 ISBNs
       console.log('Falling back to individual requests for first 10 ISBNs...')
-      const fallbackResults = []
+      const fallbackResults: ISBNdbBatchResult[] = []
 
       for (const isbn of batchISBNs.slice(0, 10)) {
         try {
@@ -140,7 +213,7 @@ export class ISBNdbAPI {
             fallbackResults.push({ isbn, ...book })
           }
         } catch (err) {
-          console.warn(`Fallback fetch failed for ${isbn}:`, err.message)
+          console.warn(`Fallback fetch failed for ${isbn}:`, (err as Error).message)
         }
 
         // Rate limiting: 1 req/sec for fallback
@@ -155,12 +228,16 @@ export class ISBNdbAPI {
    * Search books by author name with pagination
    * Returns up to 1000 results per request (Premium plan)
    *
-   * @param {string} authorName - Author name to search
-   * @param {number} page - Page number (default: 1)
-   * @param {number} pageSize - Results per page (max 1000, default: 100)
-   * @returns {Promise<{total: number, books: Array}>}
+   * @param authorName - Author name to search
+   * @param page - Page number (default: 1)
+   * @param pageSize - Results per page (max 1000, default: 100)
+   * @returns Promise resolving to search results with total count
    */
-  async searchByAuthor(authorName, page = 1, pageSize = 100) {
+  async searchByAuthor(
+    authorName: string,
+    page = 1,
+    pageSize = 100,
+  ): Promise<ISBNdbAuthorSearchResult> {
     try {
       const url = new URL(`${this.baseUrl}/author/${encodeURIComponent(authorName)}`)
       url.searchParams.set('page', page.toString())
@@ -184,15 +261,15 @@ export class ISBNdbAPI {
         throw new Error(`ISBNdb author search error: ${response.status} - ${errorText}`)
       }
 
-      const data = await response.json()
+      const data = (await response.json()) as ISBNdbRawAuthorResponse
 
       // Response format: { total: number, books: [...] }
       return {
         total: data.total || 0,
         books: (data.books || [])
           .map((book) => ({
-            isbn: book.isbn13 || book.isbn || null,
-            image: book.image,
+            isbn: book.isbn13 || book.isbn || '',
+            image: book.image || '',
             title: book.title || 'Unknown',
             authors: book.authors || [],
             publisher: book.publisher || null,
@@ -201,16 +278,16 @@ export class ISBNdbAPI {
           .filter((book) => book.isbn),
       }
     } catch (error) {
-      console.error(`ISBNdb author search error for ${authorName}:`, error.message)
+      console.error(`ISBNdb author search error for ${authorName}:`, (error as Error).message)
       return { total: 0, books: [] }
     }
   }
 
   /**
    * Health check - verify API key is valid
-   * @returns {Promise<boolean>}
+   * @returns Promise resolving to true if API key is valid
    */
-  async healthCheck() {
+  async healthCheck(): Promise<boolean> {
     try {
       // Use a known good ISBN for testing (verified working: 1984 by George Orwell)
       const testISBN = '9780451524935' // 1984 by George Orwell

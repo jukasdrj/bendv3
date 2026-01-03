@@ -15,19 +15,57 @@
  * - Calculate coverage depth (% of bibliography cached)
  */
 
+import type { Env } from '../types/env'
+
+/**
+ * Author cache depth analysis result
+ */
+interface AuthorCacheAnalysis {
+  author: string
+  cachedCovers: number
+  coverKeys: string[]
+  estimatedCoverage: number
+  needsExpansion: boolean
+}
+
+/**
+ * Author prioritization data
+ */
+interface AuthorPriority {
+  name: string
+  cachedCovers: number
+  estimatedCoverage: number
+  priority: number
+}
+
+/**
+ * Prioritization options
+ */
+interface PrioritizationOptions {
+  coverageThreshold?: number
+  maxAuthors?: number
+}
+
+/**
+ * Cached cover data structure
+ */
+interface CachedCoverData {
+  isbn?: string
+  title?: string
+  authors?: string[]
+  harvestedAt?: number
+}
+
 /**
  * Analyze author cache depth
- * @param {string} authorName - Author to analyze
- * @param {Object} env - Worker environment bindings
- * @returns {Promise<{
- *   author: string,
- *   cachedCovers: number,
- *   coverKeys: string[],
- *   estimatedCoverage: number,
- *   needsExpansion: boolean
- * }>}
+ * @param authorName - Author to analyze
+ * @param env - Worker environment bindings
+ * @returns Promise resolving to cache analysis result
  */
-export async function analyzeAuthorCacheDepth(authorName, env) {
+export async function analyzeAuthorCacheDepth(
+  authorName: string,
+  env: Env,
+): Promise<AuthorCacheAnalysis> {
   try {
     // List all cover keys from KV (prefix: cover:)
     const allCovers = await env.CACHE.list({ prefix: 'cover:' })
@@ -48,7 +86,7 @@ export async function analyzeAuthorCacheDepth(authorName, env) {
     const sampleSize = Math.min(100, allCovers.keys.length)
     const sampleKeys = allCovers.keys.slice(0, sampleSize)
 
-    const authorCovers = []
+    const authorCovers: string[] = []
 
     // Check each sampled cover for author match
     for (const key of sampleKeys) {
@@ -56,7 +94,7 @@ export async function analyzeAuthorCacheDepth(authorName, env) {
       if (!coverData) continue
 
       try {
-        const cover = JSON.parse(coverData)
+        const cover = JSON.parse(coverData) as CachedCoverData
         const authors = cover.authors || []
 
         // Check if this author matches (case-insensitive partial match)
@@ -69,7 +107,9 @@ export async function analyzeAuthorCacheDepth(authorName, env) {
         if (authorMatch) {
           authorCovers.push(key.name)
         }
-      } catch (_error) {}
+      } catch (_error) {
+        // Ignore parse errors
+      }
     }
 
     // Extrapolate to full cache
@@ -107,13 +147,17 @@ export async function analyzeAuthorCacheDepth(authorName, env) {
 
 /**
  * Get authors with low cache coverage (prioritization)
- * @param {string[]} authorNames - List of authors to check
- * @param {Object} env - Worker environment bindings
- * @param {number} coverageThreshold - Min coverage % to skip (default: 50)
- * @returns {Promise<Array>} Authors needing expansion, sorted by coverage
+ * @param authorNames - List of authors to check
+ * @param env - Worker environment bindings
+ * @param coverageThreshold - Min coverage % to skip (default: 50)
+ * @returns Promise resolving to authors needing expansion, sorted by coverage
  */
-export async function getAuthorsNeedingExpansion(authorNames, env, coverageThreshold = 50) {
-  const analyses = []
+export async function getAuthorsNeedingExpansion(
+  authorNames: string[],
+  env: Env,
+  coverageThreshold = 50,
+): Promise<AuthorPriority[]> {
+  const analyses: AuthorCacheAnalysis[] = []
 
   console.log(
     `Analyzing cache depth for ${authorNames.length} authors (threshold: ${coverageThreshold}%)...`,
@@ -157,12 +201,16 @@ export async function getAuthorsNeedingExpansion(authorNames, env, coverageThres
 
 /**
  * Smart author prioritization with cache depth awareness
- * @param {string[]} candidateAuthors - All candidate authors
- * @param {Object} env - Worker environment bindings
- * @param {Object} options - Prioritization options
- * @returns {Promise<Array>} Prioritized author list with coverage data
+ * @param candidateAuthors - All candidate authors
+ * @param env - Worker environment bindings
+ * @param options - Prioritization options
+ * @returns Promise resolving to prioritized author list with coverage data
  */
-export async function prioritizeAuthorsForHarvest(candidateAuthors, env, options = {}) {
+export async function prioritizeAuthorsForHarvest(
+  candidateAuthors: string[],
+  env: Env,
+  options: PrioritizationOptions = {},
+): Promise<AuthorPriority[]> {
   const { coverageThreshold = 50, maxAuthors = 50 } = options
 
   // Step 1: Analyze cache depth for all candidates
