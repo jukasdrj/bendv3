@@ -9,8 +9,58 @@
  * Execution: Deploy this as a one-time cron or manual trigger
  */
 
+import type { Env } from './types/env'
+
+/**
+ * Cached book data structure (simplified)
+ */
+interface CachedBookData {
+  data?: {
+    works?: Array<{
+      coverImageURL?: string
+    }>
+  }
+}
+
+/**
+ * Detail entry for a single ISBN operation
+ */
+interface PurgeDetailEntry {
+  isbn: string
+  status: 'deleted' | 'skip' | 'not_found' | 'error'
+  cacheKey: string
+  oldURL?: string
+  currentURL?: string
+  error?: string
+}
+
+/**
+ * Purge operation results
+ */
+interface PurgeResults {
+  total: number
+  deleted: number
+  notFound: number
+  errors: number
+  details: PurgeDetailEntry[]
+}
+
+/**
+ * Cache purge response structure
+ */
+interface CachePurgeResponse {
+  success: boolean
+  operation: string
+  timestamp: string
+  durationMs: number
+  results: PurgeResults
+}
+
+/**
+ * Worker export default for cache purge operations
+ */
 export default {
-  async fetch(_request, env) {
+  async fetch(_request: Request, env: Env): Promise<Response> {
     const startTime = Date.now()
 
     // Target ISBNs with old cache contamination
@@ -38,7 +88,7 @@ export default {
       '9781982150921', // Tender Is the Flesh
     ]
 
-    const results = {
+    const results: PurgeResults = {
       total: targetISBNs.length,
       deleted: 0,
       notFound: 0,
@@ -61,7 +111,7 @@ export default {
 
         if (existingValue) {
           // Parse to check for old URLs
-          const cached = JSON.parse(existingValue)
+          const cached = JSON.parse(existingValue) as CachedBookData
           const coverURL = cached?.data?.works?.[0]?.coverImageURL || ''
 
           const isOldCache =
@@ -115,13 +165,14 @@ export default {
         }
       } catch (error) {
         results.errors++
-        console.error(`❌ ERROR: ${isbn} - ${error.message}`)
+        console.error(`❌ ERROR: ${isbn} - ${(error as Error).message}`)
         console.log('')
 
         results.details.push({
           isbn,
           status: 'error',
-          error: error.message,
+          cacheKey: `search:isbn:isbn=${isbn}`,
+          error: (error as Error).message,
         })
       }
     }
@@ -141,21 +192,16 @@ export default {
     console.log('🎯 Next step: Test ISBNs to verify Alexandria URLs')
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
 
-    return new Response(
-      JSON.stringify(
-        {
-          success: true,
-          operation: 'cache_purge',
-          timestamp: new Date().toISOString(),
-          durationMs: duration,
-          results,
-        },
-        null,
-        2,
-      ),
-      {
-        headers: { 'Content-Type': 'application/json' },
-      },
-    )
+    const response: CachePurgeResponse = {
+      success: true,
+      operation: 'cache_purge',
+      timestamp: new Date().toISOString(),
+      durationMs: duration,
+      results,
+    }
+
+    return new Response(JSON.stringify(response, null, 2), {
+      headers: { 'Content-Type': 'application/json' },
+    })
   },
 }
