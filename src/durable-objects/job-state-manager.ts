@@ -1,6 +1,8 @@
 import { DurableObject } from 'cloudflare:workers'
 import { processCSVImport } from '../services/csv-processor'
 import { ProgressReporter } from '../utils/progress-reporter'
+import type { Env } from '../types/env'
+import type { ExecutionContext } from '@cloudflare/workers-types'
 
 /**
  * Job State Manager Durable Object
@@ -18,35 +20,110 @@ import { ProgressReporter } from '../utils/progress-reporter'
  * Related: Issue #68 - Refactor Monolithic ProgressWebSocketDO
  */
 
+// Pipeline types
+type PipelineType = 'batch_enrichment' | 'csv_import' | 'ai_scan'
+
+// Job status types
+type JobStatus = 'initialized' | 'processing' | 'completed' | 'failed' | 'canceled'
+
 // Pipeline-specific throttling configuration
-const THROTTLE_CONFIG = {
+interface ThrottleConfig {
+  updateCount: number
+  timeSeconds: number
+}
+
+const THROTTLE_CONFIG: Record<PipelineType, ThrottleConfig> = {
   batch_enrichment: { updateCount: 5, timeSeconds: 10 },
   csv_import: { updateCount: 20, timeSeconds: 30 },
   ai_scan: { updateCount: 1, timeSeconds: 60 },
 }
 
-export class JobStateManagerDO extends DurableObject {
-  constructor(state, env) {
+/**
+ * Job state structure
+ */
+interface JobState {
+  jobId: string
+  pipeline: PipelineType
+  totalCount: number
+  processedCount: number
+  progress: number
+  status: JobStatus
+  statusMessage?: string
+  startTime: number
+  lastUpdateTime: number
+  canceled: boolean
+  completedTime?: number
+  failedTime?: number
+  error?: unknown
+  result?: unknown
+  bookCount?: number
+}
+
+/**
+ * Progress update payload
+ */
+interface ProgressPayload {
+  progress?: number
+  processedCount?: number
+  status?: string
+}
+
+/**
+ * Completion payload
+ */
+interface CompletionPayload {
+  books?: unknown[]
+  [key: string]: unknown
+}
+
+/**
+ * SSE update data
+ */
+interface SSEUpdateData {
+  jobId: string
+  status: string
+  message?: string
+  progress?: number
+  processedCount?: number
+  totalCount?: number
+  timestamp: string
+  books?: unknown[]
+  completedAt?: string
+  error?: unknown
+}
+
+/**
+ * SSE client ID
+ */
+type SSEClientId = string
+
+export class JobStateManagerDO extends DurableObject<Env> {
+  private updatesSinceLastPersist = 0
+  private lastPersistTime = 0
+  private currentPipeline: PipelineType | null = null
+  private jobState: JobState | null = null // Fix Issue #107: Cache jobState to prevent state loss
+  // Fix Issue #157: Batch SSE update storage writes
+  private pendingUpdates: unknown[] = []
+  private lastUpdatePersist: number
+
+  constructor(state: DurableObjectState, env: Env) {
     super(state, env)
-    this.storage = state.storage
-    this.updatesSinceLastPersist = 0
-    this.lastPersistTime = 0
-    this.currentPipeline = null
-    this.jobState = null // Fix Issue #107: Cache jobState to prevent state loss
-    // Fix Issue #157: Batch SSE update storage writes
-    this.pendingUpdates = []
     this.lastUpdatePersist = Date.now() // Initialize to now to prevent immediate flush
   }
 
   /**
    * RPC Method: Initialize job state with pipeline configuration
    *
-   * @param {string} jobId - Job identifier
-   * @param {string} pipeline - Pipeline type (batch_enrichment, csv_import, ai_scan)
-   * @param {number} totalCount - Total items to process
-   * @returns {Promise<{success: boolean}>}
+   * @param jobId - Job identifier
+   * @param pipeline - Pipeline type (batch_enrichment, csv_import, ai_scan)
+   * @param totalCount - Total items to process
+   * @returns Promise resolving to success status
    */
-  async initializeJobState(jobId, pipeline, totalCount) {
+  async initializeJobState(
+    jobId: string,
+    pipeline: PipelineType,
+    totalCount: number,
+  ): Promise<{ success: boolean }> {
     console.log(`[JobStateManager] Initializing job ${jobId} for pipeline ${pipeline}`)
 
     this.currentPipeline = pipeline
@@ -63,12 +140,12 @@ export class JobStateManagerDO extends DurableObject {
       canceled: false,
     }
 
-    await this.storage.put('jobState', jobState)
+    await this.ctx.storage.put('jobState', jobState)
     console.log(`[JobStateManager] Job ${jobId} initialized`)
 
     // Initialize SSE client list and updates queue
-    await this.storage.put(`sse-clients:${jobId}`, [])
-    await this.storage.put(`updates:${jobId}`, [])
+    await this.ctx.storage.put(`sse-clients:${jobId}`, [])
+    await this.ctx.storage.put(`updates:${jobId}`, [])
 
     return { success: true }
   }
@@ -80,10 +157,10 @@ export class JobStateManagerDO extends DurableObject {
    * @param {Object} payload - Progress update payload
    * @returns {Promise<{success: boolean}>}
    */
-  async updateProgress(pipeline, payload) {
+  async updateProgress(pipeline: PipelineType, payload: ProgressPayload): Promise<{ success: boolean }> {
     // Fix Issue #107: Use cached state instead of reading from storage each time
     if (!this.jobState) {
-      this.jobState = await this.storage.get('jobState')
+      this.jobState = await this.ctx.storage.get('jobState')
     }
 
     if (!this.jobState) {
@@ -117,7 +194,7 @@ export class JobStateManagerDO extends DurableObject {
       timeSinceLastPersist >= throttleConfig.timeSeconds
 
     if (shouldPersist) {
-      await this.storage.put('jobState', this.jobState)
+      await this.ctx.storage.put('jobState', this.jobState)
       this.updatesSinceLastPersist = 0
       this.lastPersistTime = Date.now()
       console.log(`[JobStateManager] State persisted for job ${this.jobState.jobId}`)
@@ -167,8 +244,8 @@ export class JobStateManagerDO extends DurableObject {
    * @param {Object} payload - Completion payload
    * @returns {Promise<{success: boolean}>}
    */
-  async complete(pipeline, payload) {
-    const jobState = await this.storage.get('jobState')
+  async complete(pipeline: PipelineType, payload: CompletionPayload): Promise<{ success: boolean }> {
+    const jobState = await this.ctx.storage.get('jobState')
 
     if (!jobState) {
       console.warn('[JobStateManager] No job state found for completion')
@@ -191,7 +268,7 @@ export class JobStateManagerDO extends DurableObject {
       bookCount: books?.length || 0,
     }
 
-    await this.storage.put('jobState', completedState)
+    await this.ctx.storage.put('jobState', completedState)
     console.log(`[JobStateManager] Job ${jobState.jobId} completed`)
 
     // Calculate expiry timestamp (24 hours from now)
@@ -233,9 +310,9 @@ export class JobStateManagerDO extends DurableObject {
     await this.flushPendingUpdates(jobState.jobId)
 
     // Fix Issue #108: Delete existing alarm to prevent race condition
-    await this.storage.deleteAlarm()
+    await this.ctx.storage.deleteAlarm()
     // Schedule cleanup after 24 hours
-    await this.storage.setAlarm(Date.now() + 24 * 60 * 60 * 1000)
+    await this.ctx.storage.setAlarm(Date.now() + 24 * 60 * 60 * 1000)
 
     // Close WebSocket connection after brief delay to ensure message delivery
     // Fix: Properly await async operation in setTimeout to catch errors
@@ -265,8 +342,8 @@ export class JobStateManagerDO extends DurableObject {
    * @param {Object} payload - Error payload
    * @returns {Promise<{success: boolean}>}
    */
-  async sendError(pipeline, payload) {
-    const jobState = await this.storage.get('jobState')
+  async sendError(pipeline: PipelineType, payload: unknown): Promise<{ success: boolean }> {
+    const jobState = await this.ctx.storage.get('jobState')
 
     if (!jobState) {
       console.warn('[JobStateManager] No job state found for error')
@@ -280,7 +357,7 @@ export class JobStateManagerDO extends DurableObject {
       error: payload,
     }
 
-    await this.storage.put('jobState', failedState)
+    await this.ctx.storage.put('jobState', failedState)
     console.log(`[JobStateManager] Job ${jobState.jobId} failed`)
 
     // Notify WebSocket
@@ -323,9 +400,9 @@ export class JobStateManagerDO extends DurableObject {
     await this.flushPendingUpdates(jobState.jobId)
 
     // Fix Issue #108: Delete existing alarm to prevent race condition
-    await this.storage.deleteAlarm()
+    await this.ctx.storage.deleteAlarm()
     // Schedule cleanup after 24 hours
-    await this.storage.setAlarm(Date.now() + 24 * 60 * 60 * 1000)
+    await this.ctx.storage.setAlarm(Date.now() + 24 * 60 * 60 * 1000)
 
     // Close WebSocket connection after brief delay to ensure message delivery
     // Fix: Properly await async operation in setTimeout to catch errors
@@ -353,8 +430,8 @@ export class JobStateManagerDO extends DurableObject {
    *
    * @returns {Promise<Object|null>} Current job state or null
    */
-  async getJobState() {
-    return await this.storage.get('jobState')
+  async getJobState(): Promise<JobState | null> {
+    return await this.ctx.storage.get('jobState')
   }
 
   /**
@@ -364,7 +441,7 @@ export class JobStateManagerDO extends DurableObject {
    * @returns {Promise<{success: boolean}>}
    */
   async cancelJob(reason = 'Job canceled by user') {
-    const jobState = await this.storage.get('jobState')
+    const jobState = await this.ctx.storage.get('jobState')
 
     if (!jobState) {
       console.warn('[JobStateManager] No job state found for cancellation')
@@ -378,7 +455,7 @@ export class JobStateManagerDO extends DurableObject {
       canceledTime: Date.now(),
     }
 
-    await this.storage.put('jobState', canceledState)
+    await this.ctx.storage.put('jobState', canceledState)
     console.log(`[JobStateManager] Job ${jobState.jobId} canceled: ${reason}`)
 
     return { success: true }
@@ -389,8 +466,8 @@ export class JobStateManagerDO extends DurableObject {
    *
    * @returns {Promise<boolean>}
    */
-  async isCanceled() {
-    const jobState = await this.storage.get('jobState')
+  async isCanceled(): Promise<boolean> {
+    const jobState = await this.ctx.storage.get('jobState')
     return jobState?.canceled || false
   }
 
@@ -401,10 +478,10 @@ export class JobStateManagerDO extends DurableObject {
    * @param {string} jobId - Job identifier
    * @returns {Promise<{success: boolean}>}
    */
-  async scheduleCSVProcessing(csvText, jobId) {
-    await this.storage.put('csvText', csvText)
-    await this.storage.put('processingType', 'csv_import')
-    await this.storage.setAlarm(Date.now()) // Trigger immediately
+  async scheduleCSVProcessing(csvText: string, jobId: string): Promise<{ success: boolean }> {
+    await this.ctx.storage.put('csvText', csvText)
+    await this.ctx.storage.put('processingType', 'csv_import')
+    await this.ctx.storage.setAlarm(Date.now()) // Trigger immediately
     console.log(`[JobStateManager] Scheduled CSV processing for job ${jobId}`)
     return { success: true }
   }
@@ -424,11 +501,11 @@ export class JobStateManagerDO extends DurableObject {
    * @param {string} jobId - Job identifier
    * @returns {Promise<{success: boolean}>}
    */
-  async scheduleBookshelfScan(r2Keys, jobId) {
+  async scheduleBookshelfScan(r2Keys: string[], jobId: string): Promise<{ success: boolean }> {
     // Store R2 keys (small strings, well under 128KB limit)
-    await this.storage.put('scanImageR2Keys', r2Keys)
-    await this.storage.put('processingType', 'bookshelf_scan')
-    await this.storage.setAlarm(Date.now()) // Trigger immediately
+    await this.ctx.storage.put('scanImageR2Keys', r2Keys)
+    await this.ctx.storage.put('processingType', 'bookshelf_scan')
+    await this.ctx.storage.setAlarm(Date.now()) // Trigger immediately
     console.log(
       `[JobStateManager] Scheduled bookshelf scan for job ${jobId} (${r2Keys.length} photos in R2)`,
     )
@@ -446,11 +523,11 @@ export class JobStateManagerDO extends DurableObject {
    * @param {string} jobId - Job identifier
    * @returns {Promise<{success: boolean}>}
    */
-  async scheduleEnrichment(isbns, includeEmbedding, jobId) {
-    await this.storage.put('enrichmentISBNs', isbns)
-    await this.storage.put('includeEmbedding', includeEmbedding)
-    await this.storage.put('processingType', 'enrichment')
-    await this.storage.setAlarm(Date.now()) // Trigger immediately
+  async scheduleEnrichment(isbns: string[], includeEmbedding: boolean, jobId: string): Promise<{ success: boolean }> {
+    await this.ctx.storage.put('enrichmentISBNs', isbns)
+    await this.ctx.storage.put('includeEmbedding', includeEmbedding)
+    await this.ctx.storage.put('processingType', 'enrichment')
+    await this.ctx.storage.setAlarm(Date.now()) // Trigger immediately
     console.log(
       `[JobStateManager] Scheduled enrichment for job ${jobId} (${isbns.length} ISBNs, embeddings: ${includeEmbedding})`,
     )
@@ -463,14 +540,14 @@ export class JobStateManagerDO extends DurableObject {
    * @param {string} clientId - Unique client identifier
    * @returns {Promise<{success: boolean}>}
    */
-  async registerSSEClient(clientId) {
-    const jobState = await this.storage.get('jobState')
+  async registerSSEClient(clientId: SSEClientId): Promise<{ success: boolean }> {
+    const jobState = await this.ctx.storage.get('jobState')
     if (!jobState) return { success: false }
 
-    const clients = (await this.storage.get(`sse-clients:${jobState.jobId}`)) || []
+    const clients = (await this.ctx.storage.get(`sse-clients:${jobState.jobId}`)) || []
     if (!clients.includes(clientId)) {
       clients.push(clientId)
-      await this.storage.put(`sse-clients:${jobState.jobId}`, clients)
+      await this.ctx.storage.put(`sse-clients:${jobState.jobId}`, clients)
       console.log(`[JobStateManager] Registered SSE client ${clientId} for job ${jobState.jobId}`)
     }
     return { success: true }
@@ -482,13 +559,13 @@ export class JobStateManagerDO extends DurableObject {
    * @param {string} clientId - Unique client identifier
    * @returns {Promise<{success: boolean}>}
    */
-  async unregisterSSEClient(clientId) {
-    const jobState = await this.storage.get('jobState')
+  async unregisterSSEClient(clientId: SSEClientId): Promise<{ success: boolean }> {
+    const jobState = await this.ctx.storage.get('jobState')
     if (!jobState) return { success: false }
 
-    const clients = (await this.storage.get(`sse-clients:${jobState.jobId}`)) || []
+    const clients = (await this.ctx.storage.get(`sse-clients:${jobState.jobId}`)) || []
     const filtered = clients.filter((id) => id !== clientId)
-    await this.storage.put(`sse-clients:${jobState.jobId}`, filtered)
+    await this.ctx.storage.put(`sse-clients:${jobState.jobId}`, filtered)
     console.log(`[JobStateManager] Unregistered SSE client ${clientId} for job ${jobState.jobId}`)
     return { success: true }
   }
@@ -502,11 +579,11 @@ export class JobStateManagerDO extends DurableObject {
    * @param {number} afterTimestamp - Return events after this timestamp (0 for all)
    * @returns {Promise<Array>} Array of updates
    */
-  async getUpdates(afterTimestamp = 0) {
-    const jobState = await this.storage.get('jobState')
+  async getUpdates(afterTimestamp = 0): Promise<unknown[]> {
+    const jobState = await this.ctx.storage.get('jobState')
     if (!jobState) return []
 
-    const persistedUpdates = (await this.storage.get(`updates:${jobState.jobId}`)) || []
+    const persistedUpdates = (await this.ctx.storage.get(`updates:${jobState.jobId}`)) || []
     // Fix Issue #157: Include pending updates that haven't been persisted yet
     const allUpdates = [...persistedUpdates, ...this.pendingUpdates]
     return allUpdates.filter((u) => u.timestamp > afterTimestamp)
@@ -522,8 +599,8 @@ export class JobStateManagerDO extends DurableObject {
    * @param {Object} data - Event data
    * @returns {Promise<void>}
    */
-  async broadcastSSEUpdate(eventType, data) {
-    const jobState = this.jobState || (await this.storage.get('jobState'))
+  async broadcastSSEUpdate(eventType: string, data: SSEUpdateData): Promise<void> {
+    const jobState = this.jobState || (await this.ctx.storage.get('jobState'))
     if (!jobState) return
 
     // Add update to in-memory buffer
@@ -541,7 +618,7 @@ export class JobStateManagerDO extends DurableObject {
       await this.flushPendingUpdates(jobState.jobId)
     }
 
-    const clients = (await this.storage.get(`sse-clients:${jobState.jobId}`)) || []
+    const clients = (await this.ctx.storage.get(`sse-clients:${jobState.jobId}`)) || []
     console.log(
       `[JobStateManager] Broadcast ${eventType} to queue (${clients.length} SSE clients, ${this.pendingUpdates.length} pending) for job ${jobState.jobId}`,
     )
@@ -556,11 +633,11 @@ export class JobStateManagerDO extends DurableObject {
    * @param {string} jobId - Job identifier
    * @returns {Promise<void>}
    */
-  async flushPendingUpdates(jobId) {
+  async flushPendingUpdates(jobId: string): Promise<void> {
     if (this.pendingUpdates.length === 0) return
 
     // Read existing updates from storage
-    const persistedUpdates = (await this.storage.get(`updates:${jobId}`)) || []
+    const persistedUpdates = (await this.ctx.storage.get(`updates:${jobId}`)) || []
 
     // Combine with pending updates
     // Fix: DO storage 128KB limit. Strip large 'books' array from persisted updates.
@@ -583,7 +660,7 @@ export class JobStateManagerDO extends DurableObject {
     const trimmedUpdates = allUpdates.slice(-100)
 
     // Write back to storage
-    await this.storage.put(`updates:${jobId}`, trimmedUpdates)
+    await this.ctx.storage.put(`updates:${jobId}`, trimmedUpdates)
 
     // Clear in-memory buffer
     this.pendingUpdates = []
@@ -766,15 +843,15 @@ export class JobStateManagerDO extends DurableObject {
    * 3. Batch enrichment processing (triggered immediately after scheduling)
    * 4. Cleanup after 24 hours (triggered after job completion/failure)
    */
-  async alarm() {
-    const processingType = await this.storage.get('processingType')
+  async alarm(): Promise<void> {
+    const processingType = await this.ctx.storage.get('processingType')
 
     if (processingType === 'csv_import') {
       // CSV processing path
       console.log('[JobStateManager] Alarm triggered for CSV processing')
 
-      const csvText = await this.storage.get('csvText')
-      const jobState = await this.storage.get('jobState')
+      const csvText = await this.ctx.storage.get('csvText')
+      const jobState = await this.ctx.storage.get('jobState')
 
       if (!csvText || !jobState) {
         console.error('[JobStateManager] Missing CSV text or job state in alarm handler')
@@ -803,14 +880,14 @@ export class JobStateManagerDO extends DurableObject {
       }
 
       // Clean up temporary storage
-      await this.storage.delete('csvText')
-      await this.storage.delete('processingType')
+      await this.ctx.storage.delete('csvText')
+      await this.ctx.storage.delete('processingType')
     } else if (processingType === 'bookshelf_scan') {
       // Bookshelf scan processing path (V3: supports multiple photos)
       console.log('[JobStateManager] Alarm triggered for bookshelf scan processing')
 
-      const scanImageR2Keys = await this.storage.get('scanImageR2Keys')
-      const jobState = await this.storage.get('jobState')
+      const scanImageR2Keys = await this.ctx.storage.get('scanImageR2Keys')
+      const jobState = await this.ctx.storage.get('jobState')
 
       if (!scanImageR2Keys || !jobState) {
         console.error('[JobStateManager] Missing scan image R2 keys or job state in alarm handler')
@@ -1028,15 +1105,15 @@ export class JobStateManagerDO extends DurableObject {
       }
 
       // Clean up temporary storage (R2 keys, not images - R2 cleanup handled by cancel endpoint)
-      await this.storage.delete('scanImageR2Keys')
-      await this.storage.delete('processingType')
+      await this.ctx.storage.delete('scanImageR2Keys')
+      await this.ctx.storage.delete('processingType')
     } else if (processingType === 'enrichment') {
       // Batch enrichment processing path
       console.log('[JobStateManager] Alarm triggered for batch enrichment processing')
 
-      const isbns = await this.storage.get('enrichmentISBNs')
-      const includeEmbedding = await this.storage.get('includeEmbedding')
-      const jobState = await this.storage.get('jobState')
+      const isbns = await this.ctx.storage.get('enrichmentISBNs')
+      const includeEmbedding = await this.ctx.storage.get('includeEmbedding')
+      const jobState = await this.ctx.storage.get('jobState')
 
       if (!isbns || !jobState) {
         console.error('[JobStateManager] Missing ISBNs or job state in alarm handler')
@@ -1063,14 +1140,14 @@ export class JobStateManagerDO extends DurableObject {
       }
 
       // Clean up temporary storage
-      await this.storage.delete('enrichmentISBNs')
-      await this.storage.delete('includeEmbedding')
-      await this.storage.delete('processingType')
+      await this.ctx.storage.delete('enrichmentISBNs')
+      await this.ctx.storage.delete('includeEmbedding')
+      await this.ctx.storage.delete('processingType')
     } else {
       // Cleanup path (24 hour cleanup after job completion/failure)
       console.log('[JobStateManager] Cleanup alarm triggered - removing old state')
 
-      const jobState = await this.storage.get('jobState')
+      const jobState = await this.ctx.storage.get('jobState')
 
       // Also cleanup WebSocket DO storage
       if (jobState?.jobId) {
@@ -1083,7 +1160,7 @@ export class JobStateManagerDO extends DurableObject {
         }
       }
 
-      await this.storage.delete('jobState')
+      await this.ctx.storage.delete('jobState')
     }
   }
 }

@@ -1,3 +1,6 @@
+import { DurableObject } from 'cloudflare:workers'
+import type { Env } from '../types/env'
+
 /**
  * LatencyTestDO - RPC Performance Verification
  *
@@ -30,10 +33,43 @@
  *   }
  */
 
-export class LatencyTestDO {
-  constructor(state, env) {
-    this.state = state
-    this.env = env
+/**
+ * Ping response structure
+ */
+interface PingResponse {
+  timestamp: number
+  nonce: number
+}
+
+/**
+ * Latency statistics
+ */
+interface LatencyStatistics {
+  min: number
+  max: number
+  avg: number
+  p50: number
+  p95: number
+  p99: number
+  count: number
+  errors: number
+}
+
+/**
+ * Latency measurement result
+ */
+interface LatencyMeasurementResult {
+  iterations: number
+  totalTime: number
+  measurements: number[]
+  stats: LatencyStatistics
+  testType: string
+  timestamp: string
+}
+
+export class LatencyTestDO extends DurableObject<Env> {
+  constructor(state: DurableObjectState, env: Env) {
+    super(state, env)
   }
 
   /**
@@ -42,9 +78,9 @@ export class LatencyTestDO {
    * Returns a timestamp that can be used to measure round-trip latency.
    * This is the simplest possible RPC operation for baseline measurement.
    *
-   * @returns {Promise<Object>} {timestamp, nonce}
+   * @returns Promise resolving to ping response
    */
-  async ping() {
+  async ping(): Promise<PingResponse> {
     return {
       timestamp: Date.now(),
       nonce: Math.random(),
@@ -57,24 +93,24 @@ export class LatencyTestDO {
    * Makes multiple RPC calls to CacheMetricsDO and records timing.
    * This validates that we're using native RPC, not HTTP fetch.
    *
-   * @param {number} iterations - Number of RPC calls to measure (default: 100)
-   * @returns {Promise<Object>} Latency statistics
+   * @param iterations - Number of RPC calls to measure (default: 100)
+   * @returns Promise resolving to latency statistics
    */
-  async measureLatency(iterations = 100) {
+  async measureLatency(iterations = 100): Promise<LatencyMeasurementResult> {
     if (!Number.isInteger(iterations) || iterations < 1 || iterations > 10000) {
       throw new Error('iterations must be an integer between 1 and 10000')
     }
 
     // Get CacheMetricsDO stub for cross-DO RPC measurement
-    let cacheMetricsStub
+    let cacheMetricsStub: DurableObjectStub
     try {
       const id = this.env.CACHE_METRICS_DO.idFromName('default')
       cacheMetricsStub = this.env.CACHE_METRICS_DO.get(id)
     } catch (error) {
-      throw new Error(`CACHE_METRICS_DO binding not available: ${error.message}`)
+      throw new Error(`CACHE_METRICS_DO binding not available: ${(error as Error).message}`)
     }
 
-    const measurements = []
+    const measurements: number[] = []
     const startTime = performance.now()
 
     // Perform RPC calls and measure each one
@@ -86,7 +122,7 @@ export class LatencyTestDO {
         await cacheMetricsStub.getStats()
       } catch (error) {
         // Log error but continue measuring (don't fail entire test)
-        console.error(`[LatencyTestDO] RPC call ${i} failed:`, error.message)
+        console.error(`[LatencyTestDO] RPC call ${i} failed:`, (error as Error).message)
         measurements.push(-1) // Mark as error
         continue
       }
@@ -127,11 +163,11 @@ export class LatencyTestDO {
    * Computes min, max, avg, p50, p95, and p99 percentiles.
    * Used to validate that native RPC is being used (< 10ms P95).
    *
-   * @param {number[]} measurements - Array of latency measurements in milliseconds
-   * @returns {Object} Statistics object with calculated metrics
+   * @param measurements - Array of latency measurements in milliseconds
+   * @returns Statistics object with calculated metrics
    * @private
    */
-  calculateStatistics(measurements) {
+  private calculateStatistics(measurements: number[]): LatencyStatistics {
     if (!measurements || measurements.length === 0) {
       throw new Error('No measurements provided')
     }
@@ -151,7 +187,7 @@ export class LatencyTestDO {
     const avg = sorted.reduce((a, b) => a + b, 0) / sorted.length
 
     // Percentile calculation (linear interpolation)
-    const percentile = (p) => {
+    const percentile = (p: number): number => {
       const index = (p / 100) * (sorted.length - 1)
       const lower = Math.floor(index)
       const upper = Math.ceil(index)
@@ -165,12 +201,12 @@ export class LatencyTestDO {
     }
 
     return {
-      min: parseFloat(min.toFixed(3)),
-      max: parseFloat(max.toFixed(3)),
-      avg: parseFloat(avg.toFixed(3)),
-      p50: parseFloat(percentile(50).toFixed(3)),
-      p95: parseFloat(percentile(95).toFixed(3)),
-      p99: parseFloat(percentile(99).toFixed(3)),
+      min: Number.parseFloat(min.toFixed(3)),
+      max: Number.parseFloat(max.toFixed(3)),
+      avg: Number.parseFloat(avg.toFixed(3)),
+      p50: Number.parseFloat(percentile(50).toFixed(3)),
+      p95: Number.parseFloat(percentile(95).toFixed(3)),
+      p99: Number.parseFloat(percentile(99).toFixed(3)),
       count: validMeasurements.length,
       errors: measurements.length - validMeasurements.length,
     }
@@ -180,7 +216,7 @@ export class LatencyTestDO {
    * Handle incoming requests (DEPRECATED - use RPC methods instead)
    * Kept for HTTP fallback during testing
    */
-  async fetch(request) {
+  async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
 
     if (url.pathname === '/ping' && request.method === 'GET') {
@@ -188,8 +224,9 @@ export class LatencyTestDO {
       return new Response(JSON.stringify(result), {
         headers: { 'Content-Type': 'application/json' },
       })
-    } else if (url.pathname === '/measure' && request.method === 'GET') {
-      const iterations = parseInt(url.searchParams.get('iterations') || '100', 10)
+    }
+    if (url.pathname === '/measure' && request.method === 'GET') {
+      const iterations = Number.parseInt(url.searchParams.get('iterations') || '100', 10)
       const result = await this.measureLatency(iterations)
       return new Response(JSON.stringify(result), {
         headers: { 'Content-Type': 'application/json' },

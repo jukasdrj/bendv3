@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
-import { getCorsHeaders } from '../middleware/cors.ts'
+import { getCorsHeaders } from '../middleware/cors'
+import type { Env } from '../types/env'
 
 /**
  * WebSocket Connection Durable Object
@@ -17,15 +18,108 @@ import { getCorsHeaders } from '../middleware/cors.ts'
  *
  * Related: Issue #68 - Refactor Monolithic ProgressWebSocketDO
  */
-export class WebSocketConnectionDO extends DurableObject {
-  constructor(state, env) {
+
+/**
+ * WebSocket message from client
+ */
+interface WebSocketMessage {
+  type: string
+  [key: string]: unknown
+}
+
+/**
+ * Disconnect reasons tracking
+ */
+interface DisconnectReasons {
+  timeout: number
+  error: number
+  clientClose: number
+  serverClose: number
+}
+
+/**
+ * WebSocket health metrics
+ */
+interface WebSocketMetrics {
+  connectionEstablished: number
+  disconnectReasons: DisconnectReasons
+  messageSendFailures: number
+  connectionStartTime: number | null
+  totalConnectionDuration: number
+}
+
+/**
+ * Token validation result
+ */
+interface TokenValidationResult {
+  valid: boolean
+  expired?: boolean
+}
+
+/**
+ * Auth token details
+ */
+interface AuthTokenDetails {
+  token: string
+  expiresAt: number
+}
+
+/**
+ * Token refresh result
+ */
+interface TokenRefreshResult {
+  token?: string
+  expiresIn?: number
+  error?: string
+  details?: string
+}
+
+/**
+ * Ready status result
+ */
+interface ReadyStatusResult {
+  timedOut: boolean
+  disconnected: boolean
+}
+
+/**
+ * Send result
+ */
+interface SendResult {
+  success: boolean
+}
+
+/**
+ * Close result
+ */
+interface CloseResult {
+  success: boolean
+}
+
+/**
+ * Metrics result
+ */
+interface MetricsResult {
+  connectionEstablished: number
+  disconnectReasons: DisconnectReasons
+  messageSendFailures: number
+  avgConnectionDurationMs: number
+  currentlyConnected: number
+}
+
+export class WebSocketConnectionDO extends DurableObject<Env> {
+  private webSocket: WebSocket | null = null
+  private jobId: string | null = null
+  private isReady = false
+  private readyPromise: Promise<void> | null = null
+  private readyResolver: (() => void) | null = null
+  private correlationId: string
+  private logLevel: string
+  private metrics: WebSocketMetrics
+  private refreshInProgress = false
+
+  constructor(state: DurableObjectState, env: Env) {
     super(state, env)
-    this.storage = state.storage
-    this.webSocket = null
-    this.jobId = null
-    this.isReady = false
-    this.readyPromise = null
-    this.readyResolver = null
     // Add a correlation ID for improved logging per-connection instance
     this.correlationId = crypto.randomUUID().slice(0, 8)
 
@@ -51,10 +145,10 @@ export class WebSocketConnectionDO extends DurableObject {
   /**
    * Handle WebSocket upgrade request
    *
-   * @param {Request} request - Upgrade request with jobId and token
-   * @returns {Promise<Response>} WebSocket upgrade response or error
+   * @param request - Upgrade request with jobId and token
+   * @returns WebSocket upgrade response or error
    */
-  async fetch(request) {
+  async fetch(request: Request): Promise<Response> {
     const upgradeStartTime = Date.now()
     const url = new URL(request.url)
     const upgradeHeader = request.headers.get('Upgrade')
@@ -96,8 +190,8 @@ export class WebSocketConnectionDO extends DurableObject {
     const providedToken = url.searchParams.get('token')
     const storageStartTime = Date.now()
     const [storedToken, expiration] = await Promise.all([
-      this.storage.get('authToken'),
-      this.storage.get('authTokenExpiration'),
+      this.ctx.storage.get<string>('authToken'),
+      this.ctx.storage.get<number>('authTokenExpiration'),
     ])
     const storageDuration = Date.now() - storageStartTime
 
@@ -106,7 +200,7 @@ export class WebSocketConnectionDO extends DurableObject {
     }
 
     // SECURITY FIX (#212): Check if token has already been consumed (one-time use)
-    const tokenConsumed = await this.storage.get('authTokenConsumed')
+    const tokenConsumed = await this.ctx.storage.get<boolean>('authTokenConsumed')
 
     if (tokenConsumed) {
       console.warn(
@@ -134,7 +228,7 @@ export class WebSocketConnectionDO extends DurableObject {
       })
     }
 
-    if (Date.now() > expiration) {
+    if (!expiration || Date.now() > expiration) {
       console.warn(
         `[${jobId}] [cid: ${this.correlationId}] WebSocket authentication failed - token expired`,
       )
@@ -149,7 +243,7 @@ export class WebSocketConnectionDO extends DurableObject {
 
     // SECURITY FIX (#212): Mark token as consumed IMMEDIATELY after validation
     // This prevents race conditions where multiple clients try to connect simultaneously
-    await this.storage.put('authTokenConsumed', true)
+    await this.ctx.storage.put('authTokenConsumed', true)
 
     if (this.logLevel === 'debug') {
       console.log(
@@ -196,11 +290,11 @@ export class WebSocketConnectionDO extends DurableObject {
     }
 
     // Setup event handlers
-    this.webSocket.addEventListener('message', (event) => {
-      this.handleMessage(event.data)
+    this.webSocket.addEventListener('message', (event: MessageEvent) => {
+      this.handleMessage(event.data as string)
     })
 
-    this.webSocket.addEventListener('close', (event) => {
+    this.webSocket.addEventListener('close', (event: CloseEvent) => {
       if (this.logLevel === 'info' || this.logLevel === 'debug') {
         console.log(
           `[${this.jobId}] [cid: ${this.correlationId}] WebSocket closed:`,
@@ -235,7 +329,7 @@ export class WebSocketConnectionDO extends DurableObject {
       this.cleanup()
     })
 
-    this.webSocket.addEventListener('error', (event) => {
+    this.webSocket.addEventListener('error', (event: Event) => {
       console.error(`[${this.jobId}] [cid: ${this.correlationId}] WebSocket error:`, event)
 
       // Track error disconnect (Issue #36)
@@ -255,15 +349,15 @@ export class WebSocketConnectionDO extends DurableObject {
   /**
    * Handle incoming WebSocket messages
    *
-   * @param {string} data - Message data from client
+   * @param data - Message data from client
    */
-  async handleMessage(data) {
+  private async handleMessage(data: string): Promise<void> {
     if (this.logLevel === 'debug') {
       console.log(`[${this.jobId}] [cid: ${this.correlationId}] Received message:`, data)
     }
 
     try {
-      const msg = JSON.parse(data)
+      const msg = JSON.parse(data) as WebSocketMessage
 
       // Validate message structure
       if (!msg || typeof msg !== 'object') {
@@ -297,7 +391,7 @@ export class WebSocketConnectionDO extends DurableObject {
         }
 
         // Get pipeline from storage for ready_ack message
-        const pipeline = (await this.storage.get('pipeline')) || 'unknown'
+        const pipeline = (await this.ctx.storage.get<string>('pipeline')) || 'unknown'
         const now = Date.now()
 
         // Send acknowledgment back to client (matches hibernation DO format)
@@ -327,7 +421,10 @@ export class WebSocketConnectionDO extends DurableObject {
         }
       }
     } catch (error) {
-      console.error(`[${this.jobId}] [cid: ${this.correlationId}] Failed to parse message:`, error)
+      console.error(
+        `[${this.jobId}] [cid: ${this.correlationId}] Failed to parse message:`,
+        error,
+      )
     }
   }
 
@@ -340,20 +437,21 @@ export class WebSocketConnectionDO extends DurableObject {
    * - First WebSocket connection consumes the token
    * - Subsequent connections with same token are rejected
    *
-   * @param {string} token - Authentication token (UUID)
-   * @returns {Promise<{success: boolean}>}
+   * @param token - Authentication token (UUID)
+   * @param pipeline - Pipeline type (optional)
+   * @returns Promise resolving to success status
    */
-  async setAuthToken(token, pipeline = null) {
-    await this.storage.put('authToken', token)
+  async setAuthToken(token: string, pipeline: string | null = null): Promise<{ success: boolean }> {
+    await this.ctx.storage.put('authToken', token)
     // Tokens expire after 2 hours
-    await this.storage.put('authTokenExpiration', Date.now() + 2 * 60 * 60 * 1000)
+    await this.ctx.storage.put('authTokenExpiration', Date.now() + 2 * 60 * 60 * 1000)
     // Store pipeline for ready_ack message (if provided)
     if (pipeline) {
-      await this.storage.put('pipeline', pipeline)
+      await this.ctx.storage.put('pipeline', pipeline)
     }
     // SECURITY FIX (#212): Reset consumed flag when new token is issued
     // This allows legitimate reconnections with fresh tokens
-    await this.storage.delete('authTokenConsumed')
+    await this.ctx.storage.delete('authTokenConsumed')
     if (this.logLevel === 'debug') {
       console.log(`[${this.jobId || 'unknown'}] Auth token set (expires in 2 hours, one-time use)`)
     }
@@ -364,11 +462,11 @@ export class WebSocketConnectionDO extends DurableObject {
    * RPC Method: Set pipeline type for this job
    * Called by handlers to set the pipeline type for ready_ack messages
    *
-   * @param {string} pipeline - Pipeline type (batch_enrichment, csv_import, ai_scan)
-   * @returns {Promise<{success: boolean}>}
+   * @param pipeline - Pipeline type (batch_enrichment, csv_import, ai_scan)
+   * @returns Promise resolving to success status
    */
-  async setPipeline(pipeline) {
-    await this.storage.put('pipeline', pipeline)
+  async setPipeline(pipeline: string): Promise<{ success: boolean }> {
+    await this.ctx.storage.put('pipeline', pipeline)
     if (this.logLevel === 'debug') {
       console.log(`[${this.jobId || 'unknown'}] Pipeline set to: ${pipeline}`)
     }
@@ -381,11 +479,11 @@ export class WebSocketConnectionDO extends DurableObject {
    * Used by /api/job-state/:jobId to validate Bearer token authentication
    * when clients poll for job status instead of using WebSocket
    *
-   * @returns {Promise<{token: string, expiresAt: number} | null>}
+   * @returns Promise resolving to auth token details or null
    */
-  async getAuthToken() {
-    const token = await this.storage.get('authToken')
-    const expiresAt = await this.storage.get('authTokenExpiration')
+  async getAuthToken(): Promise<AuthTokenDetails | null> {
+    const token = await this.ctx.storage.get<string>('authToken')
+    const expiresAt = await this.ctx.storage.get<number>('authTokenExpiration')
 
     if (!token || !expiresAt) {
       return null
@@ -400,16 +498,16 @@ export class WebSocketConnectionDO extends DurableObject {
    * Used by V3 SSE stream handlers to validate Bearer tokens without
    * consuming them (SSE connections don't consume tokens like WebSocket).
    *
-   * @param {string | undefined} providedToken - Token from Authorization header
-   * @returns {Promise<{valid: boolean, expired?: boolean}>}
+   * @param providedToken - Token from Authorization header
+   * @returns Promise resolving to validation result
    */
-  async validateAuthToken(providedToken) {
+  async validateAuthToken(providedToken: string | undefined): Promise<TokenValidationResult> {
     if (!providedToken) {
       return { valid: false }
     }
 
-    const storedToken = await this.storage.get('authToken')
-    const expiration = await this.storage.get('authTokenExpiration')
+    const storedToken = await this.ctx.storage.get<string>('authToken')
+    const expiration = await this.ctx.storage.get<number>('authTokenExpiration')
 
     if (!storedToken) {
       return { valid: false }
@@ -419,7 +517,7 @@ export class WebSocketConnectionDO extends DurableObject {
       return { valid: false }
     }
 
-    if (Date.now() > expiration) {
+    if (!expiration || Date.now() > expiration) {
       return { valid: false, expired: true }
     }
 
@@ -436,10 +534,10 @@ export class WebSocketConnectionDO extends DurableObject {
    * - Prevents concurrent refresh race conditions
    * - Extends expiration by 2 hours from refresh time
    *
-   * @param {string} oldToken - Current token to validate
-   * @returns {Promise<{token?: string, expiresIn?: number, error?: string}>}
+   * @param oldToken - Current token to validate
+   * @returns Promise resolving to refresh result
    */
-  async refreshAuthToken(oldToken) {
+  async refreshAuthToken(oldToken: string): Promise<TokenRefreshResult> {
     // Prevent concurrent refresh race conditions
     if (this.refreshInProgress) {
       console.warn(`[${this.jobId || 'unknown'}] Token refresh already in progress`)
@@ -448,8 +546,8 @@ export class WebSocketConnectionDO extends DurableObject {
 
     this.refreshInProgress = true
     try {
-      const storedToken = await this.storage.get('authToken')
-      const expiration = await this.storage.get('authTokenExpiration')
+      const storedToken = await this.ctx.storage.get<string>('authToken')
+      const expiration = await this.ctx.storage.get<number>('authTokenExpiration')
 
       // Validate old token
       if (!storedToken || !oldToken || storedToken !== oldToken) {
@@ -458,7 +556,7 @@ export class WebSocketConnectionDO extends DurableObject {
       }
 
       // Check if token is expired
-      if (Date.now() > expiration) {
+      if (!expiration || Date.now() > expiration) {
         console.warn(`[${this.jobId || 'unknown'}] Token refresh failed - token expired`)
         return { error: 'Token expired' }
       }
@@ -482,11 +580,11 @@ export class WebSocketConnectionDO extends DurableObject {
       const TOKEN_EXPIRATION_MS = 2 * 60 * 60 * 1000 // 2 hours
       const newToken = crypto.randomUUID()
       const newExpiration = Date.now() + TOKEN_EXPIRATION_MS
-      await this.storage.put('authToken', newToken)
-      await this.storage.put('authTokenExpiration', newExpiration)
+      await this.ctx.storage.put('authToken', newToken)
+      await this.ctx.storage.put('authTokenExpiration', newExpiration)
 
       // Reset consumed flag to allow new WebSocket connection with refreshed token
-      await this.storage.delete('authTokenConsumed')
+      await this.ctx.storage.delete('authTokenConsumed')
 
       if (this.logLevel === 'debug') {
         console.log(
@@ -506,10 +604,10 @@ export class WebSocketConnectionDO extends DurableObject {
   /**
    * RPC Method: Wait for client ready signal
    *
-   * @param {number} timeoutMs - Timeout in milliseconds
-   * @returns {Promise<{timedOut: boolean, disconnected: boolean}>}
+   * @param timeoutMs - Timeout in milliseconds
+   * @returns Promise resolving to ready status
    */
-  async waitForReady(timeoutMs = 5000) {
+  async waitForReady(timeoutMs = 5000): Promise<ReadyStatusResult> {
     if (this.isReady) {
       return { timedOut: false, disconnected: false }
     }
@@ -526,7 +624,7 @@ export class WebSocketConnectionDO extends DurableObject {
       ])
       return { timedOut: false, disconnected: false }
     } catch (error) {
-      if (error.message === 'Timeout') {
+      if ((error as Error).message === 'Timeout') {
         return { timedOut: true, disconnected: false }
       }
       throw error
@@ -536,10 +634,10 @@ export class WebSocketConnectionDO extends DurableObject {
   /**
    * RPC Method: Send message to connected client
    *
-   * @param {Object} message - Message to send
-   * @returns {Promise<{success: boolean}>}
+   * @param message - Message to send
+   * @returns Promise resolving to send result
    */
-  async send(message) {
+  async send(message: Record<string, unknown>): Promise<SendResult> {
     // Atomic send with single readyState check to prevent race condition (Issue #117)
     // Leverages synchronous throw behavior of Cloudflare Workers WebSocket.send()
     try {
@@ -550,7 +648,9 @@ export class WebSocketConnectionDO extends DurableObject {
       return { success: true }
     } catch (error) {
       // Single catch handles both !OPEN throws and network errors
-      console.warn(`[${this.jobId}] [cid: ${this.correlationId}] Send failed: ${error.message}`)
+      console.warn(
+        `[${this.jobId}] [cid: ${this.correlationId}] Send failed: ${(error as Error).message}`,
+      )
       // Track send failure (Issue #36)
       this.metrics.messageSendFailures++
 
@@ -568,10 +668,10 @@ export class WebSocketConnectionDO extends DurableObject {
   /**
    * RPC Method: Close WebSocket connection
    *
-   * @param {string} reason - Reason for closing
-   * @returns {Promise<{success: boolean}>}
+   * @param reason - Reason for closing
+   * @returns Promise resolving to close result
    */
-  async closeConnection(reason = 'Job completed') {
+  async closeConnection(reason = 'Job completed'): Promise<CloseResult> {
     if (this.webSocket) {
       if (this.logLevel === 'debug') {
         console.log(`[${this.jobId}] Closing WebSocket: ${reason}`)
@@ -590,11 +690,11 @@ export class WebSocketConnectionDO extends DurableObject {
    * RPC Method: Clean up stored authentication data
    * Called by JobStateManagerDO during final cleanup to prevent storage leak
    *
-   * @returns {Promise<{success: boolean}>}
+   * @returns Promise resolving to success status
    */
-  async cleanupStorage() {
-    await this.storage.delete('authToken')
-    await this.storage.delete('authTokenExpiration')
+  async cleanupStorage(): Promise<{ success: boolean }> {
+    await this.ctx.storage.delete('authToken')
+    await this.ctx.storage.delete('authTokenExpiration')
     if (this.logLevel === 'debug') {
       console.log(`[${this.jobId || 'unknown'}] Auth token storage cleaned up`)
     }
@@ -605,9 +705,9 @@ export class WebSocketConnectionDO extends DurableObject {
    * RPC Method: Get WebSocket health metrics (Issue #36)
    * Returns current metrics for observability and monitoring
    *
-   * @returns {Promise<Object>} Metrics object with connection stats
+   * @returns Promise resolving to metrics object
    */
-  async getMetrics() {
+  async getMetrics(): Promise<MetricsResult> {
     const avgConnectionDuration =
       this.metrics.connectionEstablished > 0
         ? this.metrics.totalConnectionDuration / this.metrics.connectionEstablished
@@ -625,7 +725,7 @@ export class WebSocketConnectionDO extends DurableObject {
   /**
    * Internal cleanup
    */
-  cleanup() {
+  private cleanup(): void {
     this.webSocket = null
     this.jobId = null
     this.isReady = false
