@@ -147,4 +147,53 @@ describe('CacheMetricsDO Alarm', () => {
 
     vi.useRealTimers()
   })
+
+  it('should continue rescheduling after multiple consecutive failures', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    state.storage.put.mockRejectedValue(new Error('Storage failure'))
+
+    // Advance time past persist interval to ensure put is called (and fails)
+    const initialTime = Date.now() + 11 * 60 * 1000
+    vi.useFakeTimers()
+    vi.setSystemTime(initialTime)
+
+    // Simulate 5 consecutive failures
+    for (let i = 0; i < 5; i++) {
+      const currentTime = initialTime + (i * 60 * 1000)
+      vi.setSystemTime(currentTime)
+
+      await cacheMetricsDO.alarm()
+
+      // Verify alarm was rescheduled for next minute
+      expect(state.storage.setAlarm).toHaveBeenLastCalledWith(currentTime + 60 * 1000)
+    }
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(5)
+
+    vi.useRealTimers()
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('should handle setAlarm failure gracefully without crashing', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    // Make setAlarm throw an error
+    state.storage.setAlarm.mockRejectedValue(new Error('Alarm scheduling failed'))
+
+    const now = Date.now()
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+
+    // Should not throw
+    await expect(cacheMetricsDO.alarm()).resolves.not.toThrow()
+
+    // Verify error was logged
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[CacheMetricsDO] Failed to reschedule alarm:',
+      expect.any(Error)
+    )
+
+    vi.useRealTimers()
+    consoleErrorSpy.mockRestore()
+  })
 })
