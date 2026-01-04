@@ -728,8 +728,11 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
    * Internal cleanup
    */
   private cleanup(): void {
-    if (this.readyRejector) {
-      this.readyRejector(new Error('Disconnected'))
+    // Prevent double-rejection (Issue #244)
+    const rejector = this.readyRejector
+    this.readyRejector = null
+    if (rejector) {
+      rejector(new Error('Disconnected'))
     }
 
     this.webSocket = null
