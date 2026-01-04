@@ -19,6 +19,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 class MockDurableObject {
   constructor(state, env) {
     this.state = state
+    this.ctx = state
     this.env = env
   }
 }
@@ -61,7 +62,7 @@ describe('CacheMetricsDO', () => {
     // Mock state
     state = {
       storage,
-      blockConcurrencyWhile: vi.fn((callback) => callback()),
+      blockConcurrencyWhile: vi.fn(async (callback) => await callback()),
     }
 
     // Mock env
