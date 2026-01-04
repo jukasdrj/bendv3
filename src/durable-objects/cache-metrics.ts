@@ -215,10 +215,10 @@ export class CacheMetricsDO extends DurableObject<Env> {
     // Load state immediately, then setup alarm separately
     this.ctx.blockConcurrencyWhile(async () => {
       await this.loadStats()
+      // Setup alarm within the block to ensure it's sequenced after state load
+      // and prevents race conditions with incoming requests or concurrent setup
+      await this.setupAlarm()
     })
-
-    // Setup alarm after state is loaded (separate operation prevents race)
-    this.setupAlarm()
   }
 
   /**

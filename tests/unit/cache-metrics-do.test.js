@@ -19,6 +19,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 class MockDurableObject {
   constructor(state, env) {
     this.state = state
+    this.ctx = state
     this.env = env
   }
 }
