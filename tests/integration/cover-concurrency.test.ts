@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createCoverProcessor } from '../../src/utils/concurrency-limiter'
+import { createCoverProcessor } from '../../src/utils/concurrency/concurrency-limiter'
 
 describe('Cover Processing Concurrency Integration', () => {
   let mockEnv: any

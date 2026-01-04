@@ -19,7 +19,7 @@
 import { BookRepository } from '../repositories/book-repository'
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical'
 import type { BookRecord } from '../types/database'
-import { type CoverProcessingTask, createCoverProcessor } from '../utils/concurrency-limiter'
+import { type CoverProcessingTask, createCoverProcessor } from '../utils/concurrency/concurrency-limiter'
 import { processBookCover, queueCoverProcessing } from './alexandria-cover-service'
 import { enrichMultipleBooks } from './enrichment'
 import { CacheKeys, deduplicate } from './request-deduplication'
