@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
-import { handleKVResults, calculateExpiresAt, type KVResultsEnv } from '../../src/utils/kv-results-handler.js'
+import { handleKVResults, calculateExpiresAt, type KVResultsEnv } from '../../src/utils/cache/kv-results-handler.js'
 
 describe('calculateExpiresAt', () => {
   it('should convert Unix timestamp to ISO string', () => {

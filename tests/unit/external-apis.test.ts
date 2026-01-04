@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as externalApis from "../../src/services/external-apis";
-import { getCached, setCached } from "../../src/utils/cache";
+import { getCached, setCached } from "../../src/utils/cache/cache";
 import { withCircuitBreaker } from "../../src/services/circuit-breaker";
 
 // Mock dependencies

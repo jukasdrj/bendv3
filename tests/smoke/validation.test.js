@@ -22,7 +22,7 @@ describe('Validation Smoke Tests', () => {
   })
 
   it('should import cache utilities', async () => {
-    const cacheKeys = await import('../../src/utils/cache-keys.js')
+    const cacheKeys = await import('../../src/utils/cache/cache-keys.ts')
     expect(cacheKeys).toBeDefined()
     expect(typeof cacheKeys).toBe('object')
   })

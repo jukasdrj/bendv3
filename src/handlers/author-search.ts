@@ -8,7 +8,7 @@ import * as externalApis from '../services/external-apis'
 import { UnifiedCacheService } from '../services/unified-cache'
 import type { Env } from '../types/env'
 import { writeCacheMetrics } from '../utils/analytics/analytics'
-import { setCached } from '../utils/cache'
+import { setCached } from '../utils/cache/cache'
 
 // ============================================================================
 // Types

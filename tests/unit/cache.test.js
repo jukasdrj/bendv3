@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { generateISBNCacheKey } from '../../src/utils/cache-keys.js'
+import { generateISBNCacheKey } from '../../src/utils/cache/cache-keys.js'
 
 /**
  * Cache TTL Assignment Tests
