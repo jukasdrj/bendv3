@@ -407,7 +407,7 @@ for semantic search.`,
     if (isbns.length > streamingThreshold && !includeEmbedding) {
       // Import streaming utilities
       const { createStreamingResponse, createBookEnrichmentStream } = await import(
-        '../utils/streaming-response'
+        '../utils/http/streaming-response'
       )
 
       console.log(`[V3 Enrich] Using streaming mode for ${isbns.length} ISBNs`)
