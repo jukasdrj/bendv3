@@ -381,7 +381,7 @@ export class CacheMetricsDO extends DurableObject<Env> {
    * Alarm handler - runs every minute for rollovers
    * FIX: Added error handling and always reschedule alarm to prevent metric rollover failures
    */
-  async alarm(): Promise<void> {
+  override async alarm(): Promise<void> {
     const now = Date.now()
 
     try {
@@ -904,7 +904,7 @@ export class CacheMetricsDO extends DurableObject<Env> {
    * Handle incoming requests (DEPRECATED - use RPC methods instead)
    * Kept for backward compatibility during migration
    */
-  async fetch(request: Request): Promise<Response> {
+  override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
 
     if (url.pathname === '/event' && request.method === 'POST') {

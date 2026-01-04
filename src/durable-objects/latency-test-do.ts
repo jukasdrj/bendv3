@@ -216,7 +216,7 @@ export class LatencyTestDO extends DurableObject<Env> {
    * Handle incoming requests (DEPRECATED - use RPC methods instead)
    * Kept for HTTP fallback during testing
    */
-  async fetch(request: Request): Promise<Response> {
+  override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
 
     if (url.pathname === '/ping' && request.method === 'GET') {

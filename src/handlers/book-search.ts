@@ -326,25 +326,6 @@ export async function searchByISBN(
 }
 
 /**
- * Deduplicate items by title (case-insensitive)
- *
- * @param items - Items to deduplicate
- * @returns Deduplicated items
- */
-function _deduplicateByTitle(items: unknown[]): unknown[] {
-  const seen = new Set<string>()
-  return items.filter((item) => {
-    const workItem = item as WorkItem
-    const title = workItem.volumeInfo?.title?.toLowerCase() || ''
-    if (seen.has(title)) {
-      return false
-    }
-    seen.add(title)
-    return true
-  })
-}
-
-/**
  * Deduplicate items by ISBN with title fallback.
  * For books without ISBNs (common for pre-1970 books), falls back to title deduplication.
  *

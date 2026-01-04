@@ -242,26 +242,3 @@ function applySorting(
       return sortedWorks
   }
 }
-
-/**
- * Write cache metrics to Analytics Engine.
- *
- * @param env - Worker environment bindings
- * @param metrics - Metrics to write
- */
-async function _writeCacheMetricsInternal(env: Env, metrics: CacheMetricsPayload): Promise<void> {
-  if (!env.CACHE_ANALYTICS) {
-    console.warn('CACHE_ANALYTICS binding not available')
-    return
-  }
-
-  try {
-    await env.CACHE_ANALYTICS.writeDataPoint({
-      blobs: [metrics.endpoint, metrics.authorName, metrics.cacheHit ? 'HIT' : 'MISS'],
-      doubles: [metrics.responseTime, metrics.itemCount],
-      indexes: [metrics.cacheHit ? 'HIT' : 'MISS'],
-    })
-  } catch (error) {
-    console.error('Failed to write cache metrics:', error)
-  }
-}

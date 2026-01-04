@@ -111,7 +111,7 @@ export class RateLimiterDO extends DurableObject<Env> {
    *
    * UPDATE (Issue #222): Extracts X-Rate-Limit-Max header for endpoint-specific limits.
    */
-  async fetch(request: Request): Promise<Response> {
+  override async fetch(request: Request): Promise<Response> {
     if (request.method === 'POST') {
       // Extract custom rate limit from header (if provided)
       const maxRequestsHeader = request.headers.get('X-Rate-Limit-Max')

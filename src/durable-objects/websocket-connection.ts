@@ -149,7 +149,7 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
    * @param request - Upgrade request with jobId and token
    * @returns WebSocket upgrade response or error
    */
-  async fetch(request: Request): Promise<Response> {
+  override async fetch(request: Request): Promise<Response> {
     const upgradeStartTime = Date.now()
     const url = new URL(request.url)
     const upgradeHeader = request.headers.get('Upgrade')

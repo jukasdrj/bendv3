@@ -1,5 +1,4 @@
 import { DurableObject } from 'cloudflare:workers'
-import type { ExecutionContext } from '@cloudflare/workers-types'
 import { processCSVImport } from '../services/csv-processor'
 import type { Env } from '../types/env'
 import { ProgressReporter } from '../utils/jobs/progress-reporter'
@@ -100,7 +99,6 @@ type SSEClientId = string
 export class JobStateManagerDO extends DurableObject<Env> {
   private updatesSinceLastPersist = 0
   private lastPersistTime = 0
-  private currentPipeline: PipelineType | null = null
   private jobState: JobState | null = null // Fix Issue #107: Cache jobState to prevent state loss
   // Fix Issue #157: Batch SSE update storage writes
   private pendingUpdates: unknown[] = []
@@ -853,7 +851,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * 3. Batch enrichment processing (triggered immediately after scheduling)
    * 4. Cleanup after 24 hours (triggered after job completion/failure)
    */
-  async alarm(): Promise<void> {
+  override async alarm(): Promise<void> {
     const processingType = await this.ctx.storage.get('processingType')
 
     if (processingType === 'csv_import') {

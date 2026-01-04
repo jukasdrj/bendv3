@@ -1,10 +1,12 @@
 /**
  * Alexandria API Type Definitions
  *
- * Official types from alexandria-worker package (v2.1.0).
+ * Official types from alexandria-worker package (v2.2.1).
  * Provides full type safety for Hono RPC client and Alexandria API integration.
  *
- * **Version 2.1.0 Changes:**
+ * **Version 2.2.1 Changes:**
+ * - ✅ Full AlexandriaAppType export for compile-time route validation
+ * - ✅ Complete type safety for Hono RPC client integration
  * - Added `CombinedSearchQuery` and `CombinedSearchResult` types
  * - Added new `/api/search/combined` endpoint support
  * - `SearchResult.count` is deprecated in favor of `pagination.total`
@@ -36,9 +38,7 @@
  * const response = await client.api.search.$get({ query: { isbn: '...' } })
  * ```
  */
-// import type { AlexandriaAppType as AlexandriaApp } from 'alexandria-worker'
-// export type AlexandriaAppType = AlexandriaApp
-export type AlexandriaAppType = any
+export type { AlexandriaAppType } from 'alexandria-worker'
 
 // ============================================================================
 // Request Types
