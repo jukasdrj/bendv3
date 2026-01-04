@@ -12,7 +12,7 @@
 
 import type { Context } from 'hono'
 import type { Env } from '../types/env'
-import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
+import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
 
 /**
  * Window statistics for cache metrics

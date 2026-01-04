@@ -37,7 +37,7 @@ import {
   createWebSocketRoutes,
 } from './routes'
 import type { Env } from './types/env'
-import { createErrorResponse, ErrorCodes } from './utils/response-builder'
+import { createErrorResponse, ErrorCodes } from './utils/http/response-builder'
 
 // OpenAPI-enabled Hono app with Bindings and ExecutionContext support
 const app = new OpenAPIHono<{ Bindings: Env; Variables: { executionCtx?: ExecutionContext } }>()

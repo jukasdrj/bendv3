@@ -11,7 +11,7 @@
 
 import { OpenAPIHono } from '@hono/zod-openapi'
 import type { Env } from '../types/env'
-import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
+import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
 
 // DO stub interfaces for RPC calls
 interface CacheMetricsStub {

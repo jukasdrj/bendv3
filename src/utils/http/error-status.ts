@@ -7,8 +7,8 @@
  * Related: GitHub Issue #398
  */
 
-import type { ApiErrorCode } from '../types/enums.js'
-import type { ErrorResponse } from '../types/responses.js'
+import type { ApiErrorCode } from '../../types/enums.js'
+import type { ErrorResponse } from '../../types/responses.js'
 
 /**
  * Type-safe HTTP status codes

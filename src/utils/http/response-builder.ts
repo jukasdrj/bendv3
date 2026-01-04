@@ -36,8 +36,8 @@
  * ```
  */
 
-import { getCorsHeaders } from '../middleware/cors.ts'
-import type { ResponseEnvelope } from '../types/responses.js'
+import { getCorsHeaders } from '../../middleware/cors.ts'
+import type { ResponseEnvelope } from '../../types/responses.js'
 
 /**
  * Standard error codes for consistent error handling across the API

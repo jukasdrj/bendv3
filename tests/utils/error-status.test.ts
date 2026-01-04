@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { statusFromError, type HttpStatus } from '../../src/utils/error-status.js';
+import { statusFromError, type HttpStatus } from '../../src/utils/http/error-status.js';
 import type { ErrorResponse } from '../../src/types/responses.js';
 
 describe('Error Status Mapping', () => {

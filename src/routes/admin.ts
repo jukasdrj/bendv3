@@ -13,7 +13,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { handleHarvestDashboard } from '../handlers/harvest-dashboard.js'
 import type { Env } from '../types/env'
-import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
+import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
 
 export function createAdminRoutes() {
   const router = new OpenAPIHono<{ Bindings: Env }>()
