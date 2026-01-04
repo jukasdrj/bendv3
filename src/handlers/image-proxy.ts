@@ -1,4 +1,4 @@
-import { normalizeImageURL } from '../utils/normalization.js'
+import { normalizeImageURL } from '../utils/transform/normalization.js'
 
 /**
  * Environment bindings for image proxy handler
