@@ -189,14 +189,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
         return c.json(
           createProblemDetails(
             'INVALID_REQUEST',
-            `Expected Content-Type: multipart/form-data with photos[] field. Received: ${contentType || 'none'}`,
+            `Expected Content-Type: multipart/form-data with photos[] field. Received: ${contentType || 'none'}. Hint: Use FormData with photos[] field containing image files.`,
             {
               requestId: ctx.requestId,
               instance: c.req.url,
-              receivedContentType: contentType || null,
-              expectedContentType: 'multipart/form-data',
-              expectedField: 'photos[]',
-              hint: 'Use FormData with photos[] field containing image files',
             },
           ),
           400,
@@ -217,7 +213,6 @@ Returns immediately with jobId for progress tracking via SSE stream.
             {
               requestId: ctx.requestId,
               instance: c.req.url,
-              availableFields: availableKeys,
             },
           ),
           400,
@@ -232,8 +227,6 @@ Returns immediately with jobId for progress tracking via SSE stream.
             {
               requestId: ctx.requestId,
               instance: c.req.url,
-              maxPhotos: MAX_PHOTOS_PER_BATCH,
-              receivedPhotos: photoFiles.length,
             },
           ),
           400,
@@ -264,11 +257,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
           return c.json(
             createProblemDetails(
               'INVALID_REQUEST',
-              `Photo ${i} is not a valid file (expected binary image data)`,
+              `Photo at index ${i} is not a valid file (expected binary image data)`,
               {
                 requestId: ctx.requestId,
                 instance: c.req.url,
-                photoIndex: i,
               },
             ),
             400,
@@ -284,13 +276,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
           return c.json(
             createProblemDetails(
               'FILE_TOO_LARGE',
-              `Photo ${i} exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB per photo (actual: ${(actualSize / 1_000_000).toFixed(1)}MB). Please compress or resize the image.`,
+              `Photo at index ${i} exceeds maximum size of ${MAX_IMAGE_SIZE / 1_000_000}MB per photo (actual: ${(actualSize / 1_000_000).toFixed(1)}MB). Please compress or resize the image.`,
               {
                 requestId: ctx.requestId,
                 instance: c.req.url,
-                photoIndex: i,
-                maxSize: MAX_IMAGE_SIZE,
-                actualSize,
               },
             ),
             413,
@@ -318,8 +307,6 @@ Returns immediately with jobId for progress tracking via SSE stream.
             {
               requestId: ctx.requestId,
               instance: c.req.url,
-              maxBatchSize: MAX_BATCH_SIZE,
-              actualBatchSize: totalBatchSize,
             },
           ),
           413,
@@ -619,7 +606,6 @@ Results cached in KV for 2 hours after completion.`,
           createProblemDetails('NOT_FOUND', `Job not completed (status: ${state.status})`, {
             requestId: ctx.requestId,
             instance: c.req.url,
-            jobStatus: state.status,
           }),
           404,
         )
@@ -733,7 +719,6 @@ Results cached in KV for 2 hours after completion.`,
           createProblemDetails('CONFLICT', `Cannot cancel ${state.status} job`, {
             requestId: ctx.requestId,
             instance: c.req.url,
-            jobStatus: state.status,
           }),
           409,
         )

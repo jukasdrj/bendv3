@@ -110,14 +110,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
         return c.json(
           createProblemDetails(
             'INVALID_REQUEST',
-            `Expected Content-Type: multipart/form-data with file field. Received: ${contentType || 'none'}`,
+            `Expected Content-Type: multipart/form-data with file field. Received: ${contentType || 'none'}. Hint: Use FormData with file field containing CSV data.`,
             {
               requestId: ctx.requestId,
               instance: c.req.url,
-              receivedContentType: contentType || null,
-              expectedContentType: 'multipart/form-data',
-              expectedField: 'file',
-              hint: 'Use FormData with file field containing CSV data',
             },
           ),
           400,
@@ -143,12 +139,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
         return c.json(
           createProblemDetails(
             'FILE_TOO_LARGE',
-            `CSV file exceeds 8MB limit (${file.size} bytes)`,
+            `CSV file exceeds 8MB limit. File size: ${file.size} bytes, max allowed: ${MAX_FILE_SIZE} bytes.`,
             {
               requestId: ctx.requestId,
               instance: c.req.url,
-              maxSize: MAX_FILE_SIZE,
-              actualSize: file.size,
             },
           ),
           413,
@@ -411,10 +405,9 @@ Results cached in KV for 1 hour after completion.`,
 
       if (state.status !== 'completed') {
         return c.json(
-          createProblemDetails('NOT_FOUND', `Job not completed (status: ${state.status})`, {
+          createProblemDetails('NOT_FOUND', `Job not completed. Current status: ${state.status}`, {
             requestId: ctx.requestId,
             instance: c.req.url,
-            jobStatus: state.status,
           }),
           404,
         )
@@ -520,10 +513,9 @@ Results cached in KV for 1 hour after completion.`,
       // Cannot cancel completed/failed jobs
       if (state.status === 'completed' || state.status === 'failed') {
         return c.json(
-          createProblemDetails('CONFLICT', `Cannot cancel ${state.status} job`, {
+          createProblemDetails('CONFLICT', `Cannot cancel job in ${state.status} status`, {
             requestId: ctx.requestId,
             instance: c.req.url,
-            jobStatus: state.status,
           }),
           409,
         )

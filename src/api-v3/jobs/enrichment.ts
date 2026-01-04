@@ -246,10 +246,9 @@ Results cached in KV for 2 hours after completion.`,
 
       if (state.status !== 'completed') {
         return c.json(
-          createProblemDetails('NOT_FOUND', `Job not completed (status: ${state.status})`, {
+          createProblemDetails('NOT_FOUND', `Job not completed (status: ${state.status}). Current status: ${state.status}`, {
             requestId: ctx.requestId,
             instance: c.req.url,
-            jobStatus: state.status,
           }),
           404,
         )
