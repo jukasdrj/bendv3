@@ -68,6 +68,15 @@ export interface CSVValidationResult {
 }
 
 /**
+ * Row-level validation error
+ */
+export interface ValidationError {
+  row: number
+  message: string
+  data: Record<string, unknown>
+}
+
+/**
  * Job processing context
  */
 export interface ProcessingContext {
@@ -104,7 +113,7 @@ export interface APIContractResults {
   duplicatesSkipped: number
   enrichmentSucceeded: number
   enrichmentFailed: number
-  errors: unknown[]
+  errors: ValidationError[]
   books: CanonicalBook[]
 }
 
@@ -249,20 +258,50 @@ export async function processCSVCore(
 
     // Validate and shape parsed books to ParsedBookDTO structure
     // Strip extraneous fields from Gemini output to prevent schema drift
-    const validatedBooks: ValidatedBook[] = parsedBooks
-      .filter((book) => book.title && book.author) // Ensure required fields present
-      .map((book) => ({
-        title: String(book.title).trim(),
-        author: String(book.author).trim(),
-        isbn: book.isbn ? String(book.isbn).trim() : undefined,
-      }))
+    // Also track validation errors with row numbers (Issue #160)
+    const validatedBooks: ValidatedBook[] = []
+    const validationErrors: ValidationError[] = []
+    // Keep track of valid parsed books for persistence (preserving all fields)
+    const validParsedBooks: ParsedBook[] = []
+
+    parsedBooks.forEach((book, index) => {
+      const title = String(book.title || '').trim()
+      const author = String(book.author || '').trim()
+
+      if (!title) {
+        validationErrors.push({
+          row: index + 2, // 1-based index + header row = index + 2
+          message: 'Missing title',
+          data: book as Record<string, unknown>,
+        })
+      } else if (!author) {
+        validationErrors.push({
+          row: index + 2,
+          message: 'Missing author',
+          data: book as Record<string, unknown>,
+        })
+      } else {
+        validatedBooks.push({
+          title,
+          author,
+          isbn: book.isbn ? String(book.isbn).trim() : undefined,
+        })
+        validParsedBooks.push(book)
+      }
+    })
+
+    if (validationErrors.length > 0) {
+      console.warn(
+        `[CSV Processor Core] Found ${validationErrors.length} validation errors in job ${jobId}`,
+      )
+    }
 
     // FIX #1: Persist parsed books to D1+KV (Issue #1 - CSV import data loss)
     // This ensures books accumulate in D1 database instead of being lost after iOS enrichment
     await progressReporter.updateProgress('csv_import', {
       progress: 0.8,
-      status: `Saving ${parsedBooks.length} books to database...`,
-      processedCount: parsedBooks.length,
+      status: `Saving ${validParsedBooks.length} books to database...`,
+      processedCount: validParsedBooks.length,
     })
 
     const { BookRepository } = await import('../../repositories/book-repository.js')
@@ -273,8 +312,8 @@ export async function processCSVCore(
 
     // Identify duplicates within the CSV (same ISBN)
     // 1. Separate books with valid ISBNs from those without
-    const booksWithISBN = parsedBooks.filter((book) => isValidISBN(book.isbn))
-    const booksWithoutISBN = parsedBooks.filter((book) => !isValidISBN(book.isbn))
+    const booksWithISBN = validParsedBooks.filter((book) => isValidISBN(book.isbn))
+    const booksWithoutISBN = validParsedBooks.filter((book) => !isValidISBN(book.isbn))
 
     // 2. Deduplicate books with ISBNs
     const uniqueBooksWithISBN = deduplicateBooksByISBN(booksWithISBN)
@@ -401,7 +440,7 @@ export async function processCSVCore(
       duplicatesSkipped: duplicatesSkipped,
       enrichmentSucceeded: 0, // CSV import doesn't enrich - set to 0 to be accurate
       enrichmentFailed: 0, // TODO: Track enrichment failures
-      errors: [], // TODO: Store validation errors with row numbers
+      errors: validationErrors,
       books: canonicalBooks, // Canonical BookSchema format for iOS SwiftData
     }
     await env.CACHE.put(resourceId, JSON.stringify(apiContractResults), {

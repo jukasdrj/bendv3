@@ -204,23 +204,9 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
       throw new Error(`Schema violation: Expected array, got ${typeof parsed}`)
     }
 
-    // Issue #160: Post-parse validation for empty/whitespace-only authors
-    // Schema minLength prevents empty strings, but whitespace-only may slip through
-    const validBooks = parsed.filter((book: CSVParsedBook) => {
-      const hasValidAuthor = book.author && book.author.trim().length > 0
-      if (!hasValidAuthor) {
-        console.warn(`[GeminiCSVProvider] Skipping book "${book.title}" - missing or empty author`)
-      }
-      return hasValidAuthor
-    })
-
-    if (validBooks.length < parsed.length) {
-      console.warn(
-        `[GeminiCSVProvider] Filtered ${parsed.length - validBooks.length} of ${parsed.length} books due to missing author`,
-      )
-    }
-
-    return validBooks as CSVParsedBook[]
+    // Issue #160: Return all parsed books, including those with empty/whitespace-only authors.
+    // Validation is now handled in processCSVCore to properly track and report errors per row.
+    return parsed as CSVParsedBook[]
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     throw new Error(`Invalid JSON from Gemini: ${errorMessage}`)
