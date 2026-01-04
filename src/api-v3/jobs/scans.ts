@@ -253,7 +253,8 @@ Returns immediately with jobId for progress tracking via SSE stream.
         const file = photoFiles[i]
 
         // Validate file is actually a File/Blob object
-        if (!(file instanceof File) && !(file instanceof Blob)) {
+        // Type guard: check if file has Blob-like properties
+        if (typeof file !== 'object' || file === null || !('arrayBuffer' in file)) {
           return c.json(
             createProblemDetails(
               'INVALID_REQUEST',
@@ -290,11 +291,11 @@ Returns immediately with jobId for progress tracking via SSE stream.
         processedImages.push({
           index: i,
           buffer: imageBuffer,
-          type: (file as File).type || 'image/jpeg',
+          type: (file as unknown as File).type || 'image/jpeg',
         })
 
         console.log(
-          `[V3 Scan] Photo ${i}: ${(actualSize / 1_000_000).toFixed(2)}MB, type: ${(file as File).type}`,
+          `[V3 Scan] Photo ${i}: ${(actualSize / 1_000_000).toFixed(2)}MB, type: ${(file as unknown as File).type}`,
         )
       }
 
@@ -349,7 +350,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
 
       // Schedule bookshelf scan processing via DO alarm
       // Pass R2 keys instead of raw image buffers to avoid DO storage 128KB limit
-      c.executionCtx.waitUntil(doStub.scheduleBookshelfScan?.(r2Keys, jobId))
+      const scanPromise = doStub.scheduleBookshelfScan?.(r2Keys, jobId)
+      if (scanPromise) {
+        c.executionCtx.waitUntil(scanPromise)
+      }
 
       const streamUrl = buildStreamUrl(c.req.url, 'scans', jobId)
 
@@ -628,7 +632,7 @@ Results cached in KV for 2 hours after completion.`,
       const data: JobResultsData = {
         jobId: state.jobId,
         status: state.status,
-        results,
+        results: Array.isArray(results) ? results : [],
       }
 
       return c.json(
@@ -716,7 +720,7 @@ Results cached in KV for 2 hours after completion.`,
       // Cannot cancel completed/failed jobs
       if (state.status === 'completed' || state.status === 'failed') {
         return c.json(
-          createProblemDetails('CONFLICT', `Cannot cancel ${state.status} job`, {
+          createProblemDetails('INVALID_REQUEST', `Cannot cancel job in ${state.status} status`, {
             requestId: ctx.requestId,
             instance: c.req.url,
           }),

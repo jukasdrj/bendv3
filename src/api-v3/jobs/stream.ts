@@ -264,7 +264,7 @@ export async function handleSSEStream(
 
   // Last-Event-ID support for reconnection (SSE standard)
   const lastEventId = request.headers.get('Last-Event-ID')
-  const resumeFromTimestamp = parseLastEventId(lastEventId)
+  const resumeFromTimestamp = parseLastEventId(lastEventId ?? undefined)
 
   // Create readable/writable stream pair for SSE
   const { readable, writable } = new TransformStream()
@@ -338,9 +338,11 @@ export async function handleSSEStream(
         // Always use 'progress' event type for SSEProgressEvent payloads (regardless of job status).
         // The actual terminal event (SSECompleteEvent/SSEErrorEvent) is sent by sendFinalEvent immediately after.
         const eventType = 'progress'
+        // Map DO status to schema status (initialized → queued)
+        const mappedStatus = state.status === 'initialized' ? 'queued' : state.status
         const progressEvent: SSEProgressEvent = {
           jobId: state.jobId,
-          status: state.status,
+          status: mappedStatus as 'queued' | 'processing' | 'completed' | 'failed' | 'canceled',
           progress: state.progress,
           processedCount: state.processedCount,
           totalCount: state.totalCount,

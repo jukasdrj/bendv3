@@ -77,6 +77,8 @@ export function createV3Router() {
           400,
         )
       }
+      // Success case - validation passed, continue to handler
+      return undefined
     },
   })
 
@@ -376,7 +378,10 @@ for semantic search.`,
       await wsDoStub.setAuthToken(authToken, 'enrichment')
 
       // Schedule enrichment processing via DO alarm
-      c.executionCtx.waitUntil(doStub.scheduleEnrichment?.(isbns, includeEmbedding, jobId))
+      const enrichmentPromise = doStub.scheduleEnrichment?.(isbns, includeEmbedding, jobId)
+      if (enrichmentPromise) {
+        c.executionCtx.waitUntil(enrichmentPromise)
+      }
 
       const streamUrl = buildStreamUrl(c.req.url, 'enrichment', jobId)
 
@@ -427,7 +432,7 @@ for semantic search.`,
           // Fetch from external APIs (using top-level import)
           const result = await enrichMultipleBooks(
             { isbn },
-            c.env as WorkerEnv,
+            c.env as any, // Type cast needed - enrichMultipleBooks uses subset WorkerEnv interface
             { maxResults: 1 },
             c.executionCtx,
           )
@@ -524,7 +529,7 @@ for semantic search.`,
           // Fetch from external APIs
           const result = await enrichMultipleBooks(
             { isbn },
-            c.env,
+            c.env as any, // Type cast needed - enrichMultipleBooks uses subset WorkerEnv interface
             { maxResults: 1 },
             c.executionCtx,
           )
@@ -611,9 +616,9 @@ for semantic search.`,
         const results = await Promise.allSettled(batch.map((isbn) => processSingleISBN(isbn)))
 
         results.forEach((result) => {
-          if (result.status === 'fulfilled' && result.value.success) {
+          if (result.status === 'fulfilled' && result.value.success && result.value.book) {
             enrichedBooks.push(result.value.book)
-          } else if (result.status === 'fulfilled' && !result.value.success) {
+          } else if (result.status === 'fulfilled' && !result.value.success && result.value.isbn) {
             notFound.push(result.value.isbn)
           } else if (result.status === 'rejected') {
             // Should not happen due to error handling in processSingleISBN

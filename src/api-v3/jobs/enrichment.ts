@@ -271,7 +271,7 @@ Results cached in KV for 2 hours after completion.`,
       const data: JobResultsData = {
         jobId: state.jobId,
         status: state.status,
-        results,
+        results: Array.isArray(results) ? results : [],
       }
 
       return c.json(
@@ -354,10 +354,9 @@ Results cached in KV for 2 hours after completion.`,
       // Cannot cancel completed/failed jobs
       if (state.status === 'completed' || state.status === 'failed') {
         return c.json(
-          createProblemDetails('CONFLICT', `Cannot cancel ${state.status} job`, {
+          createProblemDetails('INVALID_REQUEST', `Cannot cancel job in ${state.status} status`, {
             requestId: ctx.requestId,
             instance: c.req.url,
-            jobStatus: state.status,
           }),
           409,
         )

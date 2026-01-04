@@ -167,7 +167,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
 
       // Schedule CSV processing via DO alarm (avoids Worker CPU limits)
       const csvText = await file.text()
-      c.executionCtx.waitUntil(doStub.scheduleCSVProcessing?.(csvText, jobId))
+      const csvProcessingPromise = doStub.scheduleCSVProcessing?.(csvText, jobId)
+      if (csvProcessingPromise) {
+        c.executionCtx.waitUntil(csvProcessingPromise)
+      }
 
       const streamUrl = buildStreamUrl(c.req.url, 'imports', jobId)
 
@@ -430,7 +433,7 @@ Results cached in KV for 1 hour after completion.`,
       const data: JobResultsData = {
         jobId: state.jobId,
         status: state.status,
-        results,
+        results: Array.isArray(results) ? results : [],
       }
 
       return c.json(
@@ -513,7 +516,7 @@ Results cached in KV for 1 hour after completion.`,
       // Cannot cancel completed/failed jobs
       if (state.status === 'completed' || state.status === 'failed') {
         return c.json(
-          createProblemDetails('CONFLICT', `Cannot cancel job in ${state.status} status`, {
+          createProblemDetails('INVALID_REQUEST', `Cannot cancel job in ${state.status} status`, {
             requestId: ctx.requestId,
             instance: c.req.url,
           }),
