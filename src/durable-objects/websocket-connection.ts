@@ -113,6 +113,7 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
   private isReady = false
   private readyPromise: Promise<void> | null = null
   private readyResolver: (() => void) | null = null
+  private readyRejector: ((reason?: unknown) => void) | null = null
   private correlationId: string
   private logLevel: string
   private metrics: WebSocketMetrics
@@ -270,8 +271,9 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
     this.metrics.connectionStartTime = Date.now()
 
     // Initialize ready promise
-    this.readyPromise = new Promise((resolve) => {
+    this.readyPromise = new Promise((resolve, reject) => {
       this.readyResolver = resolve
+      this.readyRejector = reject
     })
 
     const totalUpgradeDuration = Date.now() - upgradeStartTime
@@ -624,6 +626,9 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
       if ((error as Error).message === 'Timeout') {
         return { timedOut: true, disconnected: false }
       }
+      if ((error as Error).message === 'Disconnected') {
+        return { timedOut: false, disconnected: true }
+      }
       throw error
     }
   }
@@ -723,10 +728,18 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
    * Internal cleanup
    */
   private cleanup(): void {
+    // Prevent double-rejection (Issue #244)
+    const rejector = this.readyRejector
+    this.readyRejector = null
+    if (rejector) {
+      rejector(new Error('Disconnected'))
+    }
+
     this.webSocket = null
     this.jobId = null
     this.isReady = false
     this.readyPromise = null
     this.readyResolver = null
+    this.readyRejector = null
   }
 }
