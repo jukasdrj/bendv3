@@ -113,7 +113,7 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
   private isReady = false
   private readyPromise: Promise<void> | null = null
   private readyResolver: (() => void) | null = null
-  private readyRejector: ((reason?: any) => void) | null = null
+  private readyRejector: ((reason?: unknown) => void) | null = null
   private correlationId: string
   private logLevel: string
   private metrics: WebSocketMetrics

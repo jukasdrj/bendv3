@@ -297,6 +297,27 @@ describe("WebSocketConnectionDO", () => {
       expect(result.timedOut).toBe(true);
     });
 
+    it("should detect disconnection while waiting for ready", async () => {
+      doInstance.isReady = false;
+      doInstance.webSocket = { send: vi.fn() };
+
+      // Create a promise that will be rejected when cleanup is called
+      doInstance.readyPromise = new Promise((resolve, reject) => {
+        doInstance.readyResolver = resolve;
+        doInstance.readyRejector = reject;
+      });
+
+      // Start waiting, then trigger cleanup mid-wait
+      const waitPromise = doInstance.waitForReady(5000);
+
+      // Simulate disconnect during wait (e.g., close event fires)
+      doInstance.cleanup();
+
+      const result = await waitPromise;
+      expect(result.disconnected).toBe(true);
+      expect(result.timedOut).toBe(false);
+    });
+
     it("should send message successfully", async () => {
       doInstance.jobId = "test-123";
       doInstance.webSocket = {
