@@ -5,7 +5,7 @@
  * Used by scan-results and csv-results handlers to reduce duplication.
  */
 
-import { createErrorResponse, ErrorCodes } from './response-builder.js'
+import { createErrorResponse, ErrorCodes } from '../response-builder.js'
 
 /**
  * Minimal environment interface required for KV results handler.

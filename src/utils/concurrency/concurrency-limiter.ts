@@ -141,7 +141,7 @@ export function createCoverProcessor(env: any) {
 
   return {
     async processCovers(tasks: CoverProcessingTask[]): Promise<Map<string, CoverProcessingResult>> {
-      const { processBookCover } = await import('../services/alexandria-cover-service')
+      const { processBookCover } = await import('../../services/alexandria-cover-service')
 
       const results = await processor.process(tasks, async (task) => {
         try {

@@ -3,7 +3,7 @@
  * Provider-agnostic image quality detection and search link generation
  */
 
-import type { Env } from '../types/env.js'
+import type { Env } from '../../types/env.js'
 
 // Placeholder cover for books without images (Issue #202)
 // Using placehold.co CDN for reliability and performance
