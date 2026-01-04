@@ -11,7 +11,7 @@
  */
 
 import type { Env } from '../types/env'
-import { RateLimiter } from '../utils/rate-limiter'
+import { RateLimiter } from '../utils/concurrency/rate-limiter'
 import { getTopEditions, type TopEdition } from './edition-discovery'
 
 /**

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { levenshteinDistance, stringSimilarity } from '../../src/utils/string-similarity.js'
+import { levenshteinDistance, stringSimilarity } from '../../src/utils/book/string-similarity.js'
 
 describe('levenshteinDistance', () => {
   describe('identical strings', () => {

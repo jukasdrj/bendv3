@@ -12,8 +12,8 @@ import * as externalApis from '../services/external-apis'
 import { UnifiedCacheService } from '../services/unified-cache'
 import type { Env } from '../types/env'
 import { writeCacheMetrics } from '../utils/analytics/analytics'
-import { detectImageQuality } from '../utils/book-metadata'
-import { setCached } from '../utils/cache'
+import { detectImageQuality } from '../utils/book/book-metadata'
+import { setCached } from '../utils/cache/cache'
 import { transformWorkToGoogleFormat } from '../utils/transform-work'
 
 // ============================================================================

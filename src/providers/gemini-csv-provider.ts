@@ -3,7 +3,7 @@
 
 import type { CSVParsedBook } from '../types/gemini-schemas'
 import { CSV_BOOK_SCHEMA } from '../types/gemini-schemas'
-import { retryWithBackoff } from '../utils/retry'
+import { retryWithBackoff } from '../utils/concurrency/retry'
 
 const GEMINI_API_ENDPOINT =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'

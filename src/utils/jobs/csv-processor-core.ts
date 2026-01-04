@@ -14,8 +14,8 @@
 import { buildCSVParserPrompt } from '../../prompts/csv-parser-prompt'
 import { parseCSVWithGemini as parseCSVWithGeminiImpl } from '../../providers/gemini-csv-provider'
 import type { Env } from '../../types/env'
-import { generateCSVCacheKey } from '../cache-keys'
-import { validateCSV as validateCSVImpl } from '../csv-validator'
+import { generateCSVCacheKey } from '../cache/cache-keys'
+import { validateCSV as validateCSVImpl } from '../validation/csv-validator'
 import type { ProgressReporter } from './progress-reporter'
 
 /**

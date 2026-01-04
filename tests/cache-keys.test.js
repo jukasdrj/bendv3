@@ -1,6 +1,6 @@
 // test/cache-keys.test.js
 import { describe, test, expect } from 'vitest';
-import { generateCSVCacheKey, generateISBNCacheKey } from '../src/utils/cache-keys.js';
+import { generateCSVCacheKey, generateISBNCacheKey } from '../src/utils/cache/cache-keys.js';
 
 describe('Cache Key Generation', () => {
   test('CSV cache key includes content hash', async () => {
