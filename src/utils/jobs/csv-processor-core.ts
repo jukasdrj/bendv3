@@ -15,6 +15,7 @@ import { buildCSVParserPrompt } from '../../prompts/csv-parser-prompt'
 import { parseCSVWithGemini as parseCSVWithGeminiImpl } from '../../providers/gemini-csv-provider'
 import type { Env } from '../../types/env'
 import { generateCSVCacheKey } from '../cache/cache-keys'
+import { processWithLimit } from '../concurrency/concurrency-limiter'
 import { validateCSV as validateCSVImpl } from '../validation/csv-validator'
 import type { ProgressReporter } from './progress-reporter'
 
@@ -292,20 +293,21 @@ export async function processCSVCore(
     // Parallel saves complete in <5s
     // Filter to books with valid ISBNs for D1 persistence
     // (booksWithoutISBN are excluded here since they can't be persisted)
-    const savePromises = booksToSave
-      .filter((book) => isValidISBN(book.isbn))
-      .map(async (geminiBook) => {
-        try {
-          const bookRecord = mapGeminiCSVBookToBookRecord(geminiBook)
-          await bookRepo.save(bookRecord)
-          return { status: 'fulfilled' as const, isbn: geminiBook.isbn }
-        } catch (error) {
-          console.error(`[CSV Processor Core] Failed to save ISBN ${geminiBook.isbn}:`, error)
-          return { status: 'rejected' as const, isbn: geminiBook.isbn, error }
-        }
-      })
+    // UPDATED: Use concurrency limit to prevent D1 throttling
+    const booksWithValidISBN = booksToSave.filter((book) => isValidISBN(book.isbn))
 
-    const results = await Promise.allSettled(savePromises)
+    const saveTasks = booksWithValidISBN.map((geminiBook) => async () => {
+      try {
+        const bookRecord = mapGeminiCSVBookToBookRecord(geminiBook)
+        await bookRepo.save(bookRecord)
+        return { status: 'fulfilled' as const, isbn: geminiBook.isbn }
+      } catch (error) {
+        console.error(`[CSV Processor Core] Failed to save ISBN ${geminiBook.isbn}:`, error)
+        throw error // Throw to ensure Promise.allSettled marks as rejected
+      }
+    })
+
+    const results = await processWithLimit(saveTasks, 20)
     const savedCount = results.filter((r) => r.status === 'fulfilled').length
     const failedCount = results.filter((r) => r.status === 'rejected').length
 
