@@ -63,6 +63,8 @@ describe("WebSocketConnectionDO", () => {
 
     // Create DO instance
     doInstance = new WebSocketConnectionDO(mockState, mockEnv);
+    // Explicitly set ctx for tests since base class might not set it in mock environment
+    doInstance.ctx = mockState;
   });
 
   describe("Authentication", () => {
