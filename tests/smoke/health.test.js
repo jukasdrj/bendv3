@@ -10,13 +10,13 @@ import { describe, it, expect } from 'vitest'
 describe('Health Check Smoke Tests', () => {
   it('should import core utilities without errors', async () => {
     // Test that critical modules can be imported without syntax errors
-    const responseBuilder = await import('../../src/utils/response-builder.ts')
+    const responseBuilder = await import('../../src/utils/http/response-builder.ts')
     expect(responseBuilder).toBeDefined()
     expect(typeof responseBuilder).toBe('object')
   })
 
   it('should import book mapper utilities', async () => {
-    const bookMappers = await import('../../src/utils/book-mappers.ts')
+    const bookMappers = await import('../../src/utils/transform/book-mappers.ts')
     expect(bookMappers).toBeDefined()
   })
 

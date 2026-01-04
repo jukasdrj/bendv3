@@ -13,7 +13,7 @@
 import type { Context } from 'hono'
 import { checkAlertThresholds } from '../services/alert-monitor'
 import { aggregateMetrics } from '../services/metrics-aggregator'
-import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
+import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
 
 /**
  * Get cache health status

@@ -40,11 +40,8 @@ export function createStreamingResponse<T>(
         await writer.write(encoder.encode(`${json}\n`))
 
         count++
-        // Flush periodically for better streaming experience
-        if (count % options.flushThreshold === 0) {
-          // Force flush (in real implementations, this might be a no-op)
-          await new Promise((resolve) => setTimeout(resolve, 0))
-        }
+        // Note: TransformStream automatically handles backpressure and flushing
+        // No explicit flush needed - the stream will flush when the internal buffer fills
       }
     } catch (error) {
       console.error('[StreamingResponse] Error:', error)

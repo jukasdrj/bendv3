@@ -9,8 +9,8 @@
 
 import * as externalApis from '../services/external-apis'
 import type { Env } from '../types/env'
-import { createErrorResponse, ErrorCodes } from '../utils/response-builder'
-import { transformWorkToGoogleFormat } from '../utils/transform-work'
+import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
+import { transformWorkToGoogleFormat } from '../utils/transform/transform-work'
 
 // ============================================================================
 // Types

@@ -267,7 +267,7 @@ export async function processCSVCore(
 
     const { BookRepository } = await import('../../repositories/book-repository.js')
     const { mapGeminiCSVBookToBookRecord, isValidISBN, deduplicateBooksByISBN } = await import(
-      '../book-mappers.js'
+      '../transform/book-mappers.js'
     )
     const bookRepo = new BookRepository(env)
 

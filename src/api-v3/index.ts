@@ -32,7 +32,7 @@ import { generateBookEmbedding, storeEmbedding } from '../services/embedding-ser
 import { enrichMultipleBooks } from '../services/enrichment'
 import type { Env } from '../types/env'
 import { isValidEnrichedBookCacheEntry } from '../utils/validation/book-validation'
-import { normalizeTitle } from '../utils/normalization'
+import { normalizeTitle } from '../utils/transform/normalization'
 import { registerDiscoveryRoutes } from './discovery'
 import {
   buildStreamUrl,
@@ -407,7 +407,7 @@ for semantic search.`,
     if (isbns.length > streamingThreshold && !includeEmbedding) {
       // Import streaming utilities
       const { createStreamingResponse, createBookEnrichmentStream } = await import(
-        '../utils/streaming-response'
+        '../utils/http/streaming-response'
       )
 
       console.log(`[V3 Enrich] Using streaming mode for ${isbns.length} ISBNs`)

@@ -22,6 +22,7 @@
     "test:safe": "npm run test:smoke && TEST_SAFE_MODE=true npm run test:node",
     "test:smoke": "vitest run --config vitest.workers.config.ts",
     "test:unit": "vitest run --config vitest.node.config.ts --exclude='tests/integration/**' --exclude='tests/e2e/**'",
+    "test:alexandria": "vitest run --config vitest.node.config.ts tests/integration/alexandria-contract.test.ts",
     "validate": "npm run lint:check && npm run test:smoke",
     "lint:check": "biome check",
     "lint:fix": "biome check --write",
@@ -49,7 +50,7 @@
     "@bookstrack/schemas": "file:./packages/schemas",
     "@hono/swagger-ui": "^0.5.2",
     "@hono/zod-openapi": "^1.1.5",
-    "alexandria-worker": "^2.1.0",
+    "alexandria-worker": "^2.2.1",
     "hono": "^4.10.8",
     "uuid": "^13.0.0",
     "zod": "^4.1.13"

@@ -3,7 +3,7 @@
 import type { ExecutionContext } from '@cloudflare/workers-types'
 import { getAllCacheTTLs } from '../config/cache-ttl.ts'
 import type { Env } from '../types/env.js'
-import { getCached, setCached } from '../utils/cache.ts'
+import { getCached, setCached } from '../utils/cache/cache.ts'
 
 /**
  * Cached data with metadata

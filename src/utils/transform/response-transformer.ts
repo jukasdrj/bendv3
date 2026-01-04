@@ -8,8 +8,8 @@
  * Refactoring Plan: Backend Handler Deduplication - eliminates 39 lines of duplicated code
  */
 
-import { enrichAuthorWithWikidata } from '../services/wikidata-enrichment.js'
-import type { AuthorDTO, WorkDTO } from '../types/canonical.js'
+import { enrichAuthorWithWikidata } from '../../services/wikidata-enrichment.js'
+import type { AuthorDTO, WorkDTO } from '../../types/canonical.js'
 
 /**
  * Extended WorkDTO with authors property

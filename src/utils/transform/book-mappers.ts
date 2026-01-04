@@ -10,7 +10,7 @@
  * Related Issues: #1, #2 (Data loss fix - batch operations D1 persistence)
  */
 
-import type { BookRecord } from '../types/database'
+import type { BookRecord } from '../../types/database'
 
 /**
  * Validate ISBN format (ISBN-10 or ISBN-13)

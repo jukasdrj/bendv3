@@ -9,7 +9,7 @@
  * - covers: prefers edition.coverImageURL with placeholder fallback
  */
 
-import { generateSearchLinks, getPlaceholderCover } from './book-metadata.js'
+import { generateSearchLinks, getPlaceholderCover } from '../book/book-metadata.js'
 
 /**
  * Author information (various formats)
