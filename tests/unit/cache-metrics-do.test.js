@@ -62,7 +62,7 @@ describe('CacheMetricsDO', () => {
     // Mock state
     state = {
       storage,
-      blockConcurrencyWhile: vi.fn((callback) => callback()),
+      blockConcurrencyWhile: vi.fn(async (callback) => await callback()),
     }
 
     // Mock env
