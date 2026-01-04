@@ -16,7 +16,7 @@ describe('Health Check Smoke Tests', () => {
   })
 
   it('should import book mapper utilities', async () => {
-    const bookMappers = await import('../../src/utils/book-mappers.ts')
+    const bookMappers = await import('../../src/utils/transform/book-mappers.ts')
     expect(bookMappers).toBeDefined()
   })
 

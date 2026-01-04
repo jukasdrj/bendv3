@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { normalizeTitle, normalizeISBN, normalizeAuthor, normalizeImageURL } from '../src/utils/normalization';
+import { normalizeTitle, normalizeISBN, normalizeAuthor, normalizeImageURL } from '../src/utils/transform/normalization';
 
 describe('normalizeTitle', () => {
   test('removes leading "The"', () => {

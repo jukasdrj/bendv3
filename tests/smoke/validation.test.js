@@ -28,7 +28,7 @@ describe('Validation Smoke Tests', () => {
   })
 
   it('should import response transformers', async () => {
-    const transformer = await import('../../src/utils/response-transformer.ts')
+    const transformer = await import('../../src/utils/transform/response-transformer.ts')
     expect(transformer).toBeDefined()
   })
 

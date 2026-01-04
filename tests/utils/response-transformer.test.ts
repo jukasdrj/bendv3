@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { extractUniqueAuthors, removeAuthorsFromWorks, type WorkDTOWithAuthors } from '../../src/utils/response-transformer.js';
+import { extractUniqueAuthors, removeAuthorsFromWorks, type WorkDTOWithAuthors } from '../../src/utils/transform/response-transformer.js';
 import type { AuthorDTO, WorkDTO } from '../../src/types/canonical.js';
 
 describe('ResponseTransformer', () => {
