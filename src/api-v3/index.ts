@@ -31,7 +31,7 @@ import { generateBookEmbedding, storeEmbedding } from '../services/embedding-ser
 // Alexandria now returns per-work embedded authors array, no client-side matching needed
 import { enrichMultipleBooks } from '../services/enrichment'
 import type { Env } from '../types/env'
-import { isValidEnrichedBookCacheEntry } from '../utils/book-validation'
+import { isValidEnrichedBookCacheEntry } from '../utils/validation/book-validation'
 import { normalizeTitle } from '../utils/normalization'
 import { registerDiscoveryRoutes } from './discovery'
 import {

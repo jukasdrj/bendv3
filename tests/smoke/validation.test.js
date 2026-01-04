@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest'
 
 describe('Validation Smoke Tests', () => {
   it('should validate ISBN format checking works', async () => {
-    const { isValidISBN } = await import('../../src/utils/isbn-validation.ts')
+    const { isValidISBN } = await import('../../src/utils/validation/isbn-validation.ts')
 
     // Valid ISBNs
     expect(isValidISBN('9780439708180')).toBe(true)
