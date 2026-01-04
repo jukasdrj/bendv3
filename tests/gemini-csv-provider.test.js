@@ -197,7 +197,7 @@ describe("Gemini CSV Provider", () => {
   });
 
   describe("Issue #160: Author Extraction Edge Cases", () => {
-    test("filters out books with empty author strings", async () => {
+    test("returns all books including those with empty author strings (validation delegated to core)", async () => {
       const mockFetch = vi.fn(() =>
         Promise.resolve({
           ok: true,
@@ -227,9 +227,11 @@ describe("Gemini CSV Provider", () => {
 
       const result = await parseCSVWithGemini("csv", "prompt", "key");
 
-      expect(result).toHaveLength(1);
+      // Now expects all 3 books to be returned
+      expect(result).toHaveLength(3);
       expect(result[0].title).toBe("Valid Book");
-      expect(result[0].author).toBe("Real Author");
+      expect(result[1].title).toBe("Missing Author");
+      expect(result[2].title).toBe("Whitespace Author");
     });
 
     test("preserves multiple authors as comma-separated string", async () => {
@@ -264,7 +266,7 @@ describe("Gemini CSV Provider", () => {
       expect(result[0].author).toBe("Neil Gaiman, Terry Pratchett");
     });
 
-    test("handles null author by filtering out", async () => {
+    test("returns books with null author (validation delegated to core)", async () => {
       const mockFetch = vi.fn(() =>
         Promise.resolve({
           ok: true,
@@ -293,49 +295,10 @@ describe("Gemini CSV Provider", () => {
 
       const result = await parseCSVWithGemini("csv", "prompt", "key");
 
-      expect(result).toHaveLength(1);
+      // Now expects both books to be returned
+      expect(result).toHaveLength(2);
       expect(result[0].title).toBe("Valid Book");
-    });
-
-    test("logs warning when books are filtered due to missing author", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      const mockFetch = vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              candidates: [
-                {
-                  content: {
-                    parts: [
-                      {
-                        text: JSON.stringify([
-                          { title: "Valid Book", author: "Real Author" },
-                          { title: "No Author Book", author: "" },
-                        ]),
-                      },
-                    ],
-                  },
-                },
-              ],
-              usageMetadata: {},
-            }),
-        }),
-      );
-
-      global.fetch = mockFetch;
-
-      await parseCSVWithGemini("csv", "prompt", "key");
-
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Skipping book"),
-      );
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Filtered 1 of 2 books"),
-      );
-
-      warnSpy.mockRestore();
+      expect(result[1].title).toBe("Null Author");
     });
   });
 });
