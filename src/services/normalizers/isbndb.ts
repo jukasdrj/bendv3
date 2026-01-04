@@ -4,9 +4,9 @@
 
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../../types/canonical.js'
 import type { EditionFormat } from '../../types/enums.js'
-import { getPlaceholderCover } from '../../utils/book-metadata.ts'
+import { getPlaceholderCover } from '../../utils/book/book-metadata.ts'
 import { extractYear } from '../../utils/date-utils.js'
-import { ISBNDB_QUALITY_WEIGHTS as W } from '../../utils/quality-scoring.js'
+import { ISBNDB_QUALITY_WEIGHTS as W } from '../../utils/book/quality-scoring.js'
 import { GenreNormalizer } from '../genre-normalizer.js'
 
 // Create genre normalizer instance (reused across all normalizations)

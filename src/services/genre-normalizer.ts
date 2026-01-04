@@ -3,7 +3,7 @@
  * Transforms provider-specific genres into canonical subjectTags
  */
 
-import { levenshteinDistance } from '../utils/string-similarity.js'
+import { levenshteinDistance } from '../utils/book/string-similarity.js'
 
 /**
  * Canonical genre taxonomy

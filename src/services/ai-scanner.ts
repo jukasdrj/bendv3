@@ -11,7 +11,7 @@ import { scanImageWithGemini } from '../providers/gemini-provider'
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical'
 import type { Env } from '../types/env'
 import type { BookshelfDetectedBook } from '../types/gemini-schemas'
-import { categorizeBooks } from '../utils/confidence'
+import { categorizeBooks } from '../utils/book/confidence'
 import { enrichMultipleBooks } from './enrichment'
 import { enrichBooksParallel } from './parallel-enrichment.js'
 
