@@ -200,7 +200,10 @@ export class ISBNdbAPI {
 
       return books
     } catch (error) {
-      console.error(`ISBNdb batch API error for ${batchISBNs.length} ISBNs:`, (error as Error).message)
+      console.error(
+        `ISBNdb batch API error for ${batchISBNs.length} ISBNs:`,
+        (error as Error).message,
+      )
 
       // Fallback: If batch fails, try individual requests for first 10 ISBNs
       console.log('Falling back to individual requests for first 10 ISBNs...')

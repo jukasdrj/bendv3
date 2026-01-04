@@ -1,8 +1,8 @@
 import { DurableObject } from 'cloudflare:workers'
-import { processCSVImport } from '../services/csv-processor'
-import { ProgressReporter } from '../utils/progress-reporter'
-import type { Env } from '../types/env'
 import type { ExecutionContext } from '@cloudflare/workers-types'
+import { processCSVImport } from '../services/csv-processor'
+import type { Env } from '../types/env'
+import { ProgressReporter } from '../utils/jobs/progress-reporter'
 
 /**
  * Job State Manager Durable Object
@@ -157,7 +157,10 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @param {Object} payload - Progress update payload
    * @returns {Promise<{success: boolean}>}
    */
-  async updateProgress(pipeline: PipelineType, payload: ProgressPayload): Promise<{ success: boolean }> {
+  async updateProgress(
+    pipeline: PipelineType,
+    payload: ProgressPayload,
+  ): Promise<{ success: boolean }> {
     // Fix Issue #107: Use cached state instead of reading from storage each time
     if (!this.jobState) {
       this.jobState = await this.ctx.storage.get('jobState')
@@ -244,7 +247,10 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @param {Object} payload - Completion payload
    * @returns {Promise<{success: boolean}>}
    */
-  async complete(pipeline: PipelineType, payload: CompletionPayload): Promise<{ success: boolean }> {
+  async complete(
+    pipeline: PipelineType,
+    payload: CompletionPayload,
+  ): Promise<{ success: boolean }> {
     const jobState = await this.ctx.storage.get('jobState')
 
     if (!jobState) {
@@ -523,7 +529,11 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @param {string} jobId - Job identifier
    * @returns {Promise<{success: boolean}>}
    */
-  async scheduleEnrichment(isbns: string[], includeEmbedding: boolean, jobId: string): Promise<{ success: boolean }> {
+  async scheduleEnrichment(
+    isbns: string[],
+    includeEmbedding: boolean,
+    jobId: string,
+  ): Promise<{ success: boolean }> {
     await this.ctx.storage.put('enrichmentISBNs', isbns)
     await this.ctx.storage.put('includeEmbedding', includeEmbedding)
     await this.ctx.storage.put('processingType', 'enrichment')

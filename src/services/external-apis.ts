@@ -29,7 +29,7 @@ export { searchAlexandria, searchAlexandriaByISBN } from './alexandria-api'
 
 import { getCacheTTL } from '../config/cache-ttl.ts'
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical.js'
-import { logExternalApiCall } from '../utils/analytics-logger.ts'
+import { logExternalApiCall } from '../utils/analytics/analytics-logger.ts'
 import { getCached, setCached } from '../utils/cache.ts'
 import { withCircuitBreaker } from './circuit-breaker'
 

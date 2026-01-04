@@ -21,7 +21,7 @@ describe('Health Check Smoke Tests', () => {
   })
 
   it('should import analytics utilities', async () => {
-    const analytics = await import('../../src/utils/analytics-logger.ts')
+    const analytics = await import('../../src/utils/analytics/analytics-logger.ts')
     expect(analytics).toBeDefined()
   })
 

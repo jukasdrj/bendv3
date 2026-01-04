@@ -11,11 +11,11 @@
  * Related: Issue #180 - Eliminate code duplication in CSV processing
  */
 
-import { buildCSVParserPrompt } from '../prompts/csv-parser-prompt'
-import { parseCSVWithGemini as parseCSVWithGeminiImpl } from '../providers/gemini-csv-provider'
-import type { Env } from '../types/env'
-import { generateCSVCacheKey } from './cache-keys'
-import { validateCSV as validateCSVImpl } from './csv-validator'
+import { buildCSVParserPrompt } from '../../prompts/csv-parser-prompt'
+import { parseCSVWithGemini as parseCSVWithGeminiImpl } from '../../providers/gemini-csv-provider'
+import type { Env } from '../../types/env'
+import { generateCSVCacheKey } from '../cache-keys'
+import { validateCSV as validateCSVImpl } from '../csv-validator'
 import type { ProgressReporter } from './progress-reporter'
 
 /**
@@ -265,9 +265,9 @@ export async function processCSVCore(
       processedCount: parsedBooks.length,
     })
 
-    const { BookRepository } = await import('../repositories/book-repository.js')
+    const { BookRepository } = await import('../../repositories/book-repository.js')
     const { mapGeminiCSVBookToBookRecord, isValidISBN, deduplicateBooksByISBN } = await import(
-      './book-mappers.js'
+      '../book-mappers.js'
     )
     const bookRepo = new BookRepository(env)
 

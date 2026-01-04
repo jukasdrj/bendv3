@@ -17,7 +17,7 @@
 
 import { getCacheTTL } from '../config/cache-ttl.ts'
 import type { AuthorDTO } from '../types/canonical.js'
-import { logExternalApiCall } from '../utils/analytics-logger.ts'
+import { logExternalApiCall } from '../utils/analytics/analytics-logger.ts'
 import { getCached, setCached } from '../utils/cache.ts'
 import { createAlexandriaClient } from './alexandria-client'
 import { withCircuitBreaker } from './circuit-breaker'
