@@ -1,8 +1,9 @@
 # BooksTrack Backend - Master TODO
 
-**Last Updated:** January 5, 2026
+**Last Updated:** January 5, 2026 (Post Code Review)
 **Production:** https://api.oooefam.net
 **Health:** 🟢 0% error rate, all systems operational
+**Code Quality:** 8.3/10 - Production Ready (PAL Review)
 
 ---
 
@@ -64,11 +65,21 @@ npm run validate
 - **Action:** Verify `setupAlarm()` is inside `blockConcurrencyWhile`
 - **File:** `src/durable-objects/cache-metrics.ts`
 
+### 3. Fix Webhook Error Handling (Code Review)
+- **Priority:** P1 - HIGH
+- **Status:** Needs implementation
+- **Effort:** 30 minutes
+- **Impact:** Alexandria may retry non-retriable errors indefinitely
+- **Issue:** Webhook returns 500 for all errors (permanent + transient)
+- **File:** `src/api-v3/webhooks/alexandria.ts:155`
+- **Action:** Return 200 for logic errors (invalid ISBN, schema mismatch), 500 only for transient errors
+- **Source:** PAL Code Review - January 5, 2026
+
 ---
 
 ## 🟡 Medium Priority (P2)
 
-### 3. Multi-Size Cover URL Support (#237)
+### 4. Multi-Size Cover URL Support (#237)
 - **Priority:** P2 - MEDIUM
 - **Status:** Ready for implementation
 - **Effort:** 2-3 hours
@@ -76,7 +87,7 @@ npm run validate
 - **Labels:** `good-first-issue`, `frontend`, `api-v3`
 - **Action:** Add `coverUrls: {small, medium, large}` to book schema
 
-### 4. Resilience Tests for Alarm Continuity (#246)
+### 5. Resilience Tests for Alarm Continuity (#246)
 - **Priority:** P2 - MEDIUM
 - **Status:** Optional enhancement to PR #238
 - **Effort:** 1-2 hours
@@ -87,7 +98,7 @@ npm run validate
 
 ## 🟢 Low Priority (P3) - Backlog
 
-### 5. D1 Concurrency Limit Tuning (#247)
+### 6. D1 Concurrency Limit Tuning (#247)
 - **Priority:** P3 - LOW
 - **Status:** Optional optimization
 - **Effort:** 5 minutes
@@ -95,7 +106,38 @@ npm run validate
 - **Action:** Consider reducing from 20 to 10-15 (requires load testing)
 - **File:** `src/repositories/book-repository.ts`
 
-### 6. Optional Enhancements (#233)
+### 7. Audit TODO Comments in Code (Code Review)
+- **Priority:** P3 - LOW
+- **Status:** Needs audit
+- **Effort:** 1-2 hours
+- **Impact:** Code quality and clarity
+- **Count:** 11 TODO/FIXME comments in 9 files
+- **Files:** `analytics.ts`, `csv-processor-core.ts`, `alexandria-api.ts`, `author-discovery.ts`, etc.
+- **Action:** Audit each TODO, create GitHub issues for valid work, remove stale comments
+- **Source:** PAL Code Review - January 5, 2026
+
+### 8. Remove Stale WorkerEnv Interface (Code Review)
+- **Priority:** P3 - LOW
+- **Status:** Quick cleanup
+- **Effort:** 5 minutes
+- **Impact:** Reduce confusion during development
+- **File:** `src/services/enrichment.ts:72-100`
+- **Issue:** Duplicate of `Env` type from `types/env.ts`
+- **Action:** Remove `WorkerEnv` interface, use `Env` everywhere
+- **Source:** PAL Code Review - January 5, 2026
+
+### 9. Circuit Breaker KV Write Optimization (Code Review)
+- **Priority:** P3 - LOW
+- **Status:** Optional performance tuning
+- **Effort:** 5 minutes
+- **Impact:** Reduce KV writes during provider outages
+- **File:** `src/services/circuit-breaker.ts:76`
+- **Current:** WRITE_BATCH_SIZE = 10
+- **Action:** Consider increasing to 50 for high-failure scenarios
+- **Note:** Already has batching optimization
+- **Source:** PAL Code Review - January 5, 2026
+
+### 10. Optional Enhancements (#233)
 - **Priority:** P3 - LOW
 - **Status:** Backlog of nice-to-have features
 - **Tracking:** Meta-issue for future improvements
@@ -105,7 +147,6 @@ npm run validate
   - Standardize RFC 9457 error responses
   - Document API versioning strategy
   - Integrate dependency injection across handlers
-  - Resolve TODO comments in code (11 found)
 
 ---
 
@@ -135,9 +176,10 @@ npm run validate
 1. ✅ Complete TypeScript Phase 3 (4 hours)
 2. 🔥 Fix CSV validation silent failure (#243) - 3.5 hours
 3. ✅ Verify CacheMetrics race fix (#245) - 15 min
+4. 🆕 Fix webhook error handling (Code Review) - 30 min
 
-**Total Effort:** ~8 hours
-**Deliverable:** Clean TypeScript build, PR #242 ready to merge
+**Total Effort:** ~8.5 hours
+**Deliverable:** Clean TypeScript build, PR #242 ready to merge, proper webhook retry logic
 
 ### Sprint 2: Frontend Optimization (Next Week)
 **Goal:** Improve API responses for frontend
@@ -149,14 +191,16 @@ npm run validate
 **Deliverable:** Enhanced book metadata, better test coverage
 
 ### Sprint 3: Polish & Publish (Future)
-**Goal:** Package improvements
+**Goal:** Package improvements and code cleanup
 1. Publish TypeScript SDK to npm
-2. Consolidate utils directory
-3. RFC 9457 error standardization
-4. API versioning documentation
+2. Audit and resolve TODO comments (1-2 hours)
+3. Remove stale WorkerEnv interface (5 min)
+4. Consolidate utils directory
+5. RFC 9457 error standardization
+6. API versioning documentation
 
-**Total Effort:** ~8 hours
-**Deliverable:** Public SDK, cleaner codebase structure
+**Total Effort:** ~10 hours
+**Deliverable:** Public SDK, cleaner codebase structure, reduced technical debt
 
 ---
 
