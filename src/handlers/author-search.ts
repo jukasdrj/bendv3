@@ -53,14 +53,6 @@ interface AuthorSearchError {
   pagination: null
 }
 
-interface CacheMetricsPayload {
-  endpoint: string
-  cacheHit: boolean
-  responseTime: number
-  itemCount: number
-  authorName: string
-}
-
 interface WorkItem {
   title?: string
   firstPublicationYear?: number

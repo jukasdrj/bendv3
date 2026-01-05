@@ -8,12 +8,6 @@ interface WarmingUploadBody {
   priority?: number
 }
 
-interface ParsedBook {
-  author?: string
-  title?: string
-  isbn?: string
-}
-
 interface AuthorWarmingMessage {
   author: string
   source: string

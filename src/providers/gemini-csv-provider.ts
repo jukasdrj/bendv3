@@ -180,21 +180,36 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
       },
     }
 
-    const res = await fetch(GEMINI_API_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'x-goog-api-key': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    })
+    // Add 30s timeout to prevent hanging on slow API responses
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
 
-    if (!res.ok) {
-      const error = await res.text()
-      throw new Error(`Gemini API error: ${res.status} - ${error}`)
+    try {
+      const res = await fetch(GEMINI_API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!res.ok) {
+        const error = await res.text()
+        throw new Error(`Gemini API error: ${res.status} - ${error}`)
+      }
+
+      return res
+    } catch (error) {
+      clearTimeout(timeoutId)
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Gemini API request timed out after 30 seconds')
+      }
+      throw error
     }
-
-    return res
   })
 
   const data = (await response.json()) as GeminiResponse

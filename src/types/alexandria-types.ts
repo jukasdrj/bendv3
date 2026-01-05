@@ -1,8 +1,19 @@
 /**
  * Alexandria API Type Definitions
  *
- * Official types from alexandria-worker package (v2.2.1).
+ * Official types from alexandria-worker package (v2.2.4).
  * Provides full type safety for Hono RPC client and Alexandria API integration.
+ *
+ * **Version 2.2.4 Changes:**
+ * - ✅ Enhanced `BookResult.coverUrls` with multiple sizes (large, medium, small)
+ * - ✅ Enhanced `CoverStatus.urls` with original + resized versions
+ * - Backward compatible: `coverUrl` (legacy) still available
+ * - New `/covers/:isbn/:size` endpoint for optimized image delivery
+ *
+ * **Version 2.2.3 Changes:**
+ * - ✅ Enhanced `AuthorReference` with enriched metadata (bio, gender, nationality, etc.)
+ * - All new author fields are optional (no breaking changes)
+ * - Full TypeScript autocomplete for enriched author data
  *
  * **Version 2.2.1 Changes:**
  * - ✅ Full AlexandriaAppType export for compile-time route validation
@@ -59,6 +70,7 @@ export type {
 // ============================================================================
 
 export type {
+  AuthorReference,
   BatchCoverResult,
   BookResult,
   CombinedSearchResult,
@@ -71,6 +83,7 @@ export type {
   EnrichmentResult,
   ErrorResponse,
   HealthCheck,
+  PaginationMetadata,
   SearchResult,
 } from 'alexandria-worker/types'
 
