@@ -304,8 +304,6 @@ describe("Gemini CSV Provider", () => {
     });
 
     test("logs warning when books are filtered due to missing author", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
       const mockFetch = vi.fn(() =>
         Promise.resolve({
           ok: true,
@@ -332,16 +330,20 @@ describe("Gemini CSV Provider", () => {
 
       global.fetch = mockFetch;
 
-      await parseCSVWithGemini("csv", "prompt", "key");
+      const result = await parseCSVWithGemini("csv", "prompt", "key");
 
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Skipping book"),
-      );
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Filtered 1 of 2 books"),
-      );
+      // Verify valid book was returned
+      expect(result.books).toHaveLength(1);
+      expect(result.books[0].title).toBe("Valid Book");
 
-      warnSpy.mockRestore();
+      // Verify error was tracked for filtered book
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toMatchObject({
+        rowNumber: 3, // Row 3: index 1 + 2 (1-based + header)
+        code: "missing_author",
+        field: "author",
+        message: expect.stringContaining("No Author Book"),
+      });
     });
   });
 });
