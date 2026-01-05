@@ -24,6 +24,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.2.1] - 2026-01-05
+
+### Changed
+- **Alexandria Worker:** Updated from v2.2.1 to v2.2.4
+  - v2.2.3: Enhanced `AuthorReference` with enriched metadata (bio, gender, nationality, birth/death years, Wikidata ID, author photo)
+  - v2.2.4: Enhanced `BookResult.coverUrls` with multiple sizes (large, medium, small) for optimized image delivery
+  - v2.2.4: Enhanced `CoverStatus.urls` with original + resized versions
+  - All new fields are optional (no breaking changes)
+- **Type Exports:** Added `AuthorReference` and `PaginationMetadata` to `src/types/alexandria-types.ts`
+
+### Fixed
+- **Gemini API:** Added 30s timeout to prevent hanging on slow API responses using `AbortController`
+- **Code Quality:** Removed 2 unused interfaces (0 Biome linting warnings)
+  - Removed unused `CacheMetricsPayload` from `src/handlers/author-search.ts`
+  - Removed unused `ParsedBook` from `src/handlers/warming-upload.ts`
+
+### Deployment
+- **Version ID:** 1d4b5f7f-aaf5-4039-8fde-ef728cc5ce50
+- **Deployed:** January 5, 2026
+- **Health Status:** 🟢 0% error rate, all endpoints operational
+- **Tests:** 199/199 smoke tests passing
+
+---
+
 ## [3.2.0] - 2026-01-05
 
 ### Added
