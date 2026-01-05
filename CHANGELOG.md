@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- API versioning strategy documentation ([docs/API_VERSIONING.md](docs/API_VERSIONING.md))
+- None
 
 ### Changed
 - None
@@ -21,6 +21,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - None
+
+---
+
+## [3.2.0] - 2026-01-05
+
+### Added
+- API versioning strategy documentation ([docs/API_VERSIONING.md](docs/API_VERSIONING.md))
+
+### Changed
+- **Version Alignment:** Synchronized all version numbers to 3.2.0
+  - Worker package version: 3.1.0 → 3.2.0
+  - API client package: 2.1.0 → 3.2.0
+  - OpenAPI specification: 3.0.0 → 3.2.0
+  - Production API endpoints now consistently report v3.2.0
+- **NPM Package:** Published `@jukasdrj/bookstrack-api-client@3.2.0` to npm registry
+- **TypeScript SDK:** Regenerated from updated OpenAPI specification
+
+### Fixed
+- **Critical Test Infrastructure:** Fixed `TypeError: env.CACHE.getWithMetadata is not a function`
+  - Added missing `getWithMetadata` method to global KV mock
+  - Updated 26+ test files with inline CACHE mocks
+  - Smoke tests: 199/199 passing ✓
+  - Resolved deployment blocker
+
+### Breaking Changes
+- API client major version bump (2.1.0 → 3.2.0)
+- TypeScript SDK regenerated - may require type updates in consuming applications
 
 ---
 
