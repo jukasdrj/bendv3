@@ -57,16 +57,7 @@ export default {
           await handleScheduledAlerts(env, ctx)
           break
 
-        case '0 3 * * *': {
-          // Daily at 3 AM UTC
-          console.log('[Cron] Running daily author expansion + cover harvest job')
-          // Import author expansion harvest
-          const { executeAuthorExpansionHarvest } = await import(
-            './handlers/author-expansion-harvest'
-          )
-          await executeAuthorExpansionHarvest(env, 10, 200) // Reduced to 10 authors for limited scale test (Issue #137)
-          break
-        }
+        // 0 3 * * * cron removed - author expansion harvest deprecated (Alexandria Phase 2)
 
         case '0 0 * * 0': // Sunday at midnight UTC
           console.log('[Cron] Running weekly recommendations generation job')
@@ -82,8 +73,8 @@ export default {
           console.log('[Cron] Running hourly cache warming job')
           await handleScheduledCacheWarming(env, ctx)
 
-          console.log('[Cron] Running hourly cover harvest')
-          await handleScheduledHarvest(env)
+          console.log('[Cron] Running hourly cover harvest (Alexandria)')
+          await handleScheduledHarvest(event, env, ctx)
           break
 
         default:

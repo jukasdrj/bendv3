@@ -22,10 +22,10 @@
  * @see docs/ALEXANDRIA_RPC_MIGRATION.md for architecture details
  */
 
+import type { AuthorReference, BookResult } from 'alexandria-worker/types'
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical.js'
 import type { AuthorGender, DataProvider, EditionFormat } from '../types/enums.js'
 import { createAlexandriaClient } from './alexandria-client.js'
-import type { AuthorReference, BookResult } from 'alexandria-worker/types'
 
 // ========================================================================================
 // INTERFACES
