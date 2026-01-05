@@ -332,12 +332,9 @@ export async function handleSSEStream(
         resumeFromTimestamp !== null && currentTimestamp - resumeFromTimestamp < 10000
 
       if (!shouldSkipInitial) {
-        // FIX: Use proper SSE event type ('progress', 'completed', 'failed', 'ping') per JSDoc
+        // FIX: Use proper SSE event type ('initialized', 'progress', 'completed', 'failed')
         // state.status is now always the enum value, state.statusMessage has the human-readable text
-
-        // Always use 'progress' event type for SSEProgressEvent payloads (regardless of job status).
-        // The actual terminal event (SSECompleteEvent/SSEErrorEvent) is sent by sendFinalEvent immediately after.
-        const eventType = 'progress'
+        const eventType = state.status === 'processing' ? 'progress' : state.status
         // Map DO status to schema status (initialized → queued)
         const mappedStatus = state.status === 'initialized' ? 'queued' : state.status
         const progressEvent: SSEProgressEvent = {
