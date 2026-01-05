@@ -43,6 +43,7 @@ describe("External APIs Service", () => {
             CACHE: {
                 get: vi.fn(),
                 put: vi.fn(),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
             },
             GOOGLE_BOOKS_API_KEY: "test-google-key",
             ISBNDB_API_KEY: "test-isbndb-key",

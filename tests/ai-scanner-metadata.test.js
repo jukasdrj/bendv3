@@ -24,6 +24,7 @@ describe("AI Scanner Metadata", () => {
       CONFIDENCE_THRESHOLD: "0.6",
       CACHE: {
         put: vi.fn(async () => {}), // ISSUE #133: Mock KV storage for summary-only pattern
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
         get: vi.fn(async () => null),
       },
       BOOKS_API_PROXY: {

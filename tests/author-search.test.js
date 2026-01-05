@@ -11,6 +11,7 @@ describe('searchByAuthor', () => {
       CACHE: {
         get: vi.fn(async () => null),
         put: vi.fn(async () => {})
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       },
       CACHE_ANALYTICS: {
         writeDataPoint: vi.fn(async () => {})
@@ -25,6 +26,7 @@ describe('searchByAuthor', () => {
       default: {
         match: vi.fn(async () => null),
         put: vi.fn(async () => {})
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       }
     };
 

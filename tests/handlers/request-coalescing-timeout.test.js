@@ -29,6 +29,7 @@ describe("Request Coalescing Timeout & Cleanup", () => {
       CACHE: {
         get: vi.fn().mockResolvedValue(null),
         put: vi.fn().mockResolvedValue(undefined),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       },
       GOOGLE_BOOKS_API_KEY: "test-key",
     };

@@ -87,6 +87,7 @@ describe("Durable Object Alarm - Environment Bindings", () => {
       CACHE: {
         get: vi.fn(async () => null), // Cache miss
         put: vi.fn(async () => {}),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       },
       GEMINI_API_KEY: "test-api-key",
     };

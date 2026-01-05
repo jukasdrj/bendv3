@@ -49,6 +49,7 @@ describe('CSV Processor Core - Error Tracking', () => {
       CACHE: {
         get: vi.fn().mockResolvedValue(null), // No cache hits
         put: vi.fn().mockResolvedValue(undefined),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       } as unknown as KVNamespace,
       DB: {} as D1Database,
       ENRICHMENT_QUEUE: undefined, // Skip queue for simplicity

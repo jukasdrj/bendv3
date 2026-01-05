@@ -51,7 +51,8 @@ describe('Metrics Handler Integration Tests', () => {
       METRICS_API_KEY: 'test_metrics_key_123',
       CACHE: {
         get: vi.fn(async () => null),
-        put: vi.fn(async () => {})
+        put: vi.fn(async () => {}),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       },
       CACHE_ANALYTICS: {
         writeDataPoint: vi.fn(async () => {})

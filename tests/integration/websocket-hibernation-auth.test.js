@@ -27,6 +27,7 @@ describe('Hibernation DO - WebSocket Authentication', () => {
       CACHE: {
         get: vi.fn((key, type) => Promise.resolve(null)),
         put: vi.fn(() => Promise.resolve()),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       },
     };
 

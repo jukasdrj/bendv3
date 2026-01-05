@@ -23,6 +23,7 @@ describe('CircuitBreaker', () => {
           return type === 'json' ? JSON.parse(value) : value
         }),
         put: vi.fn(async (key, value) => {
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
           mockCache.set(key, value)
         })
       },

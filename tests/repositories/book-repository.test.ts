@@ -20,6 +20,7 @@ const createMockEnv = (overrides = {}) => ({
   CACHE: {
     get: vi.fn(),
     put: vi.fn(),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
   },
   DB: {
     prepare: vi.fn(() => ({

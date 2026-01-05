@@ -11,6 +11,7 @@ describe('KVCacheService', () => {
       CACHE: {
         get: async () => null,
         put: async () => {},
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       }
     };
     const mockCtx = {

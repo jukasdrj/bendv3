@@ -43,6 +43,7 @@ describe("processAuthorBatch", () => {
       CACHE: {
         get: vi.fn().mockResolvedValue(null),
         put: vi.fn().mockResolvedValue(undefined),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       },
       CACHE_ANALYTICS: {
         writeDataPoint: vi.fn().mockResolvedValue(undefined),

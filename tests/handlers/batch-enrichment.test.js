@@ -30,6 +30,7 @@ const createMockEnv = () => ({
   },
   CACHE: {
     put: vi.fn().mockResolvedValue(undefined),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
     get: vi.fn().mockResolvedValue(null),
   }
 });

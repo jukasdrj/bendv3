@@ -40,6 +40,7 @@ describe('Error Scenarios: Network Failures', () => {
       CACHE: {
         get: vi.fn(async () => null), // Cache miss by default
         put: vi.fn(async () => {}),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       },
       GOOGLE_BOOKS_API_KEY: 'test-google-key',
       GEMINI_API_KEY: 'test-gemini-key',

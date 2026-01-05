@@ -8,6 +8,8 @@
  * All mocks are automatically applied via the `tests/setup.js` file.
  */
 
+import { vi } from 'vitest'
+
 // =============================================================================
 // KV Namespaces
 // =============================================================================
@@ -24,6 +26,13 @@ export const mockKV = {
     list_complete: true,
     cursor: undefined,
   })),
+  getWithMetadata: vi.fn(async (key, type) => {
+    const value = kvStore.get(key)
+    return {
+      value: value || null,
+      metadata: value ? {} : null,
+    }
+  }),
   // Helper to clear the store before each test
   clear: () => kvStore.clear(),
 };

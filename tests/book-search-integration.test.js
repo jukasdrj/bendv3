@@ -11,6 +11,7 @@ describe('searchByTitle with UnifiedCache', () => {
       CACHE: {
         get: vi.fn(async () => null),
         put: vi.fn(async () => {})
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       },
       CACHE_ANALYTICS: {
         writeDataPoint: vi.fn(async () => {})
@@ -35,6 +36,7 @@ describe('searchByTitle with UnifiedCache', () => {
           return response;
         }),
         put: vi.fn(async () => {})
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       }
     };
   });
@@ -57,6 +59,7 @@ describe('searchByISBN with UnifiedCache', () => {
       CACHE: {
         get: vi.fn(async () => null),
         put: vi.fn(async () => {})
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       },
       CACHE_ANALYTICS: {
         writeDataPoint: vi.fn(async () => {})
@@ -81,6 +84,7 @@ describe('searchByISBN with UnifiedCache', () => {
           return response;
         }),
         put: vi.fn(async () => {})
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       }
     };
   });
