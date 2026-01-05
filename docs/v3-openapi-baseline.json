@@ -526,8 +526,9 @@
           "cached": {
             "type": "boolean"
           },
-          "processingTimeMs": {
-            "type": "integer"
+          "processingTime": {
+            "type": "integer",
+            "description": "Request processing time in milliseconds"
           }
         }
       },
