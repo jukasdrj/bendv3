@@ -33,7 +33,8 @@ export interface WorkDTO {
   firstPublicationYear?: number
   description?: string
   coverImageURL?: string // Cover image URL (placeholder used if missing)
-  coverSource?: 'r2' | 'external' | 'external-fallback' | null // Source of cover image (matches Alexandria BookResult)
+  coverUrls?: { large: string; medium: string; small: string } | null // Multi-size covers (Alexandria v2.2.4+)
+  coverSource?: 'r2' | 'external' | 'external-fallback' | 'enriched-cached' | null // Source of cover image (matches Alexandria BookResult)
 
   // Provenance
   synthetic?: boolean // True if Work was inferred from Edition data
@@ -84,7 +85,8 @@ export interface EditionDTO {
   pageCount?: number
   format: EditionFormat
   coverImageURL?: string // Cover image URL (placeholder used if missing)
-  coverSource?: 'r2' | 'external' | 'external-fallback' | null // Source of cover image (matches Alexandria BookResult)
+  coverUrls?: { large: string; medium: string; small: string } | null // Multi-size covers (Alexandria v2.2.4+)
+  coverSource?: 'r2' | 'external' | 'external-fallback' | 'enriched-cached' | null // Source of cover image (matches Alexandria BookResult)
   editionTitle?: string
   editionDescription?: string // Note: Can't use 'description' in Swift (@Model macro reserves it)
   language?: string
@@ -124,6 +126,13 @@ export interface AuthorDTO {
   nationality?: string
   birthYear?: number
   deathYear?: number
+
+  // Enriched metadata (Alexandria v2.2.3+)
+  bio?: string // Author biography
+  wikidata_id?: string // Wikidata identifier (e.g., Q35064)
+  image?: string // Author photo URL
+  key?: string // OpenLibrary author key (e.g., /authors/OL7234434A)
+  openlibrary?: string // OpenLibrary author URL
 
   // External IDs
   openLibraryID?: string

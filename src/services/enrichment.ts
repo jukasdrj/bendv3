@@ -25,10 +25,45 @@
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical.js'
 import type { AuthorGender, DataProvider, EditionFormat } from '../types/enums.js'
 import { createAlexandriaClient } from './alexandria-client.js'
+import type { AuthorReference, BookResult } from 'alexandria-worker/types'
 
 // ========================================================================================
 // INTERFACES
 // ========================================================================================
+
+/**
+ * Extended BookResult with enriched fields
+ * Alexandria returns these fields in practice, but they're not in the base BookResult type
+ * See: alexandria-worker database schema (editions, works, authors tables)
+ *
+ * Note: We use intersection type (&) instead of extends to avoid type conflicts
+ */
+type EnrichedBookResult = BookResult & {
+  // Edition fields (from editions table)
+  isbn_10?: string | null
+  isbn_13?: string | null
+  published_date?: string | null
+  page_count?: number | null
+  language?: string | null
+  publisher?: string | null
+  binding?: string | null
+
+  // Work fields (from works table)
+  work_key?: string | null
+  description?: string | null
+  first_published_year?: number | null
+  subjects?: string | null // JSON string
+
+  // External IDs (from enriched metadata)
+  google_books_id?: string | null
+  goodreads_id?: string | null
+  isbndb_work_id?: string | null
+  isbndb_quality?: number | null
+
+  // OpenLibrary IDs
+  openlibrary_edition_id?: string | null
+  openlibrary_work_id?: string | null
+}
 
 /**
  * Cloudflare Worker environment bindings
@@ -133,6 +168,52 @@ export interface SingleEnrichmentError {
 export type SingleEnrichmentResponse = SingleEnrichmentResult | SingleEnrichmentError | null
 
 // ========================================================================================
+// HELPER FUNCTIONS
+// ========================================================================================
+
+/**
+ * Maps Alexandria's AuthorReference to BooksTrack's AuthorDTO
+ * Type-safe mapping ensures all enriched metadata fields are captured
+ *
+ * @param authorRef - Alexandria author reference (from BookResult.authors)
+ * @returns AuthorDTO with all enriched metadata fields
+ */
+function mapAuthorReferenceToDTO(authorRef: AuthorReference | string): AuthorDTO {
+  // Handle legacy string-only authors (backwards compatibility)
+  if (typeof authorRef === 'string') {
+    return {
+      name: authorRef,
+      gender: 'Unknown',
+    }
+  }
+
+  // Map gender with proper type safety
+  let gender: AuthorGender = 'Unknown'
+  if (authorRef.gender) {
+    const g = authorRef.gender.toLowerCase()
+    if (g === 'male') gender = 'Male'
+    else if (g === 'female') gender = 'Female'
+    else if (g === 'non-binary') gender = 'Non-binary'
+    else gender = 'Other'
+  }
+
+  // Map all enriched metadata fields (Alexandria v2.2.3+)
+  return {
+    name: authorRef.name,
+    gender,
+    nationality: authorRef.nationality ?? undefined,
+    birthYear: authorRef.birth_year ?? undefined,
+    deathYear: authorRef.death_year ?? undefined,
+    // Enriched metadata (ensures no fields are missed)
+    bio: authorRef.bio ?? undefined,
+    wikidata_id: authorRef.wikidata_id ?? undefined,
+    image: authorRef.image ?? undefined,
+    key: authorRef.key ?? undefined,
+    openlibrary: authorRef.openlibrary ?? undefined,
+  }
+}
+
+// ========================================================================================
 // PUBLIC FUNCTIONS
 // ========================================================================================
 
@@ -221,41 +302,17 @@ export async function enrichMultipleBooks(
     const editions: EditionDTO[] = []
     const authorsMap = new Map<string, AuthorDTO>()
 
-    data.results.forEach((book: any) => {
+    data.results.forEach((book: EnrichedBookResult) => {
       // Extract per-work authors first (needed for embedding in work)
-      // Alexandria returns 'authors' as array of {name, key, openlibrary} objects
+      // Alexandria returns 'authors' as array of AuthorReference objects
       // NOTE: Alexandria sometimes returns OpenLibrary paths as 'name' (e.g., "/authors/OL23919A")
       // We filter these out as they are not valid author names
       let workAuthorDTOs: AuthorDTO[] = []
       if (book.authors && Array.isArray(book.authors)) {
         workAuthorDTOs = book.authors
-          .map((a: any) => {
-            if (typeof a === 'string') {
-              return { name: a, gender: 'Unknown' as const }
-            }
-
-            // Map enriched fields from Alexandria
-            let gender: AuthorGender = 'Unknown'
-            if (a.gender) {
-              const g = a.gender.toLowerCase()
-              if (g === 'male') gender = 'Male'
-              else if (g === 'female') gender = 'Female'
-              else if (g === 'non-binary') gender = 'Non-binary'
-              else gender = 'Other'
-            }
-
-            return {
-              name: a.name,
-              gender,
-              nationality: a.nationality || undefined,
-              birthYear: a.birth_year || undefined,
-              deathYear: a.death_year || undefined,
-            }
-          })
+          .map((authorRef: AuthorReference | string) => mapAuthorReferenceToDTO(authorRef))
           // Filter out invalid names and OpenLibrary paths
           .filter((a: AuthorDTO) => a.name && !a.name.startsWith('/authors/'))
-      } else if (book.author && !book.author.startsWith('/authors/')) {
-        workAuthorDTOs = [{ name: book.author, gender: 'Unknown' as const }]
       }
 
       // Map to WorkDTO (canonical contract) with embedded authors
@@ -282,6 +339,7 @@ export async function enrichMultipleBooks(
         description: book.description || undefined,
         firstPublicationYear: book.first_published_year || undefined,
         coverImageURL: book.coverUrl || undefined,
+        coverUrls: book.coverUrls || undefined, // Multi-size covers (Alexandria v2.2.4+)
         coverSource: book.coverSource || undefined,
 
         // Required arrays (empty if not provided)
@@ -315,6 +373,7 @@ export async function enrichMultipleBooks(
           language: book.language || 'en',
           publisher: book.publisher || book.publishers || undefined,
           coverImageURL: book.coverUrl || undefined,
+          coverUrls: book.coverUrls || undefined, // Multi-size covers (Alexandria v2.2.4+)
           coverSource: book.coverSource || undefined,
           format: mapBindingToFormat(book.binding), // Default format (required by EditionDTO)
           // External IDs
@@ -440,7 +499,7 @@ export async function enrichSingleBook(
     }
 
     // Take the first result (Alexandria returns best match first)
-    const book = data.results[0]
+    const book = data.results[0] as EnrichedBookResult
 
     // Map to WorkDTO (canonical contract)
     const work: WorkDTO = {
@@ -491,29 +550,10 @@ export async function enrichSingleBook(
           }
         : null
 
-    // Map authors
-    const authors: AuthorDTO[] = (book.authors || []).map((a: any) => {
-      if (typeof a === 'string') {
-        return { name: a, gender: 'Unknown' as const }
-      }
-
-      let gender: AuthorGender = 'Unknown'
-      if (a.gender) {
-        const g = a.gender.toLowerCase()
-        if (g === 'male') gender = 'Male'
-        else if (g === 'female') gender = 'Female'
-        else if (g === 'non-binary') gender = 'Non-binary'
-        else gender = 'Other'
-      }
-
-      return {
-        name: a.name,
-        gender,
-        nationality: a.nationality || undefined,
-        birthYear: a.birth_year || undefined,
-        deathYear: a.death_year || undefined,
-      }
-    })
+    // Map authors using type-safe helper function
+    const authors: AuthorDTO[] = (book.authors || []).map((authorRef: AuthorReference | string) =>
+      mapAuthorReferenceToDTO(authorRef),
+    )
 
     console.log(`enrichSingleBook: Alexandria returned result for "${book.title}"`)
 
