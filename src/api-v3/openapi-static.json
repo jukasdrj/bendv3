@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "BooksTrack V3 API",
-    "version": "3.2.0",
+    "version": "3.3.0",
     "description": "Contract-first API with shared Zod schemas",
     "contact": {
       "name": "BooksTrack API Support",
@@ -279,7 +279,9 @@
     },
     "/v3/jobs/imports": {
       "post": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Import books from CSV",
         "description": "Upload CSV file for background processing with Gemini 2.0 Flash. Returns immediately with jobId for progress tracking via SSE stream. Max file size: 8MB. Max rows: ~5000 books.",
         "operationId": "createImportJob",
@@ -289,7 +291,9 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["file"],
+                "required": [
+                  "file"
+                ],
                 "properties": {
                   "file": {
                     "type": "string",
@@ -337,7 +341,9 @@
     },
     "/v3/jobs/imports/{jobId}": {
       "get": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Get import job status",
         "description": "Query current status of CSV import job. Use SSE stream for real-time updates (recommended). Polling fallback: max 1 request every 2 seconds.",
         "operationId": "getImportJobStatus",
@@ -376,7 +382,9 @@
         }
       },
       "delete": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Cancel import job",
         "description": "Cancel in-progress import job. Note: Jobs may not stop immediately (graceful shutdown).",
         "operationId": "cancelImportJob",
@@ -427,7 +435,9 @@
     },
     "/v3/jobs/imports/{jobId}/stream": {
       "get": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Stream import progress (SSE)",
         "description": "Real-time progress updates via Server-Sent Events. Requires Bearer token from job creation response. Token valid for 1 hour.",
         "operationId": "streamImportProgress",
@@ -488,7 +498,9 @@
     },
     "/v3/jobs/imports/{jobId}/results": {
       "get": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Get import job results",
         "description": "Fetch enriched books from completed import job. Results cached in KV for 1 hour after completion.",
         "operationId": "getImportJobResults",
@@ -529,7 +541,9 @@
     },
     "/v3/jobs/scans": {
       "post": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Scan bookshelf photos",
         "description": "Upload 1-5 photos for AI-powered book detection with Gemini Vision. Returns immediately with jobId for progress tracking via SSE stream. Max size: 10MB per photo, 50MB total.",
         "operationId": "createScanJob",
@@ -539,7 +553,9 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["photos[]"],
+                "required": [
+                  "photos[]"
+                ],
                 "properties": {
                   "photos[]": {
                     "type": "array",
@@ -592,7 +608,9 @@
     },
     "/v3/jobs/scans/{jobId}": {
       "get": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Get scan job status",
         "description": "Query current status of bookshelf scan job. Use SSE stream for real-time updates (recommended). Polling fallback: max 1 request every 2 seconds.",
         "operationId": "getScanJobStatus",
@@ -631,7 +649,9 @@
         }
       },
       "delete": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Cancel scan job",
         "description": "Cancel in-progress scan job and cleanup R2 storage. Deletes all uploaded photos for this job. Note: Jobs may not stop immediately (graceful shutdown).",
         "operationId": "cancelScanJob",
@@ -682,7 +702,9 @@
     },
     "/v3/jobs/scans/{jobId}/stream": {
       "get": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Stream scan progress (SSE)",
         "description": "Real-time progress updates via Server-Sent Events. Requires Bearer token from job creation response. Token valid for 1 hour.",
         "operationId": "streamScanProgress",
@@ -743,7 +765,9 @@
     },
     "/v3/jobs/scans/{jobId}/results": {
       "get": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Get scan job results",
         "description": "Fetch detected books from completed scan job. Results include book metadata, bounding boxes, confidence scores, and enrichment data. Results cached in KV for 2 hours after completion.",
         "operationId": "getScanJobResults",
@@ -784,7 +808,9 @@
     },
     "/v3/jobs/enrichment/{jobId}": {
       "get": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Get enrichment job status",
         "description": "Query current status of batch enrichment job. Use SSE stream for real-time updates (recommended). Polling fallback: max 1 request every 2 seconds.",
         "operationId": "getEnrichmentJobStatus",
@@ -823,7 +849,9 @@
         }
       },
       "delete": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Cancel enrichment job",
         "description": "Cancel in-progress enrichment job. Note: Jobs may not stop immediately (graceful shutdown).",
         "operationId": "cancelEnrichmentJob",
@@ -874,7 +902,9 @@
     },
     "/v3/jobs/enrichment/{jobId}/stream": {
       "get": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Stream enrichment progress (SSE)",
         "description": "Real-time progress updates via Server-Sent Events. Progress updates every 25 books. Requires Bearer token from job creation response. Token valid for 1 hour.",
         "operationId": "streamEnrichmentProgress",
@@ -935,7 +965,9 @@
     },
     "/v3/jobs/enrichment/{jobId}/results": {
       "get": {
-        "tags": ["Jobs"],
+        "tags": [
+          "Jobs"
+        ],
         "summary": "Get enrichment job results",
         "description": "Fetch enriched books from completed enrichment job. Results include enriched book metadata, books that were not found, and embedding generation status. Results cached in KV for 2 hours after completion.",
         "operationId": "getEnrichmentJobResults",
@@ -976,7 +1008,9 @@
     },
     "/v3/webhooks/alexandria/enrichment-complete": {
       "post": {
-        "tags": ["Webhooks"],
+        "tags": [
+          "Webhooks"
+        ],
         "summary": "Handle enrichment completion event",
         "description": "Receives notification from Alexandria when book enrichment is complete. Triggers a fresh fetch to update local D1 cache.",
         "operationId": "alexandriaEnrichmentComplete",
@@ -997,14 +1031,21 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["isbn", "type"],
+                "required": [
+                  "isbn",
+                  "type"
+                ],
                 "properties": {
                   "isbn": {
                     "type": "string"
                   },
                   "type": {
                     "type": "string",
-                    "enum": ["edition", "work", "author"]
+                    "enum": [
+                      "edition",
+                      "work",
+                      "author"
+                    ]
                   },
                   "quality_improvement": {
                     "type": "number"
@@ -1021,7 +1062,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["success", "message"],
+                  "required": [
+                    "success",
+                    "message"
+                  ],
                   "properties": {
                     "success": {
                       "type": "boolean"
@@ -1187,9 +1231,16 @@
           "authors": {
             "type": "array",
             "items": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/components/schemas/AuthorReference"
+                }
+              ]
             },
-            "description": "List of author names"
+            "description": "List of authors (strings or enriched references)"
           },
           "publisher": {
             "type": "string",
@@ -1222,12 +1273,12 @@
           "coverUrl": {
             "type": "string",
             "format": "uri",
-            "description": "Cover image URL"
+            "description": "Cover image URL (legacy single URL)"
           },
           "thumbnailUrl": {
             "type": "string",
             "format": "uri",
-            "description": "Thumbnail image URL"
+            "description": "Thumbnail image URL (deprecated: use coverUrls.small)"
           },
           "workKey": {
             "type": "string",
@@ -1252,6 +1303,19 @@
             "minimum": 0,
             "maximum": 100,
             "description": "Data quality score 0-100"
+          },
+          "coverUrls": {
+            "$ref": "#/components/schemas/CoverUrls",
+            "description": "Cover images in multiple sizes (Alexandria v2.2.4+)"
+          },
+          "coverSource": {
+            "type": "string",
+            "enum": [
+              "r2",
+              "external",
+              "external-fallback"
+            ],
+            "description": "Source of the cover image (r2, external, external-fallback)"
           }
         }
       },
@@ -1474,14 +1538,23 @@
       },
       "JobInitResponse": {
         "type": "object",
-        "required": ["success", "data", "metadata"],
+        "required": [
+          "success",
+          "data",
+          "metadata"
+        ],
         "properties": {
           "success": {
             "type": "boolean"
           },
           "data": {
             "type": "object",
-            "required": ["jobId", "status", "streamUrl", "token"],
+            "required": [
+              "jobId",
+              "status",
+              "streamUrl",
+              "token"
+            ],
             "properties": {
               "jobId": {
                 "type": "string",
@@ -1490,7 +1563,13 @@
               },
               "status": {
                 "type": "string",
-                "enum": ["queued", "processing", "completed", "failed", "canceled"],
+                "enum": [
+                  "queued",
+                  "processing",
+                  "completed",
+                  "failed",
+                  "canceled"
+                ],
                 "description": "Initial job status (always 'queued')"
               },
               "streamUrl": {
@@ -1511,14 +1590,25 @@
       },
       "JobStatusResponse": {
         "type": "object",
-        "required": ["success", "data", "metadata"],
+        "required": [
+          "success",
+          "data",
+          "metadata"
+        ],
         "properties": {
           "success": {
             "type": "boolean"
           },
           "data": {
             "type": "object",
-            "required": ["jobId", "type", "status", "progress", "processedCount", "totalCount"],
+            "required": [
+              "jobId",
+              "type",
+              "status",
+              "progress",
+              "processedCount",
+              "totalCount"
+            ],
             "properties": {
               "jobId": {
                 "type": "string",
@@ -1526,12 +1616,22 @@
               },
               "type": {
                 "type": "string",
-                "enum": ["csv_import", "bookshelf_scan", "batch_enrichment"],
+                "enum": [
+                  "csv_import",
+                  "bookshelf_scan",
+                  "batch_enrichment"
+                ],
                 "description": "Job type"
               },
               "status": {
                 "type": "string",
-                "enum": ["queued", "processing", "completed", "failed", "canceled"],
+                "enum": [
+                  "queued",
+                  "processing",
+                  "completed",
+                  "failed",
+                  "canceled"
+                ],
                 "description": "Current job status"
               },
               "progress": {
@@ -1581,14 +1681,22 @@
       },
       "JobResultsResponse": {
         "type": "object",
-        "required": ["success", "data", "metadata"],
+        "required": [
+          "success",
+          "data",
+          "metadata"
+        ],
         "properties": {
           "success": {
             "type": "boolean"
           },
           "data": {
             "type": "object",
-            "required": ["jobId", "status", "results"],
+            "required": [
+              "jobId",
+              "status",
+              "results"
+            ],
             "properties": {
               "jobId": {
                 "type": "string",
@@ -1596,7 +1704,9 @@
               },
               "status": {
                 "type": "string",
-                "enum": ["completed"],
+                "enum": [
+                  "completed"
+                ],
                 "description": "Job status (only completed jobs have results)"
               },
               "results": {
@@ -1610,6 +1720,81 @@
           },
           "metadata": {
             "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        }
+      },
+      "AuthorReference": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Author name"
+          },
+          "key": {
+            "type": "string",
+            "description": "OpenLibrary author key (e.g., /authors/OL7234434A)"
+          },
+          "openlibrary": {
+            "type": "string",
+            "format": "uri",
+            "description": "OpenLibrary author URL"
+          },
+          "bio": {
+            "type": "string",
+            "description": "Author biography"
+          },
+          "gender": {
+            "type": "string",
+            "description": "Gender (male, female, Unknown)"
+          },
+          "nationality": {
+            "type": "string",
+            "description": "Nationality (e.g., United States, British)"
+          },
+          "birth_year": {
+            "type": "integer",
+            "description": "Birth year"
+          },
+          "death_year": {
+            "type": "integer",
+            "description": "Death year"
+          },
+          "wikidata_id": {
+            "type": "string",
+            "description": "Wikidata identifier (e.g., Q35064)"
+          },
+          "image": {
+            "type": "string",
+            "format": "uri",
+            "description": "Author photo URL"
+          }
+        }
+      },
+      "CoverUrls": {
+        "type": "object",
+        "required": [
+          "large",
+          "medium",
+          "small"
+        ],
+        "properties": {
+          "large": {
+            "type": "string",
+            "format": "uri",
+            "description": "Large cover image URL"
+          },
+          "medium": {
+            "type": "string",
+            "format": "uri",
+            "description": "Medium cover image URL"
+          },
+          "small": {
+            "type": "string",
+            "format": "uri",
+            "description": "Small cover image URL (thumbnail)"
           }
         }
       }

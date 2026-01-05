@@ -390,8 +390,8 @@ export interface components {
             title: string;
             /** @description Book subtitle */
             subtitle?: string;
-            /** @description List of author names */
-            authors: string[];
+            /** @description List of authors (strings or enriched references) */
+            authors: (string | components["schemas"]["AuthorReference"])[];
             /** @description Publisher name */
             publisher?: string;
             /** @description Publication date (ISO 8601 or partial format) */
@@ -406,12 +406,12 @@ export interface components {
             language?: string;
             /**
              * Format: uri
-             * @description Cover image URL
+             * @description Cover image URL (legacy single URL)
              */
             coverUrl?: string;
             /**
              * Format: uri
-             * @description Thumbnail image URL
+             * @description Thumbnail image URL (deprecated: use coverUrls.small)
              */
             thumbnailUrl?: string;
             /** @description OpenLibrary work key (e.g., OL82563W) */
@@ -425,6 +425,13 @@ export interface components {
             provider: "alexandria" | "google_books" | "open_library" | "isbndb";
             /** @description Data quality score 0-100 */
             quality: number;
+            /** @description Cover images in multiple sizes (Alexandria v2.2.4+) */
+            coverUrls?: components["schemas"]["CoverUrls"];
+            /**
+             * @description Source of the cover image (r2, external, external-fallback)
+             * @enum {string}
+             */
+            coverSource?: "r2" | "external" | "external-fallback";
         };
         ErrorResponse: {
             /** @enum {boolean} */
@@ -578,6 +585,51 @@ export interface components {
                 results: Record<string, never>[];
             };
             metadata: components["schemas"]["ResponseMetadata"];
+        };
+        AuthorReference: {
+            /** @description Author name */
+            name: string;
+            /** @description OpenLibrary author key (e.g., /authors/OL7234434A) */
+            key?: string;
+            /**
+             * Format: uri
+             * @description OpenLibrary author URL
+             */
+            openlibrary?: string;
+            /** @description Author biography */
+            bio?: string;
+            /** @description Gender (male, female, Unknown) */
+            gender?: string;
+            /** @description Nationality (e.g., United States, British) */
+            nationality?: string;
+            /** @description Birth year */
+            birth_year?: number;
+            /** @description Death year */
+            death_year?: number;
+            /** @description Wikidata identifier (e.g., Q35064) */
+            wikidata_id?: string;
+            /**
+             * Format: uri
+             * @description Author photo URL
+             */
+            image?: string;
+        };
+        CoverUrls: {
+            /**
+             * Format: uri
+             * @description Large cover image URL
+             */
+            large: string;
+            /**
+             * Format: uri
+             * @description Medium cover image URL
+             */
+            medium: string;
+            /**
+             * Format: uri
+             * @description Small cover image URL (thumbnail)
+             */
+            small: string;
         };
     };
     responses: never;

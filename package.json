@@ -1,6 +1,6 @@
 {
   "name": "api-worker",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "Unified BooksTrack API Worker",
   "main": "src/index.ts",
   "type": "module",
@@ -28,6 +28,7 @@
     "lint:fix": "biome check --write",
     "format": "biome format --write",
     "detect-breaking-changes": "tsx scripts/detect-breaking-changes.ts",
+    "check-alexandria-version": "tsx scripts/check-alexandria-version.ts",
     "update-wrangler": "npm install wrangler@latest",
     "generate:openapi": "bash scripts/generate-openapi-baseline.sh",
     "docs:v3": "echo 'V3 API Docs: Start dev server (npm run dev) and visit http://localhost:8787/v3/docs'"
@@ -50,7 +51,7 @@
     "@bookstrack/schemas": "file:./packages/schemas",
     "@hono/swagger-ui": "^0.5.2",
     "@hono/zod-openapi": "^1.1.5",
-    "alexandria-worker": "^2.2.3",
+    "alexandria-worker": "^2.2.4",
     "hono": "^4.10.8",
     "uuid": "^13.0.0",
     "zod": "^4.1.13"

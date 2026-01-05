@@ -206,21 +206,51 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
           // Falls back to result-level authors for backward compatibility
           const workAuthors = work.authors || result.authors || []
 
+          // Transform Alexandria authors to BooksTrack AuthorReference format
+          // Alexandria returns: { name, key, openlibrary, bio?, gender?, nationality?, birth_year?, death_year?, wikidata_id?, image? }
+          // We pass through the full object to expose enriched metadata
+          const authors = workAuthors.map((a: any) => {
+            // If author is already enriched with metadata, return full object
+            if (typeof a === 'object' && a.name) {
+              return {
+                name: a.name,
+                key: a.key,
+                openlibrary: a.openlibrary,
+                bio: a.bio,
+                gender: a.gender,
+                nationality: a.nationality,
+                birth_year: a.birth_year,
+                death_year: a.death_year,
+                wikidata_id: a.wikidata_id,
+                image: a.image,
+              }
+            }
+            // Fallback for legacy string-only authors
+            return typeof a === 'string' ? a : a.name
+          })
+
+          // Transform Alexandria cover URLs to multiple sizes format
+          // Alexandria v2.2.4+ returns coverUrls: { large, medium, small }
+          const coverUrls = work.coverUrls || edition?.coverUrls
+          const coverUrl = work.coverImageURL || edition?.coverImageURL || coverUrls?.large
+          const thumbnailUrl = coverUrls?.small || work.coverImageURL || edition?.coverImageURL
+
           return {
             isbn: edition?.isbn || edition?.isbns?.[0] || '',
             isbn10: undefined, // Not available in canonical EditionDTO
             title: work.title,
             subtitle: undefined, // Not available in canonical WorkDTO
-            authors: workAuthors.map((a: any) => a.name),
+            authors, // Now includes full AuthorReference objects with enriched metadata
             publisher: edition?.publisher,
             publishedDate: edition?.publicationDate,
             description: work.description,
             pageCount: edition?.pageCount,
             categories: work.subjectTags, // Fixed: use subjectTags instead of subjects
             language: edition?.language || 'en',
-            coverUrl: work.coverImageURL || edition?.coverImageURL,
+            coverUrl, // Legacy single URL (large)
+            coverUrls, // NEW: Multiple sizes (Alexandria v2.2.4+)
             coverSource: work.coverSource || edition?.coverSource || undefined,
-            thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
+            thumbnailUrl, // Legacy thumbnail (now points to small size)
             workKey: work.openLibraryWorkID || work.openLibraryID,
             editionKey: edition?.openLibraryEditionID,
             provider: 'alexandria' as const,
@@ -444,21 +474,46 @@ for semantic search.`,
           // Convert to V3 format (same logic as sync mode)
           const work = result.works[0]!
           const edition = result.editions?.[0]
-          const authors = result.authors || []
+          const rawAuthors = result.authors || []
+
+          // Transform Alexandria authors to BooksTrack AuthorReference format
+          const authors = rawAuthors.map((a) => {
+            if (typeof a === 'object' && 'name' in a) {
+              return {
+                name: a.name,
+                key: (a as any).key,
+                openlibrary: (a as any).openlibrary,
+                bio: (a as any).bio,
+                gender: (a as any).gender,
+                nationality: (a as any).nationality,
+                birth_year: (a as any).birth_year,
+                death_year: (a as any).death_year,
+                wikidata_id: (a as any).wikidata_id,
+                image: (a as any).image,
+              }
+            }
+            return a.name
+          })
+
+          // Transform Alexandria cover URLs to multiple sizes format
+          const coverUrls = (work as any).coverUrls || (edition as any)?.coverUrls
+          const coverUrl = work.coverImageURL || edition?.coverImageURL || coverUrls?.large
+          const thumbnailUrl = coverUrls?.small || work.coverImageURL || edition?.coverImageURL
 
           const book = {
             isbn: edition?.isbn || isbn,
             title: work.title,
-            authors: authors.map((a) => a.name),
+            authors,
             publisher: edition?.publisher,
             publishedDate: edition?.publicationDate,
             description: work.description,
             pageCount: edition?.pageCount,
             categories: work.subjectTags,
             language: edition?.language || 'en',
-            coverUrl: work.coverImageURL || edition?.coverImageURL,
+            coverUrl,
+            coverUrls,
             coverSource: work.coverSource || edition?.coverSource || undefined,
-            thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
+            thumbnailUrl,
             workKey: work.openLibraryWorkID || work.openLibraryID,
             editionKey: edition?.openLibraryEditionID,
             provider: 'alexandria' as const,
@@ -542,23 +597,48 @@ for semantic search.`,
           // Safe: we already checked result.works.length > 0 above
           const work = result.works[0]!
           const edition = result.editions?.[0]
-          const authors = result.authors || []
+          const rawAuthors = result.authors || []
+
+          // Transform Alexandria authors to BooksTrack AuthorReference format
+          const authors = rawAuthors.map((a) => {
+            if (typeof a === 'object' && 'name' in a) {
+              return {
+                name: a.name,
+                key: (a as any).key,
+                openlibrary: (a as any).openlibrary,
+                bio: (a as any).bio,
+                gender: (a as any).gender,
+                nationality: (a as any).nationality,
+                birth_year: (a as any).birth_year,
+                death_year: (a as any).death_year,
+                wikidata_id: (a as any).wikidata_id,
+                image: (a as any).image,
+              }
+            }
+            return a.name
+          })
+
+          // Transform Alexandria cover URLs to multiple sizes format
+          const coverUrls = (work as any).coverUrls || (edition as any)?.coverUrls
+          const coverUrl = work.coverImageURL || edition?.coverImageURL || coverUrls?.large
+          const thumbnailUrl = coverUrls?.small || work.coverImageURL || edition?.coverImageURL
 
           const book = {
             isbn: edition?.isbn || isbn,
             isbn10: undefined, // Not available in canonical EditionDTO
             title: work.title,
             subtitle: undefined, // Not available in canonical WorkDTO
-            authors: authors.map((a) => a.name),
+            authors,
             publisher: edition?.publisher,
             publishedDate: edition?.publicationDate,
             description: work.description,
             pageCount: edition?.pageCount,
             categories: work.subjectTags, // Fixed: use subjectTags instead of subjects
             language: edition?.language || 'en',
-            coverUrl: work.coverImageURL || edition?.coverImageURL,
+            coverUrl,
+            coverUrls,
             coverSource: work.coverSource || edition?.coverSource || undefined,
-            thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
+            thumbnailUrl,
             workKey: work.openLibraryWorkID || work.openLibraryID,
             editionKey: edition?.openLibraryEditionID,
             provider: 'alexandria' as const,
@@ -752,21 +832,51 @@ for semantic search.`,
       const work = enrichmentResult.works[0]!
       const edition = enrichmentResult.editions?.[0]
 
+      // Transform Alexandria authors to BooksTrack AuthorReference format
+      // enrichmentResult.authors may contain enriched metadata from Alexandria v2.2.3+
+      const authors =
+        enrichmentResult.authors?.map((a) => {
+          // If author has enriched metadata, return full object
+          if (typeof a === 'object' && 'name' in a) {
+            return {
+              name: a.name,
+              key: (a as any).key,
+              openlibrary: (a as any).openlibrary,
+              bio: (a as any).bio,
+              gender: (a as any).gender,
+              nationality: (a as any).nationality,
+              birth_year: (a as any).birth_year,
+              death_year: (a as any).death_year,
+              wikidata_id: (a as any).wikidata_id,
+              image: (a as any).image,
+            }
+          }
+          // Fallback for legacy string-only authors
+          return a.name
+        }) || []
+
+      // Transform Alexandria cover URLs to multiple sizes format
+      // Alexandria v2.2.4+ returns coverUrls: { large, medium, small }
+      const coverUrls = (work as any).coverUrls || (edition as any)?.coverUrls
+      const coverUrl = work.coverImageURL || edition?.coverImageURL || coverUrls?.large
+      const thumbnailUrl = coverUrls?.small || work.coverImageURL || edition?.coverImageURL
+
       const book = {
         isbn: edition?.isbn || isbn,
         isbn10: undefined, // Not available in canonical EditionDTO
         title: work.title,
         subtitle: undefined, // Not available in canonical WorkDTO
-        authors: enrichmentResult.authors?.map((a) => a.name) || [],
+        authors, // Now includes full AuthorReference objects with enriched metadata
         publisher: edition?.publisher,
         publishedDate: edition?.publicationDate,
         description: work.description,
         pageCount: edition?.pageCount,
         categories: work.subjectTags, // Fixed: use subjectTags instead of subjects
         language: edition?.language || 'en',
-        coverUrl: work.coverImageURL || edition?.coverImageURL,
+        coverUrl, // Legacy single URL (large)
+        coverUrls, // NEW: Multiple sizes (Alexandria v2.2.4+)
         coverSource: work.coverSource || edition?.coverSource || undefined,
-        thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
+        thumbnailUrl, // Legacy thumbnail (now points to small size)
         workKey: work.openLibraryWorkID || work.openLibraryID,
         editionKey: edition?.openLibraryEditionID,
         provider: 'alexandria' as const,

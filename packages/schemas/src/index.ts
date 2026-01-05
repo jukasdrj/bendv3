@@ -41,10 +41,14 @@ export {
 export {
   ProviderSchema,
   CoverSourceSchema,
+  AuthorReferenceSchema,
+  CoverUrlsSchema,
   BookSchema,
   ISBNSchema,
   type Provider,
   type CoverSource,
+  type AuthorReference,
+  type CoverUrls,
   type Book,
   type ISBN
 } from './book'

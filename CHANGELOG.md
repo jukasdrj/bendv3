@@ -24,6 +24,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.3.0] - 2026-01-05
+
+### Added - V3 API: Alexandria Enhanced Types (FEATURE RELEASE)
+
+**🎉 Alexandria v2.2.4 metadata now fully exposed in V3 API responses!**
+
+This release makes Alexandria's enriched author metadata and multi-size cover images available to all API consumers.
+
+#### Author Metadata (`AuthorReference`)
+V3 API now returns full author objects with enriched metadata (when available from Alexandria):
+
+```typescript
+{
+  "authors": [{
+    "name": "J.R.R. Tolkien",
+    "key": "/authors/OL26320A",
+    "openlibrary": "https://openlibrary.org/authors/OL26320A",
+    "bio": "English writer, poet, philologist...",
+    "gender": "male",
+    "nationality": "British",
+    "birth_year": 1892,
+    "death_year": 1973,
+    "wikidata_id": "Q892",
+    "image": "https://covers.openlibrary.org/a/olid/OL26320A-M.jpg"
+  }]
+}
+```
+
+**Backward Compatible:** API still accepts `string[]` for authors, but returns enriched objects when available.
+
+#### Cover Images (`CoverUrls`)
+Multiple optimized cover sizes now available:
+
+```typescript
+{
+  "coverUrls": {
+    "large": "https://covers.openlibrary.org/b/id/12345-L.jpg",
+    "medium": "https://covers.openlibrary.org/b/id/12345-M.jpg",
+    "small": "https://covers.openlibrary.org/b/id/12345-S.jpg"
+  },
+  "coverUrl": "...",      // Legacy: still available (points to large)
+  "thumbnailUrl": "...",  // Deprecated: use coverUrls.small
+  "coverSource": "r2"     // NEW: indicates storage source
+}
+```
+
+**Affected Endpoints:**
+- ✅ `GET /v3/books/:isbn` - Direct ISBN lookup
+- ✅ `GET /v3/books/search` - Search results
+- ✅ `POST /v3/books/enrich` - Enrichment responses
+
+**TypeScript SDK:** `@jukasdrj/bookstrack-api-client` v3.3.0
+- Auto-generated types include `AuthorReference` and `CoverUrls`
+- Full IntelliSense support for new fields
+- Update: `npm install @jukasdrj/bookstrack-api-client@latest`
+
+**OpenAPI Spec:** Updated at `/v3/openapi.json`
+- New schemas: `AuthorReference`, `CoverUrls`
+- Updated `Book.authors` to support union type: `string | AuthorReference`
+- Interactive docs: https://api.oooefam.net/v3/docs
+
+### Changed
+- **V3 API Schema:** `Book.authors` now supports both `string[]` and `AuthorReference[]` (backward compatible)
+- **V3 API Schema:** Added `Book.coverUrls` object with `{large, medium, small}` sizes
+- **V3 API Schema:** Added `Book.coverSource` enum: `r2 | external | external-fallback`
+- **V3 API Response:** `thumbnailUrl` now deprecated in favor of `coverUrls.small`
+- **V3 API Response:** `coverUrl` description updated to indicate legacy single URL
+- **Package Version:** Root package bumped to v3.3.0
+- **NPM Package:** `@jukasdrj/bookstrack-api-client` bumped to v3.3.0
+
+### Technical Details
+- Updated `src/api-v3/index.ts` to pass through Alexandria's enriched author objects
+- Updated `src/api-v3/index.ts` to map Alexandria's `coverUrls` to response format
+- Updated `packages/schemas/src/book.ts` with new `AuthorReferenceSchema` and `CoverUrlsSchema`
+- Regenerated OpenAPI spec at `src/api-v3/openapi-static.json`
+- Regenerated TypeScript SDK in `packages/api-client/`
+
+### Migration Guide (Optional)
+Clients using the old `string[]` format will continue to work. To adopt enriched metadata:
+
+```typescript
+// Before (still works)
+const authorName = book.authors[0] // string
+
+// After (recommended)
+const author = book.authors[0]
+if (typeof author === 'object') {
+  console.log(author.bio, author.image, author.nationality)
+} else {
+  console.log(author) // fallback to string
+}
+```
+
+**Cover Images:**
+```typescript
+// Before
+const thumb = book.thumbnailUrl
+
+// After (recommended)
+const thumb = book.coverUrls?.small || book.thumbnailUrl
+const cover = book.coverUrls?.large || book.coverUrl
+```
+
+---
+
 ## [3.2.1] - 2026-01-05
 
 ### Changed
