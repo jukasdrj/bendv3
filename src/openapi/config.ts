@@ -8,7 +8,7 @@
  */
 
 export const openAPIConfig = {
-  openapi: '3.1.0',
+  openapi: '3.0.3',
   info: {
     title: 'BooksTrack API',
     version: '3.3.0',
