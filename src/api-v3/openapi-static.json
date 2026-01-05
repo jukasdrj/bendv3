@@ -1,5 +1,5 @@
 {
-  "openapi": "3.1.0",
+  "openapi": "3.0.3",
   "info": {
     "title": "BooksTrack V3 API",
     "version": "3.0.0",
@@ -36,7 +36,9 @@
   "paths": {
     "/v3/capabilities": {
       "get": {
-        "tags": ["Discovery"],
+        "tags": [
+          "Discovery"
+        ],
         "summary": "Get API capabilities",
         "description": "Returns API feature availability, limits, and deprecation notices. Clients should call this on app startup.",
         "operationId": "getCapabilities",
@@ -66,7 +68,9 @@
     },
     "/v3/recommendations/weekly": {
       "get": {
-        "tags": ["Discovery"],
+        "tags": [
+          "Discovery"
+        ],
         "summary": "Get weekly book recommendations",
         "description": "Returns global weekly book recommendations. Non-personalized curated picks generated every Sunday at midnight UTC.",
         "operationId": "getWeeklyRecommendations",
@@ -119,7 +123,9 @@
     },
     "/v3/books/search": {
       "get": {
-        "tags": ["Books"],
+        "tags": [
+          "Books"
+        ],
         "summary": "Search books",
         "description": "Unified search supporting multiple modes: text, semantic, similar",
         "operationId": "searchBooks",
@@ -138,7 +144,11 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": ["text", "semantic", "similar"],
+              "enum": [
+                "text",
+                "semantic",
+                "similar"
+              ],
               "default": "text"
             }
           },
@@ -188,7 +198,9 @@
     },
     "/v3/books/{isbn}": {
       "get": {
-        "tags": ["Books"],
+        "tags": [
+          "Books"
+        ],
         "summary": "Get book by ISBN",
         "operationId": "getBookByISBN",
         "parameters": [
@@ -228,7 +240,9 @@
     },
     "/v3/books/enrich": {
       "post": {
-        "tags": ["Books"],
+        "tags": [
+          "Books"
+        ],
         "summary": "Enrich books with metadata",
         "operationId": "enrichBooks",
         "requestBody": {
@@ -260,7 +274,11 @@
     "schemas": {
       "SearchResponse": {
         "type": "object",
-        "required": ["success", "data", "metadata"],
+        "required": [
+          "success",
+          "data",
+          "metadata"
+        ],
         "properties": {
           "success": {
             "type": "boolean"
@@ -286,7 +304,11 @@
       },
       "BookResponse": {
         "type": "object",
-        "required": ["success", "data", "metadata"],
+        "required": [
+          "success",
+          "data",
+          "metadata"
+        ],
         "properties": {
           "success": {
             "type": "boolean"
@@ -301,7 +323,9 @@
       },
       "EnrichRequest": {
         "type": "object",
-        "required": ["isbns"],
+        "required": [
+          "isbns"
+        ],
         "properties": {
           "isbns": {
             "type": "array",
@@ -320,7 +344,11 @@
       },
       "EnrichResponse": {
         "type": "object",
-        "required": ["success", "data", "metadata"],
+        "required": [
+          "success",
+          "data",
+          "metadata"
+        ],
         "properties": {
           "success": {
             "type": "boolean"
@@ -349,7 +377,13 @@
       },
       "Book": {
         "type": "object",
-        "required": ["isbn", "title", "authors", "provider", "quality"],
+        "required": [
+          "isbn",
+          "title",
+          "authors",
+          "provider",
+          "quality"
+        ],
         "properties": {
           "isbn": {
             "type": "string",
@@ -427,7 +461,12 @@
           },
           "provider": {
             "type": "string",
-            "enum": ["alexandria", "google_books", "open_library", "isbndb"],
+            "enum": [
+              "alexandria",
+              "google_books",
+              "open_library",
+              "isbndb"
+            ],
             "description": "Data source provider"
           },
           "quality": {
@@ -440,15 +479,23 @@
       },
       "ErrorResponse": {
         "type": "object",
-        "required": ["success", "error"],
+        "required": [
+          "success",
+          "error"
+        ],
         "properties": {
           "success": {
             "type": "boolean",
-            "enum": [false]
+            "enum": [
+              false
+            ]
           },
           "error": {
             "type": "object",
-            "required": ["code", "message"],
+            "required": [
+              "code",
+              "message"
+            ],
             "properties": {
               "code": {
                 "type": "string"
@@ -465,7 +512,9 @@
       },
       "ResponseMetadata": {
         "type": "object",
-        "required": ["timestamp"],
+        "required": [
+          "timestamp"
+        ],
         "properties": {
           "timestamp": {
             "type": "string",
@@ -485,7 +534,11 @@
       },
       "CapabilitiesResponse": {
         "type": "object",
-        "required": ["features", "limits", "version"],
+        "required": [
+          "features",
+          "limits",
+          "version"
+        ],
         "description": "API capabilities (iOS-compatible flat format)",
         "properties": {
           "features": {
@@ -539,7 +592,12 @@
       },
       "CapabilitiesLimits": {
         "type": "object",
-        "required": ["semantic_search_rpm", "text_search_rpm", "csv_max_rows", "batch_max_photos"],
+        "required": [
+          "semantic_search_rpm",
+          "text_search_rpm",
+          "csv_max_rows",
+          "batch_max_photos"
+        ],
         "properties": {
           "semantic_search_rpm": {
             "type": "integer",
@@ -561,14 +619,23 @@
       },
       "RecommendationsResponse": {
         "type": "object",
-        "required": ["success", "data", "metadata"],
+        "required": [
+          "success",
+          "data",
+          "metadata"
+        ],
         "properties": {
           "success": {
             "type": "boolean"
           },
           "data": {
             "type": "object",
-            "required": ["weekOf", "recommendations", "count", "totalAvailable"],
+            "required": [
+              "weekOf",
+              "recommendations",
+              "count",
+              "totalAvailable"
+            ],
             "properties": {
               "weekOf": {
                 "type": "string",
@@ -597,7 +664,12 @@
       },
       "Recommendation": {
         "type": "object",
-        "required": ["isbn", "title", "author", "reason"],
+        "required": [
+          "isbn",
+          "title",
+          "author",
+          "reason"
+        ],
         "properties": {
           "isbn": {
             "type": "string",

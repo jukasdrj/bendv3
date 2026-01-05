@@ -1,698 +1,698 @@
 {
-    "openapi": "3.1.0",
-    "info": {
-        "title": "BooksTrack V3 API",
-        "version": "3.0.0",
-        "description": "Contract-first API with shared Zod schemas",
-        "contact": {
-            "name": "BooksTrack API Support",
-            "url": "https://github.com/bookstrack/api/issues"
-        },
-        "license": {
-            "name": "MIT",
-            "url": "https://opensource.org/licenses/MIT"
-        }
+  "openapi": "3.0.3",
+  "info": {
+    "title": "BooksTrack V3 API",
+    "version": "3.0.0",
+    "description": "Contract-first API with shared Zod schemas",
+    "contact": {
+      "name": "BooksTrack API Support",
+      "url": "https://github.com/bookstrack/api/issues"
     },
-    "servers": [
-        {
-            "url": "https://api.oooefam.net",
-            "description": "Production"
-        },
-        {
-            "url": "http://localhost:8787",
-            "description": "Local development"
-        }
-    ],
-    "tags": [
-        {
-            "name": "Discovery",
-            "description": "API capabilities and recommendations"
-        },
-        {
-            "name": "Books",
-            "description": "Book metadata operations"
-        }
-    ],
-    "paths": {
-        "/v3/capabilities": {
-            "get": {
-                "tags": [
-                    "Discovery"
-                ],
-                "summary": "Get API capabilities",
-                "description": "Returns API feature availability, limits, and deprecation notices. Clients should call this on app startup.",
-                "operationId": "getCapabilities",
-                "responses": {
-                    "200": {
-                        "description": "API capabilities",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/CapabilitiesResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Server error",
-                        "content": {
-                            "application/problem+json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/v3/recommendations/weekly": {
-            "get": {
-                "tags": [
-                    "Discovery"
-                ],
-                "summary": "Get weekly book recommendations",
-                "description": "Returns global weekly book recommendations. Non-personalized curated picks generated every Sunday at midnight UTC.",
-                "operationId": "getWeeklyRecommendations",
-                "parameters": [
-                    {
-                        "name": "limit",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "maximum": 20,
-                            "default": 10
-                        },
-                        "description": "Number of recommendations (1-20)"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Weekly recommendations",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/RecommendationsResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "No recommendations available",
-                        "content": {
-                            "application/problem+json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Server error",
-                        "content": {
-                            "application/problem+json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/v3/books/search": {
-            "get": {
-                "tags": [
-                    "Books"
-                ],
-                "summary": "Search books",
-                "description": "Unified search supporting multiple modes: text, semantic, similar",
-                "operationId": "searchBooks",
-                "parameters": [
-                    {
-                        "name": "q",
-                        "in": "query",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Search query"
-                    },
-                    {
-                        "name": "mode",
-                        "in": "query",
-                        "schema": {
-                            "type": "string",
-                            "enum": [
-                                "text",
-                                "semantic",
-                                "similar"
-                            ],
-                            "default": "text"
-                        }
-                    },
-                    {
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "default": 1
-                        }
-                    },
-                    {
-                        "name": "limit",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "maximum": 100,
-                            "default": 20
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Search results",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/SearchResponse"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request",
-                        "content": {
-                            "application/problem+json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/v3/books/{isbn}": {
-            "get": {
-                "tags": [
-                    "Books"
-                ],
-                "summary": "Get book by ISBN",
-                "operationId": "getBookByISBN",
-                "parameters": [
-                    {
-                        "name": "isbn",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "pattern": "^(\\d{10}|\\d{13})$"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Book details",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BookResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Book not found",
-                        "content": {
-                            "application/problem+json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/v3/books/enrich": {
-            "post": {
-                "tags": [
-                    "Books"
-                ],
-                "summary": "Enrich books with metadata",
-                "operationId": "enrichBooks",
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/EnrichRequest"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Enriched books",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/EnrichResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    },
-    "components": {
-        "schemas": {
-            "SearchResponse": {
-                "type": "object",
-                "required": [
-                    "success",
-                    "data",
-                    "metadata"
-                ],
-                "properties": {
-                    "success": {
-                        "type": "boolean"
-                    },
-                    "data": {
-                        "type": "object",
-                        "properties": {
-                            "books": {
-                                "type": "array",
-                                "items": {
-                                    "$ref": "#/components/schemas/Book"
-                                }
-                            },
-                            "total": {
-                                "type": "integer"
-                            }
-                        }
-                    },
-                    "metadata": {
-                        "$ref": "#/components/schemas/ResponseMetadata"
-                    }
-                }
-            },
-            "BookResponse": {
-                "type": "object",
-                "required": [
-                    "success",
-                    "data",
-                    "metadata"
-                ],
-                "properties": {
-                    "success": {
-                        "type": "boolean"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/Book"
-                    },
-                    "metadata": {
-                        "$ref": "#/components/schemas/ResponseMetadata"
-                    }
-                }
-            },
-            "EnrichRequest": {
-                "type": "object",
-                "required": [
-                    "isbns"
-                ],
-                "properties": {
-                    "isbns": {
-                        "type": "array",
-                        "items": {
-                            "type": "string",
-                            "pattern": "^(\\d{10}|\\d{13})$"
-                        },
-                        "minItems": 1,
-                        "maxItems": 50
-                    },
-                    "includeEmbedding": {
-                        "type": "boolean",
-                        "default": false
-                    }
-                }
-            },
-            "EnrichResponse": {
-                "type": "object",
-                "required": [
-                    "success",
-                    "data",
-                    "metadata"
-                ],
-                "properties": {
-                    "success": {
-                        "type": "boolean"
-                    },
-                    "data": {
-                        "type": "object",
-                        "properties": {
-                            "books": {
-                                "type": "array",
-                                "items": {
-                                    "$ref": "#/components/schemas/Book"
-                                }
-                            },
-                            "found": {
-                                "type": "integer"
-                            },
-                            "requested": {
-                                "type": "integer"
-                            }
-                        }
-                    },
-                    "metadata": {
-                        "$ref": "#/components/schemas/ResponseMetadata"
-                    }
-                }
-            },
-            "Book": {
-                "type": "object",
-                "required": [
-                    "isbn",
-                    "title",
-                    "authors",
-                    "provider",
-                    "quality"
-                ],
-                "properties": {
-                    "isbn": {
-                        "type": "string",
-                        "minLength": 13,
-                        "maxLength": 13,
-                        "description": "13-digit ISBN (example: 9780439708180)"
-                    },
-                    "isbn10": {
-                        "type": "string",
-                        "minLength": 10,
-                        "maxLength": 10,
-                        "description": "10-digit ISBN if available (example: 0439708184)"
-                    },
-                    "title": {
-                        "type": "string",
-                        "minLength": 1,
-                        "description": "Book title"
-                    },
-                    "subtitle": {
-                        "type": "string",
-                        "description": "Book subtitle"
-                    },
-                    "authors": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "List of author names"
-                    },
-                    "publisher": {
-                        "type": "string",
-                        "description": "Publisher name"
-                    },
-                    "publishedDate": {
-                        "type": "string",
-                        "description": "Publication date (ISO 8601 or partial format)"
-                    },
-                    "description": {
-                        "type": "string",
-                        "description": "Book description/synopsis"
-                    },
-                    "pageCount": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "description": "Number of pages"
-                    },
-                    "categories": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Book categories/genres"
-                    },
-                    "language": {
-                        "type": "string",
-                        "description": "ISO 639-1 language code (e.g., \"en\")"
-                    },
-                    "coverUrl": {
-                        "type": "string",
-                        "format": "uri",
-                        "description": "Cover image URL"
-                    },
-                    "thumbnailUrl": {
-                        "type": "string",
-                        "format": "uri",
-                        "description": "Thumbnail image URL"
-                    },
-                    "workKey": {
-                        "type": "string",
-                        "description": "OpenLibrary work key (e.g., OL82563W)"
-                    },
-                    "editionKey": {
-                        "type": "string",
-                        "description": "OpenLibrary edition key (e.g., OL7353617M)"
-                    },
-                    "provider": {
-                        "type": "string",
-                        "enum": [
-                            "alexandria",
-                            "google_books",
-                            "open_library",
-                            "isbndb"
-                        ],
-                        "description": "Data source provider"
-                    },
-                    "quality": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 100,
-                        "description": "Data quality score 0-100"
-                    }
-                }
-            },
-            "ErrorResponse": {
-                "type": "object",
-                "required": [
-                    "success",
-                    "error"
-                ],
-                "properties": {
-                    "success": {
-                        "type": "boolean",
-                        "enum": [
-                            false
-                        ]
-                    },
-                    "error": {
-                        "type": "object",
-                        "required": [
-                            "code",
-                            "message"
-                        ],
-                        "properties": {
-                            "code": {
-                                "type": "string"
-                            },
-                            "message": {
-                                "type": "string"
-                            },
-                            "retryable": {
-                                "type": "boolean"
-                            }
-                        }
-                    }
-                }
-            },
-            "ResponseMetadata": {
-                "type": "object",
-                "required": [
-                    "timestamp"
-                ],
-                "properties": {
-                    "timestamp": {
-                        "type": "string",
-                        "format": "date-time"
-                    },
-                    "requestId": {
-                        "type": "string"
-                    },
-                    "cached": {
-                        "type": "boolean"
-                    },
-                    "processingTimeMs": {
-                        "type": "integer"
-                    }
-                }
-            },
-            "CapabilitiesResponse": {
-                "type": "object",
-                "required": [
-                    "features",
-                    "limits",
-                    "version"
-                ],
-                "description": "API capabilities (iOS-compatible flat format)",
-                "properties": {
-                    "features": {
-                        "$ref": "#/components/schemas/CapabilitiesFeatures"
-                    },
-                    "limits": {
-                        "$ref": "#/components/schemas/CapabilitiesLimits"
-                    },
-                    "version": {
-                        "type": "string",
-                        "description": "API version"
-                    }
-                }
-            },
-            "CapabilitiesFeatures": {
-                "type": "object",
-                "required": [
-                    "semantic_search",
-                    "similar_books",
-                    "weekly_recommendations",
-                    "sse_streaming",
-                    "batch_enrichment",
-                    "csv_import"
-                ],
-                "properties": {
-                    "semantic_search": {
-                        "type": "boolean",
-                        "description": "Semantic search enabled"
-                    },
-                    "similar_books": {
-                        "type": "boolean",
-                        "description": "Similar books search enabled"
-                    },
-                    "weekly_recommendations": {
-                        "type": "boolean",
-                        "description": "Weekly recommendations enabled"
-                    },
-                    "sse_streaming": {
-                        "type": "boolean",
-                        "description": "SSE streaming enabled"
-                    },
-                    "batch_enrichment": {
-                        "type": "boolean",
-                        "description": "Batch enrichment enabled"
-                    },
-                    "csv_import": {
-                        "type": "boolean",
-                        "description": "CSV import enabled"
-                    }
-                }
-            },
-            "CapabilitiesLimits": {
-                "type": "object",
-                "required": [
-                    "semantic_search_rpm",
-                    "text_search_rpm",
-                    "csv_max_rows",
-                    "batch_max_photos"
-                ],
-                "properties": {
-                    "semantic_search_rpm": {
-                        "type": "integer",
-                        "description": "Semantic search requests per minute"
-                    },
-                    "text_search_rpm": {
-                        "type": "integer",
-                        "description": "Text search requests per minute"
-                    },
-                    "csv_max_rows": {
-                        "type": "integer",
-                        "description": "Maximum rows in CSV import"
-                    },
-                    "batch_max_photos": {
-                        "type": "integer",
-                        "description": "Maximum photos in batch scan"
-                    }
-                }
-            },
-            "RecommendationsResponse": {
-                "type": "object",
-                "required": [
-                    "success",
-                    "data",
-                    "metadata"
-                ],
-                "properties": {
-                    "success": {
-                        "type": "boolean"
-                    },
-                    "data": {
-                        "type": "object",
-                        "required": [
-                            "weekOf",
-                            "recommendations",
-                            "count",
-                            "totalAvailable"
-                        ],
-                        "properties": {
-                            "weekOf": {
-                                "type": "string",
-                                "description": "Week start date (ISO 8601)"
-                            },
-                            "recommendations": {
-                                "type": "array",
-                                "items": {
-                                    "$ref": "#/components/schemas/Recommendation"
-                                }
-                            },
-                            "count": {
-                                "type": "integer",
-                                "description": "Number of recommendations returned"
-                            },
-                            "totalAvailable": {
-                                "type": "integer",
-                                "description": "Total recommendations available"
-                            }
-                        }
-                    },
-                    "metadata": {
-                        "$ref": "#/components/schemas/ResponseMetadata"
-                    }
-                }
-            },
-            "Recommendation": {
-                "type": "object",
-                "required": [
-                    "isbn",
-                    "title",
-                    "author",
-                    "reason"
-                ],
-                "properties": {
-                    "isbn": {
-                        "type": "string",
-                        "description": "Book ISBN"
-                    },
-                    "title": {
-                        "type": "string",
-                        "description": "Book title"
-                    },
-                    "author": {
-                        "type": "string",
-                        "description": "Primary author"
-                    },
-                    "coverUrl": {
-                        "type": "string",
-                        "format": "uri",
-                        "description": "Cover image URL"
-                    },
-                    "reason": {
-                        "type": "string",
-                        "description": "Why this book is recommended"
-                    }
-                }
-            }
-        }
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
     }
+  },
+  "servers": [
+    {
+      "url": "https://api.oooefam.net",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:8787",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Discovery",
+      "description": "API capabilities and recommendations"
+    },
+    {
+      "name": "Books",
+      "description": "Book metadata operations"
+    }
+  ],
+  "paths": {
+    "/v3/capabilities": {
+      "get": {
+        "tags": [
+          "Discovery"
+        ],
+        "summary": "Get API capabilities",
+        "description": "Returns API feature availability, limits, and deprecation notices. Clients should call this on app startup.",
+        "operationId": "getCapabilities",
+        "responses": {
+          "200": {
+            "description": "API capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/recommendations/weekly": {
+      "get": {
+        "tags": [
+          "Discovery"
+        ],
+        "summary": "Get weekly book recommendations",
+        "description": "Returns global weekly book recommendations. Non-personalized curated picks generated every Sunday at midnight UTC.",
+        "operationId": "getWeeklyRecommendations",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 10
+            },
+            "description": "Number of recommendations (1-20)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Weekly recommendations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No recommendations available",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/books/search": {
+      "get": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Search books",
+        "description": "Unified search supporting multiple modes: text, semantic, similar",
+        "operationId": "searchBooks",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search query"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "text",
+                "semantic",
+                "similar"
+              ],
+              "default": "text"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/books/{isbn}": {
+      "get": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Get book by ISBN",
+        "operationId": "getBookByISBN",
+        "parameters": [
+          {
+            "name": "isbn",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(\\d{10}|\\d{13})$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Book details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Book not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/books/enrich": {
+      "post": {
+        "tags": [
+          "Books"
+        ],
+        "summary": "Enrich books with metadata",
+        "operationId": "enrichBooks",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrichRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Enriched books",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SearchResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data",
+          "metadata"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "books": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Book"
+                }
+              },
+              "total": {
+                "type": "integer"
+              }
+            }
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        }
+      },
+      "BookResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data",
+          "metadata"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Book"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        }
+      },
+      "EnrichRequest": {
+        "type": "object",
+        "required": [
+          "isbns"
+        ],
+        "properties": {
+          "isbns": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(\\d{10}|\\d{13})$"
+            },
+            "minItems": 1,
+            "maxItems": 50
+          },
+          "includeEmbedding": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "EnrichResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data",
+          "metadata"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "books": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Book"
+                }
+              },
+              "found": {
+                "type": "integer"
+              },
+              "requested": {
+                "type": "integer"
+              }
+            }
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        }
+      },
+      "Book": {
+        "type": "object",
+        "required": [
+          "isbn",
+          "title",
+          "authors",
+          "provider",
+          "quality"
+        ],
+        "properties": {
+          "isbn": {
+            "type": "string",
+            "minLength": 13,
+            "maxLength": 13,
+            "description": "13-digit ISBN (example: 9780439708180)"
+          },
+          "isbn10": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 10,
+            "description": "10-digit ISBN if available (example: 0439708184)"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Book title"
+          },
+          "subtitle": {
+            "type": "string",
+            "description": "Book subtitle"
+          },
+          "authors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of author names"
+          },
+          "publisher": {
+            "type": "string",
+            "description": "Publisher name"
+          },
+          "publishedDate": {
+            "type": "string",
+            "description": "Publication date (ISO 8601 or partial format)"
+          },
+          "description": {
+            "type": "string",
+            "description": "Book description/synopsis"
+          },
+          "pageCount": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of pages"
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Book categories/genres"
+          },
+          "language": {
+            "type": "string",
+            "description": "ISO 639-1 language code (e.g., \"en\")"
+          },
+          "coverUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Cover image URL"
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Thumbnail image URL"
+          },
+          "workKey": {
+            "type": "string",
+            "description": "OpenLibrary work key (e.g., OL82563W)"
+          },
+          "editionKey": {
+            "type": "string",
+            "description": "OpenLibrary edition key (e.g., OL7353617M)"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "alexandria",
+              "google_books",
+              "open_library",
+              "isbndb"
+            ],
+            "description": "Data source provider"
+          },
+          "quality": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Data quality score 0-100"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "ResponseMetadata": {
+        "type": "object",
+        "required": [
+          "timestamp"
+        ],
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "cached": {
+            "type": "boolean"
+          },
+          "processingTimeMs": {
+            "type": "integer"
+          }
+        }
+      },
+      "CapabilitiesResponse": {
+        "type": "object",
+        "required": [
+          "features",
+          "limits",
+          "version"
+        ],
+        "description": "API capabilities (iOS-compatible flat format)",
+        "properties": {
+          "features": {
+            "$ref": "#/components/schemas/CapabilitiesFeatures"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/CapabilitiesLimits"
+          },
+          "version": {
+            "type": "string",
+            "description": "API version"
+          }
+        }
+      },
+      "CapabilitiesFeatures": {
+        "type": "object",
+        "required": [
+          "semantic_search",
+          "similar_books",
+          "weekly_recommendations",
+          "sse_streaming",
+          "batch_enrichment",
+          "csv_import"
+        ],
+        "properties": {
+          "semantic_search": {
+            "type": "boolean",
+            "description": "Semantic search enabled"
+          },
+          "similar_books": {
+            "type": "boolean",
+            "description": "Similar books search enabled"
+          },
+          "weekly_recommendations": {
+            "type": "boolean",
+            "description": "Weekly recommendations enabled"
+          },
+          "sse_streaming": {
+            "type": "boolean",
+            "description": "SSE streaming enabled"
+          },
+          "batch_enrichment": {
+            "type": "boolean",
+            "description": "Batch enrichment enabled"
+          },
+          "csv_import": {
+            "type": "boolean",
+            "description": "CSV import enabled"
+          }
+        }
+      },
+      "CapabilitiesLimits": {
+        "type": "object",
+        "required": [
+          "semantic_search_rpm",
+          "text_search_rpm",
+          "csv_max_rows",
+          "batch_max_photos"
+        ],
+        "properties": {
+          "semantic_search_rpm": {
+            "type": "integer",
+            "description": "Semantic search requests per minute"
+          },
+          "text_search_rpm": {
+            "type": "integer",
+            "description": "Text search requests per minute"
+          },
+          "csv_max_rows": {
+            "type": "integer",
+            "description": "Maximum rows in CSV import"
+          },
+          "batch_max_photos": {
+            "type": "integer",
+            "description": "Maximum photos in batch scan"
+          }
+        }
+      },
+      "RecommendationsResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data",
+          "metadata"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "weekOf",
+              "recommendations",
+              "count",
+              "totalAvailable"
+            ],
+            "properties": {
+              "weekOf": {
+                "type": "string",
+                "description": "Week start date (ISO 8601)"
+              },
+              "recommendations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Recommendation"
+                }
+              },
+              "count": {
+                "type": "integer",
+                "description": "Number of recommendations returned"
+              },
+              "totalAvailable": {
+                "type": "integer",
+                "description": "Total recommendations available"
+              }
+            }
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        }
+      },
+      "Recommendation": {
+        "type": "object",
+        "required": [
+          "isbn",
+          "title",
+          "author",
+          "reason"
+        ],
+        "properties": {
+          "isbn": {
+            "type": "string",
+            "description": "Book ISBN"
+          },
+          "title": {
+            "type": "string",
+            "description": "Book title"
+          },
+          "author": {
+            "type": "string",
+            "description": "Primary author"
+          },
+          "coverUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Cover image URL"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why this book is recommended"
+          }
+        }
+      }
+    }
+  }
 }
