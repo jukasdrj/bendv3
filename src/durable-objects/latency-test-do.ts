@@ -68,10 +68,6 @@ interface LatencyMeasurementResult {
 }
 
 export class LatencyTestDO extends DurableObject<Env> {
-  constructor(state: DurableObjectState, env: Env) {
-    super(state, env)
-  }
-
   /**
    * RPC Method: Ping - Minimal RPC call to measure latency
    *

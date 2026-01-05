@@ -93,7 +93,8 @@ export async function handleWarmingUpload(
       )
     }
 
-    const books = (await parseCSVWithGemini(csvText, prompt, apiKey)) as ParsedBook[]
+    const geminiResult = await parseCSVWithGemini(csvText, prompt, apiKey)
+    const books = geminiResult.books
 
     // Extract unique authors
     const authorsSet = new Set<string>()

@@ -370,9 +370,10 @@ describe('Error Scenarios: Network Failures', () => {
         mockEnv.GEMINI_API_KEY
       )
 
-      expect(result).toEqual([
-        { title: 'Test Book', author: 'Test Author' },
-      ])
+      expect(result).toEqual({
+        books: [{ title: 'Test Book', author: 'Test Author' }],
+        errors: []
+      })
     })
 
     it('should handle intermittent packet loss gracefully', async () => {

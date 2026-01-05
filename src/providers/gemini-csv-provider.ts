@@ -9,6 +9,26 @@ const GEMINI_API_ENDPOINT =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
 
 /**
+ * Result of parsing CSV with Gemini, including both valid books and validation errors
+ */
+export interface GeminiParseResult {
+  books: CSVParsedBook[]
+  errors: GeminiValidationError[]
+}
+
+/**
+ * Validation error for a book that failed post-parse validation
+ */
+export interface GeminiValidationError {
+  rowNumber: number // Approximate position in CSV (1-based, +1 for header)
+  message: string
+  code: 'whitespace_author' | 'missing_author' | 'missing_title' | 'database_error'
+  field: 'author' | 'title' | 'isbn'
+  value?: string
+  title?: string // For context
+}
+
+/**
  * Gemini API request structure for generateContent endpoint
  */
 interface GeminiContentRequest {
@@ -108,14 +128,14 @@ function sanitizeCSVForPrompt(csvText: string): string {
  * @param csvText - Raw CSV content
  * @param prompt - Gemini prompt with few-shot examples
  * @param apiKey - Gemini API key from env.GEMINI_API_KEY
- * @returns Parsed book data (guaranteed to have title+author)
+ * @returns GeminiParseResult with valid books and validation errors
  * @throws Error if API call fails or response is invalid
  */
 export async function parseCSVWithGemini(
   csvText: string,
   prompt: string,
   apiKey: string,
-): Promise<CSVParsedBook[]> {
+): Promise<GeminiParseResult> {
   // SECURITY FIX (#177): Sanitize CSV content to prevent prompt injection
   const sanitizedCSV = sanitizeCSVForPrompt(csvText)
   const fullPrompt = `${prompt}\n\nCSV Data:\n${sanitizedCSV}`
@@ -206,21 +226,36 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
 
     // Issue #160: Post-parse validation for empty/whitespace-only authors
     // Schema minLength prevents empty strings, but whitespace-only may slip through
-    const validBooks = parsed.filter((book: CSVParsedBook) => {
+    // Track validation errors alongside valid books
+    const validBooks: CSVParsedBook[] = []
+    const errors: GeminiValidationError[] = []
+
+    parsed.forEach((book: CSVParsedBook, index: number) => {
       const hasValidAuthor = book.author && book.author.trim().length > 0
+
       if (!hasValidAuthor) {
-        console.warn(`[GeminiCSVProvider] Skipping book "${book.title}" - missing or empty author`)
+        errors.push({
+          rowNumber: index + 2, // +2 for 1-based indexing + CSV header
+          message: `Book "${book.title || '(untitled)'}" has missing or whitespace-only author`,
+          code: book.author ? 'whitespace_author' : 'missing_author',
+          field: 'author',
+          value: book.author || '(empty)',
+          title: book.title,
+        })
+      } else {
+        validBooks.push(book)
       }
-      return hasValidAuthor
     })
 
-    if (validBooks.length < parsed.length) {
-      console.warn(
-        `[GeminiCSVProvider] Filtered ${parsed.length - validBooks.length} of ${parsed.length} books due to missing author`,
-      )
-    }
+    console.log(
+      `[GeminiCSVProvider] parseCSVWithGemini parsed ${validBooks.length} valid books, ${errors.length} validation errors, token usage:`,
+      JSON.stringify(tokenUsage, null, 2),
+    )
 
-    return validBooks as CSVParsedBook[]
+    return {
+      books: validBooks,
+      errors,
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     throw new Error(`Invalid JSON from Gemini: ${errorMessage}`)

@@ -41,11 +41,14 @@ describe("E2E: CSV Import Workflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Default successful Gemini response
-    mockParseCSVWithGemini.mockResolvedValue([
-      { title: "Book 1", author: "Author 1", isbn: "1234567890" },
-      { title: "Book 2", author: "Author 2" },
-    ]);
+    // Default successful Gemini response (GeminiParseResult format)
+    mockParseCSVWithGemini.mockResolvedValue({
+      books: [
+        { title: "Book 1", author: "Author 1", isbn: "1234567890" },
+        { title: "Book 2", author: "Author 2" },
+      ],
+      errors: []
+    });
 
     // Default successful validation
     mockValidateCSV.mockReturnValue({
@@ -163,11 +166,14 @@ describe("E2E: CSV Import Workflow", () => {
         "title,author\nValid Book,Valid Author\n,Missing Title\nMissing Author,";
 
       // Gemini returns 3 books, but only 1 is valid
-      mockParseCSVWithGemini.mockResolvedValue([
-        { title: "Valid Book", author: "Valid Author" },
-        { author: "No Title" }, // Missing title
-        { title: "No Author" }, // Missing author
-      ]);
+      mockParseCSVWithGemini.mockResolvedValue({
+        books: [
+          { title: "Valid Book", author: "Valid Author" },
+          { author: "No Title" }, // Missing title
+          { title: "No Author" }, // Missing author
+        ],
+        errors: []
+      });
 
       await processCSVImportCore(csvText, testJobId, mockDoStub, mockEnv);
 
@@ -240,7 +246,10 @@ describe("E2E: CSV Import Workflow", () => {
     it("should handle an empty CSV file", async () => {
       const csvText = "title,author\n"; // Only header
 
-      mockParseCSVWithGemini.mockResolvedValue([]); // No books parsed
+      mockParseCSVWithGemini.mockResolvedValue({
+        books: [],
+        errors: []
+      }); // No books parsed
 
       await processCSVImportCore(csvText, testJobId, mockDoStub, mockEnv);
 
@@ -258,7 +267,10 @@ describe("E2E: CSV Import Workflow", () => {
     it("should handle a CSV file with only a header row", async () => {
       const csvText = "title,author";
 
-      mockParseCSVWithGemini.mockResolvedValue([]);
+      mockParseCSVWithGemini.mockResolvedValue({
+        books: [],
+        errors: []
+      });
 
       await processCSVImportCore(csvText, testJobId, mockDoStub, mockEnv);
 
@@ -280,7 +292,10 @@ describe("E2E: CSV Import Workflow", () => {
         author: `Author ${i + 1}`,
       }));
 
-      mockParseCSVWithGemini.mockResolvedValue(largeParsedBooks);
+      mockParseCSVWithGemini.mockResolvedValue({
+        books: largeParsedBooks,
+        errors: []
+      });
 
       const csvText =
         "title,author\n" +
@@ -341,10 +356,13 @@ describe("E2E: CSV Import Workflow", () => {
     it("should filter out books with missing required fields", async () => {
       const csvText = "title,author\nValid,Author\nInvalid,";
 
-      mockParseCSVWithGemini.mockResolvedValue([
-        { title: "Valid", author: "Author" },
-        { title: "Invalid" }, // Missing author
-      ]);
+      mockParseCSVWithGemini.mockResolvedValue({
+        books: [
+          { title: "Valid", author: "Author" },
+          { title: "Invalid" }, // Missing author
+        ],
+        errors: []
+      });
 
       await processCSVImportCore(csvText, testJobId, mockDoStub, mockEnv);
 

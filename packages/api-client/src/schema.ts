@@ -98,6 +98,258 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v3/jobs/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import books from CSV
+         * @description Upload CSV file for background processing with Gemini 2.0 Flash. Returns immediately with jobId for progress tracking via SSE stream. Max file size: 8MB. Max rows: ~5000 books.
+         */
+        post: operations["createImportJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v3/jobs/imports/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get import job status
+         * @description Query current status of CSV import job. Use SSE stream for real-time updates (recommended). Polling fallback: max 1 request every 2 seconds.
+         */
+        get: operations["getImportJobStatus"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel import job
+         * @description Cancel in-progress import job. Note: Jobs may not stop immediately (graceful shutdown).
+         */
+        delete: operations["cancelImportJob"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v3/jobs/imports/{jobId}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream import progress (SSE)
+         * @description Real-time progress updates via Server-Sent Events. Requires Bearer token from job creation response. Token valid for 1 hour.
+         */
+        get: operations["streamImportProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v3/jobs/imports/{jobId}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get import job results
+         * @description Fetch enriched books from completed import job. Results cached in KV for 1 hour after completion.
+         */
+        get: operations["getImportJobResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v3/jobs/scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scan bookshelf photos
+         * @description Upload 1-5 photos for AI-powered book detection with Gemini Vision. Returns immediately with jobId for progress tracking via SSE stream. Max size: 10MB per photo, 50MB total.
+         */
+        post: operations["createScanJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v3/jobs/scans/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get scan job status
+         * @description Query current status of bookshelf scan job. Use SSE stream for real-time updates (recommended). Polling fallback: max 1 request every 2 seconds.
+         */
+        get: operations["getScanJobStatus"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel scan job
+         * @description Cancel in-progress scan job and cleanup R2 storage. Deletes all uploaded photos for this job. Note: Jobs may not stop immediately (graceful shutdown).
+         */
+        delete: operations["cancelScanJob"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v3/jobs/scans/{jobId}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream scan progress (SSE)
+         * @description Real-time progress updates via Server-Sent Events. Requires Bearer token from job creation response. Token valid for 1 hour.
+         */
+        get: operations["streamScanProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v3/jobs/scans/{jobId}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get scan job results
+         * @description Fetch detected books from completed scan job. Results include book metadata, bounding boxes, confidence scores, and enrichment data. Results cached in KV for 2 hours after completion.
+         */
+        get: operations["getScanJobResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v3/jobs/enrichment/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get enrichment job status
+         * @description Query current status of batch enrichment job. Use SSE stream for real-time updates (recommended). Polling fallback: max 1 request every 2 seconds.
+         */
+        get: operations["getEnrichmentJobStatus"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel enrichment job
+         * @description Cancel in-progress enrichment job. Note: Jobs may not stop immediately (graceful shutdown).
+         */
+        delete: operations["cancelEnrichmentJob"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v3/jobs/enrichment/{jobId}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream enrichment progress (SSE)
+         * @description Real-time progress updates via Server-Sent Events. Progress updates every 25 books. Requires Bearer token from job creation response. Token valid for 1 hour.
+         */
+        get: operations["streamEnrichmentProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v3/jobs/enrichment/{jobId}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get enrichment job results
+         * @description Fetch enriched books from completed enrichment job. Results include enriched book metadata, books that were not found, and embedding generation status. Results cached in KV for 2 hours after completion.
+         */
+        get: operations["getEnrichmentJobResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v3/webhooks/alexandria/enrichment-complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handle enrichment completion event
+         * @description Receives notification from Alexandria when book enrichment is complete. Triggers a fresh fetch to update local D1 cache.
+         */
+        post: operations["alexandriaEnrichmentComplete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -249,6 +501,83 @@ export interface components {
             coverUrl?: string;
             /** @description Why this book is recommended */
             reason: string;
+        };
+        JobInitResponse: {
+            success: boolean;
+            data: {
+                /**
+                 * Format: uuid
+                 * @description Unique job identifier
+                 */
+                jobId: string;
+                /**
+                 * @description Initial job status (always 'queued')
+                 * @enum {string}
+                 */
+                status: "queued" | "processing" | "completed" | "failed" | "canceled";
+                /**
+                 * Format: uri
+                 * @description SSE stream URL for real-time progress
+                 */
+                streamUrl: string;
+                /** @description Bearer token for SSE authentication (valid 1 hour) */
+                token: string;
+            };
+            metadata: components["schemas"]["ResponseMetadata"];
+        };
+        JobStatusResponse: {
+            success: boolean;
+            data: {
+                /** Format: uuid */
+                jobId: string;
+                /**
+                 * @description Job type
+                 * @enum {string}
+                 */
+                type: "csv_import" | "bookshelf_scan" | "batch_enrichment";
+                /**
+                 * @description Current job status
+                 * @enum {string}
+                 */
+                status: "queued" | "processing" | "completed" | "failed" | "canceled";
+                /** @description Progress as decimal (0.0 to 1.0) */
+                progress: number;
+                /** @description Items processed so far */
+                processedCount: number;
+                /** @description Total items to process */
+                totalCount: number;
+                /**
+                 * Format: date-time
+                 * @description Job start timestamp
+                 */
+                startTime?: string;
+                /**
+                 * Format: date-time
+                 * @description Job completion timestamp
+                 */
+                completedTime?: string;
+                /** @description Error details if job failed */
+                error?: {
+                    code?: string;
+                    message?: string;
+                };
+            };
+            metadata: components["schemas"]["ResponseMetadata"];
+        };
+        JobResultsResponse: {
+            success: boolean;
+            data: {
+                /** Format: uuid */
+                jobId: string;
+                /**
+                 * @description Job status (only completed jobs have results)
+                 * @enum {string}
+                 */
+                status: "completed";
+                /** @description Job results (structure varies by job type) */
+                results: Record<string, never>[];
+            };
+            metadata: components["schemas"]["ResponseMetadata"];
         };
     };
     responses: never;
@@ -415,6 +744,578 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EnrichResponse"];
+                };
+            };
+        };
+    };
+    createImportJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description CSV file (max 8MB)
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Import job accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobInitResponse"];
+                };
+            };
+            /** @description Invalid file (missing, wrong format) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description File too large (>8MB) */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getImportJobStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatusResponse"];
+                };
+            };
+            /** @description Job not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancelImportJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job canceled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatusResponse"];
+                };
+            };
+            /** @description Job not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job already completed or failed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    streamImportProgress: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Bearer token from job creation */
+                Authorization?: string;
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized (invalid or expired token) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getImportJobResults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResultsResponse"];
+                };
+            };
+            /** @description Job not found or not completed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createScanJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** @description Array of photo files (1-5 photos) */
+                    "photos[]": string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Scan job accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobInitResponse"];
+                };
+            };
+            /** @description Invalid request (missing photos, wrong format) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description File too large (photo >10MB or batch >50MB) */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getScanJobStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatusResponse"];
+                };
+            };
+            /** @description Job not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancelScanJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job canceled (includes R2 cleanup status) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatusResponse"];
+                };
+            };
+            /** @description Job not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job already completed or failed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    streamScanProgress: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Bearer token from job creation */
+                Authorization?: string;
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized (invalid or expired token) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getScanJobResults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResultsResponse"];
+                };
+            };
+            /** @description Job not found or not completed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getEnrichmentJobStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatusResponse"];
+                };
+            };
+            /** @description Job not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancelEnrichmentJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job canceled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatusResponse"];
+                };
+            };
+            /** @description Job not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job already completed or failed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    streamEnrichmentProgress: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Bearer token from job creation */
+                Authorization?: string;
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized (invalid or expired token) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getEnrichmentJobResults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResultsResponse"];
+                };
+            };
+            /** @description Job not found or not completed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    alexandriaEnrichmentComplete: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Shared secret for authentication */
+                "x-alexandria-webhook-secret": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    isbn: string;
+                    /** @enum {string} */
+                    type: "edition" | "work" | "author";
+                    quality_improvement?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Webhook processed successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                        message: string;
+                    };
+                };
+            };
+            /** @description Invalid secret */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

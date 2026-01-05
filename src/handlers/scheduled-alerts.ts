@@ -15,7 +15,7 @@ import {
   markAlertSent,
   shouldSendAlert,
 } from '../services/alert-monitor'
-import { type AggregatedMetrics, aggregateMetrics } from '../services/metrics-aggregator'
+import { aggregateMetrics } from '../services/metrics-aggregator'
 import type { Env } from '../types/env'
 
 /**

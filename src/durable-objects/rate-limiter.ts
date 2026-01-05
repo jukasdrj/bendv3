@@ -54,10 +54,6 @@ interface RateLimitResult {
 }
 
 export class RateLimiterDO extends DurableObject<Env> {
-  constructor(state: DurableObjectState, env: Env) {
-    super(state, env)
-  }
-
   /**
    * Check if request is allowed and atomically increment counter.
    *

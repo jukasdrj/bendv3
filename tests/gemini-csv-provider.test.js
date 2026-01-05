@@ -34,7 +34,10 @@ describe("Gemini CSV Provider", () => {
 
     const result = await parseCSVWithGemini(csvText, prompt, apiKey);
 
-    expect(result).toEqual([{ title: "Book1", author: "Author1" }]);
+    expect(result).toEqual({
+      books: [{ title: "Book1", author: "Author1" }],
+      errors: []
+    });
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining("generativelanguage.googleapis.com"),
       expect.objectContaining({ method: "POST" }),
@@ -227,9 +230,10 @@ describe("Gemini CSV Provider", () => {
 
       const result = await parseCSVWithGemini("csv", "prompt", "key");
 
-      expect(result).toHaveLength(1);
-      expect(result[0].title).toBe("Valid Book");
-      expect(result[0].author).toBe("Real Author");
+      expect(result.books).toHaveLength(1);
+      expect(result.books[0].title).toBe("Valid Book");
+      expect(result.books[0].author).toBe("Real Author");
+      expect(result.errors).toHaveLength(2); // 2 books filtered due to missing/whitespace authors
     });
 
     test("preserves multiple authors as comma-separated string", async () => {
@@ -260,8 +264,9 @@ describe("Gemini CSV Provider", () => {
 
       const result = await parseCSVWithGemini("csv", "prompt", "key");
 
-      expect(result).toHaveLength(1);
-      expect(result[0].author).toBe("Neil Gaiman, Terry Pratchett");
+      expect(result.books).toHaveLength(1);
+      expect(result.books[0].author).toBe("Neil Gaiman, Terry Pratchett");
+      expect(result.errors).toHaveLength(0);
     });
 
     test("handles null author by filtering out", async () => {
@@ -293,8 +298,9 @@ describe("Gemini CSV Provider", () => {
 
       const result = await parseCSVWithGemini("csv", "prompt", "key");
 
-      expect(result).toHaveLength(1);
-      expect(result[0].title).toBe("Valid Book");
+      expect(result.books).toHaveLength(1);
+      expect(result.books[0].title).toBe("Valid Book");
+      expect(result.errors).toHaveLength(1); // 1 book filtered due to null author
     });
 
     test("logs warning when books are filtered due to missing author", async () => {

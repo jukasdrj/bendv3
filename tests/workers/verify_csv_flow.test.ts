@@ -24,7 +24,7 @@ const mockEnv = {
   ENABLE_D1_WRITES: 'true',
 } as any;
 
-// Mock Parsing Result
+// Mock Parsing Result (GeminiParseResult format)
 const mockParsedBooks = [
   {
     title: 'Test Book',
@@ -38,7 +38,10 @@ const mockParsedBooks = [
 // Mock Gemini CSV provider
 const mockDeps = {
   validateCSV: vi.fn(() => ({ valid: true })),
-  parseCSVWithGemini: vi.fn(() => Promise.resolve(mockParsedBooks)),
+  parseCSVWithGemini: vi.fn(() => Promise.resolve({
+    books: mockParsedBooks,
+    errors: []
+  })),
 };
 
 // Mock Progress Reporter

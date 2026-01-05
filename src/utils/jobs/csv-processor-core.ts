@@ -12,8 +12,13 @@
  */
 
 import { buildCSVParserPrompt } from '../../prompts/csv-parser-prompt'
-import { parseCSVWithGemini as parseCSVWithGeminiImpl } from '../../providers/gemini-csv-provider'
+import {
+  type GeminiParseResult,
+  type GeminiValidationError,
+  parseCSVWithGemini as parseCSVWithGeminiImpl,
+} from '../../providers/gemini-csv-provider'
 import type { Env } from '../../types/env'
+import type { CSVParsedBook } from '../../types/gemini-schemas'
 import { generateCSVCacheKey } from '../cache/cache-keys'
 import { processWithLimit } from '../concurrency/concurrency-limiter'
 import { validateCSV as validateCSVImpl } from '../validation/csv-validator'
@@ -21,19 +26,9 @@ import type { ProgressReporter } from './progress-reporter'
 
 /**
  * Parsed book from Gemini CSV parser
+ * @deprecated Use CSVParsedBook from gemini-schemas instead
  */
-export interface ParsedBook {
-  title: string
-  author: string
-  isbn?: string
-  publisher?: string
-  publicationYear?: string | number
-  notes?: string
-  pageCount?: string | number
-  genre?: string
-  languageCode?: string
-  [key: string]: unknown
-}
+export type ParsedBook = CSVParsedBook
 
 /**
  * Validated book in ParsedBookDTO structure
@@ -128,7 +123,11 @@ export interface ProcessCSVCoreOptions {
  */
 export interface ProcessorDependencies {
   validateCSV: (csvText: string) => CSVValidationResult
-  parseCSVWithGemini: (csvText: string, prompt: string, apiKey: string) => Promise<ParsedBook[]>
+  parseCSVWithGemini: (
+    csvText: string,
+    prompt: string,
+    apiKey: string,
+  ) => Promise<GeminiParseResult>
 }
 
 /**
@@ -172,6 +171,7 @@ export async function processCSVCore(
   } = options
 
   const startTime = Date.now()
+  const processingErrors: GeminiValidationError[] = []
 
   try {
     // Wait for client to establish WebSocket and send ready signal
@@ -227,7 +227,11 @@ export async function processCSVCore(
       // NOTE: Gemini 2.0 Flash typically responds in <20 seconds for CSV parsing
       // Paid Plan: 30M CPU milliseconds/month, 5-minute max per invocation
       const prompt = buildCSVParserPrompt()
-      parsedBooks = await callGemini(csvText, prompt, env, deps)
+      const geminiResult = await callGemini(csvText, prompt, env, deps)
+      parsedBooks = geminiResult.books
+
+      // Collect Phase 1 errors: Gemini filtering and validation errors
+      processingErrors.push(...geminiResult.errors)
 
       // Schema guarantees valid array structure and title+author on all books
       // Only check for empty response (edge case: CSV with no parseable books)
@@ -251,12 +255,29 @@ export async function processCSVCore(
     // Validate and shape parsed books to ParsedBookDTO structure
     // Strip extraneous fields from Gemini output to prevent schema drift
     const validatedBooks: ValidatedBook[] = parsedBooks
-      .filter((book) => book.title && book.author) // Ensure required fields present
-      .map((book) => ({
-        title: String(book.title).trim(),
-        author: String(book.author).trim(),
-        isbn: book.isbn ? String(book.isbn).trim() : undefined,
-      }))
+      .map((book, index): ValidatedBook | null => {
+        const trimmedTitle = book.title ? String(book.title).trim() : ''
+        const trimmedAuthor = book.author ? String(book.author).trim() : ''
+
+        if (!trimmedTitle || !trimmedAuthor) {
+          processingErrors.push({
+            rowNumber: index + 2,
+            message: `Missing required field: ${!trimmedTitle ? 'title' : 'author'}`,
+            code: !trimmedTitle ? 'missing_title' : 'missing_author',
+            field: !trimmedTitle ? 'title' : 'author',
+            value: !trimmedTitle ? trimmedTitle : trimmedAuthor,
+            title: book.title,
+          })
+          return null
+        }
+
+        return {
+          title: trimmedTitle,
+          author: trimmedAuthor,
+          isbn: book.isbn ? String(book.isbn).trim() : undefined,
+        }
+      })
+      .filter((book): book is ValidatedBook => book !== null)
 
     // FIX #1: Persist parsed books to D1+KV (Issue #1 - CSV import data loss)
     // This ensures books accumulate in D1 database instead of being lost after iOS enrichment
@@ -308,6 +329,30 @@ export async function processCSVCore(
     })
 
     const results = await processWithLimit(saveTasks, 20)
+
+    // Capture database save failures
+    const saveErrors: GeminiValidationError[] = results
+      .map((result, index) => {
+        if (result.status === 'rejected') {
+          const book = booksWithValidISBN[index]
+          const errorMessage =
+            result.reason instanceof Error ? result.reason.message : 'Unknown database error'
+
+          return {
+            rowNumber: -1, // Row number lost at save stage
+            message: `Failed to persist to database: ${errorMessage}`,
+            code: 'database_error' as const,
+            field: 'isbn' as const,
+            value: book.isbn ? String(book.isbn).trim() : undefined,
+            title: book.title,
+          } as GeminiValidationError
+        }
+        return null
+      })
+      .filter((err): err is GeminiValidationError => err !== null)
+
+    processingErrors.push(...saveErrors)
+
     const savedCount = results.filter((r) => r.status === 'fulfilled').length
     const failedCount = results.filter((r) => r.status === 'rejected').length
 
@@ -321,10 +366,15 @@ export async function processCSVCore(
     // Queue successfully saved ISBNs for Alexandria enrichment (non-blocking)
     // This ensures Alexandria learns from CSV imports without slowing down the import
     if (env.ENRICHMENT_QUEUE) {
-      const successfulISBNs = results
-        .filter((r) => r.status === 'fulfilled' && r.value?.isbn)
-        .map((r) => (r.value as { status: 'fulfilled'; isbn?: string }).isbn)
-        .filter((isbn): isbn is string => isbn !== undefined)
+      const successfulISBNs: string[] = []
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          const isbn = (result.value as { status: 'fulfilled'; isbn?: string }).isbn
+          if (isbn) {
+            successfulISBNs.push(isbn)
+          }
+        }
+      }
 
       if (successfulISBNs.length > 0) {
         console.log(
@@ -396,6 +446,13 @@ export async function processCSVCore(
         }
       })
 
+    // Map GeminiValidationError to JobErrorDetail schema
+    const formattedErrors = processingErrors.map((err) => ({
+      row: err.rowNumber,
+      isbn: err.value,
+      error: err.message,
+    }))
+
     const resourceId = `${resultsKeyPrefix}:${jobId}`
     const apiContractResults: APIContractResults = {
       booksCreated: canonicalBooks.length,
@@ -403,7 +460,7 @@ export async function processCSVCore(
       duplicatesSkipped: duplicatesSkipped,
       enrichmentSucceeded: 0, // CSV import doesn't enrich - set to 0 to be accurate
       enrichmentFailed: 0, // TODO: Track enrichment failures
-      errors: [], // TODO: Store validation errors with row numbers
+      errors: formattedErrors, // ✅ FIXED: Populated errors array
       books: canonicalBooks, // Canonical BookSchema format for iOS SwiftData
     }
     await env.CACHE.put(resourceId, JSON.stringify(apiContractResults), {
@@ -483,14 +540,14 @@ export function buildServiceCompletionPayload(context: ProcessingContext): Compl
  * @param prompt - Gemini prompt with few-shot examples
  * @param env - Worker environment bindings
  * @param deps - Injected dependencies (Issue #217)
- * @returns Parsed book data
+ * @returns GeminiParseResult with books and validation errors
  */
 async function callGemini(
   csvText: string,
   prompt: string,
   env: Env,
   deps: ProcessorDependencies,
-): Promise<ParsedBook[]> {
+): Promise<GeminiParseResult> {
   /**
    * GEMINI_API_KEY binding supports two patterns:
    *   1. Secrets Store binding (recommended for production): env.GEMINI_API_KEY is a SecretsStore binding and requires .get() to retrieve the value.
@@ -500,8 +557,13 @@ async function callGemini(
    * while ensuring production uses the more secure Secrets Store.
    */
   const geminiApiKey = env.GEMINI_API_KEY as string | { get?: () => Promise<string> }
-  const apiKey =
-    typeof geminiApiKey === 'object' && geminiApiKey.get ? await geminiApiKey.get() : geminiApiKey
+  let apiKey: string
+
+  if (typeof geminiApiKey === 'object' && geminiApiKey.get) {
+    apiKey = await geminiApiKey.get()
+  } else {
+    apiKey = geminiApiKey as string
+  }
 
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY not configured')

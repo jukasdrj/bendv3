@@ -26,9 +26,10 @@ describe("CSV Processor Service", () => {
     // Create mock dependencies (Issue #217 - workerd-compatible testing)
     mockDeps = {
       validateCSV: vi.fn().mockReturnValue({ valid: true }),
-      parseCSVWithGemini: vi.fn().mockResolvedValue([
-        { title: "Test Book", author: "Test Author" },
-      ]),
+      parseCSVWithGemini: vi.fn().mockResolvedValue({
+        books: [{ title: "Test Book", author: "Test Author" }],
+        errors: []
+      }),
     };
 
     // Mock progress reporter interface
@@ -121,10 +122,13 @@ describe("CSV Processor Service", () => {
     it("should report parsed books count", async () => {
       const csvText = "title,author\nBook 1,Author 1\nBook 2,Author 2";
 
-      mockDeps.parseCSVWithGemini.mockResolvedValue([
-        { title: "Book 1", author: "Author 1" },
-        { title: "Book 2", author: "Author 2" },
-      ]);
+      mockDeps.parseCSVWithGemini.mockResolvedValue({
+        books: [
+          { title: "Book 1", author: "Author 1" },
+          { title: "Book 2", author: "Author 2" },
+        ],
+        errors: []
+      });
 
       await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
@@ -181,7 +185,10 @@ describe("CSV Processor Service", () => {
     it("should handle empty Gemini response", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockDeps.parseCSVWithGemini.mockResolvedValue([]);
+      mockDeps.parseCSVWithGemini.mockResolvedValue({
+        books: [],
+        errors: []
+      });
 
       await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
@@ -235,11 +242,14 @@ describe("CSV Processor Service", () => {
     it("should filter out books without title", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockDeps.parseCSVWithGemini.mockResolvedValue([
-        { title: "Valid Book", author: "Valid Author" },
-        { author: "No Title Author" }, // Missing title
-        { title: "Another Book", author: "Another Author" },
-      ]);
+      mockDeps.parseCSVWithGemini.mockResolvedValue({
+        books: [
+          { title: "Valid Book", author: "Valid Author" },
+          { author: "No Title Author" }, // Missing title
+          { title: "Another Book", author: "Another Author" },
+        ],
+        errors: []
+      });
 
       await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
@@ -264,10 +274,13 @@ describe("CSV Processor Service", () => {
     it("should filter out books without author", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockDeps.parseCSVWithGemini.mockResolvedValue([
-        { title: "Valid Book", author: "Valid Author" },
-        { title: "No Author Book" }, // Missing author
-      ]);
+      mockDeps.parseCSVWithGemini.mockResolvedValue({
+        books: [
+          { title: "Valid Book", author: "Valid Author" },
+          { title: "No Author Book" }, // Missing author
+        ],
+        errors: []
+      });
 
       await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
@@ -291,13 +304,16 @@ describe("CSV Processor Service", () => {
     it("should trim whitespace from book data", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockDeps.parseCSVWithGemini.mockResolvedValue([
-        {
-          title: "  Spaced Book  ",
-          author: "  Spaced Author  ",
-          isbn: "  1234567890  ",
-        },
-      ]);
+      mockDeps.parseCSVWithGemini.mockResolvedValue({
+        books: [
+          {
+            title: "  Spaced Book  ",
+            author: "  Spaced Author  ",
+            isbn: "  1234567890  ",
+          },
+        ],
+        errors: []
+      });
 
       await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
@@ -322,10 +338,13 @@ describe("CSV Processor Service", () => {
     it("should handle optional ISBN field", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockDeps.parseCSVWithGemini.mockResolvedValue([
-        { title: "Book With ISBN", author: "Author", isbn: "1234567890" },
-        { title: "Book Without ISBN", author: "Author" },
-      ]);
+      mockDeps.parseCSVWithGemini.mockResolvedValue({
+        books: [
+          { title: "Book With ISBN", author: "Author", isbn: "1234567890" },
+          { title: "Book Without ISBN", author: "Author" },
+        ],
+        errors: []
+      });
 
       await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
@@ -344,10 +363,13 @@ describe("CSV Processor Service", () => {
     it("should complete with validated books", async () => {
       const csvText = "title,author\nBook 1,Author 1\nBook 2,Author 2";
 
-      mockDeps.parseCSVWithGemini.mockResolvedValue([
-        { title: "Book 1", author: "Author 1" },
-        { title: "Book 2", author: "Author 2" },
-      ]);
+      mockDeps.parseCSVWithGemini.mockResolvedValue({
+        books: [
+          { title: "Book 1", author: "Author 1" },
+          { title: "Book 2", author: "Author 2" },
+        ],
+        errors: []
+      });
 
       await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 
@@ -377,11 +399,14 @@ describe("CSV Processor Service", () => {
     it("should include success rate in completion", async () => {
       const csvText = "title,author\nTest Book,Test Author";
 
-      mockDeps.parseCSVWithGemini.mockResolvedValue([
-        { title: "Book 1", author: "Author 1" },
-        { title: "Book 2", author: "Author 2" },
-        { title: "Book 3" }, // Missing author, will be filtered
-      ]);
+      mockDeps.parseCSVWithGemini.mockResolvedValue({
+        books: [
+          { title: "Book 1", author: "Author 1" },
+          { title: "Book 2", author: "Author 2" },
+          { title: "Book 3" }, // Missing author, will be filtered
+        ],
+        errors: []
+      });
 
       await processCSVImport(csvText, mockProgressReporter, mockEnv, testJobId, mockDeps);
 

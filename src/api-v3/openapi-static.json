@@ -31,6 +31,14 @@
     {
       "name": "Books",
       "description": "Book metadata operations"
+    },
+    {
+      "name": "Jobs",
+      "description": "Async job management (imports, scans, enrichment)"
+    },
+    {
+      "name": "Webhooks",
+      "description": "External webhook handlers"
     }
   ],
   "paths": {
@@ -262,6 +270,776 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EnrichResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/jobs/imports": {
+      "post": {
+        "tags": ["Jobs"],
+        "summary": "Import books from CSV",
+        "description": "Upload CSV file for background processing with Gemini 2.0 Flash. Returns immediately with jobId for progress tracking via SSE stream. Max file size: 8MB. Max rows: ~5000 books.",
+        "operationId": "createImportJob",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CSV file (max 8MB)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Import job accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobInitResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid file (missing, wrong format)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File too large (>8MB)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/jobs/imports/{jobId}": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Get import job status",
+        "description": "Query current status of CSV import job. Use SSE stream for real-time updates (recommended). Polling fallback: max 1 request every 2 seconds.",
+        "operationId": "getImportJobStatus",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Jobs"],
+        "summary": "Cancel import job",
+        "description": "Cancel in-progress import job. Note: Jobs may not stop immediately (graceful shutdown).",
+        "operationId": "cancelImportJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job canceled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Job already completed or failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/jobs/imports/{jobId}/stream": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Stream import progress (SSE)",
+        "description": "Real-time progress updates via Server-Sent Events. Requires Bearer token from job creation response. Token valid for 1 hour.",
+        "operationId": "streamImportProgress",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Bearer token from job creation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "object",
+                  "description": "Server-Sent Events stream with progress, complete, error, and ping events"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (invalid or expired token)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/jobs/imports/{jobId}/results": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Get import job results",
+        "description": "Fetch enriched books from completed import job. Results cached in KV for 1 hour after completion.",
+        "operationId": "getImportJobResults",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResultsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found or not completed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/jobs/scans": {
+      "post": {
+        "tags": ["Jobs"],
+        "summary": "Scan bookshelf photos",
+        "description": "Upload 1-5 photos for AI-powered book detection with Gemini Vision. Returns immediately with jobId for progress tracking via SSE stream. Max size: 10MB per photo, 50MB total.",
+        "operationId": "createScanJob",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["photos[]"],
+                "properties": {
+                  "photos[]": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "minItems": 1,
+                    "maxItems": 5,
+                    "description": "Array of photo files (1-5 photos)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Scan job accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobInitResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (missing photos, wrong format)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File too large (photo >10MB or batch >50MB)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/jobs/scans/{jobId}": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Get scan job status",
+        "description": "Query current status of bookshelf scan job. Use SSE stream for real-time updates (recommended). Polling fallback: max 1 request every 2 seconds.",
+        "operationId": "getScanJobStatus",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Jobs"],
+        "summary": "Cancel scan job",
+        "description": "Cancel in-progress scan job and cleanup R2 storage. Deletes all uploaded photos for this job. Note: Jobs may not stop immediately (graceful shutdown).",
+        "operationId": "cancelScanJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job canceled (includes R2 cleanup status)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Job already completed or failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/jobs/scans/{jobId}/stream": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Stream scan progress (SSE)",
+        "description": "Real-time progress updates via Server-Sent Events. Requires Bearer token from job creation response. Token valid for 1 hour.",
+        "operationId": "streamScanProgress",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Bearer token from job creation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "object",
+                  "description": "Server-Sent Events stream with progress, complete, error, and ping events"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (invalid or expired token)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/jobs/scans/{jobId}/results": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Get scan job results",
+        "description": "Fetch detected books from completed scan job. Results include book metadata, bounding boxes, confidence scores, and enrichment data. Results cached in KV for 2 hours after completion.",
+        "operationId": "getScanJobResults",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResultsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found or not completed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/jobs/enrichment/{jobId}": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Get enrichment job status",
+        "description": "Query current status of batch enrichment job. Use SSE stream for real-time updates (recommended). Polling fallback: max 1 request every 2 seconds.",
+        "operationId": "getEnrichmentJobStatus",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Jobs"],
+        "summary": "Cancel enrichment job",
+        "description": "Cancel in-progress enrichment job. Note: Jobs may not stop immediately (graceful shutdown).",
+        "operationId": "cancelEnrichmentJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job canceled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Job already completed or failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/jobs/enrichment/{jobId}/stream": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Stream enrichment progress (SSE)",
+        "description": "Real-time progress updates via Server-Sent Events. Progress updates every 25 books. Requires Bearer token from job creation response. Token valid for 1 hour.",
+        "operationId": "streamEnrichmentProgress",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Bearer token from job creation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "object",
+                  "description": "Server-Sent Events stream with progress, complete, error, and ping events"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (invalid or expired token)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/jobs/enrichment/{jobId}/results": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Get enrichment job results",
+        "description": "Fetch enriched books from completed enrichment job. Results include enriched book metadata, books that were not found, and embedding generation status. Results cached in KV for 2 hours after completion.",
+        "operationId": "getEnrichmentJobResults",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResultsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found or not completed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/webhooks/alexandria/enrichment-complete": {
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Handle enrichment completion event",
+        "description": "Receives notification from Alexandria when book enrichment is complete. Triggers a fresh fetch to update local D1 cache.",
+        "operationId": "alexandriaEnrichmentComplete",
+        "parameters": [
+          {
+            "name": "x-alexandria-webhook-secret",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Shared secret for authentication"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["isbn", "type"],
+                "properties": {
+                  "isbn": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["edition", "work", "author"]
+                  },
+                  "quality_improvement": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook processed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid secret",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -691,6 +1469,147 @@
           "reason": {
             "type": "string",
             "description": "Why this book is recommended"
+          }
+        }
+      },
+      "JobInitResponse": {
+        "type": "object",
+        "required": ["success", "data", "metadata"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "required": ["jobId", "status", "streamUrl", "token"],
+            "properties": {
+              "jobId": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Unique job identifier"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["queued", "processing", "completed", "failed", "canceled"],
+                "description": "Initial job status (always 'queued')"
+              },
+              "streamUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "SSE stream URL for real-time progress"
+              },
+              "token": {
+                "type": "string",
+                "description": "Bearer token for SSE authentication (valid 1 hour)"
+              }
+            }
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        }
+      },
+      "JobStatusResponse": {
+        "type": "object",
+        "required": ["success", "data", "metadata"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "required": ["jobId", "type", "status", "progress", "processedCount", "totalCount"],
+            "properties": {
+              "jobId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["csv_import", "bookshelf_scan", "batch_enrichment"],
+                "description": "Job type"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["queued", "processing", "completed", "failed", "canceled"],
+                "description": "Current job status"
+              },
+              "progress": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Progress as decimal (0.0 to 1.0)"
+              },
+              "processedCount": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Items processed so far"
+              },
+              "totalCount": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Total items to process"
+              },
+              "startTime": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Job start timestamp"
+              },
+              "completedTime": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Job completion timestamp"
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "description": "Error details if job failed"
+              }
+            }
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        }
+      },
+      "JobResultsResponse": {
+        "type": "object",
+        "required": ["success", "data", "metadata"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "required": ["jobId", "status", "results"],
+            "properties": {
+              "jobId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["completed"],
+                "description": "Job status (only completed jobs have results)"
+              },
+              "results": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                },
+                "description": "Job results (structure varies by job type)"
+              }
+            }
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
           }
         }
       }

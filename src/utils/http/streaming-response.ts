@@ -34,12 +34,12 @@ export function createStreamingResponse<T>(
   // Start streaming in the background
   const streamPromise = (async () => {
     try {
-      let count = 0
+      let _count = 0
       for await (const item of generator()) {
         const json = JSON.stringify(item)
         await writer.write(encoder.encode(`${json}\n`))
 
-        count++
+        _count++
         // Note: TransformStream automatically handles backpressure and flushing
         // No explicit flush needed - the stream will flush when the internal buffer fills
       }
