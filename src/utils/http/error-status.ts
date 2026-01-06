@@ -14,7 +14,7 @@ import type { ErrorResponse } from '../../types/responses.js'
  * Type-safe HTTP status codes
  * Union of literal types enforces compile-time safety
  */
-export type HttpStatus = 400 | 404 | 500 | 502 | 503
+export type HttpStatus = 400 | 404 | 429 | 500 | 502 | 503 | 504
 
 /**
  * Centralized error code to HTTP status mapping
@@ -22,14 +22,18 @@ export type HttpStatus = 400 | 404 | 500 | 502 | 503
  * Mapping rationale:
  * - INVALID_QUERY, INVALID_ISBN: 400 (Bad Request) - client input errors
  * - NOT_FOUND: 404 (Not Found) - requested resource doesn't exist
+ * - RATE_LIMIT_EXCEEDED: 429 (Too Many Requests) - rate limit exceeded
  * - INTERNAL_ERROR: 500 (Internal Server Error) - unexpected server failures
+ * - PROVIDER_TIMEOUT: 504 (Gateway Timeout) - upstream timeout
  * - PROVIDER_ERROR: Handled by providerErrorStatus() for nuanced cases
  */
 const ERROR_STATUS_MAP = {
   INVALID_QUERY: 400,
   INVALID_ISBN: 400,
   NOT_FOUND: 404,
+  RATE_LIMIT_EXCEEDED: 429,
   INTERNAL_ERROR: 500,
+  PROVIDER_TIMEOUT: 504,
 } as const satisfies Record<Exclude<ApiErrorCode, 'PROVIDER_ERROR'>, HttpStatus>
 
 /**
@@ -88,7 +92,7 @@ export function statusFromError(error: ErrorResponse | unknown): HttpStatus {
 
   // 1. Explicit status (if already set)
   if (errorResponse.status) {
-    return errorResponse.status
+    return errorResponse.status as HttpStatus
   }
 
   // 2. Map via error code

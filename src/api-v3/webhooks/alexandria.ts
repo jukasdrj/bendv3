@@ -150,10 +150,61 @@ export function registerAlexandriaWebhookRoutes(
       return c.json({ success: true, message: 'Enrichment scheduled' }, 200)
     } catch (error: any) {
       console.error('[Webhook] Error processing enrichment:', error)
-      // We return 500 but we might want to return 200 to stop retries if it's a logic error?
-      // Standard practice: 500 implies "try again later", which is good for transient errors.
+
+      // Enum-based error classification (more robust than string matching)
+      // Permanent errors (client/logic): Return 200 to stop Alexandria retries
+      // Transient errors (network/timeout): Return 500 to trigger retries
+      const PERMANENT_ERROR_CODES = new Set([
+        'INVALID_ISBN',
+        'INVALID_QUERY',
+        'VALIDATION_ERROR',
+        'SCHEMA_ERROR',
+      ])
+
+      const TRANSIENT_ERROR_CODES = new Set([
+        'PROVIDER_TIMEOUT',
+        'CIRCUIT_OPEN',
+        'RATE_LIMIT_EXCEEDED',
+        'PROVIDER_ERROR',
+        'CACHE_ERROR',
+        'INTERNAL_ERROR',
+      ])
+
+      const errorCode = error?.code || error?.name
+      const isPermanentError = errorCode && PERMANENT_ERROR_CODES.has(errorCode)
+
+      if (isPermanentError) {
+        // Log for monitoring and investigation
+        console.warn(`[Webhook] Permanent error for ${payload.isbn}:`, {
+          code: errorCode,
+          message: error.message,
+          requestId: ctx.requestId,
+        })
+
+        // Track in Analytics Engine for alerting
+        try {
+          c.env.PERFORMANCE_ANALYTICS?.writeDataPoint({
+            blobs: ['webhook_permanent_error', payload.isbn, errorCode],
+            doubles: [1],
+            indexes: ['alexandria_webhook'],
+          })
+        } catch (_) {
+          // Analytics failure shouldn't block webhook response
+        }
+
+        // Return 200 to stop retries (don't expose internal error details)
+        return c.json(
+          {
+            success: false,
+            message: 'Request cannot be processed',
+          },
+          200,
+        )
+      }
+
+      // Default: Return 500 for transient/unknown errors to trigger retries
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', 'Temporary processing error', {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),

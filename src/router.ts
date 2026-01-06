@@ -42,10 +42,6 @@ import { createErrorResponse, ErrorCodes } from './utils/http/response-builder'
 // OpenAPI-enabled Hono app with Bindings and ExecutionContext support
 const app = new OpenAPIHono<{ Bindings: Env; Variables: { executionCtx?: ExecutionContext } }>()
 
-// Helper to safely get ExecutionContext from Hono context
-const getCtx = (c: any): ExecutionContext | undefined =>
-  c.executionCtx as ExecutionContext | undefined
-
 // ============================================================================
 // Global Middleware
 // ============================================================================

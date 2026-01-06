@@ -217,8 +217,8 @@ export async function storeEmbedding(
           isbn: metadata.isbn,
           title: metadata.title,
           author: metadata.author,
-          categories: metadata.categories,
-        },
+          categories: metadata.categories || undefined,
+        } as Record<string, string>,
       },
     ])
 

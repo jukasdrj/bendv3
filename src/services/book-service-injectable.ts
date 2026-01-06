@@ -316,13 +316,24 @@ export class InjectableBookService {
       // Save to repository
       const bookRecord: BookRecord = {
         isbn: isbn,
+        title: work?.title || edition?.title || 'Unknown',
+        subtitle: work?.subtitle || edition?.subtitle || null,
+        description: work?.description || edition?.description || null,
+        publisher: edition?.publisher || null,
+        publicationDate: edition?.publicationDate || null,
+        language: edition?.language || null,
+        pageCount: edition?.pageCount || null,
+        coverSmallUrl: work?.coverImageURL || edition?.coverImageURL || null,
+        coverMediumUrl: work?.coverImageURL || edition?.coverImageURL || null,
+        coverLargeUrl: work?.coverImageURL || edition?.coverImageURL || null,
         canonicalMetadata: {
           works: result.works,
           editions: result.editions || [],
           authors: result.authors || [],
         },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        providerMetadata: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
       }
 
       await this.bookRepository.save(bookRecord)
@@ -399,7 +410,7 @@ function getDefaultContainer(env: any): ServiceContainer {
     const { createServiceContainer } = require('./service-container')
     defaultContainer = createServiceContainer(env)
   }
-  return defaultContainer
+  return defaultContainer!
 }
 
 /**

@@ -144,7 +144,7 @@ export function createErrorResponse(
   console.error(`Error [${finalCode || 'UNKNOWN'}]:`, opts.message)
 
   // P1: Determine if error is retryable based on error code (Issue #303)
-  const retryableErrors = new Set([
+  const retryableErrors = new Set<string>([
     ErrorCodes.RATE_LIMIT_EXCEEDED,
     ErrorCodes.CIRCUIT_OPEN, // Issue #303: Circuit breaker errors are retryable
     ErrorCodes.PROVIDER_ERROR,
@@ -154,8 +154,8 @@ export function createErrorResponse(
   ])
   const retryable = finalCode ? retryableErrors.has(finalCode) : false
 
-  const envelope: ResponseEnvelope<null> = {
-    success: false, // P0: Add success discriminator for iOS client compatibility
+  const envelope: ResponseEnvelope<null> & { success: false } = {
+    success: false as const, // P0: Add success discriminator for iOS client compatibility
     data: null,
     metadata: {
       timestamp: new Date().toISOString(),
