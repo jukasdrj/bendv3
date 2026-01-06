@@ -514,7 +514,10 @@ export class CacheMetricsDO extends DurableObject<Env> {
           ttl_effective_hits: 0,
         }
       }
-      this.addStats(destination.prefixes[prefix], source.prefixes[prefix])
+      const sourcePrefix = source.prefixes[prefix]
+      if (sourcePrefix) {
+        this.addStats(destination.prefixes[prefix], sourcePrefix)
+      }
     }
   }
 
@@ -655,7 +658,9 @@ export class CacheMetricsDO extends DurableObject<Env> {
       }
     }
 
-    update(prefixStats)
+    if (prefixStats) {
+      update(prefixStats)
+    }
     update(windowStats.total)
   }
 

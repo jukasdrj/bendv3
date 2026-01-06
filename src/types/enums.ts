@@ -5,7 +5,7 @@
  * DO NOT modify without updating iOS Swift enums.
  */
 
-export type EditionFormat = 'Hardcover' | 'Paperback' | 'E-book' | 'Audiobook' | 'Mass Market'
+export type EditionFormat = 'Hardcover' | 'Paperback' | 'E-book' | 'Audiobook' | 'Mass Market' | 'Other'
 
 export type AuthorGender = 'Female' | 'Male' | 'Non-binary' | 'Other' | 'Unknown'
 

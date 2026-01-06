@@ -183,7 +183,7 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
       console.error(`[WebSocketConnectionDO] [cid: ${this.correlationId}] Missing jobId parameter`)
       return new Response('Missing jobId parameter', {
         status: 400,
-        headers: getCorsHeaders(request) as HeadersInit,
+        headers: getCorsHeaders(request) as unknown as HeadersInit,
       })
     }
 
@@ -344,7 +344,7 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
     return new Response(null, {
       status: 101,
       webSocket: client,
-      headers: getCorsHeaders(request) as HeadersInit,
+      headers: getCorsHeaders(request) as unknown as HeadersInit,
     })
   }
 
