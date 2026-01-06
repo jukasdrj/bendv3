@@ -183,7 +183,7 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
       console.error(`[WebSocketConnectionDO] [cid: ${this.correlationId}] Missing jobId parameter`)
       return new Response('Missing jobId parameter', {
         status: 400,
-        headers: getCorsHeaders(request),
+        headers: getCorsHeaders(request) as HeadersInit,
       })
     }
 
@@ -254,7 +254,7 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
 
     // Create WebSocket pair
     const pairStartTime = Date.now()
-    const [client, server] = Object.values(new WebSocketPair())
+    const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     const pairDuration = Date.now() - pairStartTime
 
     // Store server-side WebSocket
@@ -263,7 +263,7 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
 
     // Accept connection
     const acceptStartTime = Date.now()
-    this.webSocket.accept()
+    this.webSocket?.accept()
     const acceptDuration = Date.now() - acceptStartTime
 
     // Track connection establishment (Issue #36)
@@ -292,11 +292,11 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
     }
 
     // Setup event handlers
-    this.webSocket.addEventListener('message', (event: MessageEvent) => {
+    this.webSocket?.addEventListener('message', (event: MessageEvent) => {
       this.handleMessage(event.data as string)
     })
 
-    this.webSocket.addEventListener('close', (event: CloseEvent) => {
+    this.webSocket?.addEventListener('close', (event: CloseEvent) => {
       if (this.logLevel === 'info' || this.logLevel === 'debug') {
         console.log(
           `[${this.jobId}] [cid: ${this.correlationId}] WebSocket closed:`,
@@ -331,7 +331,7 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
       this.cleanup()
     })
 
-    this.webSocket.addEventListener('error', (event: Event) => {
+    this.webSocket?.addEventListener('error', (event: Event) => {
       console.error(`[${this.jobId}] [cid: ${this.correlationId}] WebSocket error:`, event)
 
       // Track error disconnect (Issue #36)
@@ -344,7 +344,7 @@ export class WebSocketConnectionDO extends DurableObject<Env> {
     return new Response(null, {
       status: 101,
       webSocket: client,
-      headers: getCorsHeaders(request),
+      headers: getCorsHeaders(request) as HeadersInit,
     })
   }
 

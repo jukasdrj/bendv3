@@ -109,9 +109,9 @@ describe('V3 Batch Enrichment Async Mode - Smoke Tests', () => {
       const schemas = await import('@bookstrack/schemas')
 
       // Verify type exports are available (compile-time check)
-      const enrichRequest: typeof schemas.EnrichRequest = undefined as any
-      const enrichedBook: typeof schemas.EnrichedBook = undefined as any
-      const enrichResultData: typeof schemas.EnrichResultData = undefined as any
+      const _enrichRequest: typeof schemas.EnrichRequest = undefined as any
+      const _enrichedBook: typeof schemas.EnrichedBook = undefined as any
+      const _enrichResultData: typeof schemas.EnrichResultData = undefined as any
 
       // TypeScript will fail if types are not exported
       expect(true).toBe(true)
@@ -309,7 +309,7 @@ describe('V3 Batch Enrichment Async Mode - Smoke Tests', () => {
       const { JobStateManagerDO } = await import('../../src/api-v3/jobs/common')
 
       // Type-level check - TypeScript will fail if method is missing
-      const mockDO: typeof JobStateManagerDO = undefined as any
+      const _mockDO: typeof JobStateManagerDO = undefined as any
 
       // Runtime check - verify method signature exists in type definition
       expect(true).toBe(true)

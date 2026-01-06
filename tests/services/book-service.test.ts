@@ -449,7 +449,6 @@ describe('BookService', () => {
       it('should handle mixed cache hits and misses in batch operations', async () => {
         // Arrange
         const cachedBook = mockBookRecord;
-        const missingISBNs = ['9780439064873', '9780439136365'];
 
         // First ISBN is cached, others are not
         vi.mocked(BookRepository.prototype.findByISBN)

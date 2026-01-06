@@ -6,7 +6,10 @@ const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 describe('Alexandria Cover Service', () => {
-  let env;
+  let env: {
+    ALEXANDRIA_CLIENT_ID: string
+    ALEXANDRIA_CLIENT_SECRET: string
+  };
 
   beforeEach(() => {
     env = {
@@ -162,7 +165,7 @@ describe('Alexandria Cover Service', () => {
         // The implementation uses setTimeout to call controller.abort().
         // We need to trigger that timeout.
 
-        mockFetch.mockImplementation(() => new Promise((resolve, reject) => {
+        mockFetch.mockImplementation(() => new Promise((_resolve, _reject) => {
             // Wait for signal
             // But we can just simulate the rejection that fetch would throw when aborted
         }));
@@ -181,8 +184,8 @@ describe('Alexandria Cover Service', () => {
 
         // If we want to verify the timeout logic triggers the abort:
         // We need fetch to pend.
-        let rejectFetch;
-        mockFetch.mockReturnValue(new Promise((resolve, reject) => {
+        let rejectFetch: (reason?: unknown) => void;
+        mockFetch.mockReturnValue(new Promise((_resolve, reject) => {
              rejectFetch = reject;
         }));
 

@@ -172,7 +172,7 @@ export function createErrorResponse(
 
   // Build headers (Issue #302: Add Retry-After for 429 responses)
   const headers: Record<string, string> = {
-    ...getCorsHeaders(finalCorsRequest),
+    ...getCorsHeaders(finalCorsRequest ?? undefined),
     'Content-Type': 'application/json',
     'X-Response-Format': 'v2.0', // For monitoring compliance (Issue #93)
     'X-Error-Type': finalCode || 'UNKNOWN', // For analytics tracking

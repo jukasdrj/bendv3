@@ -42,7 +42,7 @@ describe('InjectableBookService', () => {
     }
 
     mockDeduplicationService = {
-      deduplicate: vi.fn().mockImplementation((key, fn) => fn()), // Default passthrough
+      deduplicate: vi.fn().mockImplementation((_key, fn) => fn()), // Default passthrough
     }
 
     mockEnv = {

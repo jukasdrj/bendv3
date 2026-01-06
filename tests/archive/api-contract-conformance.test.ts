@@ -97,7 +97,7 @@ const REQUIRED_RESPONSE_HEADERS = {
  * V3 API paths (V1 and V2 removed after sunset)
  * V3 uses native Hono OpenAPI - see /v3/openapi.json for full spec
  */
-const V3_API_PATHS = [
+const _V3_API_PATHS = [
   { method: 'GET', path: '/health' },
   { method: 'GET', path: '/v3/books/:isbn' },
   { method: 'GET', path: '/v3/books/search' },
@@ -505,16 +505,6 @@ describe('API Contract Conformance', () => {
   describe('Endpoint-Specific Contract Validation', () => {
     describe('/health endpoint', () => {
       it('should match documented health response structure', () => {
-        // Per API_CONTRACT.md section 9.1
-        const expectedStructure = {
-          data: {
-            status: 'ok',
-            worker: expect.any(String),
-            version: expect.any(String),
-            router: 'hono',
-          },
-        }
-
         // Verify router.ts implements this structure
         expect(routerContent).toContain('status: "ok"')
         expect(routerContent).toContain('worker: "api-worker"')
@@ -548,20 +538,6 @@ describe('API Contract Conformance', () => {
 
 describe('Book Schema Validation', () => {
   it('should define required Book fields per OpenAPI spec', () => {
-    // OpenAPI Book schema required fields
-    const requiredFields = [
-      'isbn',
-      'isbn13',
-      'title',
-      'authors',
-      'publisher',
-      'publishedDate',
-      'pageCount',
-      'categories',
-      'language',
-      'coverUrl',
-    ]
-
     // These should all be present in the Book type definition
     const typesPath = path.join(__dirname, '../src/types/canonical.ts')
     const typesContent = fs.readFileSync(typesPath, 'utf-8')
@@ -597,9 +573,6 @@ describe('Error Response Schema Validation', () => {
 
 describe('Job Status Schema Validation', () => {
   it('should define valid job status values per OpenAPI spec', () => {
-    // Per OpenAPI JobStatus schema
-    const validStatuses = ['initialized', 'processing', 'completed', 'failed', 'canceled']
-
     // Check types file for status definitions
     const typesPath = path.join(__dirname, '../src/types/responses.ts')
     const typesContent = fs.readFileSync(typesPath, 'utf-8')
@@ -622,7 +595,6 @@ describe('Rate Limit Response Validation', () => {
   const rateLimiterPath = path.join(__dirname, '../src/middleware/rate-limiter.js')
 
   it('should include Retry-After header on rate limit responses', () => {
-    // Per API_CONTRACT.md section 10
     const content = fs.readFileSync(rateLimiterPath, 'utf-8')
 
     expect(content).toContain('Retry-After')

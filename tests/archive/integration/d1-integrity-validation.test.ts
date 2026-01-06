@@ -121,7 +121,7 @@ describe('D1 Data Integrity Validation (Issue #22)', () => {
       if (validResponses.length >= 2) {
         // All responses should be identical
         const first = JSON.stringify(validResponses[0].data);
-        validResponses.slice(1).forEach((resp, i) => {
+        validResponses.slice(1).forEach((resp) => {
           expect(JSON.stringify(resp.data)).toBe(first);
         });
       }

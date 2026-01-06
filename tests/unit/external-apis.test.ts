@@ -7,7 +7,7 @@ import { withCircuitBreaker } from "../../src/services/circuit-breaker";
 vi.mock("../../src/utils/cache");
 vi.mock("../../src/services/circuit-breaker");
 vi.mock("../../src/utils/analytics-logger", () => ({
-    logExternalApiCall: vi.fn((provider, fn) => fn()),
+    logExternalApiCall: vi.fn((_provider, fn) => fn()),
 }));
 
 // Mock normalizers
@@ -56,7 +56,7 @@ describe("External APIs Service", () => {
 
         // Default mock implementation for cache
         (getCached as any).mockResolvedValue(null);
-        (withCircuitBreaker as any).mockImplementation((provider, env, fn) => fn());
+        (withCircuitBreaker as any).mockImplementation((_provider, _env, fn) => fn());
     });
 
     afterEach(() => {

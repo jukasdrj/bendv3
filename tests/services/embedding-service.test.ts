@@ -21,7 +21,10 @@ const mockVectorize = {
 };
 
 describe('Embedding Service', () => {
-  let env;
+  let env: {
+    AI: typeof mockAI
+    BOOK_VECTORS: typeof mockVectorize
+  };
 
   beforeEach(() => {
     env = {

@@ -81,7 +81,7 @@ async function getPopularCacheKeys(env: Env, limit = 100): Promise<string[]> {
           const data = await env.CACHE.get<AccessData>(key.name, 'json')
           // Extract cache key by removing 'access:' prefix
           const cacheKey = key.name.replace('access:', '')
-          return { cacheKey, ...(data || { count: 0, lastAccess: 0 }) }
+          return { ...(data || { count: 0, lastAccess: 0 }), cacheKey }
         } catch (error) {
           console.warn(`Failed to read access key ${key.name}:`, (error as Error).message)
           return null

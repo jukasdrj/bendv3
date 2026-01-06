@@ -144,8 +144,6 @@ export class JobStateManagerDO extends DurableObject<Env> {
   ): Promise<{ success: boolean }> {
     console.log(`[JobStateManager] Initializing job ${jobId} for pipeline ${pipeline}`)
 
-    this._currentPipeline = pipeline
-
     const jobState = {
       jobId,
       pipeline,
@@ -979,7 +977,12 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
         // Process each photo through AI scanner service
         // For batch scans, we process photos sequentially and aggregate results
-        const allDetectedBooks = []
+        const allDetectedBooks: Array<{
+          title?: string
+          author?: string
+          isbn?: string
+          photoIndex?: number
+        }> = []
         const photoCount = scanImages.length
 
         console.log(`[JobStateManager] Processing ${photoCount} photos for job ${jobState.jobId}`)
@@ -1066,7 +1069,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
               { title: book.title || '', author: book.author || '' },
               this.env,
               { maxResults: 20 },
-              null, // No executionCtx in DO alarm context
+              undefined, // No executionCtx in DO alarm context
             )
 
             const work = enrichmentResult.works?.[0] || null
@@ -1106,12 +1109,12 @@ export class JobStateManagerDO extends DurableObject<Env> {
           title: b.title,
           author: b.author,
           isbn: b.isbn || null,
-          confidence: b.confidence,
-          boundingBox: b.boundingBox,
+          confidence: ('confidence' in b ? b.confidence : null) || null,
+          boundingBox: ('boundingBox' in b ? b.boundingBox : undefined) || undefined,
           enrichmentStatus: b.enrichment?.status || 'pending',
           coverUrl: b.enrichment?.work?.coverImageURL || null,
           publisher: b.enrichment?.editions?.[0]?.publisher || null,
-          publicationYear: b.enrichment?.editions?.[0]?.publicationYear || null,
+          publicationYear: b.enrichment?.editions?.[0]?.publicationDate || null,
         }))
 
         // Store results in KV
@@ -1182,7 +1185,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
       try {
         // Process enrichment in chunks
-        await this.processEnrichmentJob(isbns, includeEmbedding, reporter, jobState.jobId ?? '')
+        await this.processEnrichmentJob(isbns, includeEmbedding ?? false, reporter, jobState.jobId ?? '')
       } catch (error) {
         console.error('[JobStateManager] Enrichment processing failed in alarm:', error)
 

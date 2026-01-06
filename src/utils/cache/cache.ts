@@ -3,7 +3,15 @@
  * Migrated from books-api-proxy caching logic
  */
 
-import type { Env } from '../../types/env.js'
+/**
+ * Minimal environment interface for cache utilities
+ * Both Env and ExternalAPIEnv satisfy this interface
+ */
+export interface CacheEnv {
+  CACHE?: KVNamespace
+  // Use any to accept both DurableObjectNamespace and DurableObjectNamespace<CacheMetricsDO>
+  CACHE_METRICS_DO?: DurableObjectNamespace<any>
+}
 
 /**
  * Cache event types for tracking
@@ -50,15 +58,16 @@ interface CacheResponse<T = unknown> {
  * @param ctx - Execution context for waitUntil
  * @param event - Cache event to track
  */
-function trackCacheEvent(env: Env, ctx: ExecutionContext, event: CacheEvent): void {
+function trackCacheEvent(env: CacheEnv, ctx: ExecutionContext, event: CacheEvent): void {
   if (!env.CACHE_METRICS_DO) {
     return // Skip if DO not available
   }
 
   const doFetch = async (): Promise<void> => {
     try {
+      if (!env.CACHE_METRICS_DO) return
       const id = env.CACHE_METRICS_DO.idFromName('cache-metrics-singleton')
-      const stub = env.CACHE_METRICS_DO.get(id)
+      const stub: DurableObjectStub<import('../../durable-objects/cache-metrics').CacheMetricsDO> = env.CACHE_METRICS_DO.get(id)
       // ✅ RPC MIGRATION: Direct method call (no HTTP overhead)
       await stub.recordEvent(event)
     } catch (error) {
@@ -91,11 +100,15 @@ function extractPrefix(key: string): string {
  */
 export async function getCached<T = unknown>(
   key: string,
-  env: Env,
+  env: CacheEnv,
   ctx: ExecutionContext,
 ): Promise<CacheResponse<T> | null> {
   const timestamp = Date.now()
   const prefix = extractPrefix(key)
+
+  if (!env.CACHE) {
+    return null // Cache not available
+  }
 
   try {
     const { value, metadata } = await env.CACHE.getWithMetadata<
@@ -167,12 +180,16 @@ export async function setCached<T = unknown>(
   key: string,
   value: T,
   ttl: number,
-  env: Env,
+  env: CacheEnv,
   ctx: ExecutionContext,
   hotTtl: number | null = null,
 ): Promise<void> {
   const timestamp = Date.now()
   const prefix = extractPrefix(key)
+
+  if (!env.CACHE) {
+    return // Cache not available
+  }
 
   try {
     const cachedWithMeta: CachedData<T> = {

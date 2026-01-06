@@ -137,10 +137,10 @@ export function transformWorkToGoogleFormat(work: Work): GoogleBooksVolume {
   const primaryEdition = work.editions && work.editions.length > 0 ? work.editions[0] : null
 
   // Extract and normalize authors from work or fall back to edition
-  const { authors, authorsDetailed } = extractAuthors(work, primaryEdition ?? undefined)
+  const { authors, authorsDetailed } = extractAuthors(work, primaryEdition ?? null)
 
   // Build industry identifiers from primary edition
-  const industryIdentifiers = buildIndustryIdentifiers(primaryEdition ?? undefined)
+  const industryIdentifiers = buildIndustryIdentifiers(primaryEdition ?? null)
 
   // Get cover image URL with placeholder fallback
   const coverImageURL = primaryEdition?.coverImageURL || getPlaceholderCover()

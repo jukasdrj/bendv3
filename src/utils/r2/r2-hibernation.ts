@@ -188,9 +188,8 @@ export function validatePayloadSize(type: PayloadType, data: PayloadData): Valid
     size = new TextEncoder().encode(data).length
   } else if (data instanceof ArrayBuffer) {
     size = data.byteLength
-  } else if (ArrayBuffer.isView(data)) {
-    size = data.byteLength
   } else {
+    // This should never happen given PayloadData type, but satisfy TypeScript
     return {
       valid: false,
       error: 'Invalid data type: must be string or ArrayBuffer',

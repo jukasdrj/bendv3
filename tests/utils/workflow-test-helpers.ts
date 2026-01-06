@@ -49,7 +49,7 @@ export interface JobStatus {
  */
 export function createMockWorkflowStep(): MockWorkflowStep {
   return {
-    do: vi.fn(async (name: string, optionsOrFn: unknown, maybeFn?: () => Promise<unknown>) => {
+    do: vi.fn(async (_name: string, optionsOrFn: unknown, maybeFn?: () => Promise<unknown>) => {
       // Handle both signatures: do(name, fn) and do(name, options, fn)
       const fn = maybeFn ?? optionsOrFn
       if (typeof fn === 'function') {

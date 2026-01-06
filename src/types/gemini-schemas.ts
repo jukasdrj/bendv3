@@ -85,6 +85,7 @@ export interface BookshelfDetectedBook {
   isbn?: string | null
   format?: BookFormat | null
   confidence?: number | null
+  photoIndex?: number // Added during scan processing for deduplication
 }
 
 /**

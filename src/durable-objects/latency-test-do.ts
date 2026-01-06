@@ -98,7 +98,7 @@ export class LatencyTestDO extends DurableObject<Env> {
     }
 
     // Get CacheMetricsDO stub for cross-DO RPC measurement
-    let cacheMetricsStub: DurableObjectStub
+    let cacheMetricsStub: DurableObjectStub<import('./cache-metrics').CacheMetricsDO>
     try {
       const id = this.env.CACHE_METRICS_DO.idFromName('default')
       cacheMetricsStub = this.env.CACHE_METRICS_DO.get(id)

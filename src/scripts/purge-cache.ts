@@ -191,7 +191,7 @@ async function purgePattern(kv: KVNamespace, prefix: string, stats: PurgeStats):
 
     // Check if there are more keys
     hasMore = !listResult.list_complete
-    cursor = listResult.cursor as string | undefined
+    cursor = (listResult as KVNamespaceListResult<unknown, string> & { cursor?: string }).cursor
   }
 
   console.log(`   ✅ Pattern ${prefix}* complete: ${patternStats.deleted} deleted`)

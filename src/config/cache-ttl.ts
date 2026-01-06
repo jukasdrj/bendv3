@@ -53,14 +53,27 @@ export const DEFAULT_TTL: CacheTTLConfig = {
 }
 
 /**
+ * Minimal env interface for cache TTL configuration
+ */
+interface CacheTTLEnv {
+  CACHE_HOT_TTL?: string
+  CACHE_COLD_TTL?: string
+  CACHE_TTL_ISBN?: string
+  CACHE_TTL_TITLE?: string
+  CACHE_TTL_AUTHOR?: string
+  CACHE_TTL_ENRICHMENT?: string
+  CACHE_TTL_COVER?: string
+}
+
+/**
  * Get TTL value for a specific cache type
  *
  * @param type - Cache type ('hot', 'cold', 'isbn', 'title', 'author', 'enrichment', 'cover')
  * @param env - Worker environment bindings
  * @returns TTL in seconds
  */
-export function getCacheTTL(type: CacheType, env: Partial<Env> = {}): number {
-  const envVarMap: Record<CacheType, keyof Env> = {
+export function getCacheTTL(type: CacheType, env: Partial<CacheTTLEnv> = {}): number {
+  const envVarMap: Record<CacheType, keyof CacheTTLEnv> = {
     hot: 'CACHE_HOT_TTL',
     cold: 'CACHE_COLD_TTL',
     isbn: 'CACHE_TTL_ISBN',

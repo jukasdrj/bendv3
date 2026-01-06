@@ -345,17 +345,20 @@ export async function processBookshelfScan(
 
     // ISSUE #133: Store full results in KV to avoid multi-MB WebSocket payloads
     // Build unified books array using standard structure
-    const books: BookResult[] = enrichedBooks.map((b) => ({
-      title: b.title,
-      author: b.author,
-      isbn: b.isbn || null,
-      confidence: b.confidence,
-      boundingBox: b.boundingBox,
-      enrichmentStatus: (b.enrichment?.status as 'success' | 'not_found' | 'error' | undefined) || 'pending',
-      coverUrl: b.enrichment?.work?.coverImageURL || null,
-      publisher: (b.enrichment?.editions as Array<{ publisher?: string | null }>)?.[0]?.publisher || null,
-      publicationYear: (b.enrichment?.editions as Array<{ publicationYear?: number | null }>)?.[0]?.publicationYear || null,
-    }))
+    const books: BookResult[] = enrichedBooks.map((b: EnrichedBook) => {
+      const enrichment = b.enrichment
+      return {
+        title: b.title,
+        author: b.author,
+        isbn: b.isbn || null,
+        confidence: b.confidence || null,
+        boundingBox: b.boundingBox,
+        enrichmentStatus: enrichment?.status || 'pending',
+        coverUrl: enrichment?.work?.coverImageURL || null,
+        publisher: enrichment?.editions?.[0]?.publisher || null,
+        publicationYear: enrichment?.editions?.[0]?.publicationDate || null,
+      }
+    })
 
     // Store complete results in KV with 24-hour expiration
     const resultsKey = `scan-results:${jobId}`

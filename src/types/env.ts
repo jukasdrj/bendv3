@@ -37,6 +37,8 @@ export interface Env {
   // Cache Configuration
   CACHE_HOT_TTL?: string // Optional: defaults to 7200 (2h)
   CACHE_COLD_TTL?: string // Optional: defaults to 1209600 (14d)
+  CACHE_WARMING_CONCURRENCY?: string // Optional: defaults to 5
+  ACCESS_TRACKING_SAMPLE_RATE?: string // Optional: defaults to 0.01 (1%)
   MAX_RESULTS_DEFAULT: string
   RATE_LIMIT_MS: string
   CONCURRENCY_LIMIT: string
@@ -76,6 +78,7 @@ export interface Env {
 
   // AI Configuration
   AI_PROVIDER: string
+  GEMINI_VISION_MODEL?: string // Optional: defaults to gemini-2.0-flash-exp
   MAX_IMAGE_SIZE_MB: string
   REQUEST_TIMEOUT_MS: string
   CONFIDENCE_THRESHOLD: string

@@ -11,14 +11,12 @@ import {
   createMockWorkflowStep,
   createMockEnv,
   createMockFetch,
-  assertStepCalled,
   assertStepOrder,
 } from '../utils/workflow-test-helpers'
 import {
   mockHarryPotterMetadata,
   mockGoogleBooksResponse,
   mockOpenLibraryResponse,
-  mockBookImportInput,
   mockEmbeddingResult,
 } from '../fixtures/workflow-fixtures'
 
@@ -194,7 +192,6 @@ describe('BookImportWorkflow - Cover Upload', () => {
 describe('BookImportWorkflow - Embedding Generation', () => {
   it('should generate embeddings using Workers AI', async () => {
     const mockEnv = createMockEnv()
-    const expectedDimensions = 1024
 
     await mockEnv.AI.run('@cf/baai/bge-m3', { text: ['test text'] })
 
@@ -379,7 +376,6 @@ describe('BookImportWorkflow - Step Execution', () => {
 
 describe('BookImportWorkflow - Error Handling', () => {
   it('should handle missing book gracefully', async () => {
-    const mockEnv = createMockEnv()
     const emptyResponse = { totalItems: 0, items: [] }
 
     globalThis.fetch = vi.fn().mockResolvedValue(

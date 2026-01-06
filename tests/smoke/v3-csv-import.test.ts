@@ -53,13 +53,13 @@ describe('V3 CSV Import Routes - Smoke Tests', () => {
       const schemas = await import('@bookstrack/schemas')
 
       // Verify type exports are available (compile-time check)
-      const jobInitData: typeof schemas.JobInitData = undefined as any
-      const job: typeof schemas.Job = undefined as any
-      const jobResultsData: typeof schemas.JobResultsData = undefined as any
-      const sseProgressEvent: typeof schemas.SSEProgressEvent = undefined as any
-      const sseCompleteEvent: typeof schemas.SSECompleteEvent = undefined as any
-      const sseErrorEvent: typeof schemas.SSEErrorEvent = undefined as any
-      const ssePingEvent: typeof schemas.SSEPingEvent = undefined as any
+      const _jobInitData: typeof schemas.JobInitData = undefined as any
+      const _job: typeof schemas.Job = undefined as any
+      const _jobResultsData: typeof schemas.JobResultsData = undefined as any
+      const _sseProgressEvent: typeof schemas.SSEProgressEvent = undefined as any
+      const _sseCompleteEvent: typeof schemas.SSECompleteEvent = undefined as any
+      const _sseErrorEvent: typeof schemas.SSEErrorEvent = undefined as any
+      const _ssePingEvent: typeof schemas.SSEPingEvent = undefined as any
 
       // TypeScript will fail if types are not exported
       expect(true).toBe(true)

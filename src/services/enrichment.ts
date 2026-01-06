@@ -26,7 +26,7 @@ import type { AuthorReference, BookResult } from 'alexandria-worker/types'
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical.js'
 import type { Env } from '../types/env.js'
 import type { AuthorGender, DataProvider, EditionFormat } from '../types/enums.js'
-import { createAlexandriaClient, type AlexandriaClient } from './alexandria-client.js'
+import { createAlexandriaClient } from './alexandria-client.js'
 
 // ========================================================================================
 // INTERFACES

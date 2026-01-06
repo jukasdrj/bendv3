@@ -39,10 +39,13 @@ import { withCircuitBreaker } from './circuit-breaker'
 
 /**
  * Worker environment bindings used by external API functions
+ *
+ * NOTE: This is a minimal interface that Env satisfies.
+ * All properties are optional to support both full Env and partial test envs.
  */
 export interface ExternalAPIEnv {
-  GOOGLE_BOOKS_API_KEY?: any // Can be string or SecretBinding
-  ISBNDB_API_KEY?: any // Can be string or SecretBinding
+  GOOGLE_BOOKS_API_KEY?: string | { toString(): string } // Can be string or SecretBinding
+  ISBNDB_API_KEY?: string | { toString(): string } // Can be string or SecretBinding
   ALEXANDRIA_CLIENT_ID?: string // Worker secret (plain string)
   ALEXANDRIA_CLIENT_SECRET?: string // Worker secret (plain string)
   ENABLE_ALEXANDRIA_RPC?: string // Sprint 1: Hono RPC migration (default: false)
@@ -238,9 +241,9 @@ async function searchGoogleBooksById_Uncached(
   try {
     console.log(`GoogleBooks ID search for "${volumeId}"`)
 
-    const apiKey = env.GOOGLE_BOOKS_API_KEY?.get
-      ? await env.GOOGLE_BOOKS_API_KEY.get()
-      : env.GOOGLE_BOOKS_API_KEY
+    const apiKey = typeof env.GOOGLE_BOOKS_API_KEY === 'string'
+      ? env.GOOGLE_BOOKS_API_KEY
+      : env.GOOGLE_BOOKS_API_KEY?.toString()
 
     if (!apiKey) {
       console.error('Google Books API key not configured.')
@@ -347,9 +350,9 @@ async function searchGoogleBooks_Uncached(
     async () => {
       console.log(`GoogleBooks search for "${query}"`)
 
-      const apiKey = env.GOOGLE_BOOKS_API_KEY?.get
-        ? await env.GOOGLE_BOOKS_API_KEY.get()
-        : env.GOOGLE_BOOKS_API_KEY
+      const apiKey = typeof env.GOOGLE_BOOKS_API_KEY === 'string'
+        ? env.GOOGLE_BOOKS_API_KEY
+        : env.GOOGLE_BOOKS_API_KEY?.toString()
 
       if (!apiKey) {
         console.error('Google Books API key not configured.')
@@ -413,9 +416,9 @@ async function searchGoogleBooksByISBN_Uncached(
     async () => {
       console.log(`GoogleBooks ISBN search for "${isbn}"`)
 
-      const apiKey = env.GOOGLE_BOOKS_API_KEY?.get
-        ? await env.GOOGLE_BOOKS_API_KEY.get()
-        : env.GOOGLE_BOOKS_API_KEY
+      const apiKey = typeof env.GOOGLE_BOOKS_API_KEY === 'string'
+        ? env.GOOGLE_BOOKS_API_KEY
+        : env.GOOGLE_BOOKS_API_KEY?.toString()
 
       if (!apiKey) {
         console.error('Google Books API key not configured.')
@@ -1016,7 +1019,9 @@ async function getISBNdbBookByISBN_Uncached(
 
 async function fetchWithAuth(url: string, env: ExternalAPIEnv): Promise<ISBNdbSearchResponse> {
   // Handle both secrets store (has .get() method) and direct env var
-  const apiKey = env.ISBNDB_API_KEY?.get ? await env.ISBNDB_API_KEY.get() : env.ISBNDB_API_KEY
+  const apiKey = typeof env.ISBNDB_API_KEY === 'string'
+    ? env.ISBNDB_API_KEY
+    : env.ISBNDB_API_KEY?.toString()
 
   if (!apiKey) throw new Error('ISBNDB_API_KEY secret not found')
   const response = await fetch(url, {
