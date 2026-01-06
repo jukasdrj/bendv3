@@ -110,7 +110,7 @@ app.openapi(healthRoute, (c) => {
 
 // Metrics endpoint
 app.get('/metrics', async (c) => {
-  return await handleMetricsRequest(c.req.raw, c.env, getCtx(c))
+  return await handleMetricsRequest(c)
 })
 
 // ============================================================================
@@ -188,22 +188,12 @@ app.onError((err, c) => {
   // Log to Analytics Engine asynchronously
   if (c.env.PERFORMANCE_ANALYTICS?.writeDataPoint) {
     try {
-      const dataPointResult = c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
+      // writeDataPoint returns void, just call it directly
+      c.env.PERFORMANCE_ANALYTICS.writeDataPoint({
         blobs: ['router_error', err.message, c.req.path, c.req.method],
         doubles: [1],
         indexes: ['hono'],
       })
-
-      if (dataPointResult) {
-        const ctx = getCtx(c)
-        if (ctx) {
-          ctx.waitUntil(
-            Promise.resolve(dataPointResult).catch((analyticsErr) => {
-              console.error('[Hono] Failed to log error to Analytics Engine:', analyticsErr)
-            }),
-          )
-        }
-      }
     } catch (syncError) {
       console.error('[Hono] Synchronous error logging to Analytics:', syncError)
     }

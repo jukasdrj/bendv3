@@ -65,7 +65,7 @@ export const JobErrorSchema = z
     code: z.string(),
     message: z.string(),
     retryable: z.boolean(),
-    details: z.record(z.any()).optional(),
+    details: z.record(z.string(), z.unknown()).optional(),
   })
   .strict()
 

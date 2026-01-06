@@ -26,7 +26,7 @@ export function createCacheRoutes() {
 
   // GET /metrics - Cache performance metrics (from handler)
   router.get('/metrics', async (c) => {
-    return await handleCacheMetrics(c.req.raw, c.env)
+    return await handleCacheMetrics(c)
   })
 
   // GET /stats - Real-time cache performance statistics from CacheMetricsDO
