@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 // Mock DurableObject base class for testing
 class MockDurableObject {
   constructor(state, env) {
-    this.state = state;
+    this.ctx = state;  // Modern Cloudflare DO API uses ctx
     this.env = env;
   }
 }
@@ -76,6 +76,10 @@ describe('JobStateManagerDO', () => {
       WEBSOCKET_CONNECTION_DO: {
         idFromName: vi.fn(() => 'ws-do-id'),
         get: vi.fn(() => mockWsStub)
+      },
+      JOB_STATE_MANAGER_DO: {
+        idFromName: vi.fn((id) => `job-state-${id}`),
+        get: vi.fn(() => ({ /* mock DO stub */ }))
       }
     };
 
@@ -501,6 +505,222 @@ describe('JobStateManagerDO', () => {
       await doInstance.alarm();
 
       expect(mockState.storage.delete).toHaveBeenCalledWith('jobState');
+    });
+  });
+
+  describe('Alarm Resilience and Continuity (Issue #246)', () => {
+    beforeEach(async () => {
+      await mockState.storage.put('jobState', {
+        jobId: 'job-123',
+        pipeline: 'csv_import',
+        totalCount: 100,
+        processedCount: 50,
+        progress: 0.5,
+        status: 'processing',
+        startTime: Date.now(),
+        lastUpdateTime: Date.now(),
+        canceled: false
+      });
+
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should delete existing alarm before setting new one on completion (Issue #108)', async () => {
+      // Track call order manually
+      const callOrder = [];
+      mockState.storage.deleteAlarm.mockClear();
+      mockState.storage.setAlarm.mockClear();
+      mockState.storage.deleteAlarm.mockImplementation(async () => {
+        callOrder.push('delete');
+      });
+      mockState.storage.setAlarm.mockImplementation(async () => {
+        callOrder.push('set');
+      });
+
+      await doInstance.complete('csv_import', { books: [] });
+
+      // Verify deleteAlarm is called BEFORE setAlarm
+      expect(callOrder).toEqual(['delete', 'set']);
+      expect(mockState.storage.deleteAlarm).toHaveBeenCalledTimes(1);
+      expect(mockState.storage.setAlarm).toHaveBeenCalledTimes(1);
+    });
+
+    it('should delete existing alarm before setting new one on failure (Issue #108)', async () => {
+      // Track call order manually
+      const callOrder = [];
+      mockState.storage.deleteAlarm.mockClear();
+      mockState.storage.setAlarm.mockClear();
+      mockState.storage.deleteAlarm.mockImplementation(async () => {
+        callOrder.push('delete');
+      });
+      mockState.storage.setAlarm.mockImplementation(async () => {
+        callOrder.push('set');
+      });
+
+      await doInstance.sendError('csv_import', {
+        code: 'E_TEST',
+        message: 'Test error'
+      });
+
+      // Verify deleteAlarm is called BEFORE setAlarm
+      expect(callOrder).toEqual(['delete', 'set']);
+      expect(mockState.storage.deleteAlarm).toHaveBeenCalledTimes(1);
+      expect(mockState.storage.setAlarm).toHaveBeenCalledTimes(1);
+    });
+
+    it('should attempt to schedule alarm during completion', async () => {
+      // Complete job normally
+      await doInstance.complete('csv_import', { books: [] });
+
+      // Verify setAlarm was called with correct 24-hour delay
+      expect(mockState.storage.setAlarm).toHaveBeenCalled();
+
+      const alarmTime = mockState.storage.setAlarm.mock.calls[0][0];
+      const expectedTime = Date.now() + (24 * 60 * 60 * 1000);
+
+      // Allow 1 second tolerance
+      expect(Math.abs(alarmTime - expectedTime)).toBeLessThan(1000);
+    });
+
+    it('should schedule cleanup alarm with correct 24-hour delay on completion', async () => {
+      const beforeTime = Date.now();
+
+      await doInstance.complete('csv_import', { books: [] });
+
+      const afterTime = Date.now();
+      const alarmTime = mockState.storage.setAlarm.mock.calls[0][0];
+
+      // Verify alarm is scheduled for ~24 hours in the future
+      const expectedMin = beforeTime + (24 * 60 * 60 * 1000);
+      const expectedMax = afterTime + (24 * 60 * 60 * 1000);
+
+      expect(alarmTime).toBeGreaterThanOrEqual(expectedMin);
+      expect(alarmTime).toBeLessThanOrEqual(expectedMax);
+    });
+
+    it('should schedule cleanup alarm with correct 24-hour delay on failure', async () => {
+      const beforeTime = Date.now();
+
+      await doInstance.sendError('csv_import', {
+        code: 'E_TEST',
+        message: 'Test error'
+      });
+
+      const afterTime = Date.now();
+      const alarmTime = mockState.storage.setAlarm.mock.calls[0][0];
+
+      // Verify alarm is scheduled for ~24 hours in the future
+      const expectedMin = beforeTime + (24 * 60 * 60 * 1000);
+      const expectedMax = afterTime + (24 * 60 * 60 * 1000);
+
+      expect(alarmTime).toBeGreaterThanOrEqual(expectedMin);
+      expect(alarmTime).toBeLessThanOrEqual(expectedMax);
+    });
+
+    it('should handle alarm execution when job state is missing', async () => {
+      // Clear job state
+      await mockState.storage.delete('jobState');
+
+      // Alarm should not throw
+      await expect(doInstance.alarm()).resolves.toBeUndefined();
+
+      // Should still attempt cleanup
+      expect(mockState.storage.delete).toHaveBeenCalledWith('jobState');
+    });
+
+    it('should cleanup all job-related storage keys on alarm', async () => {
+      // Set up complete job state
+      await mockState.storage.put('jobState', { jobId: 'job-123', status: 'completed' });
+      await mockState.storage.put('csvText', 'test,csv,data');
+      await mockState.storage.put('processingType', 'csv_import');
+      await mockState.storage.put('scanImageR2Keys', ['key1', 'key2']);
+      await mockState.storage.put('enrichmentISBNs', ['9780123456789']);
+
+      await doInstance.alarm();
+
+      // Verify cleanup (at minimum jobState should be deleted)
+      expect(mockState.storage.delete).toHaveBeenCalledWith('jobState');
+    });
+
+    it('should schedule immediate alarm for CSV processing', async () => {
+      mockState.storage.setAlarm.mockClear();
+
+      await doInstance.scheduleCSVProcessing('test,csv,data', 'job-456');
+
+      // Verify alarm is scheduled for immediate execution
+      const alarmTime = mockState.storage.setAlarm.mock.calls[0][0];
+      const now = Date.now();
+
+      // Should be scheduled within 1 second of now
+      expect(Math.abs(alarmTime - now)).toBeLessThan(1000);
+    });
+
+    it('should schedule immediate alarm for bookshelf scan', async () => {
+      mockState.storage.setAlarm.mockClear();
+
+      await doInstance.scheduleBookshelfScan(['r2-key-1', 'r2-key-2'], 'job-789');
+
+      // Verify alarm is scheduled for immediate execution
+      const alarmTime = mockState.storage.setAlarm.mock.calls[0][0];
+      const now = Date.now();
+
+      // Should be scheduled within 1 second of now
+      expect(Math.abs(alarmTime - now)).toBeLessThan(1000);
+    });
+
+    it('should schedule immediate alarm for enrichment', async () => {
+      mockState.storage.setAlarm.mockClear();
+
+      await doInstance.scheduleEnrichment(['9780123456789'], 'job-999', true);
+
+      // Verify alarm is scheduled for immediate execution
+      const alarmTime = mockState.storage.setAlarm.mock.calls[0][0];
+      const now = Date.now();
+
+      // Should be scheduled within 1 second of now
+      expect(Math.abs(alarmTime - now)).toBeLessThan(1000);
+    });
+
+    it('should not create race condition when multiple operations schedule alarms', async () => {
+      // Reset deleteAlarm and setAlarm to basic mocks (remove custom implementations)
+      mockState.storage.deleteAlarm.mockReset();
+      mockState.storage.setAlarm.mockReset();
+      mockState.storage.deleteAlarm.mockResolvedValue(undefined);
+      mockState.storage.setAlarm.mockResolvedValue(undefined);
+
+      // First operation completes
+      await doInstance.complete('csv_import', { books: [] });
+
+      // Verify first alarm was scheduled
+      expect(mockState.storage.deleteAlarm).toHaveBeenCalledTimes(1);
+      expect(mockState.storage.setAlarm).toHaveBeenCalledTimes(1);
+
+      // Reset state for second operation
+      await mockState.storage.put('jobState', {
+        jobId: 'job-123',
+        pipeline: 'csv_import',
+        status: 'processing',
+        processedCount: 0,
+        totalCount: 100,
+        progress: 0,
+        startTime: Date.now(),
+        lastUpdateTime: Date.now(),
+        canceled: false
+      });
+
+      mockState.storage.deleteAlarm.mockClear();
+      mockState.storage.setAlarm.mockClear();
+
+      // Second operation fails
+      await doInstance.sendError('csv_import', { message: 'Error' });
+
+      // Verify deleteAlarm prevents race condition
+      expect(mockState.storage.deleteAlarm).toHaveBeenCalledTimes(1);
+      expect(mockState.storage.setAlarm).toHaveBeenCalledTimes(1);
     });
   });
 
