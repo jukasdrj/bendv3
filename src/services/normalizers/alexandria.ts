@@ -37,7 +37,8 @@ export interface AlexandriaResult {
   work_title?: string
   openlibrary_edition?: string // e.g., "https://openlibrary.org/books/OL..."
   openlibrary_work?: string // e.g., "https://openlibrary.org/works/OL..."
-  coverUrl?: string // Pre-cached cover URL from Alexandria enrichment
+  coverUrl?: string // Pre-cached cover URL from Alexandria enrichment (deprecated - use coverUrls)
+  coverUrls?: { original: string; large: string; medium: string; small: string } | null // Multi-size covers from Alexandria R2
   coverSource?: 'r2' | 'external' | 'external-fallback' | 'enriched-cached' | null
 }
 
@@ -51,8 +52,21 @@ export function normalizeAlexandriaToWork(result: AlexandriaResult): WorkDTO {
   // Prefer pre-cached coverUrl from Alexandria, fallback to OpenLibrary OLID-based URL
   const coverImageURL =
     result.coverUrl ||
+    result.coverUrls?.large ||
     (editionOLID ? `https://covers.openlibrary.org/b/olid/${editionOLID}-L.jpg` : null) ||
     getPlaceholderCover()
+
+  // Multi-size cover URLs (if Alexandria provides them via R2)
+  const coverUrls = result.coverUrls
+    ? result.coverUrls
+    : result.coverUrl
+      ? {
+          original: result.coverUrl,
+          large: result.coverUrl,
+          medium: result.coverUrl,
+          small: result.coverUrl,
+        }
+      : null
 
   return {
     // Required fields
@@ -62,6 +76,8 @@ export function normalizeAlexandriaToWork(result: AlexandriaResult): WorkDTO {
     // Optional metadata
     firstPublicationYear: extractYear(result.publish_date),
     coverImageURL,
+    coverUrls,
+    coverSource: result.coverSource,
 
     // Provenance
     synthetic: false,
@@ -90,8 +106,21 @@ export function normalizeAlexandriaToEdition(result: AlexandriaResult): EditionD
   // Prefer pre-cached coverUrl from Alexandria, fallback to OpenLibrary OLID-based URL
   const coverImageURL =
     result.coverUrl ||
+    result.coverUrls?.large ||
     (editionOLID ? `https://covers.openlibrary.org/b/olid/${editionOLID}-L.jpg` : null) ||
     getPlaceholderCover()
+
+  // Multi-size cover URLs (if Alexandria provides them via R2)
+  const coverUrls = result.coverUrls
+    ? result.coverUrls
+    : result.coverUrl
+      ? {
+          original: result.coverUrl,
+          large: result.coverUrl,
+          medium: result.coverUrl,
+          small: result.coverUrl,
+        }
+      : null
 
   return {
     // Identifiers
@@ -105,6 +134,8 @@ export function normalizeAlexandriaToEdition(result: AlexandriaResult): EditionD
     pageCount: result.pages ? parseInt(result.pages, 10) : undefined,
     format: 'Paperback' as const, // Default - Alexandria doesn't provide format
     coverImageURL,
+    coverUrls,
+    coverSource: result.coverSource,
 
     // Provenance
     primaryProvider: 'alexandria',

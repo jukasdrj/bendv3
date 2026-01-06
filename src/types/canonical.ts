@@ -32,8 +32,8 @@ export interface WorkDTO {
   originalLanguage?: string
   firstPublicationYear?: number
   description?: string
-  coverImageURL?: string // Cover image URL (placeholder used if missing)
-  coverUrls?: { large: string; medium: string; small: string } | null // Multi-size covers (Alexandria v2.2.4+)
+  coverImageURL?: string // Cover image URL (placeholder used if missing, deprecated - use coverUrls)
+  coverUrls?: { original: string; large: string; medium: string; small: string } | null // Multi-size covers (Alexandria v2.2.4+)
   coverSource?: 'r2' | 'external' | 'external-fallback' | 'enriched-cached' | null // Source of cover image (matches Alexandria BookResult)
 
   // Provenance
@@ -84,8 +84,8 @@ export interface EditionDTO {
   publicationDate?: string // YYYY-MM-DD or YYYY
   pageCount?: number
   format: EditionFormat
-  coverImageURL?: string // Cover image URL (placeholder used if missing)
-  coverUrls?: { large: string; medium: string; small: string } | null // Multi-size covers (Alexandria v2.2.4+)
+  coverImageURL?: string // Cover image URL (placeholder used if missing, deprecated - use coverUrls)
+  coverUrls?: { original: string; large: string; medium: string; small: string } | null // Multi-size covers (Alexandria v2.2.4+)
   coverSource?: 'r2' | 'external' | 'external-fallback' | 'enriched-cached' | null // Source of cover image (matches Alexandria BookResult)
   editionTitle?: string
   editionDescription?: string // Note: Can't use 'description' in Swift (@Model macro reserves it)

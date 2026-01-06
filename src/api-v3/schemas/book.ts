@@ -36,8 +36,29 @@ export const BookSchema = z.object({
     .optional()
     .describe('Book categories/genres (example: Fiction, Fantasy)'),
   language: z.string().optional().describe('ISO 639-1 language code (example: en)'),
-  coverUrl: z.string().url().optional().describe('Cover image URL'),
-  thumbnailUrl: z.string().url().optional().describe('Thumbnail image URL'),
+  coverUrl: z
+    .string()
+    .url()
+    .optional()
+    .describe('Cover image URL (deprecated - use coverUrls for multi-size support)'),
+  thumbnailUrl: z
+    .string()
+    .url()
+    .optional()
+    .describe('Thumbnail image URL (deprecated - use coverUrls.small)'),
+  coverUrls: z
+    .object({
+      original: z.string().url().describe('Original full-resolution cover'),
+      large: z.string().url().describe('Large cover (~600px width)'),
+      medium: z.string().url().describe('Medium cover (~300px width)'),
+      small: z.string().url().describe('Small cover/thumbnail (~100px width)'),
+    })
+    .optional()
+    .describe('Cover images in multiple sizes for frontend optimization'),
+  coverSource: z
+    .enum(['r2', 'external', 'external-fallback', 'enriched-cached'])
+    .optional()
+    .describe('Source of cover images (r2 = Alexandria R2 bucket, external = provider URL)'),
   workKey: z.string().optional().describe('OpenLibrary work key (example: OL82563W)'),
   editionKey: z.string().optional().describe('OpenLibrary edition key (example: OL7353617M)'),
   provider: z

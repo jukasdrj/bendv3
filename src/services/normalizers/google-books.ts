@@ -24,10 +24,26 @@ function getHighResCoverURL(imageLinks?: { thumbnail?: string }): string {
 }
 
 /**
+ * Create fallback coverUrls object from a single URL
+ * External providers don't provide multi-size images, so we use the same URL for all sizes
+ */
+function createFallbackCoverUrls(
+  url: string,
+): { original: string; large: string; medium: string; small: string } {
+  return {
+    original: url,
+    large: url,
+    medium: url,
+    small: url,
+  }
+}
+
+/**
  * Normalize Google Books volume to WorkDTO
  */
 export function normalizeGoogleBooksToWork(item: any): WorkDTO {
   const volumeInfo = item.volumeInfo || {}
+  const coverUrl = getHighResCoverURL(volumeInfo.imageLinks)
 
   return {
     title: volumeInfo.title || 'Unknown',
@@ -35,7 +51,9 @@ export function normalizeGoogleBooksToWork(item: any): WorkDTO {
     originalLanguage: volumeInfo.language,
     firstPublicationYear: extractYear(volumeInfo.publishedDate),
     description: volumeInfo.description,
-    coverImageURL: getHighResCoverURL(volumeInfo.imageLinks),
+    coverImageURL: coverUrl,
+    coverUrls: createFallbackCoverUrls(coverUrl),
+    coverSource: 'external',
     synthetic: false,
     primaryProvider: 'google-books',
     contributors: ['google-books'],
@@ -59,6 +77,8 @@ export function normalizeGoogleBooksToEdition(item: any): EditionDTO {
   const isbn10 = identifiers.find((id: any) => id.type === 'ISBN_10')?.identifier
   const isbns = [isbn13, isbn10].filter(Boolean) as string[]
 
+  const coverUrl = getHighResCoverURL(volumeInfo.imageLinks)
+
   return {
     isbn: isbn13 || isbn10,
     isbns,
@@ -67,7 +87,9 @@ export function normalizeGoogleBooksToEdition(item: any): EditionDTO {
     publicationDate: volumeInfo.publishedDate,
     pageCount: volumeInfo.pageCount,
     format: 'Other', // Google Books doesn't provide format data
-    coverImageURL: getHighResCoverURL(volumeInfo.imageLinks),
+    coverImageURL: coverUrl,
+    coverUrls: createFallbackCoverUrls(coverUrl),
+    coverSource: 'external',
     editionTitle: undefined,
     editionDescription: volumeInfo.description,
     language: volumeInfo.language,
@@ -90,6 +112,8 @@ export function ensureWorkForEdition(edition: EditionDTO): WorkDTO {
     subjectTags: [], // No genres available from Edition data
     firstPublicationYear: extractYear(edition.publicationDate),
     coverImageURL: edition.coverImageURL, // FIX #346: Copy cover URL from Edition
+    coverUrls: edition.coverUrls, // Copy multi-size URLs from Edition
+    coverSource: edition.coverSource, // Copy cover source from Edition
     synthetic: true, // KEY: indicates this Work was inferred
     primaryProvider: edition.primaryProvider,
     contributors: edition.contributors,
