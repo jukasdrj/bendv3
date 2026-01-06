@@ -5,7 +5,7 @@
  * deduplicating alerts, and tracking alert send status.
  */
 
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * Alert severity levels

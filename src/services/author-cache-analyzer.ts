@@ -15,7 +15,7 @@
  * - Calculate coverage depth (% of bibliography cached)
  */
 
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * Author cache depth analysis result

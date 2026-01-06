@@ -7,8 +7,9 @@
 
 import { createRoute } from '@hono/zod-openapi'
 import { z } from 'zod'
-import { ErrorResponseSchema, ResponseEnvelopeSchema } from '../../schemas/common'
-import { JobResponseSchema, JobResultsEnvelopeSchema, JobStateSchema } from '../../schemas/job'
+import { ResponseEnvelopeSchema } from '../../schemas/common.js'
+import { ErrorResponseSchema } from '../../api-v3/schemas/book.js'
+import { JobResponseSchema, JobResultsEnvelopeSchema, JobStateSchema } from '../../schemas/job.js'
 
 /**
  * CSV/Photo Import Request Body Schema
@@ -21,7 +22,6 @@ import { JobResponseSchema, JobResultsEnvelopeSchema, JobStateSchema } from '../
  * Note: Multipart/form-data validation is handled by the handler,
  * not by Zod. This schema is for OpenAPI documentation only.
  */
-const _ImportRequestSchema = z.object({}).strict()
 
 /**
  * Job Creation Response Envelope

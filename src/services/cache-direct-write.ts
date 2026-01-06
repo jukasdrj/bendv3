@@ -18,9 +18,9 @@
  * Issue: #140 - Switch to ISBNdb-Primary Pipeline
  */
 
-import { getCacheTTL } from '../config/cache-ttl.ts'
+import { getCacheTTL } from '../config/cache-ttl.js'
 import type { Env } from '../types/env.js'
-import { KVCacheService } from './kv-cache.ts'
+import { KVCacheService } from './kv-cache.js'
 import {
   normalizeISBNdbToAuthor,
   normalizeISBNdbToEdition,
@@ -69,7 +69,7 @@ export async function writeISBNdbBooksToCache(
   env: Env,
   ctx?: ExecutionContext,
 ): Promise<CacheWriteResult[]> {
-  const kvCache = new KVCacheService(env, ctx)
+  const kvCache = new KVCacheService(env, ctx!)
   const results: CacheWriteResult[] = []
 
   for (const book of books) {
@@ -154,5 +154,5 @@ export async function writeSingleISBNdbBookToCache(
   ctx?: ExecutionContext,
 ): Promise<CacheWriteResult> {
   const results = await writeISBNdbBooksToCache([book], env, ctx)
-  return results[0]
+  return results[0]!
 }

@@ -8,9 +8,9 @@
  */
 
 import * as externalApis from '../services/external-apis'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
-import { transformWorkToGoogleFormat } from '../utils/transform/transform-work'
+import { transformWorkToGoogleFormat, type Work } from '../utils/transform/transform-work'
 
 // ============================================================================
 // Types
@@ -124,7 +124,7 @@ async function checkNegativeCache(cacheKey: string, env: Env): Promise<NegativeC
     const negativeKey = `negative:${cacheKey}`
     const cached = await env.CACHE.get(negativeKey, 'json')
 
-    if (cached?.timestamp) {
+    if (cached && typeof cached === 'object' && 'timestamp' in cached && typeof cached.timestamp === 'number') {
       const age = Date.now() - cached.timestamp
       // Return cached error if less than 5 minutes old
       if (age < 300000) {
@@ -240,7 +240,9 @@ export async function handleAdvancedSearch(
 
       if (googleResult?.works && googleResult.works.length > 0) {
         // Convert normalized works to Google Books format using shared utility
-        const items = googleResult.works.map((work) => transformWorkToGoogleFormat(work))
+        const items = googleResult.works
+          .filter((work): work is Work => work !== null && typeof work === 'object')
+          .map((work) => transformWorkToGoogleFormat(work))
 
         const resultItems = items.slice(0, maxResults)
         return new Response(
@@ -266,7 +268,9 @@ export async function handleAdvancedSearch(
 
       if (olResult?.works && olResult.works.length > 0) {
         // Convert OpenLibrary works to Google Books format using shared utility
-        const items = olResult.works.map((work) => transformWorkToGoogleFormat(work))
+        const items = olResult.works
+          .filter((work): work is Work => work !== null && typeof work === 'object')
+          .map((work) => transformWorkToGoogleFormat(work))
 
         const resultItems = items.slice(0, maxResults)
         return new Response(

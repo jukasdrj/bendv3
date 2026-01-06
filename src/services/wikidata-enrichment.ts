@@ -178,17 +178,31 @@ async function searchWikidataAuthor(authorName: string): Promise<string | null> 
 
     const data = await response.json()
 
-    if (!data.search || data.search.length === 0) {
+    // Type guard: verify data has expected structure
+    if (
+      !data ||
+      typeof data !== 'object' ||
+      !('search' in data) ||
+      !Array.isArray(data.search) ||
+      data.search.length === 0
+    ) {
       console.log(`[Wikidata] No results for "${authorName}"`)
       return null
     }
 
     // Return first result's entity ID
-    const entityId = data.search[0].id
+    const firstResult = data.search[0]
+    if (!firstResult || typeof firstResult !== 'object' || !('id' in firstResult)) {
+      console.log(`[Wikidata] Invalid result structure for "${authorName}"`)
+      return null
+    }
+
+    const entityId = String(firstResult.id)
     console.log(`[Wikidata] Found "${authorName}" → ${entityId}`)
     return entityId
-  } catch (error: any) {
-    console.error(`[Wikidata] Search error for "${authorName}":`, error.message)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error(`[Wikidata] Search error for "${authorName}":`, errorMessage)
     return null
   }
 }
@@ -212,9 +226,23 @@ async function fetchWikidataEntity(entityId: string): Promise<any> {
     }
 
     const data = await response.json()
-    return data.entities[entityId]
-  } catch (error: any) {
-    console.error(`[Wikidata] Entity fetch error for ${entityId}:`, error.message)
+
+    // Type guard: verify data has entities property
+    if (
+      !data ||
+      typeof data !== 'object' ||
+      !('entities' in data) ||
+      typeof data.entities !== 'object' ||
+      data.entities === null
+    ) {
+      console.error(`[Wikidata] Invalid response structure for ${entityId}`)
+      return null
+    }
+
+    return (data.entities as Record<string, unknown>)[entityId] ?? null
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error(`[Wikidata] Entity fetch error for ${entityId}:`, errorMessage)
     return null
   }
 }
@@ -226,7 +254,7 @@ async function fetchWikidataEntity(entityId: string): Promise<any> {
 function extractYearFromWikidataTime(timeValue?: string): number | undefined {
   if (!timeValue) return undefined
   const match = timeValue.match(/^[+-]?(\d{1,4})-/)
-  return match ? parseInt(match[1], 10) : undefined
+  return match ? parseInt(match[1] ?? '0', 10) : undefined
 }
 
 /**

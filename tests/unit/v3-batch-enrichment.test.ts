@@ -130,7 +130,7 @@ describe('V3 API - Batch Enrichment Parallelization', () => {
         if (result.status === 'fulfilled' && result.value.success) {
           enrichedBooks.push(result.value.book)
         } else if (result.status === 'fulfilled' && !result.value.success) {
-          notFound.push(result.value.isbn)
+          notFound.push(result.value.isbn ?? '')
         }
       })
 

@@ -12,7 +12,7 @@
  */
 
 import type { AnalyticsEngineDataset } from '@cloudflare/workers-types'
-import type { DataProvider } from '../types/enums'
+import type { DataProvider } from '../../types/enums.js'
 
 // ============================================================================
 // TYPE DEFINITIONS

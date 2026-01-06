@@ -10,7 +10,7 @@
  * 3. Return: Complete ISBN list for harvest
  */
 
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 import { RateLimiter } from '../utils/concurrency/rate-limiter'
 import { getTopEditions, type TopEdition } from './edition-discovery'
 
@@ -270,7 +270,11 @@ async function fetchOpenLibraryAuthorWorks(authorName: string): Promise<AuthorBi
     }
 
     // Get first matching author (OpenLibrary returns best match first)
-    const authorKey = searchData.docs[0].key
+    const firstDoc = searchData.docs[0]
+    if (!firstDoc) {
+      return null
+    }
+    const authorKey = firstDoc.key
     console.log(`Found OpenLibrary author key: ${authorKey}`)
 
     // Step 2: Fetch author's works
@@ -300,7 +304,7 @@ async function fetchOpenLibraryAuthorWorks(authorName: string): Promise<AuthorBi
 
     return {
       authorKey,
-      authorName: searchData.docs[0].name,
+      authorName: firstDoc.name,
       works: worksData.entries || [],
     }
   } catch (error) {

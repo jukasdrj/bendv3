@@ -9,7 +9,7 @@
 import { getCacheTTL } from '../config/cache-ttl'
 import { scanImageWithGemini } from '../providers/gemini-provider'
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 import type { BookshelfDetectedBook } from '../types/gemini-schemas'
 import { categorizeBooks } from '../utils/book/confidence'
 import { enrichMultipleBooks } from './enrichment'
@@ -256,7 +256,6 @@ export async function processBookshelfScan(
     }
 
     const detectedBooks = scanResult.books
-    const _suggestions = scanResult.suggestions || []
 
     console.log(
       `[AI Scanner] ${detectedBooks.length} books detected (${scanResult.metadata.processingTimeMs}ms)`,
@@ -352,10 +351,10 @@ export async function processBookshelfScan(
       isbn: b.isbn || null,
       confidence: b.confidence,
       boundingBox: b.boundingBox,
-      enrichmentStatus: b.enrichment?.status || 'pending',
+      enrichmentStatus: (b.enrichment?.status as 'success' | 'not_found' | 'error' | undefined) || 'pending',
       coverUrl: b.enrichment?.work?.coverImageURL || null,
-      publisher: b.enrichment?.editions?.[0]?.publisher || null,
-      publicationYear: b.enrichment?.editions?.[0]?.publicationYear || null,
+      publisher: (b.enrichment?.editions as Array<{ publisher?: string | null }>)?.[0]?.publisher || null,
+      publicationYear: (b.enrichment?.editions as Array<{ publicationYear?: number | null }>)?.[0]?.publicationYear || null,
     }))
 
     // Store complete results in KV with 24-hour expiration

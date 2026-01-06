@@ -6,7 +6,7 @@
  */
 
 import type { MiddlewareHandler } from 'hono'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * Middleware that tracks router usage and response times

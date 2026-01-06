@@ -13,14 +13,15 @@
 
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical'
 import type { BookRecord } from '../types/database'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 import type {
   IBookRepository,
   ICoverService,
   IDeduplicationService,
   IEnrichmentService,
   ServiceContainer,
-} from './service-container'
+} from './service-container.js'
+import { ServiceId } from './service-container.js'
 
 interface SearchOptions {
   maxResults?: number

@@ -182,7 +182,6 @@ export async function processBookCover(
   env: ExternalAPIEnv,
   maxRetries: number = DEFAULT_MAX_RETRIES,
 ): Promise<CoverProcessingResponse> {
-  let _lastError: any = null
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -207,9 +206,9 @@ export async function processBookCover(
         return result
       }
 
-      _lastError = new Error(result.error)
+      // Last error: result.error
     } catch (error: any) {
-      _lastError = error
+      // Last error logged below
       console.error(`[AlexandriaCover] Attempt ${attempt + 1} failed:`, error.message)
     }
 

@@ -95,7 +95,7 @@ export function validateCSV(csvText: string): ValidationResult {
   }
 
   // Validate header exists
-  const header = lines[0]
+  const header = lines[0] ?? ''
   const columnCount = countColumns(header)
 
   if (columnCount < 2) {
@@ -120,7 +120,7 @@ export function validateCSV(csvText: string): ValidationResult {
   // Sample check: validate first N rows have consistent column count
   const sampleSize = Math.min(SAMPLE_VALIDATION_ROWS, lines.length - 1)
   for (let i = 1; i <= sampleSize; i++) {
-    const cols = countColumns(lines[i])
+    const cols = countColumns(lines[i] ?? '')
     if (cols !== columnCount) {
       return {
         valid: false,

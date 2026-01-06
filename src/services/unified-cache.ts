@@ -1,10 +1,10 @@
 // src/services/unified-cache.ts
 
 import type { ExecutionContext } from '@cloudflare/workers-types'
-import { getCacheTTL } from '../config/cache-ttl.ts'
-import type { Env } from '../types/env.ts'
-import { EdgeCacheService } from './edge-cache.ts'
-import { KVCacheService } from './kv-cache.ts'
+import { getCacheTTL } from '../config/cache-ttl.js'
+import type { Env } from '../types/env.js'
+import { EdgeCacheService } from './edge-cache.js'
+import { KVCacheService } from './kv-cache.js'
 
 /**
  * Cache tier types
@@ -30,6 +30,7 @@ export interface CachedData<T> {
   data: T | null
   source: string
   age?: number
+  ttl?: number
   stale?: boolean
   latency?: string
   metadata?: CacheMetadata
@@ -173,17 +174,17 @@ export class UnifiedCacheService {
 
       if (type === 'book' && subtype === 'isbn') {
         // Use findBookByISBN for ISBN lookups
-        const { findBookByISBN } = await import('./book-service.ts')
+        const { findBookByISBN } = await import('./book-service.js')
         const result = await findBookByISBN(value, this.env)
         freshData = result
       } else if (type === 'book' && subtype === 'title') {
         // Use findBooksByTitle for title searches
-        const { findBooksByTitle } = await import('./book-service.ts')
+        const { findBooksByTitle } = await import('./book-service.js')
         const result = await findBooksByTitle(value, undefined, this.env, options)
         freshData = result
       } else if (type === 'author') {
         // Use findBooksByAuthor for author searches
-        const { findBooksByAuthor } = await import('./book-service.ts')
+        const { findBooksByAuthor } = await import('./book-service.js')
         const result = await findBooksByAuthor(value, this.env)
         freshData = result
       }

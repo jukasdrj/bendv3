@@ -186,7 +186,7 @@ async function sendFinalEvent(
  * eventSource.addEventListener('completed', (e) => saveBooks(JSON.parse(e.data).books))
  */
 export async function handleSSEStream(
-  c: Context<{ Bindings: Env }>,
+  c: Context<{ Bindings: Env; Variables?: any }>,
   jobType: string,
   jobId: string,
 ): Promise<Response> {
@@ -393,7 +393,10 @@ export async function handleSSEStream(
 
         if (updates && updates.length > 0) {
           for (let i = 0; i < updates.length; i++) {
-            let update = updates[i]
+            const originalUpdate = updates[i]
+            if (!originalUpdate) continue
+
+            let update: { timestamp: number; eventType: string; data: any } = originalUpdate
             // Fix: If update is 'completed' and books were stripped, fetch from KV
             if (
               update.eventType === 'completed' &&
@@ -403,8 +406,9 @@ export async function handleSSEStream(
               if (fetchedBooks.length > 0) {
                 // Create new object instead of mutating the original
                 update = {
-                  ...update,
-                  data: { ...update.data, books: fetchedBooks },
+                  timestamp: originalUpdate.timestamp,
+                  eventType: originalUpdate.eventType,
+                  data: { ...originalUpdate.data, books: fetchedBooks },
                 }
                 updates[i] = update
               }

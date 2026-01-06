@@ -71,7 +71,7 @@ export const ErrorResponseSchema = z.object({
     code: z.string().describe('Error code (e.g., NOT_FOUND, VALIDATION_ERROR)'),
     message: z.string().describe('Human-readable error message'),
     statusCode: z.number().int().describe('HTTP status code'),
-    details: z.record(z.any()).optional().describe('Additional error context'),
+    details: z.record(z.string(), z.unknown()).optional().describe('Additional error context'),
   }),
 })
 

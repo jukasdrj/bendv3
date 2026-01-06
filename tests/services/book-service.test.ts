@@ -480,13 +480,13 @@ describe('BookService', () => {
         expect(results.size).toBe(3);
 
         // First ISBN from cache
-        const cachedResult = results.get(testISBNs[0]);
+        const cachedResult = results.get(testISBNs[0] ?? '');
         expect(cachedResult?.cached).toBe(true);
         expect(cachedResult?.source).toBe('d1');
 
         // Second and third ISBN from external
-        const externalResult1 = results.get(testISBNs[1]);
-        const externalResult2 = results.get(testISBNs[2]);
+        const externalResult1 = results.get(testISBNs[1] ?? '');
+        const externalResult2 = results.get(testISBNs[2] ?? '');
         expect(externalResult1?.cached).toBe(false);
         expect(externalResult1?.source).toBe('external');
         expect(externalResult2?.cached).toBe(false);
@@ -650,9 +650,9 @@ describe('BookService', () => {
         // Assert
         expect(results.size).toBe(3);
 
-        const result1 = results.get(testISBNs[0]);
-        const result2 = results.get(testISBNs[1]);
-        const result3 = results.get(testISBNs[2]);
+        const result1 = results.get(testISBNs[0] ?? '');
+        const result2 = results.get(testISBNs[1] ?? '');
+        const result3 = results.get(testISBNs[2] ?? '');
 
         // First and third should have data
         expect(result1?.works).toHaveLength(1);
@@ -707,9 +707,9 @@ describe('BookService', () => {
         // Assert
         expect(results.size).toBe(3);
 
-        const result1 = results.get(testISBNs[0]);
-        const result2 = results.get(testISBNs[1]);
-        const result3 = results.get(testISBNs[2]);
+        const result1 = results.get(testISBNs[0] ?? '');
+        const result2 = results.get(testISBNs[1] ?? '');
+        const result3 = results.get(testISBNs[2] ?? '');
 
         // First should be from cache
         expect(result1?.cached).toBe(true);

@@ -10,7 +10,7 @@
  */
 
 import type { Context } from 'hono'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 interface TestResult {
   summary: {
@@ -89,6 +89,9 @@ export async function handleTestEnrichmentPipeline(
       let queueError: string | undefined
 
       try {
+        if (!env.ENRICHMENT_QUEUE) {
+          throw new Error('ENRICHMENT_QUEUE not available')
+        }
         await env.ENRICHMENT_QUEUE.send({
           entity_type: 'edition',
           isbn: book.isbn,

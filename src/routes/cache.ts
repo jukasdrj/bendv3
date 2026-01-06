@@ -13,7 +13,7 @@
 
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { handleCacheMetrics } from '../handlers/cache-metrics.js'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
 
 // DO stub interface for CacheMetricsDO

@@ -24,8 +24,9 @@
 
 import type { AuthorReference, BookResult } from 'alexandria-worker/types'
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical.js'
+import type { Env } from '../types/env.js'
 import type { AuthorGender, DataProvider, EditionFormat } from '../types/enums.js'
-import { createAlexandriaClient } from './alexandria-client.js'
+import { createAlexandriaClient, type AlexandriaClient } from './alexandria-client.js'
 
 // ========================================================================================
 // INTERFACES
@@ -65,40 +66,8 @@ type EnrichedBookResult = BookResult & {
   openlibrary_work_id?: string | null
 }
 
-/**
- * Cloudflare Worker environment bindings
- * See wrangler.toml for complete configuration
- */
-interface WorkerEnv {
-  // KV Namespaces
-  CACHE: KVNamespace
-  // CACHE: KVNamespace; (Duplicate removed)
-
-  // Secrets
-  GOOGLE_BOOKS_API_KEY: string
-  ISBNDB_API_KEY: string
-  GEMINI_API_KEY: string
-  ALEXANDRIA_CLIENT_ID?: string // Cloudflare Access service token
-  ALEXANDRIA_CLIENT_SECRET?: string // Cloudflare Access service token
-
-  // R2 Buckets
-  BOOKSHELF_IMAGES: R2Bucket
-
-  // Workers AI
-  AI: Fetcher
-
-  // Durable Objects
-  PROGRESS_WEBSOCKET_DO: DurableObjectNamespace
-
-  // Analytics Engine
-  PERFORMANCE_ANALYTICS?: AnalyticsEngineDataset
-  CACHE_ANALYTICS?: AnalyticsEngineDataset
-  PROVIDER_ANALYTICS?: AnalyticsEngineDataset
-  AI_ANALYTICS?: AnalyticsEngineDataset
-
-  // Queue Producers
-  AUTHOR_WARMING_QUEUE?: Queue
-}
+// WorkerEnv interface removed - use Env from types/env.ts instead
+// This duplicate interface was causing type conflicts (See TODO.md P3 #6)
 
 /**
  * Query parameters for book searches
@@ -107,6 +76,8 @@ interface BookSearchQuery {
   title?: string
   author?: string
   isbn?: string
+  openLibraryId?: string
+  googleBooksId?: string
 }
 
 /**
@@ -237,7 +208,7 @@ function mapAuthorReferenceToDTO(authorRef: AuthorReference | string): AuthorDTO
  */
 export async function enrichMultipleBooks(
   query: BookSearchQuery,
-  env: WorkerEnv,
+  env: Env,
   options: SearchOptions = { maxResults: 20 },
   _ctx?: ExecutionContext,
 ): Promise<EnrichmentResult> {
@@ -252,7 +223,13 @@ export async function enrichMultipleBooks(
 
   try {
     // Create Alexandria RPC client (sub-millisecond internal call)
-    const client = createAlexandriaClient(env)
+    const client = createAlexandriaClient(env as unknown as Env) as {
+      api: {
+        search: {
+          $get: (options: { query: { isbn?: string; title?: string; author?: string } }) => Promise<Response>
+        }
+      }
+    }
 
     console.log(`enrichMultipleBooks: Calling Alexandria RPC for`, {
       isbn,
@@ -288,7 +265,9 @@ export async function enrichMultipleBooks(
     const responseData = await response.json()
 
     // Alexandria wraps results in "data" envelope: { success: true, data: { results: [...] } }
-    const data = responseData.data || responseData
+    const data = (typeof responseData === 'object' && responseData !== null && 'data' in responseData
+      ? responseData.data
+      : responseData) as { results?: unknown[] }
 
     if (!data.results || data.results.length === 0) {
       console.log(`enrichMultipleBooks: Alexandria found no results for`, { isbn, title, author })
@@ -312,7 +291,7 @@ export async function enrichMultipleBooks(
         workAuthorDTOs = book.authors
           .map((authorRef: AuthorReference | string) => mapAuthorReferenceToDTO(authorRef))
           // Filter out invalid names and OpenLibrary paths
-          .filter((a: AuthorDTO) => a.name && !a.name.startsWith('/authors/'))
+          .filter((a) => a && typeof a === 'object' && a.name && !a.name.startsWith('/authors/'))
       }
 
       // Map to WorkDTO (canonical contract) with embedded authors
@@ -373,9 +352,9 @@ export async function enrichMultipleBooks(
           language: book.language || 'en',
           publisher: book.publisher || book.publishers || undefined,
           coverImageURL: book.coverUrl || undefined,
-          coverUrls: book.coverUrls || undefined, // Multi-size covers (Alexandria v2.2.4+)
+          coverUrls: book.coverUrls ? book.coverUrls : undefined, // Multi-size covers (Alexandria v2.2.4+)
           coverSource: book.coverSource || undefined,
-          format: mapBindingToFormat(book.binding), // Default format (required by EditionDTO)
+          format: mapBindingToFormat(book.binding ?? undefined), // Default format (required by EditionDTO)
           // External IDs
           openLibraryEditionID: book.openlibrary_edition
             ? book.openlibrary_edition.split('/books/')[1]
@@ -439,7 +418,7 @@ export async function enrichMultipleBooks(
  */
 export async function enrichSingleBook(
   query: BookSearchQuery,
-  env: WorkerEnv,
+  env: Env,
   _ctx?: ExecutionContext,
 ): Promise<SingleEnrichmentResponse> {
   const { title, author, isbn, openLibraryId, googleBooksId } = query
@@ -452,7 +431,13 @@ export async function enrichSingleBook(
 
   try {
     // Create Alexandria RPC client (sub-millisecond internal call)
-    const client = createAlexandriaClient(env)
+    const client = createAlexandriaClient(env as unknown as Env) as {
+      api: {
+        search: {
+          $get: (options: { query: { isbn?: string; title?: string; author?: string } }) => Promise<Response>
+        }
+      }
+    }
 
     console.log(`enrichSingleBook: Calling Alexandria RPC for`, query)
 
@@ -484,9 +469,19 @@ export async function enrichSingleBook(
     const responseData = await response.json()
 
     // Alexandria wraps results in "data" envelope: { success: true, data: { results: [...] } }
-    const data = responseData.data || responseData
+    const rawData = typeof responseData === 'object' && responseData !== null && 'data' in responseData
+      ? responseData.data
+      : responseData
 
-    if (!data.results || data.results.length === 0) {
+    // Type guard: verify data has results array
+    const data = rawData as { results?: unknown[] }
+    if (
+      !data ||
+      typeof data !== 'object' ||
+      !('results' in data) ||
+      !Array.isArray(data.results) ||
+      data.results.length === 0
+    ) {
       console.log(`enrichSingleBook: Alexandria found no results for`, query)
       return {
         success: false,
@@ -534,9 +529,9 @@ export async function enrichSingleBook(
             publicationDate: book.published_date || undefined,
             pageCount: book.page_count || undefined,
             language: book.language || 'en',
-            publisher: book.publisher || undefined,
-            coverImageURL: book.coverUrl || undefined, // Fixed: Use camelCase coverUrl from Alexandria
-            format: mapBindingToFormat(book.binding),
+            publisher: book.publisher ? book.publisher : undefined,
+            coverImageURL: book.coverUrl ? book.coverUrl : undefined, // Fixed: Use camelCase coverUrl from Alexandria
+            format: mapBindingToFormat(book.binding ?? undefined),
             primaryProvider: 'alexandria' as DataProvider,
             isbndbQuality: book.isbndb_quality || 0,
             // External IDs
@@ -566,8 +561,11 @@ export async function enrichSingleBook(
   } catch (error) {
     console.error('enrichSingleBook: RPC error:', error)
 
+    // Type guard for error object
+    const err = error as Error
+
     // Handle network/RPC errors
-    if (error.name === 'TypeError' || error.message?.includes('fetch')) {
+    if (err.name === 'TypeError' || err.message?.includes('fetch')) {
       return {
         success: false,
         error: {
@@ -584,7 +582,7 @@ export async function enrichSingleBook(
       success: false,
       error: {
         code: 'API_ERROR',
-        message: error.message || 'Unknown error during enrichment',
+        message: err.message || 'Unknown error during enrichment',
         retryable: false,
       },
     }

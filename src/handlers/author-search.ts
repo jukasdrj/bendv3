@@ -6,7 +6,7 @@
 import { CacheKeyFactory } from '../services/cache-key-factory'
 import * as externalApis from '../services/external-apis'
 import { UnifiedCacheService } from '../services/unified-cache'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 import { writeCacheMetrics } from '../utils/analytics/analytics'
 import { setCached } from '../utils/cache/cache'
 
@@ -101,6 +101,7 @@ export async function searchByAuthor(
 
   if (cachedResult?.data) {
     const { data, source } = cachedResult
+    const cachedData = data as { works?: unknown[]; authorName?: string }
 
     // Write cache metrics
     ctx.waitUntil(
@@ -108,16 +109,17 @@ export async function searchByAuthor(
         endpoint: '/search/author',
         cacheHit: true,
         responseTime: 0,
-        itemCount: data.works?.length || 0,
-        authorName: authorName,
+        itemCount: cachedData.works?.length || 0,
+        imageQuality: '',
+        dataCompleteness: 0,
       }),
     )
 
     return {
-      ...data,
+      ...cachedData,
       cached: true,
       cacheSource: source,
-    }
+    } as AuthorSearchResult
   }
 
   const startTime = Date.now()
@@ -178,7 +180,8 @@ export async function searchByAuthor(
         cacheHit: false,
         responseTime: Date.now() - startTime,
         itemCount: paginatedWorks.length,
-        authorName: authorName,
+        imageQuality: '',
+        dataCompleteness: 0,
       }),
     )
 

@@ -7,7 +7,7 @@
  * Issue #183: Retry logic with exponential backoff for Vision API failures
  */
 
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 import type { BookshelfDetectedBook } from '../types/gemini-schemas'
 import { BOOKSHELF_RESPONSE_SCHEMA } from '../types/gemini-schemas'
 import { retryWithBackoff } from '../utils/concurrency/retry'

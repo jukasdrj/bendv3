@@ -3,7 +3,7 @@
  */
 
 import type { EditionDTO, WorkDTO } from '../../types/canonical.js'
-import { getPlaceholderCover } from '../../utils/book/book-metadata.ts'
+import { getPlaceholderCover } from '../../utils/book/book-metadata.js'
 import { extractYear } from '../../utils/date-utils.js'
 import { GenreNormalizer } from '../genre-normalizer.js'
 

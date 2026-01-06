@@ -25,9 +25,9 @@
  * Cost: ~400 API calls/day (static) + ~100 API calls/day (analytics) = ~500/day
  */
 
-import { getPopularISBNs } from '../config/popular-books.ts'
-import { findBookByISBN } from '../services/book-service.ts'
-import type { Env } from '../types/env'
+import { getPopularISBNs } from '../config/popular-books.js'
+import { findBookByISBN } from '../services/book-service.js'
+import type { Env } from '../types/env.js'
 
 interface AccessData {
   cacheKey: string

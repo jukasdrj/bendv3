@@ -14,7 +14,7 @@
  */
 
 import { getCacheTTL } from '../config/cache-ttl'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 import {
   buildServiceCompletionPayload,
   defaultDeps,

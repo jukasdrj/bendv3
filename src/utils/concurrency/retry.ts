@@ -33,7 +33,7 @@ export async function retryWithBackoff<T>(
       let status: number | null = null
       if (lastError.message?.includes('Gemini API error:')) {
         const match = lastError.message.match(/Gemini API error: (\d+)/)
-        status = match ? parseInt(match[1], 10) : null
+        status = match ? parseInt(match[1] ?? '0', 10) : null
       }
 
       // Retry only on transient errors (rate limit, server errors)

@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
 import { getCorsHeaders } from '../middleware/cors'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * WebSocket Connection Durable Object

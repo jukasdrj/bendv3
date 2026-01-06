@@ -15,10 +15,10 @@
  * @see src/services/alexandria-client.ts for RPC client implementation
  */
 
-import { getCacheTTL } from '../config/cache-ttl.ts'
+import { getCacheTTL } from '../config/cache-ttl.js'
 import type { AuthorDTO } from '../types/canonical.js'
-import { logExternalApiCall } from '../utils/analytics/analytics-logger.ts'
-import { getCached, setCached } from '../utils/cache/cache.ts'
+import { logExternalApiCall } from '../utils/analytics/analytics-logger.js'
+import { getCached, setCached } from '../utils/cache/cache.js'
 import { createAlexandriaClient } from './alexandria-client'
 import { withCircuitBreaker } from './circuit-breaker'
 import type { ExternalAPIEnv, NormalizedResponse, WorkDTOWithAuthors } from './external-apis'
@@ -98,7 +98,7 @@ export async function searchAlexandriaByISBN(
   // Check cache FIRST
   const normalizedIsbn = isbn.replace(/-/g, '') // Normalize ISBN (remove hyphens)
   const cacheKey = `alex:isbn:${normalizedIsbn}`
-  const cached = await getCached(cacheKey, env, ctx)
+  const cached = ctx ? await getCached(cacheKey, env, ctx) : null
 
   if (cached) {
     console.log(`📦 Cache HIT: Alexandria ISBN ${isbn}`)
@@ -116,7 +116,7 @@ export async function searchAlexandriaByISBN(
   const result = await withCircuitBreaker('alexandria', env, () => uncachedFn(isbn, env))
 
   // Write successful results to cache
-  if (result?.works && result.works.length > 0) {
+  if (result?.works && result.works.length > 0 && ctx) {
     const hotTtl = getCacheTTL('hot', env)
     const coldTtl = getCacheTTL('cold', env)
     await setCached(cacheKey, result, coldTtl, env, ctx, hotTtl)
@@ -159,11 +159,12 @@ async function searchAlexandriaByISBN_Uncached_RPC(
       console.log(`🔗 Alexandria RPC search for ISBN "${isbn}"`)
 
       // Create typed RPC client
-      const client = createAlexandriaClient(env)
+      // Cast to Env since createAlexandriaClient expects full Env, not ExternalAPIEnv
+      const client = createAlexandriaClient(env as any)
 
       // Make typed RPC call (TypeScript ensures this route exists)
       // Once Alexandria exports its types, this will be fully type-safe
-      const response = await client.api.search.$get({
+      const response = await (client as any).api.search.$get({
         query: { isbn },
       })
 
@@ -186,7 +187,13 @@ async function searchAlexandriaByISBN_Uncached_RPC(
         return null
       }
 
-      const normalizedData = normalizeAlexandriaResponse(data.results[0], isbn)
+      const firstResult = data.results[0]
+      if (!firstResult) {
+        console.log(`📭 Alexandria RPC: ISBN ${isbn} not found (no first result)`)
+        return null
+      }
+
+      const normalizedData = normalizeAlexandriaResponse(firstResult, isbn)
 
       if (!normalizedData.works || normalizedData.works.length === 0) {
         return null
@@ -259,7 +266,13 @@ async function searchAlexandriaByISBN_Uncached_Fetch(
         return null
       }
 
-      const normalizedData = normalizeAlexandriaResponse(data.results[0], isbn)
+      const firstResult = data.results[0]
+      if (!firstResult) {
+        console.log(`📭 Alexandria: ISBN ${isbn} not found (no first result)`)
+        return null
+      }
+
+      const normalizedData = normalizeAlexandriaResponse(firstResult, isbn)
 
       if (!normalizedData.works || normalizedData.works.length === 0) {
         return null

@@ -62,7 +62,7 @@ interface Edition {
 /**
  * Work object from provider
  */
-interface Work {
+export interface Work {
   id?: string
   openLibraryWorkKey?: string
   title: string
@@ -137,10 +137,10 @@ export function transformWorkToGoogleFormat(work: Work): GoogleBooksVolume {
   const primaryEdition = work.editions && work.editions.length > 0 ? work.editions[0] : null
 
   // Extract and normalize authors from work or fall back to edition
-  const { authors, authorsDetailed } = extractAuthors(work, primaryEdition)
+  const { authors, authorsDetailed } = extractAuthors(work, primaryEdition ?? undefined)
 
   // Build industry identifiers from primary edition
-  const industryIdentifiers = buildIndustryIdentifiers(primaryEdition)
+  const industryIdentifiers = buildIndustryIdentifiers(primaryEdition ?? undefined)
 
   // Get cover image URL with placeholder fallback
   const coverImageURL = primaryEdition?.coverImageURL || getPlaceholderCover()

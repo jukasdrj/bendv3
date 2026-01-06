@@ -26,10 +26,10 @@ export function isValidISBN10Checksum(cleanedIsbn: string): boolean {
 
   let sum = 0
   for (let i = 0; i < 9; i++) {
-    sum += parseInt(cleanedIsbn[i], 10) * (10 - i)
+    sum += parseInt(cleanedIsbn[i] ?? '0', 10) * (10 - i)
   }
 
-  const checkChar = cleanedIsbn[9].toUpperCase()
+  const checkChar = cleanedIsbn[9]!.toUpperCase()
   const checkDigit = checkChar === 'X' ? 10 : parseInt(checkChar, 10)
 
   return (sum + checkDigit) % 11 === 0
@@ -50,11 +50,11 @@ export function isValidISBN13Checksum(cleanedIsbn: string): boolean {
 
   let sum = 0
   for (let i = 0; i < 12; i++) {
-    const digit = parseInt(cleanedIsbn[i], 10)
+    const digit = parseInt(cleanedIsbn[i] ?? '0', 10)
     sum += i % 2 === 0 ? digit : digit * 3
   }
 
-  const checkDigit = parseInt(cleanedIsbn[12], 10)
+  const checkDigit = parseInt(cleanedIsbn[12] ?? '0', 10)
   const calculatedCheckDigit = (10 - (sum % 10)) % 10
 
   return calculatedCheckDigit === checkDigit

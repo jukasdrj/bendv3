@@ -2,7 +2,7 @@ import type { ExecutionContext } from '@cloudflare/workers-types'
 import { searchByAuthor } from '../handlers/author-search'
 import { searchByTitle } from '../handlers/book-search'
 import { enrichBooksParallel } from '../services/parallel-enrichment'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * Queue message structure for author warming
@@ -163,9 +163,9 @@ export async function processAuthorBatch(
       if (env.CACHE_ANALYTICS) {
         ctx.waitUntil(
           env.CACHE_ANALYTICS.writeDataPoint({
-            blobs: ['warming', author, source],
-            doubles: [authorResult.works.length, titlesWarmed],
-            indexes: ['cache-warming'],
+            blobs: ['warming', author, source] as [string, string, string],
+            doubles: [authorResult.works.length, titlesWarmed] as [number, number],
+            indexes: ['cache-warming'] as [string],
           }),
         )
       }

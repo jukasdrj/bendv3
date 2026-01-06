@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * Rate Limiter Durable Object

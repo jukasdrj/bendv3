@@ -30,19 +30,7 @@ export {
 export * from './capabilities.js'
 // Common schemas
 export {
-  createErrorResponseSchema,
-  createResponseEnvelopeSchema,
-  ErrorCodeEnum,
-  ErrorDetailsSchema, // Legacy alias
-  type ErrorObject,
-  ErrorObjectSchema,
-  type ErrorResponse,
-  ErrorResponseSchema,
-  MetadataSchema, // Legacy alias
   ResponseEnvelopeSchema,
-  type ResponseMetadata,
-  ResponseMetadataSchema,
-  type SuccessResponse,
 } from './common.js'
 // Health endpoint schemas (Sprint 1, Day 5 - OpenAPI Migration)
 export {
@@ -78,24 +66,5 @@ export {
   type ParsedBook,
   ParsedBookSchema,
 } from './job.js'
-// Search endpoint schemas (Sprint 1, Day 3-4 - OpenAPI Migration)
-export {
-  type SearchISBNData,
-  SearchISBNDataSchema,
-  type SearchISBNQuery,
-  SearchISBNQuerySchema,
-  type SearchISBNResponse,
-  SearchISBNResponseSchema,
-  type SearchISBNSuccessResponse,
-  SearchISBNSuccessResponseSchema,
-  type SearchResponseMetadata,
-  SearchResponseMetadataSchema,
-  type SearchTitleData,
-  SearchTitleDataSchema,
-  type SearchTitleQuery,
-  SearchTitleQuerySchema,
-  type SearchTitleResponse,
-  SearchTitleResponseSchema,
-  type SearchTitleSuccessResponse,
-  SearchTitleSuccessResponseSchema,
-} from './search.js'
+// Search endpoint schemas moved to @bookstrack/schemas
+// Import from '@bookstrack/schemas' instead of local './search.js'

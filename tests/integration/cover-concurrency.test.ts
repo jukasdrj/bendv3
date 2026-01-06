@@ -150,8 +150,8 @@ describe('Cover Processing Concurrency Integration', () => {
       const match = message.match(/\[CoverProcessor\] Progress: (\d+)\/(\d+) covers processed/)
       if (match) {
         progressUpdates.push({
-          completed: parseInt(match[1]),
-          total: parseInt(match[2])
+          completed: parseInt(match[1] ?? '0'),
+          total: parseInt(match[2] ?? '0')
         })
       }
       originalLog(message)

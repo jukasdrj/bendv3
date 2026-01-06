@@ -16,7 +16,7 @@ import {
   shouldSendAlert,
 } from '../services/alert-monitor'
 import { aggregateMetrics } from '../services/metrics-aggregator'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * Alert data stored in KV for dashboard access

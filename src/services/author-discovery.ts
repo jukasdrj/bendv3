@@ -10,7 +10,7 @@
  * 3. User libraries (most owned authors) - Phase 2
  */
 
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * Author metadata from a single source

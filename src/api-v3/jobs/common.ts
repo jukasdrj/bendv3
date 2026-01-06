@@ -58,7 +58,7 @@ export function getJobStateManagerDO(
   env: Env,
 ): DurableObjectStub & JobStateManagerDO {
   const doId = env.JOB_STATE_MANAGER_DO.idFromName(jobId)
-  return env.JOB_STATE_MANAGER_DO.get(doId) as DurableObjectStub & JobStateManagerDO
+  return env.JOB_STATE_MANAGER_DO.get(doId) as unknown as DurableObjectStub & JobStateManagerDO
 }
 
 /**

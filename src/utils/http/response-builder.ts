@@ -36,7 +36,7 @@
  * ```
  */
 
-import { getCorsHeaders } from '../../middleware/cors.ts'
+import { getCorsHeaders } from '../../middleware/cors.js'
 import type { ResponseEnvelope } from '../../types/responses.js'
 
 /**

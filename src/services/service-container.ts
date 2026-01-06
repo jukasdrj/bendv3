@@ -5,7 +5,8 @@
  * Services register themselves with their dependencies, allowing for easy mocking in tests.
  */
 
-import type { Env } from '../types/env'
+import { vi } from 'vitest'
+import type { Env } from '../types/env.js'
 
 // ========================================================================================
 // SERVICE INTERFACES
@@ -205,23 +206,23 @@ export function createMockServiceContainer(env: Partial<Env> = {}): ServiceConta
 
   // Register mock services for testing
   container.register(ServiceId.BookRepository, () => ({
-    findByISBN: jest.fn(),
-    save: jest.fn(),
-    findByTitle: jest.fn(),
-    findByAuthor: jest.fn(),
+    findByISBN: vi.fn(),
+    save: vi.fn(),
+    findByTitle: vi.fn(),
+    findByAuthor: vi.fn(),
   }))
 
   container.register(ServiceId.EnrichmentService, () => ({
-    enrichMultipleBooks: jest.fn(),
+    enrichMultipleBooks: vi.fn(),
   }))
 
   container.register(ServiceId.CoverService, () => ({
-    processBookCover: jest.fn(),
-    queueCoverProcessing: jest.fn(),
+    processBookCover: vi.fn(),
+    queueCoverProcessing: vi.fn(),
   }))
 
   container.register(ServiceId.DeduplicationService, () => ({
-    deduplicate: jest.fn((_key, fn) => fn()), // Default passthrough
+    deduplicate: vi.fn((_key: string, fn: () => any) => fn()), // Default passthrough
   }))
 
   return container

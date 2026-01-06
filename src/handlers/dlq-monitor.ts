@@ -9,7 +9,7 @@
  */
 
 import type { Context } from 'hono'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * DLQ status response structure

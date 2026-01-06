@@ -17,7 +17,7 @@
  * Related: Issue #68 - Refactor Monolithic ProgressWebSocketDO
  */
 
-import type { Env } from '../types/env'
+import type { Env } from '../../types/env.js'
 
 /**
  * WebSocket connection ready result

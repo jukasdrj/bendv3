@@ -12,7 +12,7 @@
  * @see docs/API_CONTRACT_V2_PROPOSAL.md
  */
 
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 // ============================================================================
 // Types

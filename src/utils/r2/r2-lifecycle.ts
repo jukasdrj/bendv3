@@ -5,8 +5,8 @@
  * Ensures orphaned objects don't accumulate and cost money.
  */
 
-import type { Env } from '../types/env.js'
-import { cleanupJobR2Objects, deletePayloadFromR2 } from './r2-hibernation.ts'
+import type { Env } from '../../types/env.js'
+import { cleanupJobR2Objects, deletePayloadFromR2 } from './r2-hibernation.js'
 
 /**
  * Default cleanup delay (24 hours)
@@ -152,7 +152,7 @@ export async function getOrphanedObjects(
         // More specific regex: matches 13-digit timestamp followed by .csv or .jpg
         const match = obj.key.match(/hibernation\/[^/]+\/[^/]+\/(\d{13})\.(csv|jpg)$/)
         if (match) {
-          const uploadTime = parseInt(match[1], 10)
+          const uploadTime = parseInt(match[1] ?? '0', 10)
           if (uploadTime < cutoffTime) {
             orphaned.push({
               key: obj.key,

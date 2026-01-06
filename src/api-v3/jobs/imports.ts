@@ -183,7 +183,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data,
           metadata: {
             timestamp: new Date().toISOString(),
@@ -262,7 +262,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data: job,
           metadata: {
             timestamp: new Date().toISOString(),
@@ -353,7 +353,8 @@ Returns immediately with jobId for progress tracking via SSE stream.
 
   app.openapi(streamImportRoute, async (c) => {
     const { jobId } = c.req.valid('param')
-    return handleSSEStream(c, 'imports', jobId)
+    // Cast context to satisfy handleSSEStream signature (Variables optional in stream handler)
+    return handleSSEStream(c as any, 'imports', jobId)
   })
 
   // ========================================================================
@@ -438,7 +439,7 @@ Results cached in KV for 1 hour after completion.`,
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data,
           metadata: {
             timestamp: new Date().toISOString(),
@@ -535,7 +536,7 @@ Results cached in KV for 1 hour after completion.`,
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data: job,
           metadata: {
             timestamp: new Date().toISOString(),

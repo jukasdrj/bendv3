@@ -24,5 +24,5 @@ export function extractYear(dateString?: string | number): number | undefined {
 
   // Extract 4-digit year from string (matches first occurrence)
   const match = dateString.match(/\b(\d{4})\b/)
-  return match ? parseInt(match[1], 10) : undefined
+  return match ? parseInt(match[1] ?? '0', 10) : undefined
 }

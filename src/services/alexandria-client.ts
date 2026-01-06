@@ -22,7 +22,7 @@
 
 import { hc } from 'hono/client'
 import type { AlexandriaAppType } from '../types/alexandria-types'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * Alexandria RPC client instance

@@ -17,7 +17,7 @@
  * @module d1-wrapper
  */
 
-import type { Env } from '../types/env.js'
+import type { Env } from '../../types/env.js'
 
 /**
  * SQL keywords that indicate write operations

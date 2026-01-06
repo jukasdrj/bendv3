@@ -10,7 +10,7 @@
  * Related: Issue #8 (hibernation failures), Issue #11 (R2 migration)
  */
 
-import type { Env } from '../types/env'
+import type { Env } from '../../types/env.js'
 
 const MAX_CSV_SIZE = 10 * 1024 * 1024 // 10MB
 const MAX_IMAGE_SIZE = 15 * 1024 * 1024 // 15MB

@@ -47,7 +47,6 @@ export interface BookImportInput {
 interface WorkflowEnv {
   // KV Namespaces
   CACHE: KVNamespace
-  CACHE: KVNamespace
 
   // R2 Buckets
   BOOK_COVERS: R2Bucket
@@ -369,6 +368,9 @@ export class BookImportWorkflow extends WorkflowEntrypoint<WorkflowEnv, BookImpo
     }
 
     const book = data.items[0]?.volumeInfo
+    if (!book) {
+      throw new Error(`No book data found for ISBN ${isbn}`)
+    }
 
     return {
       isbn,

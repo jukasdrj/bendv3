@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
 import { processCSVImport } from '../services/csv-processor'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 import { ProgressReporter } from '../utils/jobs/progress-reporter'
 
 /**
@@ -123,7 +123,6 @@ export class JobStateManagerDO extends DurableObject<Env> {
   // Fix Issue #157: Batch SSE update storage writes
   private pendingUpdates: unknown[] = []
   private lastUpdatePersist: number
-  private currentPipeline: PipelineType | null = null // Track current pipeline for configuration
 
   constructor(state: DurableObjectState, env: Env) {
     super(state, env)
@@ -145,7 +144,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
   ): Promise<{ success: boolean }> {
     console.log(`[JobStateManager] Initializing job ${jobId} for pipeline ${pipeline}`)
 
-    this.currentPipeline = pipeline
+    this._currentPipeline = pipeline
 
     const jobState = {
       jobId,
@@ -616,7 +615,9 @@ export class JobStateManagerDO extends DurableObject<Env> {
     const persistedUpdates = (await this.ctx.storage.get<unknown[]>(`updates:${jobState.jobId}`)) || []
     // Fix Issue #157: Include pending updates that haven't been persisted yet
     const allUpdates = [...persistedUpdates, ...this.pendingUpdates]
-    return allUpdates.filter((u) => u.timestamp > afterTimestamp)
+    return allUpdates.filter((u): u is SSEUpdateData & { timestamp: string } =>
+      typeof u === 'object' && u !== null && 'timestamp' in u && typeof (u as any).timestamp === 'string' && (u as any).timestamp > afterTimestamp
+    )
   }
 
   /**
@@ -673,9 +674,21 @@ export class JobStateManagerDO extends DurableObject<Env> {
     // Fix: DO storage 128KB limit. Strip large 'books' array from persisted updates.
     // Full results are available in KV/R2 and fetched by the stream handler if missing.
     const sanitisedPendingUpdates = this.pendingUpdates.map((update) => {
-      if (update.eventType === 'completed' && update.data?.books?.length > 0) {
+      // Type guard: verify update is an object with expected shape
+      if (
+        typeof update === 'object' &&
+        update !== null &&
+        'eventType' in update &&
+        update.eventType === 'completed' &&
+        'data' in update &&
+        typeof update.data === 'object' &&
+        update.data !== null &&
+        'books' in update.data &&
+        Array.isArray(update.data.books) &&
+        update.data.books.length > 0
+      ) {
         // Create a copy without books
-        const { books, ...rest } = update.data
+        const { books, ...rest } = update.data as { books: unknown[]; [key: string]: unknown }
         return {
           ...update,
           data: { ...rest, books: [] }, // Strip books to save space
@@ -711,7 +724,12 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @param {ProgressReporter} reporter - Progress reporter instance
    * @param {string} jobId - Job identifier
    */
-  async processEnrichmentJob(isbns, includeEmbedding, reporter, jobId) {
+  async processEnrichmentJob(
+    isbns: string[],
+    includeEmbedding: boolean,
+    reporter: ProgressReporter,
+    jobId: string,
+  ) {
     const CONCURRENCY = 10 // Process 10 ISBNs at a time
     const PROGRESS_INTERVAL = 25 // Update every 25 books
 
@@ -719,8 +737,8 @@ export class JobStateManagerDO extends DurableObject<Env> {
       `[JobStateManager] Processing ${isbns.length} ISBNs (embeddings: ${includeEmbedding})`,
     )
 
-    const enrichedBooks = []
-    const notFound = []
+    const enrichedBooks: unknown[] = []
+    const notFound: string[] = []
 
     // Import enrichment service
     const { enrichMultipleBooks } = await import('../services/enrichment.js')
@@ -733,11 +751,11 @@ export class JobStateManagerDO extends DurableObject<Env> {
       const batch = isbns.slice(i, Math.min(i + CONCURRENCY, isbns.length))
 
       const results = await Promise.allSettled(
-        batch.map(async (isbn) => {
+        batch.map(async (isbn: string) => {
           try {
             // Check cache first
             const cacheKey = `book:isbn:${isbn}`
-            const cached = await this.env.CACHE.get(cacheKey, 'json')
+            const cached = await this.env.CACHE.get<{ vectorized?: boolean }>(cacheKey, 'json')
 
             if (cached && (!includeEmbedding || cached.vectorized)) {
               return { success: true, book: cached }
@@ -748,7 +766,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
               { isbn },
               this.env,
               { maxResults: 1 },
-              null, // No executionCtx in DO alarm context
+              undefined, // No executionCtx in DO alarm context
             )
 
             if (!result || !result.works || result.works.length === 0) {
@@ -757,6 +775,10 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
             // Convert to enriched book format
             const work = result.works[0]
+            if (!work) {
+              return { success: false, isbn }
+            }
+
             const edition = result.editions?.[0]
             const authors = result.authors || []
 
@@ -768,7 +790,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
               publishedDate: edition?.publicationDate,
               description: work.description,
               pageCount: edition?.pageCount,
-              categories: work.subjects,
+              categories: work.subjectTags,
               language: edition?.language || 'en',
               coverUrl: work.coverImageURL || edition?.coverImageURL,
               thumbnailUrl: work.coverImageURL || edition?.coverImageURL,
@@ -829,7 +851,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
         if (result.status === 'fulfilled' && result.value.success) {
           enrichedBooks.push(result.value.book)
         } else if (result.status === 'fulfilled' && !result.value.success) {
-          notFound.push(result.value.isbn)
+          notFound.push(result.value.isbn ?? '')
         }
       })
 
@@ -898,9 +920,11 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
         // CRITICAL: Update job state to 'failed' so client is notified
         // Without this, the job would be stuck and user left hanging
+        const errorMessage =
+          error instanceof Error ? error.message : 'CSV processing failed'
         await reporter.sendError('csv_import', {
           code: 'E_ALARM_PROCESSING_FAILED',
-          message: error.message || 'CSV processing failed',
+          message: errorMessage,
           retryable: true,
           details: {
             fallbackAvailable: true,
@@ -931,7 +955,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
         // V3: Load images from R2 storage (fixes 128KB DO storage limit)
         const scanImages = []
         for (let i = 0; i < scanImageR2Keys.length; i++) {
-          const r2Key = scanImageR2Keys[i]
+          const r2Key = scanImageR2Keys[i] ?? ''
           console.log(`[JobStateManager] Loading image from R2: ${r2Key}`)
           const r2Object = await this.env.BOOKSHELF_IMAGES.get(r2Key)
           if (r2Object) {
@@ -969,6 +993,8 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
         for (let i = 0; i < scanImages.length; i++) {
           const image = scanImages[i]
+          if (!image) continue
+
           const photoProgress = (i + 1) / photoCount
 
           // Update progress for each photo
@@ -980,7 +1006,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
           try {
             // Use Gemini Vision to detect books in this photo
-            const { scanImageWithGemini } = await import('../providers/gemini-provider.ts')
+            const { scanImageWithGemini } = await import('../providers/gemini-provider.js')
             const scanResult = await scanImageWithGemini(image.buffer, this.env)
 
             console.log(
@@ -1029,9 +1055,9 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
         // Enrich books with metadata
         const { enrichBooksParallel } = await import('../services/parallel-enrichment')
-        const { enrichMultipleBooks } = await import('../services/enrichment.ts')
-        const { categorizeBooks } = await import('../utils/confidence.js')
-        const { getCacheTTL } = await import('../config/cache-ttl.ts')
+        const { enrichMultipleBooks } = await import('../services/enrichment.js')
+        const { categorizeBooks } = await import('../utils/book/confidence.js')
+        const { getCacheTTL } = await import('../config/cache-ttl.js')
 
         const enrichedBooks = await enrichBooksParallel(
           deduplicatedBooks,
@@ -1123,9 +1149,11 @@ export class JobStateManagerDO extends DurableObject<Env> {
       } catch (error) {
         console.error('[JobStateManager] Bookshelf scan processing failed in alarm:', error)
 
+        const errorMessage =
+          error instanceof Error ? error.message : 'Bookshelf scan processing failed'
         await reporter.sendError('ai_scan', {
           code: 'E_ALARM_PROCESSING_FAILED',
-          message: error.message || 'Bookshelf scan processing failed',
+          message: errorMessage,
           retryable: true,
           details: {
             fallbackAvailable: false,
@@ -1154,13 +1182,15 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
       try {
         // Process enrichment in chunks
-        await this.processEnrichmentJob(isbns, includeEmbedding, reporter, jobState.jobId)
+        await this.processEnrichmentJob(isbns, includeEmbedding, reporter, jobState.jobId ?? '')
       } catch (error) {
         console.error('[JobStateManager] Enrichment processing failed in alarm:', error)
 
+        const errorMessage =
+          error instanceof Error ? error.message : 'Batch enrichment processing failed'
         await reporter.sendError('enrichment', {
           code: 'E_ALARM_PROCESSING_FAILED',
-          message: error.message || 'Batch enrichment processing failed',
+          message: errorMessage,
           retryable: true,
           details: {
             fallbackAvailable: true,

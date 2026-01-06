@@ -3,7 +3,7 @@
  * Migrated from books-api-proxy caching logic
  */
 
-import type { Env } from '../types/env'
+import type { Env } from '../../types/env.js'
 
 /**
  * Cache event types for tracking

@@ -250,15 +250,15 @@ Returns immediately with jobId for progress tracking via SSE stream.
       let totalBatchSize = 0
 
       for (let i = 0; i < photoFiles.length; i++) {
-        const file = photoFiles[i]
+        const fileEntry = photoFiles[i]
 
-        // Validate file is actually a File/Blob object
-        // Type guard: check if file has Blob-like properties
-        if (typeof file !== 'object' || file === null || !('arrayBuffer' in file)) {
+        // Validate file is actually a File/Blob object (not a string)
+        // Type guard: FormDataEntryValue is File | string
+        if (typeof fileEntry === 'string') {
           return c.json(
             createProblemDetails(
               'INVALID_REQUEST',
-              `Photo at index ${i} is not a valid file (expected binary image data)`,
+              `Photo at index ${i} is not a valid file (expected binary image data, got string)`,
               {
                 requestId: ctx.requestId,
                 instance: c.req.url,
@@ -267,6 +267,9 @@ Returns immediately with jobId for progress tracking via SSE stream.
             400,
           )
         }
+
+        // After type guard, fileEntry is guaranteed to be File (not string)
+        const file = fileEntry as unknown as File
 
         // Get actual buffer size
         const imageBuffer = await file.arrayBuffer()
@@ -291,11 +294,11 @@ Returns immediately with jobId for progress tracking via SSE stream.
         processedImages.push({
           index: i,
           buffer: imageBuffer,
-          type: (file as unknown as File).type || 'image/jpeg',
+          type: file.type || 'image/jpeg',
         })
 
         console.log(
-          `[V3 Scan] Photo ${i}: ${(actualSize / 1_000_000).toFixed(2)}MB, type: ${(file as unknown as File).type}`,
+          `[V3 Scan] Photo ${i}: ${(actualSize / 1_000_000).toFixed(2)}MB, type: ${file.type}`,
         )
       }
 
@@ -366,7 +369,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data,
           metadata: {
             timestamp: new Date().toISOString(),
@@ -445,7 +448,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data: job,
           metadata: {
             timestamp: new Date().toISOString(),
@@ -536,7 +539,8 @@ Returns immediately with jobId for progress tracking via SSE stream.
 
   app.openapi(streamScanRoute, async (c) => {
     const { jobId } = c.req.valid('param')
-    return handleSSEStream(c, 'scans', jobId)
+    // Cast context to satisfy handleSSEStream signature (Variables optional in stream handler)
+    return handleSSEStream(c as any, 'scans', jobId)
   })
 
   // ========================================================================
@@ -637,7 +641,7 @@ Results cached in KV for 2 hours after completion.`,
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data,
           metadata: {
             timestamp: new Date().toISOString(),
@@ -768,7 +772,7 @@ Results cached in KV for 2 hours after completion.`,
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data: job,
           metadata: {
             timestamp: new Date().toISOString(),

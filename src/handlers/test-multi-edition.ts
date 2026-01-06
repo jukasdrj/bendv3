@@ -5,8 +5,8 @@
  * GET /api/test-multi-edition?count=5
  */
 
-import { getTopEditions } from '../services/edition-discovery.ts'
-import type { Env } from '../types/env'
+import { getTopEditions } from '../services/edition-discovery.js'
+import type { Env } from '../types/env.js'
 
 interface GoogleBooksVolumeInfo {
   title: string
@@ -100,7 +100,11 @@ export async function handleTestMultiEdition(request: Request, env: Env): Promis
         continue
       }
 
-      const volumeInfo = metadataData.items[0].volumeInfo
+      const volumeInfo = metadataData.items[0]?.volumeInfo
+      if (!volumeInfo) {
+        console.log(`[MultiEditionTest] No volume info for ${isbn}`)
+        continue
+      }
       const title = volumeInfo.title
       const authors = volumeInfo.authors || []
 

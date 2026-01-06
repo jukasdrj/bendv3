@@ -9,7 +9,7 @@
  * TODO: Implement KV-based access tracking or GraphQL API integration.
  */
 
-import type { Env } from '../types/env'
+import type { Env } from '../../types/env.js'
 
 /**
  * Access frequency stats map (key -> count)

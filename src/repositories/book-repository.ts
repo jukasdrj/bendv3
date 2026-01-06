@@ -70,7 +70,6 @@ export class BookRepository {
    * @throws Never throws - D1 write failures are logged but don't fail the request
    */
   async save(book: BookRecord): Promise<void> {
-    const _startTime = Date.now()
     let d1WriteTime = 0
     let kvWriteTime = 0
     let d1Success = false

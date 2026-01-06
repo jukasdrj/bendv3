@@ -10,11 +10,11 @@
 import { CacheKeyFactory } from '../services/cache-key-factory'
 import * as externalApis from '../services/external-apis'
 import { UnifiedCacheService } from '../services/unified-cache'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 import { writeCacheMetrics } from '../utils/analytics/analytics'
 import { detectImageQuality } from '../utils/book/book-metadata'
 import { setCached } from '../utils/cache/cache'
-import { transformWorkToGoogleFormat } from '../utils/transform/transform-work'
+import { transformWorkToGoogleFormat, type Work } from '../utils/transform/transform-work'
 
 // ============================================================================
 // Types
@@ -85,7 +85,7 @@ export async function searchByTitle(
 
   if (cachedResult?.data) {
     const { data, source } = cachedResult
-    const cachedData = data as { items?: unknown[] }
+    const cachedData = data as { items?: unknown[]; kind?: string; totalItems?: number }
     const headers = await generateCacheHeaders(
       true,
       cachedResult.age || 0,
@@ -108,14 +108,15 @@ export async function searchByTitle(
 
     return {
       ...cachedData,
-      kind: 'books#volumes',
-      totalItems: cachedData.items?.length || 0,
+      kind: cachedData.kind || 'books#volumes',
+      totalItems: cachedData.totalItems || cachedData.items?.length || 0,
+      items: cachedData.items || [],
       provider: 'cached',
       cached: true,
       cacheSource: source, // Include cache source (EDGE or KV)
       responseTime: 0,
       _cacheHeaders: headers,
-    }
+    } as SearchResult
   }
 
   const startTime = Date.now()
@@ -137,7 +138,9 @@ export async function searchByTitle(
     if (googleResult?.status === 'fulfilled' && googleResult.value) {
       const googleData = googleResult.value as { works?: unknown[] }
       if (googleData.works && googleData.works.length > 0) {
-        const transformedItems = googleData.works.map((work: unknown) => transformWorkToGoogleFormat(work))
+        const transformedItems = googleData.works
+          .filter((work): work is Work => work !== null && typeof work === 'object')
+          .map((work) => transformWorkToGoogleFormat(work))
         finalItems = [...finalItems, ...transformedItems]
         successfulProviders.push('google')
       }
@@ -148,7 +151,9 @@ export async function searchByTitle(
     if (olResult?.status === 'fulfilled' && olResult.value) {
       const olData = olResult.value as { works?: unknown[] }
       if (olData.works && olData.works.length > 0) {
-        const transformedItems = olData.works.map((work: unknown) => transformWorkToGoogleFormat(work))
+        const transformedItems = olData.works
+          .filter((work): work is Work => work !== null && typeof work === 'object')
+          .map((work) => transformWorkToGoogleFormat(work))
         finalItems = [...finalItems, ...transformedItems]
         successfulProviders.push('openlibrary')
       }
@@ -225,11 +230,12 @@ export async function searchByISBN(
 
   if (cachedResult?.data) {
     const { data, source } = cachedResult
+    const cachedData = data as { items?: unknown[]; kind?: string; totalItems?: number; cached?: boolean }
     const headers = await generateCacheHeaders(
       true,
       cachedResult.age || 0,
       cachedResult.ttl || 0,
-      data.items,
+      cachedData.items || [],
       env,
     )
 
@@ -240,18 +246,23 @@ export async function searchByISBN(
         isbn: isbn, // Log actual ISBN for daily harvest
         cacheHit: true,
         responseTime: 0, // Cache hits are instant
-        imageQuality: headers['X-Image-Quality'],
-        dataCompleteness: parseInt(headers['X-Data-Completeness'], 10),
-        itemCount: data.items?.length || 0,
+        imageQuality: headers['X-Image-Quality'] || '',
+        dataCompleteness: parseInt(headers['X-Data-Completeness'] || '0', 10),
+        itemCount: cachedData.items?.length || 0,
       }),
     )
 
     return {
-      ...data,
+      ...cachedData,
+      kind: cachedData.kind || 'books#volumes',
+      totalItems: cachedData.totalItems || cachedData.items?.length || 0,
+      items: cachedData.items || [],
+      provider: 'cached',
       cached: true,
       cacheSource: source, // Include cache source (EDGE or KV)
+      responseTime: 0,
       _cacheHeaders: headers,
-    }
+    } as SearchResult
   }
 
   const startTime = Date.now()
@@ -260,7 +271,7 @@ export async function searchByISBN(
     // Search both Google Books and OpenLibrary in parallel
     const searchPromises = [
       externalApis.searchGoogleBooksByISBN(isbn, env),
-      externalApis.searchOpenLibrary(isbn, { maxResults, isbn }, env),
+      externalApis.searchOpenLibrary(isbn, { maxResults }, env),
     ]
 
     const results = await Promise.allSettled(searchPromises)
@@ -269,20 +280,26 @@ export async function searchByISBN(
     const successfulProviders: string[] = []
 
     // Process Google Books results
-    if (results[0].status === 'fulfilled' && results[0].value) {
-      const googleData = results[0].value as { works?: unknown[] }
+    const googleResult = results[0]
+    if (googleResult?.status === 'fulfilled' && googleResult.value) {
+      const googleData = googleResult.value as { works?: unknown[] }
       if (googleData.works && googleData.works.length > 0) {
-        const transformedItems = googleData.works.map((work) => transformWorkToGoogleFormat(work))
+        const transformedItems = googleData.works
+          .filter((work): work is Work => work !== null && typeof work === 'object')
+          .map((work) => transformWorkToGoogleFormat(work))
         finalItems = [...finalItems, ...transformedItems]
         successfulProviders.push('google')
       }
     }
 
     // Process OpenLibrary results
-    if (results[1].status === 'fulfilled' && results[1].value) {
-      const olData = results[1].value as { works?: unknown[] }
+    const olResult = results[1]
+    if (olResult?.status === 'fulfilled' && olResult.value) {
+      const olData = olResult.value as { works?: unknown[] }
       if (olData.works && olData.works.length > 0) {
-        const transformedItems = olData.works.map((work) => transformWorkToGoogleFormat(work))
+        const transformedItems = olData.works
+          .filter((work): work is Work => work !== null && typeof work === 'object')
+          .map((work) => transformWorkToGoogleFormat(work))
         finalItems = [...finalItems, ...transformedItems]
         successfulProviders.push('openlibrary')
       }
@@ -313,8 +330,8 @@ export async function searchByISBN(
         isbn: isbn, // Log actual ISBN for daily harvest
         cacheHit: false,
         responseTime: Date.now() - startTime,
-        imageQuality: responseData._cacheHeaders['X-Image-Quality'],
-        dataCompleteness: parseInt(responseData._cacheHeaders['X-Data-Completeness'], 10),
+        imageQuality: responseData._cacheHeaders['X-Image-Quality'] ?? 'UNKNOWN',
+        dataCompleteness: parseInt(responseData._cacheHeaders['X-Data-Completeness'] ?? '0', 10),
         itemCount: dedupedItems.length,
       }),
     )

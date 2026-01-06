@@ -5,7 +5,7 @@
  * Used by search endpoints to track ISBN lookups, cache hits/misses, and performance.
  */
 
-import type { Env } from '../types/env.js'
+import type { Env } from '../../types/env.js'
 
 /**
  * Cache metrics data structure

@@ -30,7 +30,7 @@ import { generateBookEmbedding, storeEmbedding } from '../services/embedding-ser
 // Note: extractUniqueAuthors, removeAuthorsFromWorks, enrichAuthorsWithCulturalData removed
 // Alexandria now returns per-work embedded authors array, no client-side matching needed
 import { enrichMultipleBooks } from '../services/enrichment'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 import { normalizeTitle } from '../utils/transform/normalization'
 import { isValidEnrichedBookCacheEntry } from '../utils/validation/book-validation'
 import { registerDiscoveryRoutes } from './discovery'
@@ -155,7 +155,11 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
 
   app.openapi(searchRoute, async (c) => {
     const ctx = c.get('ctx')
-    const { q, mode = 'text', page = 1, limit = 20 } = c.req.valid('query')
+    const validatedQuery = c.req.valid('query')
+    const { q, mode = 'text' } = validatedQuery
+    // Query params are typed as number after z.coerce.number() validation
+    const page = (validatedQuery.page ?? 1) as number
+    const limit = (validatedQuery.limit ?? 20) as number
 
     console.log(`[V3 Search] Query: "${q}", mode: ${mode}, page: ${page}, limit: ${limit}`)
 
@@ -178,7 +182,7 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
         const offset = (page - 1) * limit
         return c.json(
           {
-            success: true,
+            success: true as const,
             data: {
               results: [],
               totalCount: 0,
@@ -278,7 +282,7 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
       // iOS-compatible response format with results/totalCount/query.offset
       return c.json(
         {
-          success: true,
+          success: true as const,
           data: {
             results: paginatedBooks,
             totalCount: totalResults,
@@ -417,7 +421,7 @@ for semantic search.`,
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data: {
             jobId,
             status: 'queued' as const,
@@ -462,7 +466,7 @@ for semantic search.`,
           // Fetch from external APIs (using top-level import)
           const result = await enrichMultipleBooks(
             { isbn },
-            c.env as any, // Type cast needed - enrichMultipleBooks uses subset WorkerEnv interface
+            c.env,
             { maxResults: 1 },
             c.executionCtx,
           )
@@ -477,10 +481,10 @@ for semantic search.`,
           const rawAuthors = result.authors || []
 
           // Transform Alexandria authors to BooksTrack AuthorReference format
-          const authors = rawAuthors.map((a) => {
-            if (typeof a === 'object' && 'name' in a) {
+          const authors: Array<string | { name: string; key?: string; openlibrary?: string; bio?: string; gender?: string; nationality?: string; birth_year?: number; death_year?: number; wikidata_id?: string; image?: string }> = rawAuthors.map((a) => {
+            if (typeof a === 'object' && a !== null && 'name' in a) {
               return {
-                name: a.name,
+                name: a.name as string,
                 key: (a as any).key,
                 openlibrary: (a as any).openlibrary,
                 bio: (a as any).bio,
@@ -492,7 +496,8 @@ for semantic search.`,
                 image: (a as any).image,
               }
             }
-            return a.name
+            // Fallback: if it's a string, return as-is (legacy format)
+            return typeof a === 'string' ? a : String(a)
           })
 
           // Transform Alexandria cover URLs to multiple sizes format
@@ -584,7 +589,7 @@ for semantic search.`,
           // Fetch from external APIs
           const result = await enrichMultipleBooks(
             { isbn },
-            c.env as any, // Type cast needed - enrichMultipleBooks uses subset WorkerEnv interface
+            c.env,
             { maxResults: 1 },
             c.executionCtx,
           )
@@ -600,10 +605,10 @@ for semantic search.`,
           const rawAuthors = result.authors || []
 
           // Transform Alexandria authors to BooksTrack AuthorReference format
-          const authors = rawAuthors.map((a) => {
-            if (typeof a === 'object' && 'name' in a) {
+          const authors: Array<string | { name: string; key?: string; openlibrary?: string; bio?: string; gender?: string; nationality?: string; birth_year?: number; death_year?: number; wikidata_id?: string; image?: string }> = rawAuthors.map((a) => {
+            if (typeof a === 'object' && a !== null && 'name' in a) {
               return {
-                name: a.name,
+                name: a.name as string,
                 key: (a as any).key,
                 openlibrary: (a as any).openlibrary,
                 bio: (a as any).bio,
@@ -615,7 +620,8 @@ for semantic search.`,
                 image: (a as any).image,
               }
             }
-            return a.name
+            // Fallback: if it's a string, return as-is (legacy format)
+            return typeof a === 'string' ? a : String(a)
           })
 
           // Transform Alexandria cover URLs to multiple sizes format
@@ -649,11 +655,16 @@ for semantic search.`,
           // Generate embedding if requested
           if (includeEmbedding && c.env.AI) {
             try {
+              // Extract author names for embedding (handle both string and object formats)
+              const authorNames = book.authors
+                .map((a) => (typeof a === 'string' ? a : a.name))
+                .join(', ')
+
               const embedding = await generateBookEmbedding(
                 {
                   isbn: book.isbn,
                   title: book.title,
-                  author: book.authors.join(', '),
+                  author: authorNames,
                   description: book.description,
                   categories: book.categories,
                 },
@@ -666,7 +677,7 @@ for semantic search.`,
                   {
                     isbn: book.isbn,
                     title: book.title,
-                    author: book.authors.join(', '),
+                    author: authorNames,
                     categories: book.categories?.join(', '),
                   },
                   c.env,
@@ -697,7 +708,8 @@ for semantic search.`,
 
         results.forEach((result) => {
           if (result.status === 'fulfilled' && result.value.success && result.value.book) {
-            enrichedBooks.push(result.value.book)
+            // Type assertion: book object has union type authors which is compatible with EnrichedBook
+            enrichedBooks.push(result.value.book as EnrichedBook)
           } else if (result.status === 'fulfilled' && !result.value.success && result.value.isbn) {
             notFound.push(result.value.isbn)
           } else if (result.status === 'rejected') {
@@ -723,7 +735,7 @@ for semantic search.`,
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data: {
             books: enrichedBooks,
             requested: isbns.length,
@@ -837,9 +849,9 @@ for semantic search.`,
       const authors =
         enrichmentResult.authors?.map((a) => {
           // If author has enriched metadata, return full object
-          if (typeof a === 'object' && 'name' in a) {
+          if (typeof a === 'object' && a !== null && 'name' in a) {
             return {
-              name: a.name,
+              name: a.name as string,
               key: (a as any).key,
               openlibrary: (a as any).openlibrary,
               bio: (a as any).bio,
@@ -852,7 +864,7 @@ for semantic search.`,
             }
           }
           // Fallback for legacy string-only authors
-          return a.name
+          return typeof a === 'string' ? a : String(a)
         }) || []
 
       // Transform Alexandria cover URLs to multiple sizes format
@@ -904,7 +916,7 @@ for semantic search.`,
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data: book,
           metadata: {
             timestamp: new Date().toISOString(),

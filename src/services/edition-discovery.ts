@@ -6,7 +6,7 @@
  * for cover image harvesting.
  */
 
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * Google Books volume image links

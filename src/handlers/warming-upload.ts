@@ -1,6 +1,6 @@
-import { buildCSVParserPrompt } from '../prompts/csv-parser-prompt.ts'
-import { parseCSVWithGemini } from '../providers/gemini-csv-provider.ts'
-import type { Env } from '../types/env'
+import { buildCSVParserPrompt } from '../prompts/csv-parser-prompt.js'
+import { parseCSVWithGemini } from '../providers/gemini-csv-provider.js'
+import type { Env } from '../types/env.js'
 
 interface WarmingUploadBody {
   csv: string
@@ -72,8 +72,8 @@ export async function handleWarmingUpload(
     // Parse with Gemini
     const prompt = buildCSVParserPrompt()
 
-    // Get API key from Secrets Store
-    const apiKey = env.GEMINI_API_KEY?.get ? await env.GEMINI_API_KEY.get() : env.GEMINI_API_KEY
+    // Get API key (always a string in Env)
+    const apiKey = env.GEMINI_API_KEY
 
     if (!apiKey) {
       return new Response(

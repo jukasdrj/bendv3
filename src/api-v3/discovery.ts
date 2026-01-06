@@ -13,7 +13,7 @@ import { createProblemDetails } from '@bookstrack/schemas/errors'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { createRoute, z } from '@hono/zod-openapi'
 import type { RequestContext } from '../middleware/request-context'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 // ============================================================================
 // Capabilities Schemas (iOS-compatible flat format)
@@ -193,7 +193,9 @@ export function registerDiscoveryRoutes(
   // GET /v3/recommendations/weekly
   app.openapi(recommendationsRoute, async (c) => {
     const ctx = c.get('ctx')
-    const { limit } = c.req.valid('query')
+    const validatedQuery = c.req.valid('query')
+    // Query param is typed as number after z.coerce.number() validation
+    const limit = (validatedQuery.limit ?? 10) as number
 
     try {
       // Calculate current week start (Sunday)
@@ -223,7 +225,7 @@ export function registerDiscoveryRoutes(
 
         return c.json(
           {
-            success: true,
+            success: true as const,
             data: {
               weekOf: cached.weekOf,
               recommendations,
@@ -270,7 +272,7 @@ export function registerDiscoveryRoutes(
 
           return c.json(
             {
-              success: true,
+              success: true as const,
               data: {
                 weekOf: result.week_of,
                 recommendations,
@@ -329,7 +331,7 @@ export function registerDiscoveryRoutes(
 
           return c.json(
             {
-              success: true,
+              success: true as const,
               data: {
                 weekOf,
                 recommendations: fallbackRecommendations,

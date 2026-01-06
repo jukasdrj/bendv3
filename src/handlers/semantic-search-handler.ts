@@ -12,7 +12,7 @@
 
 import { findSimilarBooks, semanticSearch } from '../services/embedding-service.js'
 import type { Env } from '../types/env.js'
-import { createErrorResponse, ErrorCodes } from '../utils/response-builder.js'
+import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder.js'
 
 // ============================================================================
 // Handlers

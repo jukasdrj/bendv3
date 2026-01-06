@@ -253,3 +253,34 @@ export interface EnrichedBookDTO {
     authors: AuthorDTO[]
   }
 }
+
+// ============================================================================
+// RESPONSE ENVELOPE TYPE
+// ============================================================================
+
+/**
+ * Generic response envelope used across all API endpoints
+ *
+ * Provides a consistent structure for both success and error responses.
+ */
+export type ResponseEnvelope<T = any> = {
+  data: T | null
+  metadata: ResponseMetadata
+  error?: ApiError
+}
+
+/**
+ * Legacy error response format (pre-RFC 9457)
+ *
+ * Used internally by error-status.ts for error code mapping.
+ * External APIs should use RFC 9457 format from @bookstrack/schemas.
+ */
+export interface ErrorResponse {
+  success: false
+  status?: number
+  error: {
+    message: string
+    code?: string
+    details?: any
+  }
+}

@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * CacheMetricsDO - Durable Object for aggregating cache performance metrics
@@ -471,7 +471,7 @@ export class CacheMetricsDO extends DurableObject<Env> {
 
       for (const key of keysToCheck) {
         const timestamp = this.stats.lastPutTimestamps[key]
-        if (now - timestamp > CHURN_WINDOW_MS) {
+        if (timestamp && now - timestamp > CHURN_WINDOW_MS) {
           delete this.stats.lastPutTimestamps[key]
         }
       }
@@ -573,7 +573,10 @@ export class CacheMetricsDO extends DurableObject<Env> {
       if (!destination.failuresByEndpoint[endpoint]) {
         destination.failuresByEndpoint[endpoint] = 0
       }
-      destination.failuresByEndpoint[endpoint] += source.failuresByEndpoint[endpoint]
+      const sourceValue = source.failuresByEndpoint[endpoint]
+      if (sourceValue !== undefined) {
+        destination.failuresByEndpoint[endpoint]! += sourceValue
+      }
     }
 
     // Merge failuresByField
@@ -581,7 +584,10 @@ export class CacheMetricsDO extends DurableObject<Env> {
       if (!destination.failuresByField[field]) {
         destination.failuresByField[field] = 0
       }
-      destination.failuresByField[field] += source.failuresByField[field]
+      const sourceValue = source.failuresByField[field]
+      if (sourceValue !== undefined) {
+        destination.failuresByField[field]! += sourceValue
+      }
     }
   }
 
@@ -844,13 +850,13 @@ export class CacheMetricsDO extends DurableObject<Env> {
             if (!window.failuresByEndpoint[data.endpoint]) {
               window.failuresByEndpoint[data.endpoint] = 0
             }
-            window.failuresByEndpoint[data.endpoint]++
+            window.failuresByEndpoint[data.endpoint]!++
           }
           if (data.failedField) {
             if (!window.failuresByField[data.failedField]) {
               window.failuresByField[data.failedField] = 0
             }
-            window.failuresByField[data.failedField]++
+            window.failuresByField[data.failedField]!++
           }
         }
       }
@@ -883,7 +889,7 @@ export class CacheMetricsDO extends DurableObject<Env> {
         if (providerStats) {
           providerStats.requestCount++
           if (data.error) providerStats.errorCount++
-          if (data.tokensUsed && 'tokensUsed' in providerStats) {
+          if (data.tokensUsed && 'tokensUsed' in providerStats && providerStats.tokensUsed !== undefined) {
             providerStats.tokensUsed += data.tokensUsed
           }
           if (typeof data.quotaRemaining === 'number' && 'quotaRemaining' in providerStats) {

@@ -5,7 +5,7 @@
  * Used by scan-results and csv-results handlers to reduce duplication.
  */
 
-import { createErrorResponse, ErrorCodes } from '../response-builder.js'
+import { createErrorResponse, ErrorCodes } from '../http/response-builder.js'
 
 /**
  * Minimal environment interface required for KV results handler.
@@ -76,7 +76,6 @@ export async function handleKVResults<T>(
   config: KVResultsConfig<T>,
   request: Request | null = null,
 ): Promise<Response> {
-  const _startTime = Date.now()
 
   // Validation
   if (!jobId || jobId.trim().length === 0) {
@@ -107,8 +106,14 @@ export async function handleKVResults<T>(
     // Cast to expected structure
     const results = kvResult.value as T
 
-    // Calculate expiry
-    const expiresAt = calculateExpiresAt(kvResult.metadata)
+    // Calculate expiry (type guard for metadata)
+    const metadata =
+      kvResult.metadata &&
+      typeof kvResult.metadata === 'object' &&
+      'expiration' in kvResult.metadata
+        ? (kvResult.metadata as { expiration?: number })
+        : undefined
+    const expiresAt = calculateExpiresAt(metadata)
 
     // Log retrieval
     if (config.formatLogMessage) {

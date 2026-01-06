@@ -100,6 +100,10 @@ async function findBookByISBNInternal(
   if (externalResult.works && externalResult.works.length > 0) {
     try {
       const work = externalResult.works[0]
+      if (!work) {
+        throw new Error('Work not found in result')
+      }
+
       const edition = externalResult.editions?.[0]
 
       // Process cover via Alexandria if we have a work key and cover URL
@@ -181,7 +185,7 @@ async function findBookByISBNInternal(
       const bookRecord: BookRecord = {
         isbn: isbn,
         title: work.title || 'Unknown',
-        subtitle: work.subtitle || null,
+        subtitle: null, // Subtitle not available in WorkDTO (use edition.editionTitle if needed)
         description: work.description || null,
         publisher: edition?.publisher || null,
         publicationDate: edition?.publicationDate || null,
@@ -280,6 +284,7 @@ export async function batchEnrichBooks(
 
   cacheResults.forEach((result, index) => {
     const isbn = isbns[index]
+    if (!isbn) return
 
     if (result.status === 'fulfilled' && result.value) {
       // Cache hit
@@ -313,15 +318,20 @@ export async function batchEnrichBooks(
   // Collect all cover processing tasks
   for (let i = 0; i < missingISBNs.length; i++) {
     const isbn = missingISBNs[i]
+    if (!isbn) continue
+
     const result = externalResults[i]
+    if (!result) continue
 
     if (result.status === 'fulfilled' && result.value.works.length > 0) {
       const work = result.value.works[0]
+      if (!work) continue
+
       const edition = result.value.editions?.[0]
       const providerCoverURL = work.coverImageURL || edition?.coverImageURL
       const workKey = work.openLibraryWorkID || work.openLibraryID
 
-      if (workKey && providerCoverURL) {
+      if (workKey && providerCoverURL && typeof workKey === 'string') {
         coverProcessingTasks.push({
           isbn,
           workKey,
@@ -341,7 +351,10 @@ export async function batchEnrichBooks(
   // Step 4: Save to repository and add to results
   for (let i = 0; i < missingISBNs.length; i++) {
     const isbn = missingISBNs[i]
+    if (!isbn) continue
+
     const result = externalResults[i]
+    if (!result) continue
 
     if (result.status === 'fulfilled' && result.value.works.length > 0) {
       const externalResult = result.value
@@ -349,6 +362,11 @@ export async function batchEnrichBooks(
       // Save to repository
       try {
         const work = externalResult.works[0]
+        if (!work) {
+          console.warn(`[BookService] No work found for ${isbn}`)
+          continue
+        }
+
         const edition = externalResult.editions?.[0]
 
         // Use pre-processed cover URLs from parallel batch
@@ -379,7 +397,7 @@ export async function batchEnrichBooks(
         const bookRecord: BookRecord = {
           isbn: isbn,
           title: work.title || 'Unknown',
-          subtitle: work.subtitle || null,
+          subtitle: null, // Subtitle not available in WorkDTO (use edition.editionTitle if needed)
           description: work.description || null,
           publisher: edition?.publisher || null,
           publicationDate: edition?.publicationDate || null,

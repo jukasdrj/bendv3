@@ -10,7 +10,7 @@
 
 import type { ExecutionContext, ScheduledEvent } from '@cloudflare/workers-types'
 import { createAlexandriaClient } from '../services/alexandria-client'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * Harvest result statistics
@@ -46,7 +46,15 @@ export async function handleScheduledHarvest(
   console.log('📚 STARTING HOURLY COVER HARVEST')
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
 
-  const client = createAlexandriaClient(env)
+  const client = createAlexandriaClient(env) as {
+    api: {
+      harvest: {
+        covers: {
+          $post: (options: { json: { batch_size: number; offset: number; queue_covers: boolean } }) => Promise<Response>
+        }
+      }
+    }
+  }
 
   try {
     // Call Alexandria's /api/harvest/covers endpoint

@@ -1,7 +1,7 @@
 // src/services/edge-cache.ts
 
 import type { ExecutionContext } from '@cloudflare/workers-types'
-import type { Env } from '../types/env.ts'
+import type { Env } from '../types/env.js'
 
 /**
  * Cache event for tracking

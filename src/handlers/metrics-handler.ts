@@ -1,5 +1,5 @@
 import type { Context } from 'hono'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
 
 /**

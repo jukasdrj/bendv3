@@ -1,6 +1,6 @@
 // src/services/metrics-aggregator.ts
 
-import type { Env } from '../types/env.ts'
+import type { Env } from '../types/env.js'
 
 /**
  * Aggregation time periods
@@ -110,15 +110,6 @@ export async function aggregateMetrics(
   _env: Env,
   period: AggregationPeriod,
 ): Promise<AggregatedMetrics> {
-  const periodMap: Record<AggregationPeriod, string> = {
-    '15m': '15 MINUTE',
-    '1h': '1 HOUR',
-    '24h': '24 HOUR',
-    '7d': '7 DAY',
-  }
-
-  const _interval = periodMap[period] || '1 HOUR'
-
   // LIMITATION: Analytics Engine Workers binding only supports writeDataPoint()
   // Query capability requires Cloudflare GraphQL API with account token
   // For now, return placeholder data with real query instructions

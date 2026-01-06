@@ -8,7 +8,7 @@
  * Run with: npx wrangler dev src/scripts/purge-cache.ts
  */
 
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * Purge statistics
@@ -191,7 +191,7 @@ async function purgePattern(kv: KVNamespace, prefix: string, stats: PurgeStats):
 
     // Check if there are more keys
     hasMore = !listResult.list_complete
-    cursor = listResult.cursor
+    cursor = listResult.cursor as string | undefined
   }
 
   console.log(`   ✅ Pattern ${prefix}* complete: ${patternStats.deleted} deleted`)

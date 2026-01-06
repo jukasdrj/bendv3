@@ -176,7 +176,8 @@ export async function generateBatchEmbeddings(
       for (let j = 0; j < batch.length; j++) {
         const embedding = response.data[j]
         if (embedding && embedding.length > 0) {
-          results.set(batch[j]?.isbn, embedding)
+          const isbn = batch[j]?.isbn ?? ''
+          results.set(isbn, embedding)
         }
       }
     } catch (error) {

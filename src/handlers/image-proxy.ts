@@ -184,7 +184,7 @@ function resizeImage(imageData: ArrayBuffer, size: string, contentType: string):
     large: { width: 512, height: 768 },
   }
 
-  const dimensions = SIZE_MAP[size] || SIZE_MAP.medium
+  const dimensions = SIZE_MAP[size] || SIZE_MAP.medium!
 
   return new Response(imageData, {
     headers: {

@@ -21,8 +21,6 @@
 
 import type { Env } from '../types/env.js'
 
-const _RATE_LIMIT_WINDOW = 60 // 60 seconds
-
 /**
  * Rate limit configuration per endpoint type
  * AI-heavy endpoints require stricter limits due to cost and processing time

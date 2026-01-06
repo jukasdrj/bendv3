@@ -95,7 +95,7 @@ export function registerEnrichmentRoutes(
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data: job,
           metadata: {
             timestamp: new Date().toISOString(),
@@ -186,7 +186,8 @@ export function registerEnrichmentRoutes(
 
   app.openapi(streamEnrichmentRoute, async (c) => {
     const { jobId } = c.req.valid('param')
-    return handleSSEStream(c, 'enrichment', jobId)
+    // Cast context to satisfy handleSSEStream signature (Variables optional in stream handler)
+    return handleSSEStream(c as any, 'enrichment', jobId)
   })
 
   // ========================================================================
@@ -280,7 +281,7 @@ Results cached in KV for 2 hours after completion.`,
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data,
           metadata: {
             timestamp: new Date().toISOString(),
@@ -388,7 +389,7 @@ Results cached in KV for 2 hours after completion.`,
 
       return c.json(
         {
-          success: true,
+          success: true as const,
           data: job,
           metadata: {
             timestamp: new Date().toISOString(),

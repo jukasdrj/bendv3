@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
-import type { Env } from '../types/env'
+import type { Env } from '../types/env.js'
 
 /**
  * LatencyTestDO - RPC Performance Verification
@@ -178,8 +178,8 @@ export class LatencyTestDO extends DurableObject<Env> {
     const sorted = validMeasurements.sort((a, b) => a - b)
 
     // Basic statistics
-    const min = sorted[0]
-    const max = sorted[sorted.length - 1]
+    const min = sorted[0]!
+    const max = sorted[sorted.length - 1]!
     const avg = sorted.reduce((a, b) => a + b, 0) / sorted.length
 
     // Percentile calculation (linear interpolation)
@@ -190,10 +190,10 @@ export class LatencyTestDO extends DurableObject<Env> {
       const weight = index % 1
 
       if (lower === upper) {
-        return sorted[lower]
+        return sorted[lower]!
       }
 
-      return sorted[lower] * (1 - weight) + sorted[upper] * weight
+      return sorted[lower]! * (1 - weight) + sorted[upper]! * weight
     }
 
     return {

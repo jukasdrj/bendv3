@@ -45,7 +45,7 @@
  * @module types/websocket-messages
  */
 
-import type { SingleEnrichmentResult } from '../services/enrichment.ts'
+import type { SingleEnrichmentResult } from '../services/enrichment.js'
 
 // =============================================================================
 // WebSocket Close Codes (RFC 6455)

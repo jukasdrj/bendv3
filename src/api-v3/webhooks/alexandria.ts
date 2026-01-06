@@ -109,7 +109,7 @@ export function registerAlexandriaWebhookRoutes(
 
               // Prepare BookRecord for D1
               // NOTE: This logic mirrors findBookByISBN in book-service.ts
-              const bookRepo = new BookRepository(c.env as any)
+              const bookRepo = new BookRepository(c.env as Env)
 
               const bookRecord = {
                 isbn: payload.isbn,
