@@ -1,17 +1,18 @@
 # BooksTrack Backend - Master TODO
 
-**Last Updated:** January 6, 2026 (Sprint 2 Session 2 Complete)
+**Last Updated:** January 6, 2026 (Sprint 2 COMPLETE)
 **Production:** https://api.oooefam.net
 **Health:** 🟢 0% error rate, all systems operational
 **Code Quality:** 8.5/10 - Production Ready (CF Code Review)
 
 ---
 
-## 🎯 Current Sprint: Frontend Optimization (Sprint 2)
+## ✅ Sprint 2: COMPLETE (Frontend Optimization)
 
-**Status:** 67% complete (2 of 3 tasks done)
+**Completed:** January 6, 2026 (Sessions 1-3)
+**Status:** 100% complete (3 of 3 tasks done)
 **Focus:** Multi-size cover URLs, resilience tests, D1 tuning
-**Estimated Duration:** ~4 hours
+**Total Duration:** ~1.5 hours
 
 ### ✅ Session 1 (January 6, 2026) - Multi-size Cover URLs
 **Duration:** ~20 minutes
@@ -61,8 +62,47 @@
 **Files Modified:**
 - `tests/unit/job-state-manager-do.test.js` - Added alarm resilience suite
 
-**Remaining Tasks:**
-- [ ] Issue #247: Consider D1 concurrency limit tuning
+### ✅ Session 3 (January 6, 2026) - D1 Concurrency Analysis
+**Duration:** ~40 minutes
+**Commit:** 8b59d5c
+
+**Completed:**
+- ✅ Issue #247: D1 concurrency limit tuning analysis
+  - Comprehensive investigation of D1 architecture constraints
+  - Analysis of current enrichment flow and bottlenecks
+  - Performance measurement: External APIs (100-500ms) vs D1 (5-15ms)
+  - Confirmed D1 is NOT the bottleneck
+  - Documented single-threaded design limitations
+  - **Resolution:** CLOSED as "Won't Fix" - No action required
+
+**Key Findings:**
+- D1 databases are single-threaded (queries process sequentially)
+- Maximum 6 simultaneous connections per Worker invocation
+- Current `DEFAULT_CONCURRENCY = 10` targets API calls, not D1
+- D1 writes happen AFTER API enrichment (not in parallel)
+- Batch writes would provide ZERO throughput improvement
+
+**Recommendations:**
+- Keep current concurrency (10) - optimal for API parallelization
+- Monitor D1 metrics (P95 latency, error rate)
+- Focus future optimization on schema/indexes, not concurrency
+- Current implementation is already optimal
+
+**Documentation:**
+- Created `docs/D1_CONCURRENCY_ANALYSIS.md` with comprehensive analysis
+- Architecture constraints, performance metrics, optimization checklist
+- Permanent reference for future D1 performance work
+
+**Files Created:**
+- `docs/D1_CONCURRENCY_ANALYSIS.md` - Comprehensive D1 concurrency analysis
+
+**Sprint 2 Summary:**
+- ✅ 3/3 tasks complete (100%)
+- ✅ Multi-size cover URL support (#237)
+- ✅ Alarm resilience tests (#246)
+- ✅ D1 concurrency analysis (#247)
+- ✅ All smoke tests passing (199/199)
+- ✅ Zero regressions
 
 ---
 
