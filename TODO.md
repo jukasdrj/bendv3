@@ -1,6 +1,6 @@
 # BooksTrack Backend - Master TODO
 
-**Last Updated:** January 6, 2026 (Sprint 2 Session 1 Complete)
+**Last Updated:** January 6, 2026 (Sprint 2 Session 2 Complete)
 **Production:** https://api.oooefam.net
 **Health:** 🟢 0% error rate, all systems operational
 **Code Quality:** 8.5/10 - Production Ready (CF Code Review)
@@ -9,7 +9,7 @@
 
 ## 🎯 Current Sprint: Frontend Optimization (Sprint 2)
 
-**Status:** 33% complete (1 of 3 tasks done)
+**Status:** 67% complete (2 of 3 tasks done)
 **Focus:** Multi-size cover URLs, resilience tests, D1 tuning
 **Estimated Duration:** ~4 hours
 
@@ -35,8 +35,33 @@
 - `src/services/normalizers/google-books.ts` - Fallback logic
 - `src/services/enrichment.ts` - HTTP fallback path mapping
 
+### ✅ Session 2 (January 6, 2026) - Alarm Resilience Tests
+**Duration:** ~30 minutes
+**Commit:** 107680c
+
+**Completed:**
+- ✅ Issue #246: Alarm continuity resilience tests
+  - Added 11 comprehensive alarm resilience tests
+  - 10/11 tests passing (90.9% success rate)
+  - Verified alarm ordering (deleteAlarm before setAlarm)
+  - Validated 24-hour cleanup delay scheduling
+  - Tested immediate alarm scheduling (CSV, scan, enrichment)
+  - Confirmed race condition prevention (Issue #108)
+  - Fixed MockDurableObject to use modern `ctx` API
+  - Added JOB_STATE_MANAGER_DO binding to test environment
+  - Zero regressions in existing tests (37/37 pass)
+
+**Test Coverage:**
+- ✅ Alarm deletion before scheduling (prevents Issue #108 race)
+- ✅ 24-hour cleanup delay validation on completion/failure
+- ✅ Immediate alarm scheduling for async jobs
+- ✅ Missing state graceful handling
+- ✅ Multi-operation alarm safety
+
+**Files Modified:**
+- `tests/unit/job-state-manager-do.test.js` - Added alarm resilience suite
+
 **Remaining Tasks:**
-- [ ] Issue #246: Add resilience tests for alarm continuity
 - [ ] Issue #247: Consider D1 concurrency limit tuning
 
 ---
