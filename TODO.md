@@ -1,6 +1,6 @@
 # BooksTrack Backend - Master TODO
 
-**Last Updated:** January 6, 2026 (Phase 3 Session 7 Complete + Sprint 1 COMPLETE)
+**Last Updated:** January 6, 2026 (Sprint 2 Session 1 Complete)
 **Production:** https://api.oooefam.net
 **Health:** 🟢 0% error rate, all systems operational
 **Code Quality:** 8.5/10 - Production Ready (CF Code Review)
@@ -9,9 +9,35 @@
 
 ## 🎯 Current Sprint: Frontend Optimization (Sprint 2)
 
-**Status:** Ready to start
+**Status:** 33% complete (1 of 3 tasks done)
 **Focus:** Multi-size cover URLs, resilience tests, D1 tuning
 **Estimated Duration:** ~4 hours
+
+### ✅ Session 1 (January 6, 2026) - Multi-size Cover URLs
+**Duration:** ~20 minutes
+**Commit:** eec7845
+
+**Completed:**
+- ✅ Issue #237: Multi-size cover URL support
+  - Added `coverUrls` field with original/large/medium/small sizes
+  - Added `coverSource` enum (r2, external, external-fallback, enriched-cached)
+  - Updated BookSchema, WorkDTO, EditionDTO with new fields
+  - Updated Alexandria normalizer (maps R2 multi-size URLs)
+  - Updated Google Books normalizer (fallback using same URL)
+  - Updated enrichment service (both RPC and HTTP paths)
+  - Marked `coverUrl`/`thumbnailUrl` as deprecated
+  - All 199 smoke tests passing ✅
+
+**Files Modified:**
+- `src/api-v3/schemas/book.ts` - BookSchema with coverUrls
+- `src/types/canonical.ts` - WorkDTO/EditionDTO with original size
+- `src/services/normalizers/alexandria.ts` - Multi-size URL mapping
+- `src/services/normalizers/google-books.ts` - Fallback logic
+- `src/services/enrichment.ts` - HTTP fallback path mapping
+
+**Remaining Tasks:**
+- [ ] Issue #246: Add resilience tests for alarm continuity
+- [ ] Issue #247: Consider D1 concurrency limit tuning
 
 ---
 
