@@ -598,9 +598,9 @@ describe('BookService', () => {
         // Assert
         expect(results.size).toBe(3);
 
-        const result1 = results.get(testISBNs[0]);
-        const result2 = results.get(testISBNs[1]);
-        const result3 = results.get(testISBNs[2]);
+        const result1 = results.get(testISBNs[0] ?? '');
+        const result2 = results.get(testISBNs[1] ?? '');
+        const result3 = results.get(testISBNs[2] ?? '');
 
         // First and third should have Alexandria URLs
         expect(result1?.works[0]?.coverImageURL).toBe('success.jpg');
