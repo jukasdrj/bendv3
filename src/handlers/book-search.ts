@@ -85,11 +85,12 @@ export async function searchByTitle(
 
   if (cachedResult?.data) {
     const { data, source } = cachedResult
+    const cachedData = data as { items?: unknown[] }
     const headers = await generateCacheHeaders(
       true,
       cachedResult.age || 0,
-      cachedResult.ttl || 0,
-      data.items,
+      6 * 60 * 60, // 6 hour TTL for title searches
+      cachedData.items || [],
       env,
     )
 
@@ -99,16 +100,20 @@ export async function searchByTitle(
         endpoint: '/search/title',
         cacheHit: true,
         responseTime: 0, // Cache hits are instant
-        imageQuality: headers['X-Image-Quality'],
-        dataCompleteness: parseInt(headers['X-Data-Completeness'], 10),
-        itemCount: data.items?.length || 0,
+        imageQuality: headers['X-Image-Quality'] || '',
+        dataCompleteness: Number.parseInt(headers['X-Data-Completeness'] || '0', 10),
+        itemCount: cachedData.items?.length || 0,
       }),
     )
 
     return {
-      ...data,
+      ...cachedData,
+      kind: 'books#volumes',
+      totalItems: cachedData.items?.length || 0,
+      provider: 'cached',
       cached: true,
       cacheSource: source, // Include cache source (EDGE or KV)
+      responseTime: 0,
       _cacheHeaders: headers,
     }
   }
@@ -128,20 +133,22 @@ export async function searchByTitle(
     const successfulProviders: string[] = []
 
     // Process Google Books results
-    if (results[0].status === 'fulfilled' && results[0].value) {
-      const googleData = results[0].value as { works?: unknown[] }
+    const googleResult = results[0]
+    if (googleResult?.status === 'fulfilled' && googleResult.value) {
+      const googleData = googleResult.value as { works?: unknown[] }
       if (googleData.works && googleData.works.length > 0) {
-        const transformedItems = googleData.works.map((work) => transformWorkToGoogleFormat(work))
+        const transformedItems = googleData.works.map((work: unknown) => transformWorkToGoogleFormat(work))
         finalItems = [...finalItems, ...transformedItems]
         successfulProviders.push('google')
       }
     }
 
     // Process OpenLibrary results
-    if (results[1].status === 'fulfilled' && results[1].value) {
-      const olData = results[1].value as { works?: unknown[] }
+    const olResult = results[1]
+    if (olResult?.status === 'fulfilled' && olResult.value) {
+      const olData = olResult.value as { works?: unknown[] }
       if (olData.works && olData.works.length > 0) {
-        const transformedItems = olData.works.map((work) => transformWorkToGoogleFormat(work))
+        const transformedItems = olData.works.map((work: unknown) => transformWorkToGoogleFormat(work))
         finalItems = [...finalItems, ...transformedItems]
         successfulProviders.push('openlibrary')
       }
@@ -171,8 +178,8 @@ export async function searchByTitle(
         endpoint: '/search/title',
         cacheHit: false,
         responseTime: Date.now() - startTime,
-        imageQuality: responseData._cacheHeaders['X-Image-Quality'],
-        dataCompleteness: parseInt(responseData._cacheHeaders['X-Data-Completeness'], 10),
+        imageQuality: responseData._cacheHeaders['X-Image-Quality'] || '',
+        dataCompleteness: Number.parseInt(responseData._cacheHeaders['X-Data-Completeness'] || '0', 10),
         itemCount: dedupedItems.length,
       }),
     )

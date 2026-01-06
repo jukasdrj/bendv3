@@ -76,6 +76,17 @@ interface CompletionPayload {
 }
 
 /**
+ * Error payload
+ */
+interface ErrorPayload {
+  code?: string
+  message?: string
+  details?: unknown
+  retryable?: boolean
+  [key: string]: unknown
+}
+
+/**
  * SSE update data
  */
 interface SSEUpdateData {
@@ -96,6 +107,15 @@ interface SSEUpdateData {
  */
 type SSEClientId = string
 
+/**
+ * WebSocket DO RPC interface
+ */
+interface WebSocketDOStub {
+  send(message: Record<string, unknown>): Promise<{ success: boolean }>
+  closeConnection(reason?: string): Promise<{ success: boolean }>
+  cleanupStorage(): Promise<{ success: boolean }>
+}
+
 export class JobStateManagerDO extends DurableObject<Env> {
   private updatesSinceLastPersist = 0
   private lastPersistTime = 0
@@ -103,6 +123,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
   // Fix Issue #157: Batch SSE update storage writes
   private pendingUpdates: unknown[] = []
   private lastUpdatePersist: number
+  private currentPipeline: PipelineType | null = null // Track current pipeline for configuration
 
   constructor(state: DurableObjectState, env: Env) {
     super(state, env)
@@ -161,7 +182,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
   ): Promise<{ success: boolean }> {
     // Fix Issue #107: Use cached state instead of reading from storage each time
     if (!this.jobState) {
-      this.jobState = await this.ctx.storage.get('jobState')
+      this.jobState = (await this.ctx.storage.get<JobState>('jobState')) || null
     }
 
     if (!this.jobState) {
@@ -203,7 +224,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
     // Get WebSocket DO and notify
     const wsDoId = this.env.WEBSOCKET_CONNECTION_DO.idFromName(this.jobState.jobId)
-    const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId)
+    const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId) as unknown as WebSocketDOStub
 
     // WebSocketMessage format (src/types/websocket-messages.ts)
     await wsDoStub.send({
@@ -249,7 +270,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
     pipeline: PipelineType,
     payload: CompletionPayload,
   ): Promise<{ success: boolean }> {
-    const jobState = await this.ctx.storage.get('jobState')
+    const jobState = await this.ctx.storage.get<JobState>('jobState')
 
     if (!jobState) {
       console.warn('[JobStateManager] No job state found for completion')
@@ -280,7 +301,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
     // Notify WebSocket
     const wsDoId = this.env.WEBSOCKET_CONNECTION_DO.idFromName(jobState.jobId)
-    const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId)
+    const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId) as unknown as WebSocketDOStub
 
     // WebSocketMessage format (src/types/websocket-messages.ts)
     await wsDoStub.send({
@@ -321,7 +342,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
     // Close WebSocket connection after brief delay to ensure message delivery
     // Fix: Properly await async operation in setTimeout to catch errors
     // Using `void` to explicitly mark this as a fire-and-forget operation
-    void new Promise((resolve) => {
+    void new Promise<void>((resolve) => {
       setTimeout(async () => {
         try {
           await wsDoStub.closeConnection('Job completed')
@@ -346,8 +367,8 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @param {Object} payload - Error payload
    * @returns {Promise<{success: boolean}>}
    */
-  async sendError(pipeline: PipelineType, payload: unknown): Promise<{ success: boolean }> {
-    const jobState = await this.ctx.storage.get('jobState')
+  async sendError(pipeline: PipelineType, payload: ErrorPayload): Promise<{ success: boolean }> {
+    const jobState = await this.ctx.storage.get<JobState>('jobState')
 
     if (!jobState) {
       console.warn('[JobStateManager] No job state found for error')
@@ -356,7 +377,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
     const failedState = {
       ...jobState,
-      status: 'failed',
+      status: 'failed' as JobStatus,
       failedTime: Date.now(),
       error: payload,
     }
@@ -366,7 +387,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
     // Notify WebSocket
     const wsDoId = this.env.WEBSOCKET_CONNECTION_DO.idFromName(jobState.jobId)
-    const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId)
+    const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId) as unknown as WebSocketDOStub
 
     // BREAKING CHANGE (Issue #167): Align WebSocket errors with HTTP canonical format
     await wsDoStub.send({
@@ -394,6 +415,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
     await this.broadcastSSEUpdate('failed', {
       jobId: jobState.jobId,
       status: 'failed',
+      timestamp: new Date().toISOString(),
       error: {
         code: payload.code,
         message: payload.message,
@@ -411,7 +433,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
     // Close WebSocket connection after brief delay to ensure message delivery
     // Fix: Properly await async operation in setTimeout to catch errors
     // Using `void` to explicitly mark this as a fire-and-forget operation
-    void new Promise((resolve) => {
+    void new Promise<void>((resolve) => {
       setTimeout(async () => {
         try {
           await wsDoStub.closeConnection('Job failed')
@@ -435,7 +457,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @returns {Promise<Object|null>} Current job state or null
    */
   async getJobState(): Promise<JobState | null> {
-    return await this.ctx.storage.get('jobState')
+    return (await this.ctx.storage.get<JobState>('jobState')) || null
   }
 
   /**
@@ -445,7 +467,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @returns {Promise<{success: boolean}>}
    */
   async cancelJob(reason = 'Job canceled by user') {
-    const jobState = await this.ctx.storage.get('jobState')
+    const jobState = await this.ctx.storage.get<JobState>('jobState')
 
     if (!jobState) {
       console.warn('[JobStateManager] No job state found for cancellation')
@@ -471,7 +493,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @returns {Promise<boolean>}
    */
   async isCanceled(): Promise<boolean> {
-    const jobState = await this.ctx.storage.get('jobState')
+    const jobState = await this.ctx.storage.get<JobState>('jobState')
     return jobState?.canceled || false
   }
 
@@ -549,10 +571,10 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @returns {Promise<{success: boolean}>}
    */
   async registerSSEClient(clientId: SSEClientId): Promise<{ success: boolean }> {
-    const jobState = await this.ctx.storage.get('jobState')
+    const jobState = await this.ctx.storage.get<JobState>('jobState')
     if (!jobState) return { success: false }
 
-    const clients = (await this.ctx.storage.get(`sse-clients:${jobState.jobId}`)) || []
+    const clients = (await this.ctx.storage.get<SSEClientId[]>(`sse-clients:${jobState.jobId}`)) || []
     if (!clients.includes(clientId)) {
       clients.push(clientId)
       await this.ctx.storage.put(`sse-clients:${jobState.jobId}`, clients)
@@ -568,10 +590,10 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @returns {Promise<{success: boolean}>}
    */
   async unregisterSSEClient(clientId: SSEClientId): Promise<{ success: boolean }> {
-    const jobState = await this.ctx.storage.get('jobState')
+    const jobState = await this.ctx.storage.get<JobState>('jobState')
     if (!jobState) return { success: false }
 
-    const clients = (await this.ctx.storage.get(`sse-clients:${jobState.jobId}`)) || []
+    const clients = (await this.ctx.storage.get<SSEClientId[]>(`sse-clients:${jobState.jobId}`)) || []
     const filtered = clients.filter((id) => id !== clientId)
     await this.ctx.storage.put(`sse-clients:${jobState.jobId}`, filtered)
     console.log(`[JobStateManager] Unregistered SSE client ${clientId} for job ${jobState.jobId}`)
@@ -588,10 +610,10 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @returns {Promise<Array>} Array of updates
    */
   async getUpdates(afterTimestamp = 0): Promise<unknown[]> {
-    const jobState = await this.ctx.storage.get('jobState')
+    const jobState = await this.ctx.storage.get<JobState>('jobState')
     if (!jobState) return []
 
-    const persistedUpdates = (await this.ctx.storage.get(`updates:${jobState.jobId}`)) || []
+    const persistedUpdates = (await this.ctx.storage.get<unknown[]>(`updates:${jobState.jobId}`)) || []
     // Fix Issue #157: Include pending updates that haven't been persisted yet
     const allUpdates = [...persistedUpdates, ...this.pendingUpdates]
     return allUpdates.filter((u) => u.timestamp > afterTimestamp)
@@ -608,7 +630,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @returns {Promise<void>}
    */
   async broadcastSSEUpdate(eventType: string, data: SSEUpdateData): Promise<void> {
-    const jobState = this.jobState || (await this.ctx.storage.get('jobState'))
+    const jobState = this.jobState || (await this.ctx.storage.get<JobState>('jobState'))
     if (!jobState) return
 
     // Add update to in-memory buffer
@@ -626,7 +648,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
       await this.flushPendingUpdates(jobState.jobId)
     }
 
-    const clients = (await this.ctx.storage.get(`sse-clients:${jobState.jobId}`)) || []
+    const clients = (await this.ctx.storage.get<SSEClientId[]>(`sse-clients:${jobState.jobId}`)) || []
     console.log(
       `[JobStateManager] Broadcast ${eventType} to queue (${clients.length} SSE clients, ${this.pendingUpdates.length} pending) for job ${jobState.jobId}`,
     )
@@ -645,7 +667,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
     if (this.pendingUpdates.length === 0) return
 
     // Read existing updates from storage
-    const persistedUpdates = (await this.ctx.storage.get(`updates:${jobId}`)) || []
+    const persistedUpdates = (await this.ctx.storage.get<unknown[]>(`updates:${jobId}`)) || []
 
     // Combine with pending updates
     // Fix: DO storage 128KB limit. Strip large 'books' array from persisted updates.
@@ -852,14 +874,14 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * 4. Cleanup after 24 hours (triggered after job completion/failure)
    */
   override async alarm(): Promise<void> {
-    const processingType = await this.ctx.storage.get('processingType')
+    const processingType = await this.ctx.storage.get<string>('processingType')
 
     if (processingType === 'csv_import') {
       // CSV processing path
       console.log('[JobStateManager] Alarm triggered for CSV processing')
 
-      const csvText = await this.ctx.storage.get('csvText')
-      const jobState = await this.ctx.storage.get('jobState')
+      const csvText = await this.ctx.storage.get<string>('csvText')
+      const jobState = await this.ctx.storage.get<JobState>('jobState')
 
       if (!csvText || !jobState) {
         console.error('[JobStateManager] Missing CSV text or job state in alarm handler')
@@ -894,8 +916,8 @@ export class JobStateManagerDO extends DurableObject<Env> {
       // Bookshelf scan processing path (V3: supports multiple photos)
       console.log('[JobStateManager] Alarm triggered for bookshelf scan processing')
 
-      const scanImageR2Keys = await this.ctx.storage.get('scanImageR2Keys')
-      const jobState = await this.ctx.storage.get('jobState')
+      const scanImageR2Keys = await this.ctx.storage.get<string[]>('scanImageR2Keys')
+      const jobState = await this.ctx.storage.get<JobState>('jobState')
 
       if (!scanImageR2Keys || !jobState) {
         console.error('[JobStateManager] Missing scan image R2 keys or job state in alarm handler')
@@ -1119,9 +1141,9 @@ export class JobStateManagerDO extends DurableObject<Env> {
       // Batch enrichment processing path
       console.log('[JobStateManager] Alarm triggered for batch enrichment processing')
 
-      const isbns = await this.ctx.storage.get('enrichmentISBNs')
-      const includeEmbedding = await this.ctx.storage.get('includeEmbedding')
-      const jobState = await this.ctx.storage.get('jobState')
+      const isbns = await this.ctx.storage.get<string[]>('enrichmentISBNs')
+      const includeEmbedding = await this.ctx.storage.get<boolean>('includeEmbedding')
+      const jobState = await this.ctx.storage.get<JobState>('jobState')
 
       if (!isbns || !jobState) {
         console.error('[JobStateManager] Missing ISBNs or job state in alarm handler')
@@ -1155,13 +1177,13 @@ export class JobStateManagerDO extends DurableObject<Env> {
       // Cleanup path (24 hour cleanup after job completion/failure)
       console.log('[JobStateManager] Cleanup alarm triggered - removing old state')
 
-      const jobState = await this.ctx.storage.get('jobState')
+      const jobState = await this.ctx.storage.get<JobState>('jobState')
 
       // Also cleanup WebSocket DO storage
       if (jobState?.jobId) {
         try {
           const wsDoId = this.env.WEBSOCKET_CONNECTION_DO.idFromName(jobState.jobId)
-          const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId)
+          const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId) as unknown as WebSocketDOStub
           await wsDoStub.cleanupStorage()
         } catch (error) {
           console.warn('[JobStateManager] Failed to cleanup WebSocket DO storage:', error)
