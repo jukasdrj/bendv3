@@ -2,6 +2,27 @@
 
 All notable changes to the BooksTrack API Client will be documented in this file.
 
+## [3.4.0] - 2026-01-07
+
+### Added
+
+- **Multi-Size Cover URLs** - Support for responsive cover images (#237)
+  - New `coverUrls` field with `original`, `large`, `medium`, `small` sizes
+  - New `coverSource` enum: `r2`, `external`, `external-fallback`, `enriched-cached`
+  - Deprecated: `coverUrl` and `thumbnailUrl` (still present for backward compatibility)
+
+### Changed
+
+- **Schema Update** - Regenerated from OpenAPI spec with Sprint 2 enhancements
+- **API Version** - Aligned with API v3.3.0 production release
+- **Type Safety** - Improved TypeScript definitions for book metadata
+
+### Improved
+
+- Durable Object test coverage with real Workers runtime validation
+- Alarm resilience and continuity patterns
+- D1 concurrency optimization analysis
+
 ## [2.0.0] - 2025-12-10
 
 ### BREAKING CHANGES
