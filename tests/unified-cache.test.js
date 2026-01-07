@@ -11,7 +11,7 @@ describe('UnifiedCacheService', () => {
     mockEnv = {
       CACHE: {
         get: vi.fn(async () => null),
-        put: vi.fn(async () => {})
+        put: vi.fn(async () => {}),
         getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       },
       CACHE_ANALYTICS: {

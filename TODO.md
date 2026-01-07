@@ -325,20 +325,7 @@ npm run validate
 
 ## 🟡 Medium Priority (P2)
 
-### 2. Multi-Size Cover URL Support (#237)
-- **Priority:** P2 - MEDIUM
-- **Status:** Ready for implementation
-- **Effort:** 2-3 hours
-- **Impact:** Frontend performance optimization (responsive images)
-- **Labels:** `good-first-issue`, `frontend`, `api-v3`
-- **Action:** Add `coverUrls: {small, medium, large}` to book schema
-
-### 3. Resilience Tests for Alarm Continuity (#246)
-- **Priority:** P2 - MEDIUM
-- **Status:** Optional enhancement (PR #238 already merged)
-- **Effort:** 1-2 hours
-- **Impact:** Improve test coverage for cache metrics
-- **Action:** Add 3-6 edge case tests for alarm persistence across DO restarts
+**✅ ALL COMPLETE - Moving to Sprint 3 & 4**
 
 ---
 
@@ -431,27 +418,133 @@ npm run validate
 **Completed:** January 6, 2026
 **Deliverable:** ✅ Proper webhook retry logic, 95.8% type safety, all tests passing
 
-### Sprint 2: Frontend Optimization (This Week)
+### Sprint 2: Frontend Optimization - ✅ COMPLETE
 **Goal:** Improve API responses for frontend
-**Status:** 🔄 IN PROGRESS
-1. 🔄 Multi-size cover URLs (#237) - 2-3 hours - **STARTING NOW**
-2. ⏳ Resilience tests (#246) - 1-2 hours
-3. ⏳ D1 concurrency tuning (#247) - 5 min + testing
+**Status:** ✅ COMPLETE (January 6, 2026)
+1. ✅ Multi-size cover URLs (#237) - DONE
+2. ✅ Resilience tests (#246) - DONE
+3. ✅ D1 concurrency tuning (#247) - DONE
 
-**Total Effort:** ~4 hours
+**Total Effort:** ~1.5 hours
 **Deliverable:** Enhanced book metadata, better test coverage
 
-### Sprint 3: Polish & Publish (Future)
-**Goal:** Package improvements and code cleanup
-1. Publish TypeScript SDK to npm
-2. Audit and resolve TODO comments (1-2 hours)
-3. Remove stale WorkerEnv interface (5 min)
-4. Consolidate utils directory
-5. RFC 9457 error standardization
-6. API versioning documentation
+### Sprint 3: Quality & Testing (Current) - 🔄 IN PROGRESS
+**Goal:** Test suite health, code quality, quick wins
+**Status:** 🔄 STARTING (January 7, 2026)
+**Duration:** 2-3 days (12-16 hours)
+**Plan:** See `docs/SPRINT_PLAN_3_4.md` for comprehensive breakdown
 
-**Total Effort:** ~10 hours
-**Deliverable:** Public SDK, cleaner codebase structure, reduced technical debt
+#### Phase 3A: Test Suite Cleanup (8-10 hours)
+1. 🔄 **Quick Wins** (2 hours) - GitHub Issue #252 Phase 1
+   - Fix syntax errors (5 files, ~15 tests) - 30 min
+   - Update configurations (AI models, cache patterns) - 30 min
+   - Verification & commit - 1 hour
+   - Expected: 20+ tests fixed
+
+2. ⏳ **Stale Test Cleanup** (3-4 hours) - GitHub Issue #252 Phase 2
+   - Archive obsolete tests (V1/V2 features)
+   - Migrate tests to V3 architecture
+   - Expected: 10+ tests fixed or removed
+
+3. ⏳ **Integration Test Modernization** (3-4 hours) - GitHub Issue #252 Phase 3
+   - Update core integration tests
+   - Fix Durable Object tests
+   - Target: 88.6% → 95%+ pass rate
+
+#### Phase 3B: Code Quality (4-6 hours)
+4. ⏳ **TODO Comment Audit** (2 hours) - TODO.md #5
+   - Review 11 TODO/FIXME comments
+   - Convert to GitHub issues or resolve
+   - Document TODO policy
+
+5. ⏳ **Circuit Breaker Optimization** (30 min) - TODO.md #7
+   - Tune WRITE_BATCH_SIZE (10 → 50)
+   - Load test verification
+   - Expected: 20-30% fewer KV writes
+
+6. ⏳ **Utils Consolidation** (2 hours) - TODO.md #8
+   - Reorganize 30+ files by domain
+   - Update imports
+   - Document utility categories
+
+#### Phase 3C: Coverage & Docs (1-2 hours)
+7. ⏳ **Test Coverage Assessment** (1 hour)
+   - Generate coverage report
+   - Document gaps
+   - Update CI/CD thresholds
+
+8. ⏳ **Documentation Updates** (1 hour)
+   - Update TODO.md
+   - Update CLAUDE.md
+   - Close GitHub #252
+
+**Sprint 3 Deliverables:**
+- Test pass rate: 88.6% → 95%+
+- Zero TODO comments
+- Clean test organization
+- Utils directory reorganized
+- Updated documentation
+
+### Sprint 4: Features & SDK (Next) - ⏳ PLANNED
+**Goal:** User value, new features, developer experience
+**Duration:** 3-5 days (16-24 hours)
+**Plan:** See `docs/SPRINT_PLAN_3_4.md` for comprehensive breakdown
+
+#### Phase 4A: SDK & Developer Experience (6-8 hours)
+1. ⏳ **TypeScript SDK Publication** (3-4 hours)
+   - Prepare SDK for npm
+   - Publish `@bookstrack/api-client@3.4.0`
+   - Create SDK documentation site
+
+2. ⏳ **API Versioning Documentation** (2 hours)
+   - Update `docs/API_VERSIONING.md`
+   - Add `/versions` endpoint
+   - Document deprecation policy
+
+3. ⏳ **RFC 9457 Error Standardization** (2 hours)
+   - Audit all error responses
+   - Standardize to RFC 9457 format
+   - Update OpenAPI spec
+
+#### Phase 4B: Personalized Recommendations (10-16 hours)
+**Status:** Planning phase, depends on Alexandria ratings infrastructure
+**Source:** `docs/plans/RATINGS_IMPLEMENTATION_PLAN_BOOKSTRACK.md`
+
+4. ⏳ **Prerequisites Check** (1 hour)
+   - Verify Alexandria ratings endpoints
+   - Check PostgreSQL `work_ratings` table
+   - Confirm 3M+ works with ratings
+
+5. ⏳ **D1 Schema Changes** (2-3 hours)
+   - Add `user_profiles`, `user_interactions`, `recommendation_cache` tables
+   - Add indexes
+   - Seed sample data
+
+6. ⏳ **Recommendation Engine** (4-6 hours)
+   - User profile analyzer
+   - Candidate generator (Alexandria RPC)
+   - Scoring algorithm (genre/author/rating match)
+
+7. ⏳ **API Endpoints** (2-3 hours)
+   - `GET /v3/recommendations` - Personalized results
+   - `POST /v3/recommendations/feedback` - User interactions
+   - `GET /v3/profile` - Profile summary
+   - Add Gemini reason generation
+
+8. ⏳ **Testing & Monitoring** (2-3 hours)
+   - Unit tests for recommendation engine
+   - Integration tests
+   - Add `RECOMMENDATIONS_ANALYTICS` dataset
+   - Set up monitoring & alerts
+
+**Sprint 4 Deliverables:**
+- SDK published to npm
+- RFC 9457 compliant errors
+- API versioning documentation
+- (Optional) Personalized recommendations API
+
+**Total Sprints 3+4 Effort:** ~32 hours (2-3 weeks)
+**Documentation:** `docs/SPRINT_PLAN_3_4.md` - Complete 2-phase sprint plan
 
 ---
 

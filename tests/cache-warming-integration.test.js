@@ -30,7 +30,7 @@ describe('Cache Warming Integration - DTO Normalization Compatibility', () => {
     env = {
       CACHE: {
         get: vi.fn().mockResolvedValue(null),
-        put: vi.fn().mockResolvedValue(undefined)
+        put: vi.fn().mockResolvedValue(undefined),
         getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       },
       CACHE_ANALYTICS: {

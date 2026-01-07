@@ -10,7 +10,7 @@ describe('searchByAuthor', () => {
     mockEnv = {
       CACHE: {
         get: vi.fn(async () => null),
-        put: vi.fn(async () => {})
+        put: vi.fn(async () => {}),
         getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       },
       CACHE_ANALYTICS: {
@@ -25,7 +25,7 @@ describe('searchByAuthor', () => {
     global.caches = {
       default: {
         match: vi.fn(async () => null),
-        put: vi.fn(async () => {})
+        put: vi.fn(async () => {}),
         getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
       }
     };

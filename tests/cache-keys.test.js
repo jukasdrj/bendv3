@@ -8,7 +8,7 @@ describe('Cache Key Generation', () => {
     const key = await generateCSVCacheKey(csv);
 
     expect(key).toContain('csv-parse:');
-    expect(key).toMatch(/^csv-parse:[a-f0-9]{64}$/); // Format: csv-parse:{64-char-hash}
+    expect(key).toMatch(/^csv-parse:[a-f0-9]{64}:\d+$/); // Format: csv-parse:{64-char-hash}:{version}
   });
 
   test('different CSV content produces different hash', async () => {
@@ -24,6 +24,6 @@ describe('Cache Key Generation', () => {
 
   test('ISBN cache key normalizes ISBN13', () => {
     const key = generateISBNCacheKey('978-0-7432-7356-5');
-    expect(key).toBe('isbn:9780743273565');
+    expect(key).toBe('book:isbn:9780743273565');
   });
 });

@@ -31,9 +31,17 @@ class MockDurableObject {
   }
 }
 
+// Mock WorkflowEntrypoint base class
+class MockWorkflowEntrypoint {
+  constructor() {
+    // Base class for Cloudflare Workflows
+  }
+}
+
 // Mock cloudflare:workers module globally
 vi.mock('cloudflare:workers', () => ({
   DurableObject: MockDurableObject,
+  WorkflowEntrypoint: MockWorkflowEntrypoint,
 }));
 
 // ============================================================================
