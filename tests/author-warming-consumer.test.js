@@ -1,39 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { processAuthorBatch } from "../src/consumers/author-warming-consumer.js";
+import { describe, it, expect, beforeEach, vi } from "vitest"
+import { processAuthorBatch } from "../src/consumers/author-warming-consumer.js"
 
-// Mock the search handlers
-vi.mock("../src/handlers/book-search.js", () => ({
-  searchByTitle: vi.fn().mockResolvedValue({
-    kind: "books#volumes",
-    totalItems: 1,
-    items: [
-      {
-        volumeInfo: {
-          title: "Test Book",
-          authors: ["Test Author"],
-        },
-      },
-    ],
-    cached: false,
-  }),
-}));
-
-vi.mock("../src/handlers/author-search.js", () => ({
-  searchByAuthor: vi.fn().mockResolvedValue({
-    success: true,
-    provider: "openlibrary",
-    author: {
-      name: "Neil Gaiman",
-      openLibraryKey: "/authors/OL23919A",
-      totalWorks: 2,
-    },
-    works: [
-      { title: "American Gods", firstPublicationYear: 2001 },
-      { title: "Good Omens", firstPublicationYear: 1990 },
-    ],
-    cached: false,
-  }),
-}));
+// Mock V3 API instead of old handlers
+global.fetch = vi.fn()
 
 describe("processAuthorBatch", () => {
   let env, ctx, batch;

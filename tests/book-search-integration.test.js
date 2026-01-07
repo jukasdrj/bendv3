@@ -1,98 +1,150 @@
 // test/book-search-integration.test.js
-import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { searchByTitle, searchByISBN } from '../src/handlers/book-search.js';
+import { describe, test, expect, beforeEach, vi } from 'vitest'
+import worker from '../src/index.js'
 
-describe('searchByTitle with UnifiedCache', () => {
-  let mockEnv;
-  let mockCtx;
-
-  beforeEach(() => {
-    mockEnv = {
-      CACHE: {
-        get: vi.fn(async () => null),
-        put: vi.fn(async () => {}),
-        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
-      },
-      CACHE_ANALYTICS: {
-        writeDataPoint: vi.fn(async () => {})
-      }
-    };
-    mockCtx = {
-      waitUntil: vi.fn((promise) => promise)
-    };
-
-    // Mock global caches for edge cache
-    global.caches = {
-      default: {
-        match: vi.fn(async () => {
-          const response = new Response(JSON.stringify({
-            items: [{ volumeInfo: { title: 'Hamlet' } }]
-          }), {
-            headers: {
-              'Content-Type': 'application/json',
-              'CF-Cache-Status': 'HIT'
-            }
-          });
-          return response;
-        }),
-        put: vi.fn(async () => {}),
-        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
-      }
-    };
-  });
-
-  test('uses UnifiedCacheService for cache operations', async () => {
-    const result = await searchByTitle('hamlet', { maxResults: 20 }, mockEnv, mockCtx);
-
-    expect(result.cached).toBe(true);
-    expect(result.cacheSource).toBe('EDGE_FRESH');
-    expect(result.items).toBeDefined();
-  });
-});
-
-describe('searchByISBN with UnifiedCache', () => {
-  let mockEnv;
-  let mockCtx;
+describe('Book Search V3 API - Title Search', () => {
+  let mockEnv
+  let mockCtx
 
   beforeEach(() => {
     mockEnv = {
       CACHE: {
         get: vi.fn(async () => null),
         put: vi.fn(async () => {}),
-        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null }))
       },
       CACHE_ANALYTICS: {
         writeDataPoint: vi.fn(async () => {})
+      },
+      PERFORMANCE_ANALYTICS: {
+        writeDataPoint: vi.fn(async () => {})
       }
-    };
+    }
     mockCtx = {
       waitUntil: vi.fn((promise) => promise)
-    };
+    }
 
-    // Mock global caches for edge cache
-    global.caches = {
-      default: {
-        match: vi.fn(async () => {
-          const response = new Response(JSON.stringify({
-            items: [{ volumeInfo: { industryIdentifiers: [{ identifier: '9780743273565' }] } }]
-          }), {
-            headers: {
-              'Content-Type': 'application/json',
-              'CF-Cache-Status': 'HIT'
-            }
-          });
-          return response;
-        }),
+    // Mock fetch for external APIs
+    global.fetch = vi.fn()
+  })
+
+  test('searches books by title via V3 endpoint', async () => {
+    global.fetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      items: [{ volumeInfo: { title: 'Hamlet', authors: ['William Shakespeare'] } }]
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    }))
+
+    const request = new Request(
+      'http://localhost/v3/books/search?q=hamlet&type=title',
+      { method: 'GET' }
+    )
+
+    const response = await worker.fetch(request, mockEnv, mockCtx)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.success).toBe(true)
+    expect(body.data.results).toBeDefined()
+    expect(Array.isArray(body.data.results)).toBe(true)
+  })
+
+  test('caches search results with appropriate TTL', async () => {
+    global.fetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      items: [{ volumeInfo: { title: 'Hamlet' } }]
+    }), { status: 200 }))
+
+    const request = new Request(
+      'http://localhost/v3/books/search?q=hamlet',
+      { method: 'GET' }
+    )
+
+    await worker.fetch(request, mockEnv, mockCtx)
+
+    expect(mockEnv.CACHE.put).toHaveBeenCalled()
+  })
+
+  test('returns cached results on subsequent requests', async () => {
+    const cachedData = JSON.stringify({
+      success: true,
+      data: { results: [{ title: 'Hamlet' }] }
+    })
+
+    mockEnv.CACHE.get.mockResolvedValueOnce(cachedData)
+
+    const request = new Request(
+      'http://localhost/v3/books/search?q=hamlet',
+      { method: 'GET' }
+    )
+
+    const response = await worker.fetch(request, mockEnv, mockCtx)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.success).toBe(true)
+  })
+})
+
+describe('Book Search V3 API - ISBN Search', () => {
+  let mockEnv
+  let mockCtx
+
+  beforeEach(() => {
+    mockEnv = {
+      CACHE: {
+        get: vi.fn(async () => null),
         put: vi.fn(async () => {}),
-        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null })),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null }))
+      },
+      CACHE_ANALYTICS: {
+        writeDataPoint: vi.fn(async () => {})
+      },
+      PERFORMANCE_ANALYTICS: {
+        writeDataPoint: vi.fn(async () => {})
       }
-    };
-  });
+    }
+    mockCtx = {
+      waitUntil: vi.fn((promise) => promise)
+    }
 
-  test('uses unified cache', async () => {
-    const result = await searchByISBN('9780743273565', { maxResults: 1 }, mockEnv, mockCtx);
+    global.fetch = vi.fn()
+  })
 
-    expect(result.cached).toBe(true);
-    expect(result.cacheSource).toBe('EDGE_FRESH');
-  });
-});
+  test('searches books by ISBN via V3 endpoint', async () => {
+    global.fetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      items: [{ volumeInfo: { industryIdentifiers: [{ identifier: '9780743273565' }] } }]
+    }), { status: 200 }))
+
+    const request = new Request(
+      'http://localhost/v3/books/9780743273565',
+      { method: 'GET' }
+    )
+
+    const response = await worker.fetch(request, mockEnv, mockCtx)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.success).toBe(true)
+    expect(body.data).toBeDefined()
+  })
+
+  test('returns cached book data for ISBN', async () => {
+    const cachedBook = JSON.stringify({
+      success: true,
+      data: { isbn: '9780743273565', title: 'Test Book' }
+    })
+
+    mockEnv.CACHE.get.mockResolvedValueOnce(cachedBook)
+
+    const request = new Request(
+      'http://localhost/v3/books/9780743273565',
+      { method: 'GET' }
+    )
+
+    const response = await worker.fetch(request, mockEnv, mockCtx)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.success).toBe(true)
+  })
+})

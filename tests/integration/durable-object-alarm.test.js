@@ -10,28 +10,30 @@
  * Priority: P0 (Critical - prevents data loss)
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { WebSocketConnectionDO } from "../../src/durable-objects/websocket-connection.ts";
+import { describe, it, expect, beforeEach, vi } from "vitest"
+import { WebSocketConnectionDO } from "../../src/durable-objects/websocket-connection.ts"
 
-// Mock dependencies
-vi.mock("../../src/providers/gemini-csv-provider.ts", () => ({
-  parseCSVWithGemini: vi.fn(async () => [
-    { title: "Test Book", author: "Test Author", isbn: "1234567890" },
-  ]),
-}));
+// Mock V3 services
+vi.mock("../../src/services/enrichment.ts", () => ({
+  enrichBook: vi.fn(async () => ({
+    title: "Test Book",
+    author: "Test Author",
+    isbn: "1234567890"
+  }))
+}))
 
-vi.mock("../../src/utils/csv-validator.js", () => ({
-  validateCSV: vi.fn(() => ({ valid: true })),
-}));
+vi.mock("../../src/services/book-service.ts", () => ({
+  BookService: vi.fn(() => ({
+    getOrEnrich: vi.fn(async () => ({
+      title: "Test Book",
+      author: "Test Author"
+    }))
+  }))
+}))
 
-vi.mock("../../src/prompts/csv-parser-prompt.js", () => ({
-  buildCSVParserPrompt: () => "Mock CSV parser prompt",
-  PROMPT_VERSION: "v1.0.0-test",
-}));
-
-vi.mock("../../src/utils/cache-keys.js", () => ({
-  generateCSVCacheKey: async () => "mock-cache-key",
-}));
+vi.mock("../../src/utils/isbn-validation.ts", () => ({
+  isValidISBN: vi.fn(() => true)
+}))
 
 describe("Durable Object Alarm - Environment Bindings", () => {
   let mockState;

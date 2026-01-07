@@ -1,62 +1,75 @@
 // test/csv-import.test.js
-import { describe, test, expect, vi } from 'vitest';
-import { handleCSVImport, processCSVImport } from '../src/handlers/csv-import.ts';
+import { describe, test, expect, vi } from 'vitest'
+import worker from '../src/index.js'
 
-describe('CSV Import Handler', () => {
-  test('POST /api/import/csv-gemini returns jobId', async () => {
-    const formData = new FormData();
-    formData.append('file', new File(['Title,Author\nBook1,Author1'], 'test.csv'));
+describe('CSV Import V3 API', () => {
+  test('POST /v3/jobs/imports returns jobId in V3 format', async () => {
+    const formData = new FormData()
+    formData.append('file', new File(['Title,Author\nBook1,Author1'], 'test.csv'))
 
-    const request = new Request('http://localhost/api/import/csv-gemini', {
+    const request = new Request('http://localhost/v3/jobs/imports', {
       method: 'POST',
       body: formData
-    });
+    })
 
     const mockEnv = {
-      PROGRESS_WEBSOCKET_DO: {
+      CACHE: {
+        get: vi.fn(async () => null),
+        put: vi.fn(async () => {}),
+        getWithMetadata: vi.fn(async () => ({ value: null, metadata: null }))
+      },
+      BOOK_IMPORT_WORKFLOW: {
+        create: vi.fn(async () => ({ id: 'job-123' }))
+      },
+      JOB_STATE_MANAGER_DO: {
         idFromName: vi.fn(() => 'do-id'),
         get: vi.fn(() => ({
-          setAuthToken: vi.fn().mockResolvedValue(undefined),
           initializeJobState: vi.fn().mockResolvedValue(undefined),
-          scheduleCSVProcessing: vi.fn().mockResolvedValue(undefined),
-          ready: vi.fn().mockResolvedValue(undefined),
-          updateProgress: vi.fn().mockResolvedValue(undefined),
-          complete: vi.fn().mockResolvedValue(undefined),
-          fail: vi.fn().mockResolvedValue(undefined)
+          setAuthToken: vi.fn().mockResolvedValue(undefined)
         }))
       },
-      ctx: { waitUntil: vi.fn() }
-    };
+      PERFORMANCE_ANALYTICS: { writeDataPoint: vi.fn(async () => {}) }
+    }
 
-    const response = await handleCSVImport(request, mockEnv);
-    const body = await response.json();
+    const mockCtx = { waitUntil: vi.fn() }
 
-    expect(response.status).toBe(202);
-    expect(body.data).toBeDefined();
-    expect(body.data.jobId).toBeDefined();
-    expect(body.metadata).toBeDefined();
-    expect(body.metadata.timestamp).toBeDefined();
-    expect(body.error).toBeUndefined();
-  });
+    const response = await worker.fetch(request, mockEnv, mockCtx)
+    const body = await response.json()
+
+    expect(response.status).toBe(202)
+    expect(body.success).toBe(true)
+    expect(body.data).toBeDefined()
+    expect(body.data.jobId).toBeDefined()
+    expect(body.metadata).toBeDefined()
+    expect(body.metadata.timestamp).toBeDefined()
+  })
 
   test('rejects files larger than 10MB', async () => {
-    const largeContent = 'x'.repeat(11 * 1024 * 1024);
-    const formData = new FormData();
-    formData.append('file', new File([largeContent], 'large.csv'));
+    const largeContent = 'x'.repeat(11 * 1024 * 1024)
+    const formData = new FormData()
+    formData.append('file', new File([largeContent], 'large.csv'))
 
-    const request = new Request('http://localhost/api/import/csv-gemini', {
+    const request = new Request('http://localhost/v3/jobs/imports', {
       method: 'POST',
       body: formData
-    });
+    })
 
-    const response = await handleCSVImport(request, {});
-    const body = await response.json();
+    const mockEnv = {
+      CACHE: {
+        get: vi.fn(async () => null),
+        put: vi.fn(async () => {})
+      },
+      PERFORMANCE_ANALYTICS: { writeDataPoint: vi.fn(async () => {}) }
+    }
 
-    expect(response.status).toBe(413);
-    expect(body.data).toBeNull();
-    expect(body.error).toBeDefined();
-    expect(body.error.message).toContain('too large');
-    expect(body.error.code).toBe('FILE_TOO_LARGE');
-    expect(body.metadata.timestamp).toBeDefined();
-  });
-});
+    const mockCtx = { waitUntil: vi.fn() }
+
+    const response = await worker.fetch(request, mockEnv, mockCtx)
+    const body = await response.json()
+
+    expect(response.status).toBe(413)
+    expect(body.success).toBe(false)
+    expect(body.error).toBeDefined()
+    expect(body.error.message).toContain('too large')
+  })
+})
