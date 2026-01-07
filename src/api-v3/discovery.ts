@@ -170,7 +170,7 @@ export function registerDiscoveryRoutes(
           csv_max_rows: 1000,
           batch_max_photos: 50,
         },
-        version: '3.4.0',
+        version: '3.4.1',
       }
 
       // Add edge caching for static capabilities response
