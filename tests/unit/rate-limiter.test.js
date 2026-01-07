@@ -16,10 +16,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { checkRateLimit, getRateLimitForEndpoint } from '../../src/middleware/rate-limiter.js'
 
-// Mock DurableObject base class for testing
+// Mock DurableObject base class for testing (modern ctx pattern)
 class MockDurableObject {
-  constructor(state, env) {
-    this.state = state
+  constructor(ctx, env) {
+    this.ctx = ctx
     this.env = env
   }
 }
@@ -39,13 +39,13 @@ const { RateLimiterDO } = await import(
  * Validates atomic counter operations and window management
  */
 describe('RateLimiterDO - Core Logic', () => {
-  let mockState
+  let mockCtx
   let rateLimiter
 
   beforeEach(() => {
-    // Mock Durable Object storage
+    // Mock Durable Object storage (modern ctx pattern)
     let storage = {}
-    mockState = {
+    mockCtx = {
       storage: {
         get: vi.fn(async (key) => storage[key]),
         put: vi.fn(async (key, value) => {
@@ -54,7 +54,7 @@ describe('RateLimiterDO - Core Logic', () => {
       },
     }
 
-    rateLimiter = new RateLimiterDO(mockState, {})
+    rateLimiter = new RateLimiterDO(mockCtx, {})
   })
 
   it('should allow first request from new IP', async () => {
@@ -63,7 +63,7 @@ describe('RateLimiterDO - Core Logic', () => {
     expect(result.allowed).toBe(true)
     expect(result.remaining).toBe(9) // 10 - 1 = 9 remaining
     expect(result.resetAt).toBeGreaterThan(Date.now())
-    expect(mockState.storage.put).toHaveBeenCalledTimes(1)
+    expect(mockCtx.storage.put).toHaveBeenCalledTimes(1)
   })
 
   it('should allow up to 10 requests within window', async () => {
@@ -87,7 +87,7 @@ describe('RateLimiterDO - Core Logic', () => {
     expect(result.allowed).toBe(false)
     expect(result.remaining).toBe(0)
     // Counter should NOT increment when blocked
-    const state = await mockState.storage.get('counters')
+    const state = await mockCtx.storage.get('counters')
     expect(state.count).toBe(10) // Still 10, not 11
   })
 
@@ -102,9 +102,9 @@ describe('RateLimiterDO - Core Logic', () => {
     expect(blocked.allowed).toBe(false)
 
     // Simulate time passage (61 seconds)
-    const state = await mockState.storage.get('counters')
+    const state = await mockCtx.storage.get('counters')
     state.resetAt = Date.now() - 1000 // Expire window
-    await mockState.storage.put('counters', state)
+    await mockCtx.storage.put('counters', state)
 
     // Next request should reset counter and allow
     const afterReset = await rateLimiter.checkAndIncrement()
@@ -112,7 +112,7 @@ describe('RateLimiterDO - Core Logic', () => {
     expect(afterReset.remaining).toBe(9)
 
     // Verify counter was reset
-    const newState = await mockState.storage.get('counters')
+    const newState = await mockCtx.storage.get('counters')
     expect(newState.count).toBe(1) // Reset and incremented
   })
 
@@ -122,7 +122,7 @@ describe('RateLimiterDO - Core Logic', () => {
       await rateLimiter.checkAndIncrement()
     }
 
-    const beforeBlock = await mockState.storage.get('counters')
+    const beforeBlock = await mockCtx.storage.get('counters')
     const countBefore = beforeBlock.count
 
     // Attempt 5 more requests (all should be blocked)
@@ -131,7 +131,7 @@ describe('RateLimiterDO - Core Logic', () => {
       expect(result.allowed).toBe(false)
     }
 
-    const afterBlock = await mockState.storage.get('counters')
+    const afterBlock = await mockCtx.storage.get('counters')
     // Counter should remain unchanged
     expect(afterBlock.count).toBe(countBefore)
   })
@@ -440,7 +440,7 @@ describe('Rate Limiter Middleware - Per-Endpoint Limits', () => {
 describe('Race Condition Prevention (Issue #41)', () => {
   it('should serialize concurrent requests through single DO instance', async () => {
     let storage = {}
-    const mockState = {
+    const mockCtx = {
       storage: {
         get: vi.fn(async (key) => storage[key]),
         put: vi.fn(async (key, value) => {
@@ -449,7 +449,7 @@ describe('Race Condition Prevention (Issue #41)', () => {
       },
     }
 
-    const rateLimiter = new RateLimiterDO(mockState, {})
+    const rateLimiter = new RateLimiterDO(mockCtx, {})
 
     // Simulate 100 concurrent requests (race condition scenario)
     // In production, the DO's single-threaded execution model serializes these
@@ -469,7 +469,7 @@ describe('Race Condition Prevention (Issue #41)', () => {
     expect(allowedCount).toBe(10)
 
     // Verify final counter state
-    const finalState = await mockState.storage.get('counters')
+    const finalState = await mockCtx.storage.get('counters')
     expect(finalState.count).toBe(10) // Not 100!
 
     // Verify the first 10 were allowed, rest were blocked
@@ -479,7 +479,7 @@ describe('Race Condition Prevention (Issue #41)', () => {
 
   it('should maintain atomic counter integrity under high concurrency', async () => {
     let storage = {}
-    const mockState = {
+    const mockCtx = {
       storage: {
         get: vi.fn(async (key) => storage[key]),
         put: vi.fn(async (key, value) => {
@@ -488,7 +488,7 @@ describe('Race Condition Prevention (Issue #41)', () => {
       },
     }
 
-    const rateLimiter = new RateLimiterDO(mockState, {})
+    const rateLimiter = new RateLimiterDO(mockCtx, {})
 
     // 5 waves of 20 concurrent requests each
     for (let wave = 0; wave < 5; wave++) {
@@ -499,7 +499,7 @@ describe('Race Condition Prevention (Issue #41)', () => {
       await Promise.all(requests)
     }
 
-    const finalState = await mockState.storage.get('counters')
+    const finalState = await mockCtx.storage.get('counters')
 
     // Counter should be exactly 10 (limit enforced atomically)
     expect(finalState.count).toBe(10)
