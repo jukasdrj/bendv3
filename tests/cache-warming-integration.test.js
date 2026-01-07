@@ -10,8 +10,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { processAuthorBatch } from '../src/consumers/author-warming-consumer.js'
-import { generateCacheKey } from '../src/utils/cache/cache-keys.ts'
-import { normalizeTitle } from '../src/utils/transform/normalization.ts'
+import { generateCacheKey } from '../src/utils/cache/cache-keys.js'
+import { normalizeTitle } from '../src/utils/transform/normalization.js'
 
 // Mock V3 API routes instead of old handlers
 vi.mock('../src/index.js', () => ({

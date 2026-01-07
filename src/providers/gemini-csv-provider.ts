@@ -1,12 +1,13 @@
 // src/providers/gemini-csv-provider.ts
 // Issue #179: Retry logic with exponential backoff for Gemini API failures
+// A/B Testing: Support for multiple Gemini models (2.5-flash, 3-flash-preview, 2.5-flash-lite)
 
+import type { GeminiCSVModel } from '../config/gemini-models'
+import { getModelConfig, getModelEndpoint } from '../config/gemini-models'
+import type { CSVParseABTestEvent } from '../types/analytics'
 import type { CSVParsedBook } from '../types/gemini-schemas'
 import { CSV_BOOK_SCHEMA } from '../types/gemini-schemas'
 import { retryWithBackoff } from '../utils/concurrency/retry'
-
-const GEMINI_API_ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
 
 /**
  * Result of parsing CSV with Gemini, including both valid books and validation errors
@@ -14,6 +15,8 @@ const GEMINI_API_ENDPOINT =
 export interface GeminiParseResult {
   books: CSVParsedBook[]
   errors: GeminiValidationError[]
+  /** A/B test telemetry (optional) */
+  telemetry?: CSVParseABTestEvent
 }
 
 /**
@@ -115,19 +118,21 @@ function sanitizeCSVForPrompt(csvText: string): string {
 }
 
 /**
- * Parse CSV file using Gemini 2.5 Flash-Lite API
+ * Parse CSV file using Gemini API with A/B testing support
  *
  * Features:
  * - System instructions for role definition (Gemini best practice)
- * - Low temperature (0.1) for maximum determinism with Flash-Lite
+ * - Low temperature (0.1) for maximum determinism
  * - responseMimeType for guaranteed JSON output (no markdown stripping needed)
  * - responseSchema for type safety (Gemini enforces title+author requirement)
  * - Supports large CSVs (up to 8K tokens output)
  * - SECURITY: Input sanitization to prevent prompt injection attacks
+ * - A/B TESTING: Supports multiple model variants with telemetry
  *
  * @param csvText - Raw CSV content
  * @param prompt - Gemini prompt with few-shot examples
  * @param apiKey - Gemini API key from env.GEMINI_API_KEY
+ * @param options - Optional configuration for A/B testing
  * @returns GeminiParseResult with valid books and validation errors
  * @throws Error if API call fails or response is invalid
  */
@@ -135,7 +140,23 @@ export async function parseCSVWithGemini(
   csvText: string,
   prompt: string,
   apiKey: string,
+  options?: {
+    model?: GeminiCSVModel
+    jobId?: string
+    userId?: string
+    enableTelemetry?: boolean
+  },
 ): Promise<GeminiParseResult> {
+  // A/B Testing: Select model and configuration
+  const selectedModel = options?.model || 'gemini-2.5-flash'
+  const modelConfig = getModelConfig(selectedModel)
+  const endpoint = getModelEndpoint(selectedModel)
+  const timeout = modelConfig.recommendedTimeout
+
+  // Telemetry tracking
+  const startTime = Date.now()
+  const enableTelemetry = options?.enableTelemetry ?? false
+
   // SECURITY FIX (#177): Sanitize CSV content to prevent prompt injection
   const sanitizedCSV = sanitizeCSVForPrompt(csvText)
   const fullPrompt = `${prompt}\n\nCSV Data:\n${sanitizedCSV}`
@@ -180,14 +201,14 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
       },
     }
 
-    // Add 90s timeout to prevent hanging on slow API responses
-    // Increased from 30s due to intermittent Gemini API latency (Issue: CSV import timeouts)
-    // 90s allows for large CSVs and network variability while still preventing indefinite hangs
+    // Dynamic timeout based on model configuration (A/B testing)
+    // Default: 90s for 2.5-flash, 60s for flash-lite, 90s for 3-flash-preview
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 90000)
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    const apiStartTime = Date.now()
 
     try {
-      const res = await fetch(GEMINI_API_ENDPOINT, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'x-goog-api-key': apiKey,
@@ -204,18 +225,20 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
         throw new Error(`Gemini API error: ${res.status} - ${error}`)
       }
 
-      return res
+      const apiLatencyMs = Date.now() - apiStartTime
+      return { res, apiLatencyMs }
     } catch (error) {
       clearTimeout(timeoutId)
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Gemini API request timed out after 90 seconds')
+        throw new Error(`Gemini API request timed out after ${timeout / 1000} seconds`)
       }
       throw error
     }
   })
 
-  const data = (await response.json()) as GeminiResponse
+  const data = (await response.res.json()) as GeminiResponse
   const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text
+  const apiLatencyMs = response.apiLatencyMs
 
   // Extract token usage metrics (Gemini API best practice: cost tracking)
   const tokenUsage = data.usageMetadata || {}
@@ -224,7 +247,7 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
   const totalTokens = tokenUsage.totalTokenCount || 0
 
   console.log(
-    `[GeminiCSVProvider] Token usage - Prompt: ${promptTokens}, Output: ${outputTokens}, Total: ${totalTokens}`,
+    `[GeminiCSVProvider] Model: ${selectedModel}, Token usage - Prompt: ${promptTokens}, Output: ${outputTokens}, Total: ${totalTokens}, Latency: ${apiLatencyMs}ms`,
   )
 
   if (!textResponse) {
@@ -269,12 +292,85 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
       JSON.stringify(tokenUsage, null, 2),
     )
 
+    const totalDurationMs = Date.now() - startTime
+    const totalRows = validBooks.length + errors.length
+    const errorRate = totalRows > 0 ? errors.length / totalRows : 0
+
+    // Build telemetry event for A/B testing
+    let telemetry: CSVParseABTestEvent | undefined
+    if (enableTelemetry && options?.jobId && options?.userId) {
+      telemetry = {
+        type: 'CSV_AB_TEST',
+        jobId: options.jobId,
+        userId: options.userId,
+        model: selectedModel,
+        csvMetadata: {
+          sizeBytes: csvText.length,
+          estimatedRows: totalRows,
+        },
+        performance: {
+          durationMs: totalDurationMs,
+          apiLatencyMs,
+          cacheHit: false, // Set by caller if cache hit
+        },
+        results: {
+          validBooks: validBooks.length,
+          validationErrors: errors.length,
+          errorRate,
+        },
+        tokenUsage: {
+          promptTokens,
+          outputTokens,
+          totalTokens,
+        },
+        success: true,
+        timestamp: new Date().toISOString(),
+      }
+    }
+
     return {
       books: validBooks,
       errors,
+      telemetry,
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
+
+    // Log error telemetry for A/B testing
+    if (enableTelemetry && options?.jobId && options?.userId) {
+      const totalDurationMs = Date.now() - startTime
+      const telemetry: CSVParseABTestEvent = {
+        type: 'CSV_AB_TEST',
+        jobId: options.jobId,
+        userId: options.userId,
+        model: selectedModel,
+        csvMetadata: {
+          sizeBytes: csvText.length,
+          estimatedRows: 0,
+        },
+        performance: {
+          durationMs: totalDurationMs,
+          apiLatencyMs: apiLatencyMs || 0,
+          cacheHit: false,
+        },
+        results: {
+          validBooks: 0,
+          validationErrors: 0,
+          errorRate: 1.0,
+        },
+        tokenUsage: {
+          promptTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+        },
+        success: false,
+        errorMessage,
+        timestamp: new Date().toISOString(),
+      }
+
+      console.error('[GeminiCSVProvider] A/B Test Failure:', JSON.stringify(telemetry, null, 2))
+    }
+
     throw new Error(`Invalid JSON from Gemini: ${errorMessage}`)
   }
 }

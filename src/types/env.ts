@@ -84,6 +84,10 @@ export interface Env {
   CONFIDENCE_THRESHOLD: string
   MAX_SCAN_FILE_SIZE: string
 
+  // CSV Parsing A/B Testing
+  CSV_MODEL_AB_TEST_PERCENT?: string // 0-100 (default: 0 = baseline only)
+  ENABLE_CSV_AB_TELEMETRY?: string // 'true'/'false' (default: false)
+
   // KV Namespaces
   CACHE: KVNamespace
   RECOMMENDATIONS_CACHE?: KVNamespace // Sprint 3: Weekly recommendations
