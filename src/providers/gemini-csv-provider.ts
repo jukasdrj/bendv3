@@ -180,9 +180,11 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
       },
     }
 
-    // Add 30s timeout to prevent hanging on slow API responses
+    // Add 90s timeout to prevent hanging on slow API responses
+    // Increased from 30s due to intermittent Gemini API latency (Issue: CSV import timeouts)
+    // 90s allows for large CSVs and network variability while still preventing indefinite hangs
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000)
+    const timeoutId = setTimeout(() => controller.abort(), 90000)
 
     try {
       const res = await fetch(GEMINI_API_ENDPOINT, {
@@ -206,7 +208,7 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
     } catch (error) {
       clearTimeout(timeoutId)
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Gemini API request timed out after 30 seconds')
+        throw new Error('Gemini API request timed out after 90 seconds')
       }
       throw error
     }
