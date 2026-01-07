@@ -129,8 +129,11 @@ async function sendFinalEvent(
     const completeEvent: SSECompleteEvent = {
       jobId: state.jobId,
       status: 'completed',
-      results: books,
-      timestamp: new Date(state.completedTime || Date.now()).toISOString(),
+      progress: 1.0,
+      processedCount: state.processedCount,
+      totalCount: state.totalCount,
+      completedAt: new Date(state.completedTime || Date.now()).toISOString(),
+      books: books,
     }
     await writeEvent({
       id: `${Date.now()}-final`,

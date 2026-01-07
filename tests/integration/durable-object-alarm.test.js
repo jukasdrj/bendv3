@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { ProgressWebSocketDO } from "../../src/durable-objects/progress-socket.js";
+import { WebSocketConnectionDO } from "../../src/durable-objects/websocket-connection.ts";
 
 // Mock dependencies
 vi.mock("../../src/providers/gemini-csv-provider.ts", () => ({
@@ -93,7 +93,7 @@ describe("Durable Object Alarm - Environment Bindings", () => {
     };
 
     // Create actual DO instance
-    doInstance = new ProgressWebSocketDO(mockState, mockEnv);
+    doInstance = new WebSocketConnectionDO(mockState, mockEnv);
   });
 
   describe("Constructor Environment Binding", () => {

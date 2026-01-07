@@ -178,10 +178,26 @@ export const SSECompleteEventSchema = z
   .object({
     jobId: z.string().uuid(),
     status: z.literal('completed'),
-    results: z.array(z.unknown()).openapi({
-      description: 'Full result data (for iOS persistence)'
+    progress: z.number().min(0).max(1).openapi({
+      description: 'Final progress value (always 1.0 for completed jobs)',
+      example: 1.0
     }),
-    timestamp: z.string().datetime()
+    processedCount: z.number().int().min(0).openapi({
+      description: 'Total items successfully processed',
+      example: 100
+    }),
+    totalCount: z.number().int().min(0).openapi({
+      description: 'Total items in the job',
+      example: 100
+    }),
+    completedAt: z.string().datetime().openapi({
+      description: 'ISO 8601 completion timestamp',
+      example: '2025-01-07T12:00:00Z'
+    }),
+    books: z.array(z.unknown()).openapi({
+      description: 'Full result data (for iOS persistence - books array)',
+      example: []
+    })
   })
   .openapi('SSECompleteEvent')
 

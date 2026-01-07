@@ -320,7 +320,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
     await this.broadcastSSEUpdate('completed', {
       jobId: jobState.jobId,
       status: 'completed',
-      progress: 100,
+      progress: 1.0,
       processedCount: jobState.processedCount || completedState.totalCount,
       totalCount: completedState.totalCount,
       completedAt: new Date(completedState.completedTime).toISOString(),

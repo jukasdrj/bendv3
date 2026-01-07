@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { normalizeISBN } from '../../src/utils/normalization.js'
+import { normalizeISBN } from '../../src/utils/transform/normalization.ts'
 
 /**
  * ISBN Validation - Tests for isValidISBN() function

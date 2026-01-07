@@ -10,7 +10,7 @@
  * See TEST_PLAN.md for complete E2E test strategy.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { processCSVImportCore } from "../../src/handlers/csv-import.ts";
+import { processCSVImportCore } from "../../src/utils/jobs/csv-processor-core.ts";
 
 // Mock dependencies
 let mockParseCSVWithGemini = vi.fn();

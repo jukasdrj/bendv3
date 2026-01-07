@@ -1,6 +1,6 @@
 // test/csv-import.test.js
 import { describe, test, expect, vi } from 'vitest';
-import { handleCSVImport, processCSVImport } from '../src/handlers/csv-import.js';
+import { handleCSVImport, processCSVImport } from '../src/handlers/csv-import.ts';
 
 describe('CSV Import Handler', () => {
   test('POST /api/import/csv-gemini returns jobId', async () => {

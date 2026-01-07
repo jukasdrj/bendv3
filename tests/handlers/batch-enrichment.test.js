@@ -7,7 +7,9 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleBatchEnrichment } from '../../src/handlers/batch-enrichment.ts';
-import { getProgressDOStub } from '../../src/utils/durable-object-helpers'; // Import the actual function
+
+// NOTE: getProgressDOStub helper function should be extracted to a utils module
+// in Sprint 3 Phase 2. For now, this test mocks the function directly.
 
 // Define the mock DO stub instance globally
 const mockDOStubInstance = {
@@ -57,9 +59,6 @@ describe('handleBatchEnrichment', () => {
     // Clear mocks on mockEnv properties
     mockEnv.PROGRESS_WEBSOCKET_DO.idFromName.mockClear();
     mockEnv.PROGRESS_WEBSOCKET_DO.get.mockClear();
-
-    // Clear the mock for getProgressDOStub itself
-    getProgressDOStub.mockClear();
   });
 
   describe('Response structure validation', () => {

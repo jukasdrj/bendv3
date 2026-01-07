@@ -10,10 +10,10 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { processAuthorBatch } from '../src/consumers/author-warming-consumer.js';
-import { generateCacheKey } from '../src/utils/cache.ts';
+import { generateCacheKey } from '../src/utils/cache/cache-keys.ts';
 import { searchByAuthor } from '../src/handlers/author-search.js';
 import { searchByTitle } from '../src/handlers/book-search.js';
-import { normalizeTitle } from '../src/utils/normalization.ts';
+import { normalizeTitle } from '../src/utils/transform/normalization.ts';
 
 vi.mock('../src/handlers/author-search.js', () => ({
   searchByAuthor: vi.fn(),

@@ -13,7 +13,7 @@ import {
   validatePayloadSize,
   generateR2Key,
   cleanupJobR2Objects,
-} from '../../src/utils/r2-hibernation.ts'
+} from '../../src/utils/r2/r2-hibernation.ts'
 
 describe('R2 Hibernation Utilities', () => {
   let mockEnv
