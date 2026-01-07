@@ -39,7 +39,7 @@ export const HealthQuerySchema = z.object({}).strict()
  * {
  *   "status": "ok",
  *   "worker": "api-worker",
- *   "version": "2.1.0",
+ *   "version": "3.3.0",
  *   "router": "hono"
  * }
  * ```
