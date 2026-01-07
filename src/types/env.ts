@@ -125,9 +125,15 @@ export interface Env {
   PROGRESS_WEBSOCKET_DO: DurableObjectNamespace
   RATE_LIMITER_DO: DurableObjectNamespace<import('../durable-objects/rate-limiter').RateLimiterDO>
   WEBSOCKET_CONNECTION_DO: DurableObjectNamespace
-  JOB_STATE_MANAGER_DO: DurableObjectNamespace<import('../durable-objects/job-state-manager').JobStateManagerDO>
-  CACHE_METRICS_DO: DurableObjectNamespace<import('../durable-objects/cache-metrics').CacheMetricsDO>
-  LATENCY_TEST_DO: DurableObjectNamespace<import('../durable-objects/latency-test-do').LatencyTestDO>
+  JOB_STATE_MANAGER_DO: DurableObjectNamespace<
+    import('../durable-objects/job-state-manager').JobStateManagerDO
+  >
+  CACHE_METRICS_DO: DurableObjectNamespace<
+    import('../durable-objects/cache-metrics').CacheMetricsDO
+  >
+  LATENCY_TEST_DO: DurableObjectNamespace<
+    import('../durable-objects/latency-test-do').LatencyTestDO
+  >
 
   // Analytics Engine Datasets
   PERFORMANCE_ANALYTICS: AnalyticsEngineDataset

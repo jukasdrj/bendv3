@@ -120,10 +120,10 @@ export async function handleCacheMetrics(c: Context<{ Bindings: Env }>): Promise
 
     const windowStats = windowMap[window]
     if (!windowStats) {
-      return new Response(
-        JSON.stringify({ error: `No stats available for window: ${window}` }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } },
-      )
+      return new Response(JSON.stringify({ error: `No stats available for window: ${window}` }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // Calculate hit rate

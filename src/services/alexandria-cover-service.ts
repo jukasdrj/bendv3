@@ -182,7 +182,6 @@ export async function processBookCover(
   env: ExternalAPIEnv,
   maxRetries: number = DEFAULT_MAX_RETRIES,
 ): Promise<CoverProcessingResponse> {
-
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const result = await processBookCoverInternal(request, env)

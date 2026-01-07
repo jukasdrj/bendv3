@@ -184,7 +184,10 @@ export async function searchByTitle(
         cacheHit: false,
         responseTime: Date.now() - startTime,
         imageQuality: responseData._cacheHeaders['X-Image-Quality'] || '',
-        dataCompleteness: Number.parseInt(responseData._cacheHeaders['X-Data-Completeness'] || '0', 10),
+        dataCompleteness: Number.parseInt(
+          responseData._cacheHeaders['X-Data-Completeness'] || '0',
+          10,
+        ),
         itemCount: dedupedItems.length,
       }),
     )
@@ -230,7 +233,12 @@ export async function searchByISBN(
 
   if (cachedResult?.data) {
     const { data, source } = cachedResult
-    const cachedData = data as { items?: unknown[]; kind?: string; totalItems?: number; cached?: boolean }
+    const cachedData = data as {
+      items?: unknown[]
+      kind?: string
+      totalItems?: number
+      cached?: boolean
+    }
     const headers = await generateCacheHeaders(
       true,
       cachedResult.age || 0,

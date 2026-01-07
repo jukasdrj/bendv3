@@ -50,7 +50,9 @@ export async function handleScheduledHarvest(
     api: {
       harvest: {
         covers: {
-          $post: (options: { json: { batch_size: number; offset: number; queue_covers: boolean } }) => Promise<Response>
+          $post: (options: {
+            json: { batch_size: number; offset: number; queue_covers: boolean }
+          }) => Promise<Response>
         }
       }
     }

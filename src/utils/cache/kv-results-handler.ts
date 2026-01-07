@@ -76,7 +76,6 @@ export async function handleKVResults<T>(
   config: KVResultsConfig<T>,
   request: Request | null = null,
 ): Promise<Response> {
-
   // Validation
   if (!jobId || jobId.trim().length === 0) {
     return createErrorResponse(

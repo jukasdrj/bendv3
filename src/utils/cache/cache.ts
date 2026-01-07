@@ -67,7 +67,8 @@ function trackCacheEvent(env: CacheEnv, ctx: ExecutionContext, event: CacheEvent
     try {
       if (!env.CACHE_METRICS_DO) return
       const id = env.CACHE_METRICS_DO.idFromName('cache-metrics-singleton')
-      const stub: DurableObjectStub<import('../../durable-objects/cache-metrics').CacheMetricsDO> = env.CACHE_METRICS_DO.get(id)
+      const stub: DurableObjectStub<import('../../durable-objects/cache-metrics').CacheMetricsDO> =
+        env.CACHE_METRICS_DO.get(id)
       // ✅ RPC MIGRATION: Direct method call (no HTTP overhead)
       await stub.recordEvent(event)
     } catch (error) {

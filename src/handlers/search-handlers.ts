@@ -124,7 +124,12 @@ async function checkNegativeCache(cacheKey: string, env: Env): Promise<NegativeC
     const negativeKey = `negative:${cacheKey}`
     const cached = await env.CACHE.get(negativeKey, 'json')
 
-    if (cached && typeof cached === 'object' && 'timestamp' in cached && typeof cached.timestamp === 'number') {
+    if (
+      cached &&
+      typeof cached === 'object' &&
+      'timestamp' in cached &&
+      typeof cached.timestamp === 'number'
+    ) {
       const age = Date.now() - cached.timestamp
       // Return cached error if less than 5 minutes old
       if (age < 300000) {

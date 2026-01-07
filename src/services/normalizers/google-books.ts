@@ -27,9 +27,12 @@ function getHighResCoverURL(imageLinks?: { thumbnail?: string }): string {
  * Create fallback coverUrls object from a single URL
  * External providers don't provide multi-size images, so we use the same URL for all sizes
  */
-function createFallbackCoverUrls(
-  url: string,
-): { original: string; large: string; medium: string; small: string } {
+function createFallbackCoverUrls(url: string): {
+  original: string
+  large: string
+  medium: string
+  small: string
+} {
   return {
     original: url,
     large: url,

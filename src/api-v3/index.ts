@@ -481,7 +481,21 @@ for semantic search.`,
           const rawAuthors = result.authors || []
 
           // Transform Alexandria authors to BooksTrack AuthorReference format
-          const authors: Array<string | { name: string; key?: string; openlibrary?: string; bio?: string; gender?: string; nationality?: string; birth_year?: number; death_year?: number; wikidata_id?: string; image?: string }> = rawAuthors.map((a) => {
+          const authors: Array<
+            | string
+            | {
+                name: string
+                key?: string
+                openlibrary?: string
+                bio?: string
+                gender?: string
+                nationality?: string
+                birth_year?: number
+                death_year?: number
+                wikidata_id?: string
+                image?: string
+              }
+          > = rawAuthors.map((a) => {
             if (typeof a === 'object' && a !== null && 'name' in a) {
               return {
                 name: a.name as string,
@@ -605,7 +619,21 @@ for semantic search.`,
           const rawAuthors = result.authors || []
 
           // Transform Alexandria authors to BooksTrack AuthorReference format
-          const authors: Array<string | { name: string; key?: string; openlibrary?: string; bio?: string; gender?: string; nationality?: string; birth_year?: number; death_year?: number; wikidata_id?: string; image?: string }> = rawAuthors.map((a) => {
+          const authors: Array<
+            | string
+            | {
+                name: string
+                key?: string
+                openlibrary?: string
+                bio?: string
+                gender?: string
+                nationality?: string
+                birth_year?: number
+                death_year?: number
+                wikidata_id?: string
+                image?: string
+              }
+          > = rawAuthors.map((a) => {
             if (typeof a === 'object' && a !== null && 'name' in a) {
               return {
                 name: a.name as string,

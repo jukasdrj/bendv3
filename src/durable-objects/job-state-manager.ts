@@ -571,7 +571,8 @@ export class JobStateManagerDO extends DurableObject<Env> {
     const jobState = await this.ctx.storage.get<JobState>('jobState')
     if (!jobState) return { success: false }
 
-    const clients = (await this.ctx.storage.get<SSEClientId[]>(`sse-clients:${jobState.jobId}`)) || []
+    const clients =
+      (await this.ctx.storage.get<SSEClientId[]>(`sse-clients:${jobState.jobId}`)) || []
     if (!clients.includes(clientId)) {
       clients.push(clientId)
       await this.ctx.storage.put(`sse-clients:${jobState.jobId}`, clients)
@@ -590,7 +591,8 @@ export class JobStateManagerDO extends DurableObject<Env> {
     const jobState = await this.ctx.storage.get<JobState>('jobState')
     if (!jobState) return { success: false }
 
-    const clients = (await this.ctx.storage.get<SSEClientId[]>(`sse-clients:${jobState.jobId}`)) || []
+    const clients =
+      (await this.ctx.storage.get<SSEClientId[]>(`sse-clients:${jobState.jobId}`)) || []
     const filtered = clients.filter((id) => id !== clientId)
     await this.ctx.storage.put(`sse-clients:${jobState.jobId}`, filtered)
     console.log(`[JobStateManager] Unregistered SSE client ${clientId} for job ${jobState.jobId}`)
@@ -610,11 +612,17 @@ export class JobStateManagerDO extends DurableObject<Env> {
     const jobState = await this.ctx.storage.get<JobState>('jobState')
     if (!jobState) return []
 
-    const persistedUpdates = (await this.ctx.storage.get<unknown[]>(`updates:${jobState.jobId}`)) || []
+    const persistedUpdates =
+      (await this.ctx.storage.get<unknown[]>(`updates:${jobState.jobId}`)) || []
     // Fix Issue #157: Include pending updates that haven't been persisted yet
     const allUpdates = [...persistedUpdates, ...this.pendingUpdates]
-    return allUpdates.filter((u): u is SSEUpdateData & { timestamp: string } =>
-      typeof u === 'object' && u !== null && 'timestamp' in u && typeof (u as any).timestamp === 'string' && (u as any).timestamp > afterTimestamp
+    return allUpdates.filter(
+      (u): u is SSEUpdateData & { timestamp: string } =>
+        typeof u === 'object' &&
+        u !== null &&
+        'timestamp' in u &&
+        typeof (u as any).timestamp === 'string' &&
+        (u as any).timestamp > afterTimestamp,
     )
   }
 
@@ -647,7 +655,8 @@ export class JobStateManagerDO extends DurableObject<Env> {
       await this.flushPendingUpdates(jobState.jobId)
     }
 
-    const clients = (await this.ctx.storage.get<SSEClientId[]>(`sse-clients:${jobState.jobId}`)) || []
+    const clients =
+      (await this.ctx.storage.get<SSEClientId[]>(`sse-clients:${jobState.jobId}`)) || []
     console.log(
       `[JobStateManager] Broadcast ${eventType} to queue (${clients.length} SSE clients, ${this.pendingUpdates.length} pending) for job ${jobState.jobId}`,
     )
@@ -918,8 +927,7 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
         // CRITICAL: Update job state to 'failed' so client is notified
         // Without this, the job would be stuck and user left hanging
-        const errorMessage =
-          error instanceof Error ? error.message : 'CSV processing failed'
+        const errorMessage = error instanceof Error ? error.message : 'CSV processing failed'
         await reporter.sendError('csv_import', {
           code: 'E_ALARM_PROCESSING_FAILED',
           message: errorMessage,
@@ -1185,7 +1193,12 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
       try {
         // Process enrichment in chunks
-        await this.processEnrichmentJob(isbns, includeEmbedding ?? false, reporter, jobState.jobId ?? '')
+        await this.processEnrichmentJob(
+          isbns,
+          includeEmbedding ?? false,
+          reporter,
+          jobState.jobId ?? '',
+        )
       } catch (error) {
         console.error('[JobStateManager] Enrichment processing failed in alarm:', error)
 
@@ -1216,7 +1229,9 @@ export class JobStateManagerDO extends DurableObject<Env> {
       if (jobState?.jobId) {
         try {
           const wsDoId = this.env.WEBSOCKET_CONNECTION_DO.idFromName(jobState.jobId)
-          const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(wsDoId) as unknown as WebSocketDOStub
+          const wsDoStub = this.env.WEBSOCKET_CONNECTION_DO.get(
+            wsDoId,
+          ) as unknown as WebSocketDOStub
           await wsDoStub.cleanupStorage()
         } catch (error) {
           console.warn('[JobStateManager] Failed to cleanup WebSocket DO storage:', error)

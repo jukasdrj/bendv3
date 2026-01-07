@@ -894,7 +894,11 @@ export class CacheMetricsDO extends DurableObject<Env> {
         if (providerStats) {
           providerStats.requestCount++
           if (data.error) providerStats.errorCount++
-          if (data.tokensUsed && 'tokensUsed' in providerStats && providerStats.tokensUsed !== undefined) {
+          if (
+            data.tokensUsed &&
+            'tokensUsed' in providerStats &&
+            providerStats.tokensUsed !== undefined
+          ) {
             providerStats.tokensUsed += data.tokensUsed
           }
           if (typeof data.quotaRemaining === 'number' && 'quotaRemaining' in providerStats) {

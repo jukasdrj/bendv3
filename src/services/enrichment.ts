@@ -226,7 +226,9 @@ export async function enrichMultipleBooks(
     const client = createAlexandriaClient(env as unknown as Env) as {
       api: {
         search: {
-          $get: (options: { query: { isbn?: string; title?: string; author?: string } }) => Promise<Response>
+          $get: (options: {
+            query: { isbn?: string; title?: string; author?: string }
+          }) => Promise<Response>
         }
       }
     }
@@ -265,9 +267,11 @@ export async function enrichMultipleBooks(
     const responseData = await response.json()
 
     // Alexandria wraps results in "data" envelope: { success: true, data: { results: [...] } }
-    const data = (typeof responseData === 'object' && responseData !== null && 'data' in responseData
-      ? responseData.data
-      : responseData) as { results?: unknown[] }
+    const data = (
+      typeof responseData === 'object' && responseData !== null && 'data' in responseData
+        ? responseData.data
+        : responseData
+    ) as { results?: unknown[] }
 
     if (!data.results || data.results.length === 0) {
       console.log(`enrichMultipleBooks: Alexandria found no results for`, { isbn, title, author })
@@ -434,7 +438,9 @@ export async function enrichSingleBook(
     const client = createAlexandriaClient(env as unknown as Env) as {
       api: {
         search: {
-          $get: (options: { query: { isbn?: string; title?: string; author?: string } }) => Promise<Response>
+          $get: (options: {
+            query: { isbn?: string; title?: string; author?: string }
+          }) => Promise<Response>
         }
       }
     }
@@ -469,9 +475,10 @@ export async function enrichSingleBook(
     const responseData = await response.json()
 
     // Alexandria wraps results in "data" envelope: { success: true, data: { results: [...] } }
-    const rawData = typeof responseData === 'object' && responseData !== null && 'data' in responseData
-      ? responseData.data
-      : responseData
+    const rawData =
+      typeof responseData === 'object' && responseData !== null && 'data' in responseData
+        ? responseData.data
+        : responseData
 
     // Type guard: verify data has results array
     const data = rawData as { results?: unknown[] }

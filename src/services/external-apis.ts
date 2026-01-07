@@ -241,9 +241,10 @@ async function searchGoogleBooksById_Uncached(
   try {
     console.log(`GoogleBooks ID search for "${volumeId}"`)
 
-    const apiKey = typeof env.GOOGLE_BOOKS_API_KEY === 'string'
-      ? env.GOOGLE_BOOKS_API_KEY
-      : env.GOOGLE_BOOKS_API_KEY?.toString()
+    const apiKey =
+      typeof env.GOOGLE_BOOKS_API_KEY === 'string'
+        ? env.GOOGLE_BOOKS_API_KEY
+        : env.GOOGLE_BOOKS_API_KEY?.toString()
 
     if (!apiKey) {
       console.error('Google Books API key not configured.')
@@ -263,7 +264,11 @@ async function searchGoogleBooksById_Uncached(
       throw new Error(`Google Books API error: ${response.status} ${response.statusText}`)
     }
 
-    const data = await response.json() as { id?: string; volumeInfo: { title?: string; authors?: string[]; [key: string]: unknown }; [key: string]: unknown }
+    const data = (await response.json()) as {
+      id?: string
+      volumeInfo: { title?: string; authors?: string[]; [key: string]: unknown }
+      [key: string]: unknown
+    }
     // Wrap the single volume result in an `items` array to reuse the normalization logic
     const normalizedData = normalizeGoogleBooksResponse({ items: [data] })
 
@@ -350,9 +355,10 @@ async function searchGoogleBooks_Uncached(
     async () => {
       console.log(`GoogleBooks search for "${query}"`)
 
-      const apiKey = typeof env.GOOGLE_BOOKS_API_KEY === 'string'
-        ? env.GOOGLE_BOOKS_API_KEY
-        : env.GOOGLE_BOOKS_API_KEY?.toString()
+      const apiKey =
+        typeof env.GOOGLE_BOOKS_API_KEY === 'string'
+          ? env.GOOGLE_BOOKS_API_KEY
+          : env.GOOGLE_BOOKS_API_KEY?.toString()
 
       if (!apiKey) {
         console.error('Google Books API key not configured.')
@@ -373,7 +379,7 @@ async function searchGoogleBooks_Uncached(
         throw new Error(`Google Books API error: ${response.status} ${response.statusText}`)
       }
 
-      const data = await response.json() as GoogleBooksAPIResponse
+      const data = (await response.json()) as GoogleBooksAPIResponse
       const normalizedData = normalizeGoogleBooksResponse(data)
 
       if (!normalizedData.works || normalizedData.works.length === 0) {
@@ -416,9 +422,10 @@ async function searchGoogleBooksByISBN_Uncached(
     async () => {
       console.log(`GoogleBooks ISBN search for "${isbn}"`)
 
-      const apiKey = typeof env.GOOGLE_BOOKS_API_KEY === 'string'
-        ? env.GOOGLE_BOOKS_API_KEY
-        : env.GOOGLE_BOOKS_API_KEY?.toString()
+      const apiKey =
+        typeof env.GOOGLE_BOOKS_API_KEY === 'string'
+          ? env.GOOGLE_BOOKS_API_KEY
+          : env.GOOGLE_BOOKS_API_KEY?.toString()
 
       if (!apiKey) {
         console.error('Google Books API key not configured.')
@@ -438,7 +445,7 @@ async function searchGoogleBooksByISBN_Uncached(
         throw new Error(`Google Books API error: ${response.status} ${response.statusText}`)
       }
 
-      const data = await response.json() as GoogleBooksAPIResponse
+      const data = (await response.json()) as GoogleBooksAPIResponse
       const normalizedData = normalizeGoogleBooksResponse(data)
 
       if (!normalizedData.works || normalizedData.works.length === 0) {
@@ -497,7 +504,12 @@ function normalizeGoogleBooksResponse(apiResponse: GoogleBooksAPIResponse): Norm
     } else if (Array.isArray(rawAuthors)) {
       authorNames = rawAuthors.map((a: unknown) => {
         if (typeof a === 'string') return a
-        if (typeof a === 'object' && a !== null && 'name' in a && typeof (a as { name: unknown }).name === 'string') {
+        if (
+          typeof a === 'object' &&
+          a !== null &&
+          'name' in a &&
+          typeof (a as { name: unknown }).name === 'string'
+        ) {
           return (a as { name: string }).name
         }
         return 'Unknown Author'
@@ -556,7 +568,7 @@ export async function searchOpenLibraryByGoodreadsId(
       throw new Error(`OpenLibrary search API failed: ${response.status}`)
     }
 
-    const data = await response.json() as { docs?: OpenLibraryDoc[] }
+    const data = (await response.json()) as { docs?: OpenLibraryDoc[] }
     if (!data.docs || data.docs.length === 0) {
       return null // No results found
     }
@@ -593,7 +605,7 @@ export async function searchOpenLibraryById(
       throw new Error(`OpenLibrary work API failed: ${workResponse.status}`)
     }
 
-    const workData = await workResponse.json() as OpenLibraryDoc
+    const workData = (await workResponse.json()) as OpenLibraryDoc
     const normalized = normalizeOpenLibrarySearchResults([workData])
 
     // Return null if no works found
@@ -685,7 +697,7 @@ async function searchOpenLibrary_Uncached(
         throw new Error(`OpenLibrary search API failed: ${response.status}`)
       }
 
-      const data = await response.json() as { docs?: OpenLibraryDoc[] }
+      const data = (await response.json()) as { docs?: OpenLibraryDoc[] }
       const normalized = normalizeOpenLibrarySearchResults(data.docs || [])
 
       if (!normalized.works || normalized.works.length === 0) {
@@ -780,8 +792,10 @@ async function findAuthorKeyByName(authorName: string): Promise<string | null> {
     headers: { 'User-Agent': OPENLIBRARY_USER_AGENT },
   })
   if (!response.ok) throw new Error('OpenLibrary author search API failed')
-  const data = await response.json() as { docs?: Array<{ key: string }> }
-  return data.docs && data.docs.length > 0 && data.docs[0] && data.docs[0].key ? data.docs[0].key : null
+  const data = (await response.json()) as { docs?: Array<{ key: string }> }
+  return data.docs && data.docs.length > 0 && data.docs[0] && data.docs[0].key
+    ? data.docs[0].key
+    : null
 }
 
 async function getWorksByAuthorKey(authorKey: string): Promise<
@@ -797,7 +811,9 @@ async function getWorksByAuthorKey(authorKey: string): Promise<
     headers: { 'User-Agent': OPENLIBRARY_USER_AGENT },
   })
   if (!response.ok) throw new Error('OpenLibrary works fetch API failed')
-  const data = await response.json() as { entries?: Array<{ title: string; key: string; first_publish_year?: number }> }
+  const data = (await response.json()) as {
+    entries?: Array<{ title: string; key: string; first_publish_year?: number }>
+  }
 
   console.log(`OpenLibrary returned ${data.entries?.length || 0} works for ${authorKey}`)
 
@@ -1019,9 +1035,8 @@ async function getISBNdbBookByISBN_Uncached(
 
 async function fetchWithAuth(url: string, env: ExternalAPIEnv): Promise<ISBNdbSearchResponse> {
   // Handle both secrets store (has .get() method) and direct env var
-  const apiKey = typeof env.ISBNDB_API_KEY === 'string'
-    ? env.ISBNDB_API_KEY
-    : env.ISBNDB_API_KEY?.toString()
+  const apiKey =
+    typeof env.ISBNDB_API_KEY === 'string' ? env.ISBNDB_API_KEY : env.ISBNDB_API_KEY?.toString()
 
   if (!apiKey) throw new Error('ISBNDB_API_KEY secret not found')
   const response = await fetch(url, {

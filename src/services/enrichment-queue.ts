@@ -177,8 +177,8 @@ export async function queueEnrichmentBatch(
       const isbn = isbns[index]
       const error: string =
         result.status === 'rejected'
-          ? (result.reason?.message || 'Unknown error')
-          : (result.value.error || 'Unknown error')
+          ? result.reason?.message || 'Unknown error'
+          : result.value.error || 'Unknown error'
       errors.push({ isbn, error })
     }
   })

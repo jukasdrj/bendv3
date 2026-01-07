@@ -29,9 +29,7 @@ export {
 // Capabilities endpoint schemas (Phase 1 POC)
 export * from './capabilities.js'
 // Common schemas
-export {
-  ResponseEnvelopeSchema,
-} from './common.js'
+export { ResponseEnvelopeSchema } from './common.js'
 // Health endpoint schemas (Sprint 1, Day 5 - OpenAPI Migration)
 export {
   type HealthData,
