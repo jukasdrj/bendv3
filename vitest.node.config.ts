@@ -24,6 +24,7 @@ export default defineConfig({
       '.idea',
       '.git',
       'tests/archive/**',
+      'tests/archived/**',    // Archived legacy tests
       'tests/smoke/**',       // Runs in Workers pool
       'tests/workers/**',     // Runs in Workers pool
       'tests/normalizers/**', // Runs in Workers pool (pure tests)

@@ -4,8 +4,8 @@
  */
 
 import { createRoute } from '@hono/zod-openapi'
-import { CapabilitiesResponseSchema } from '../../schemas/capabilities.js'
 import { ErrorResponseSchema } from '../../api-v3/schemas/book.js'
+import { CapabilitiesResponseSchema } from '../../schemas/capabilities.js'
 
 export const capabilitiesRoute = createRoute({
   method: 'get',
