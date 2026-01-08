@@ -11,7 +11,7 @@
 Sprint 4 focuses on making BooksTrack V3 API accessible to external developers through a published npm package and comprehensive documentation.
 
 **Key Deliverables:**
-1. ✅ TypeScript SDK published to npm as `@jukasdrj/bookstrack-api-client@3.4.1`
+1. ✅ TypeScript SDK published to npm as `@jukasdrj/bookstrack-api-client@3.4.2`
 2. ✅ Comprehensive API versioning documentation
 3. ✅ RFC 9457 error response audit
 4. ⏳ (Optional) Enhanced OpenAPI documentation
@@ -30,7 +30,7 @@ Sprint 4 focuses on making BooksTrack V3 API accessible to external developers t
 
 **Current State:**
 - Package: `@jukasdrj/bookstrack-api-client`
-- Version: 3.4.1 (in package.json)
+- Version: 3.4.2 (in package.json)
 - Build: ✅ Already compiled (`dist/` exists)
 - OpenAPI Spec: ✅ `src/api-v3/openapi-static.json` (17 endpoints)
 
@@ -51,7 +51,7 @@ ls -lah dist/  # Verify output
 
 ---
 
-### Task 1.2: Update CHANGELOG for v3.4.1
+### Task 1.2: Update CHANGELOG for v3.4.2
 
 **Duration:** 15 minutes
 **Status:** TODO
@@ -64,7 +64,7 @@ ls -lah dist/  # Verify output
 
 **CHANGELOG Entry:**
 ```markdown
-## [3.4.1] - 2026-01-07
+## [3.4.2] - 2026-01-07
 
 ### Internal
 - Implemented 3-tier testing architecture (95.7% pass rate)
@@ -185,7 +185,7 @@ npm install @jukasdrj/bookstrack-api-client
 
 **Success Criteria:**
 - ✅ Package published to npm registry
-- ✅ Version 3.4.1 visible on npmjs.com
+- ✅ Version 3.4.2 visible on npmjs.com
 - ✅ Package installable via `npm install`
 - ✅ Types work in VS Code
 
@@ -259,7 +259,7 @@ We use semantic versioning for the API:
 
 **Base URL:** `https://api.oooefam.net/v3`
 **OpenAPI Spec:** `https://api.oooefam.net/v3/openapi.json`
-**SDK:** `npm install @jukasdrj/bookstrack-api-client@3.4.1`
+**SDK:** `npm install @jukasdrj/bookstrack-api-client@3.4.2`
 
 ### V3 Endpoints (Production Ready)
 
@@ -321,7 +321,7 @@ V1 was removed December 2025. All V1 clients must migrate to V3.
 
 ## Client Upgrade Path
 
-**Recommended:** Always use latest SDK version (3.4.1+)
+**Recommended:** Always use latest SDK version (3.4.2+)
 
 ```bash
 # Upgrade to latest SDK
@@ -461,7 +461,7 @@ curl -s https://api.oooefam.net/v3/notfound | jq
 
 ### Phase 1 (SDK Publication)
 - ✅ Package published to npm
-- ✅ Version 3.4.1 installable
+- ✅ Version 3.4.2 installable
 - ✅ Types work in VS Code/IDE
 - ✅ Production API accessible via SDK
 
