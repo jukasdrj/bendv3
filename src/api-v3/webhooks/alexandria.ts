@@ -104,36 +104,26 @@ export function registerAlexandriaWebhookRoutes(
             )
 
             if (externalResult.works && externalResult.works.length > 0) {
+              const { buildBookRecordFromEnrichment } = await import(
+                '../../utils/book-record-builder'
+              )
+
               const work = externalResult.works[0]!
               const edition = externalResult.editions?.[0]
 
-              // Prepare BookRecord for D1
-              // NOTE: This logic mirrors findBookByISBN in book-service.ts
-              const bookRepo = new BookRepository(c.env as Env)
-
-              const bookRecord = {
-                isbn: payload.isbn,
-                title: work.title || 'Unknown',
-                subtitle: null, // WorkDTO does not support subtitle
-                description: work.description || null,
-                publisher: edition?.publisher || null,
-                publicationDate: edition?.publicationDate || null,
-                language: edition?.language || 'en',
-                pageCount: edition?.pageCount || null,
+              // Build BookRecord using shared builder
+              const bookRecord = buildBookRecordFromEnrichment(
+                payload.isbn,
+                externalResult,
                 // Use the cover URLs returned by Alexandria (which usually processes them)
-                coverSmallUrl: work.coverImageURL || edition?.coverImageURL || null,
-                coverMediumUrl: work.coverImageURL || edition?.coverImageURL || null,
-                coverLargeUrl: work.coverImageURL || edition?.coverImageURL || null,
-                canonicalMetadata: {
-                  works: externalResult.works,
-                  editions: externalResult.editions,
-                  authors: externalResult.authors,
+                {
+                  small: work.coverImageURL || edition?.coverImageURL || null,
+                  medium: work.coverImageURL || edition?.coverImageURL || null,
+                  large: work.coverImageURL || edition?.coverImageURL || null,
                 },
-                providerMetadata: null,
-                createdAt: Math.floor(Date.now() / 1000),
-                updatedAt: Math.floor(Date.now() / 1000),
-              }
+              )
 
+              const bookRepo = new BookRepository(c.env as Env)
               await bookRepo.save(bookRecord)
               console.log(`[Webhook] Successfully refreshed D1 for ${payload.isbn}`)
             } else {
@@ -159,15 +149,6 @@ export function registerAlexandriaWebhookRoutes(
         'INVALID_QUERY',
         'VALIDATION_ERROR',
         'SCHEMA_ERROR',
-      ])
-
-      const TRANSIENT_ERROR_CODES = new Set([
-        'PROVIDER_TIMEOUT',
-        'CIRCUIT_OPEN',
-        'RATE_LIMIT_EXCEEDED',
-        'PROVIDER_ERROR',
-        'CACHE_ERROR',
-        'INTERNAL_ERROR',
       ])
 
       const errorCode = error?.code || error?.name

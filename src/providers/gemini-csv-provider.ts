@@ -286,7 +286,6 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
   }
 
   try {
-
     // Issue #160: Post-parse validation for empty/whitespace-only authors
     // Schema minLength prevents empty strings, but whitespace-only may slip through
     // Track validation errors alongside valid books

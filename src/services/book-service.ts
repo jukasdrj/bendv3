@@ -19,6 +19,7 @@
 import { BookRepository } from '../repositories/book-repository'
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical'
 import type { BookRecord } from '../types/database'
+import { buildBookRecordFromEnrichment } from '../utils/book-record-builder'
 import {
   type CoverProcessingTask,
   createCoverProcessor,
@@ -182,27 +183,7 @@ async function findBookByISBNInternal(
         }
       }
 
-      const bookRecord: BookRecord = {
-        isbn: isbn,
-        title: work.title || 'Unknown',
-        subtitle: null, // Subtitle not available in WorkDTO (use edition.editionTitle if needed)
-        description: work.description || null,
-        publisher: edition?.publisher || null,
-        publicationDate: edition?.publicationDate || null,
-        language: edition?.language || 'en',
-        pageCount: edition?.pageCount || null,
-        coverSmallUrl: coverURLs.small,
-        coverMediumUrl: coverURLs.medium,
-        coverLargeUrl: coverURLs.large,
-        canonicalMetadata: {
-          works: externalResult.works,
-          editions: externalResult.editions,
-          authors: externalResult.authors,
-        },
-        providerMetadata: null, // Could store raw provider responses here
-        createdAt: Math.floor(Date.now() / 1000),
-        updatedAt: Math.floor(Date.now() / 1000),
-      }
+      const bookRecord = buildBookRecordFromEnrichment(isbn, externalResult, coverURLs)
 
       await bookRepo.save(bookRecord)
       console.log(`[BookService] ✅ Saved to repository: ${isbn}`)
@@ -394,27 +375,7 @@ export async function batchEnrichBooks(
           }
         }
 
-        const bookRecord: BookRecord = {
-          isbn: isbn,
-          title: work.title || 'Unknown',
-          subtitle: null, // Subtitle not available in WorkDTO (use edition.editionTitle if needed)
-          description: work.description || null,
-          publisher: edition?.publisher || null,
-          publicationDate: edition?.publicationDate || null,
-          language: edition?.language || 'en',
-          pageCount: edition?.pageCount || null,
-          coverSmallUrl: coverURLs.small,
-          coverMediumUrl: coverURLs.medium,
-          coverLargeUrl: coverURLs.large,
-          canonicalMetadata: {
-            works: externalResult.works,
-            editions: externalResult.editions,
-            authors: externalResult.authors,
-          },
-          providerMetadata: null,
-          createdAt: Math.floor(Date.now() / 1000),
-          updatedAt: Math.floor(Date.now() / 1000),
-        }
+        const bookRecord = buildBookRecordFromEnrichment(isbn, externalResult, coverURLs)
 
         await bookRepo.save(bookRecord)
       } catch (error) {
