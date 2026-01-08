@@ -637,10 +637,11 @@ describe('JobStateManagerDO', () => {
     });
 
     it.skip('should cleanup all job-related storage keys on alarm', async () => {
-      // TODO: Refactor for testability (Issue #TBD - Durable Object Test Architecture)
-      // Current blocker: Testing Durable Object alarm infrastructure vs business logic
-      // Recommendation: Extract cleanup logic to testable service function
-      // See: Sprint 4 Phase 2 - Durable Object Testability Refactoring
+      // tech-debt:humble-object - Refactor alarm cleanup before re-enabling
+      // Issue: #255 - Adopt Humble Object Pattern for Durable Objects
+      // ADR: .claude/rules/durable-objects.md
+      // Recommendation: Extract cleanupJobStorage() to pure function
+      // Priority: LOWEST RISK (cleanup bugs cause storage bloat, not user-facing)
 
       // Set up complete job state
       await mockState.storage.put('jobState', { jobId: 'job-123', status: 'completed' });
@@ -800,10 +801,11 @@ describe('JobStateManagerDO', () => {
     });
 
     it.skip('should flush to storage after 1 second', async () => {
-      // TODO: Refactor for testability (Issue #TBD - Durable Object Test Architecture)
-      // Current blocker: Testing Durable Object timer infrastructure vs buffering logic
-      // Recommendation: Extract SSE buffering logic to testable service class
-      // See: Sprint 4 Phase 2 - Durable Object Testability Refactoring
+      // tech-debt:humble-object - Refactor SSE buffering before re-enabling
+      // Issue: #255 - Adopt Humble Object Pattern for Durable Objects
+      // ADR: .claude/rules/durable-objects.md
+      // Recommendation: Extract UpdateBuffer class with pure buffering/flushing logic
+      // Priority: MEDIUM RISK (buffering bugs cause missed SSE updates)
 
       vi.useFakeTimers();
       doInstance.jobState = await mockState.storage.get('jobState');
@@ -830,10 +832,11 @@ describe('JobStateManagerDO', () => {
     });
 
     it.skip('should include pending updates in getUpdates', async () => {
-      // TODO: Refactor for testability (Issue #TBD - Durable Object Test Architecture)
-      // Current blocker: Testing Durable Object storage infrastructure vs update merging logic
-      // Recommendation: Extract update merging to testable utility function
-      // See: Sprint 4 Phase 2 - Durable Object Testability Refactoring
+      // tech-debt:humble-object - Refactor update merging before re-enabling
+      // Issue: #255 - Adopt Humble Object Pattern for Durable Objects
+      // ADR: .claude/rules/durable-objects.md
+      // Recommendation: Extract mergeUpdates() utility for combining persisted + pending
+      // Priority: HIGHEST RISK (state consistency bugs corrupt data silently)
 
       doInstance.jobState = await mockState.storage.get('jobState');
 
