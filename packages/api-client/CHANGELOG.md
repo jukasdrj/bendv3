@@ -2,6 +2,23 @@
 
 All notable changes to the BooksTrack API Client will be documented in this file.
 
+## [3.4.2] - 2026-01-07
+
+### Internal
+
+- **3-Tier Testing Architecture** - Backend test suite modernization (no SDK changes)
+  - Test pass rate improved from 88.6% to 95.7%
+  - Laptop-safe development workflow (20s test runs, 512MB RAM)
+  - 529 integration tests archived for CI/CD
+  - New `README_TESTING.md` documentation
+- **Sprint 4 Phase 1** - SDK publication to npm registry
+- **No API Changes** - Fully backward compatible with 3.4.0/3.4.1
+
+### Note
+
+This is a maintenance release with no SDK functionality changes.
+The version bump reflects backend improvements and npm publication workflow.
+
 ## [3.4.0] - 2026-01-07
 
 ### Added

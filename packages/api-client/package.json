@@ -1,6 +1,6 @@
 {
   "name": "@jukasdrj/bookstrack-api-client",
-  "version": "3.4.1",
+  "version": "3.4.2",
   "description": "TypeScript SDK for BooksTrack V3 API with SSE streaming support - Auto-generated from OpenAPI specification",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
