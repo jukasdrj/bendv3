@@ -145,6 +145,13 @@
       "//": "Sprint 3: Weekly recommendations cache",
       "binding": "RECOMMENDATIONS_CACHE",
       "id": "be0ca7077bab4942b57c02d547f1c968"
+    },
+    {
+      "//": "External ID resolution cache (Alexandria v2.3.0 integration)",
+      "//": "Caches ASIN → ISBN mappings and other provider cross-references",
+      "//": "TTL: 7 days (stable mappings, 95%+ hit rate after 30 days)",
+      "binding": "EXTERNAL_IDS",
+      "id": "4593d61085374820a72fd7bdc241e3a7"
     }
   ],
   "r2_buckets": [

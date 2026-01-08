@@ -25,7 +25,7 @@ import {
   createCoverProcessor,
 } from '../utils/concurrency/concurrency-limiter'
 import { processBookCover, queueCoverProcessing } from './alexandria-cover-service'
-import { enrichMultipleBooks } from './enrichment'
+import { enrichMultipleBooks, resolveAsinToIsbn } from './enrichment'
 import { CacheKeys, deduplicate } from './request-deduplication'
 
 interface SearchOptions {
@@ -461,4 +461,72 @@ export async function findBooksByAuthor(
       source: 'd1',
     }
   })
+}
+
+/**
+ * Resolve Amazon ASIN to ISBN and enrich the book (high-level wrapper for user imports)
+ *
+ * **Architecture:**
+ * - Step 1: Resolve ASIN to ISBN via Alexandria's External ID Resolution API
+ * - Step 2: Enrich the book using the resolved ISBN (delegates to existing enrichment pipeline)
+ *
+ * **Use Cases:**
+ * - User book imports from Amazon (ASIN-based data)
+ * - Cross-platform book identification
+ *
+ * **Error Handling:**
+ * - Resolution failures: Soft error, return empty result (allow caller to decide fallback strategy)
+ * - Low confidence (<50): Skip enrichment, return empty result
+ * - Enrichment failures: Handled by existing enrichment pipeline
+ *
+ * @param asin - Amazon ASIN to resolve and enrich (e.g., 'B001234567')
+ * @param env - Cloudflare environment bindings
+ * @param ctx - Execution context for caching (optional)
+ * @returns EnrichmentResult with works, editions, authors (may be empty if resolution/enrichment fails)
+ *
+ * @example
+ * ```typescript
+ * // User imports book from Amazon wishlist (only has ASIN)
+ * const result = await resolveAndEnrichAsin('B001234567', env)
+ * if (result.works.length > 0) {
+ *   // Successfully resolved and enriched
+ *   console.log(`Imported: ${result.works[0].title}`)
+ * } else {
+ *   // Failed to resolve - prompt user for ISBN or title
+ *   console.warn('Could not resolve ASIN, please provide ISBN')
+ * }
+ * ```
+ */
+export async function resolveAndEnrichAsin(
+  asin: string,
+  env: any,
+  ctx?: ExecutionContext,
+): Promise<EnrichmentResult> {
+  console.log(`[resolveAndEnrichAsin] Processing ASIN ${asin} for import`)
+
+  // Step 1: Resolve ASIN to ISBN (delegates to Alexandria)
+  const resolution = await resolveAsinToIsbn(asin, env, ctx)
+
+  if (!resolution.isbn) {
+    console.log(
+      `[resolveAndEnrichAsin] ⚠️ Could not resolve ASIN ${asin}, enrichment skipped (confidence: ${resolution.confidence})`,
+    )
+    // Soft failure: return empty result to indicate unresolved
+    // Caller can decide whether to prompt user for alternative identifiers
+    return { works: [], editions: [], authors: [] }
+  }
+
+  console.log(
+    `[resolveAndEnrichAsin] ✅ Resolved ASIN ${asin} to ISBN ${resolution.isbn} (confidence: ${resolution.confidence}), proceeding to enrichment`,
+  )
+
+  // Step 2: Enrich using resolved ISBN (delegates to Alexandria thin client via findBookByISBN)
+  // This automatically checks cache (KV/D1) → enriches from external APIs → saves to cache
+  const enrichmentResult = await findBookByISBN(resolution.isbn, env, ctx)
+
+  console.log(
+    `[resolveAndEnrichAsin] ${enrichmentResult.works.length > 0 ? '✅' : '⚠️'} Enrichment complete for ASIN ${asin} → ISBN ${resolution.isbn}: ${enrichmentResult.works.length} works found`,
+  )
+
+  return enrichmentResult
 }

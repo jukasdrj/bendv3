@@ -91,6 +91,7 @@ export interface Env {
   // KV Namespaces
   CACHE: KVNamespace
   RECOMMENDATIONS_CACHE?: KVNamespace // Sprint 3: Weekly recommendations
+  EXTERNAL_IDS?: KVNamespace // Alexandria v2.3.0: External ID resolution cache
 
   // Secrets (from Secrets Store)
   GOOGLE_BOOKS_API_KEY: string
