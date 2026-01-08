@@ -6,8 +6,6 @@
  *
  * Alexandria API: https://alexandria.ooheynerds.com
  * Database: PostgreSQL with 250GB of OpenLibrary data
- *
- * @see TODO-ALEXANDRIA-INTEGRATION.md for integration plan
  */
 
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../../types/canonical.js'

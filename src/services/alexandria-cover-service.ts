@@ -6,8 +6,6 @@
  *
  * API: https://alexandria.ooheynerds.com/api/covers/process
  * Auth: Cloudflare Access service token (CF-Access-Client-Id/Secret headers)
- *
- * @see TODO-ALEXANDRIA-COVER-INTEGRATION.md for integration roadmap
  */
 
 import type { ExternalAPIEnv } from './external-apis'
