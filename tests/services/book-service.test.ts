@@ -30,14 +30,14 @@ vi.mock('../../src/repositories/book-repository', () => {
 vi.mock('../../src/services/enrichment');
 vi.mock('../../src/services/alexandria-cover-service');
 
-// Mock console methods to avoid noise in tests
-const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
 describe('BookService', () => {
   let mockEnv: any;
   let mockCtx: ExecutionContext;
+
+  // Mock console methods to avoid noise in tests
+  let consoleSpy: ReturnType<typeof vi.spyOn>;
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   // Test data fixtures
   const testISBN = '9780439708180';
@@ -116,8 +116,13 @@ describe('BookService', () => {
       passThroughOnException: vi.fn()
     };
 
-    // Clear all mocks
+    // Clear all mocks first
     vi.clearAllMocks();
+
+    // Setup console spies AFTER clearing mocks to preserve their call history
+    consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -174,7 +179,7 @@ describe('BookService', () => {
         expect(result.cached).toBe(false);
         expect(result.source).toBe('external');
         expect(enrichment.enrichMultipleBooks).toHaveBeenCalledWith({ isbn: testISBN }, mockEnv, { maxResults: 1 }, mockCtx);
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect(consoleSpy).toHaveBeenCalledWith(
           '[BookService] D1 cache has no works metadata, falling through to enrichment'
         );
       });
@@ -336,14 +341,16 @@ describe('BookService', () => {
         vi.mocked(BookRepository.prototype.findByISBN).mockResolvedValue(null);
         // @ts-ignore
         vi.spyOn(enrichment, 'enrichMultipleBooks').mockResolvedValue(enrichmentWithoutCover);
+        const processCoverSpy = vi.spyOn(alexandria, 'processBookCover');
+        const queueCoverSpy = vi.spyOn(alexandria, 'queueCoverProcessing');
 
         // Act
         const result = await findBookByISBN(testISBN, mockEnv, mockCtx);
 
         // Assert
         expect(result.cached).toBe(false);
-        expect(alexandria.processBookCover).not.toHaveBeenCalled();
-        expect(alexandria.queueCoverProcessing).not.toHaveBeenCalled();
+        expect(processCoverSpy).not.toHaveBeenCalled();
+        expect(queueCoverSpy).not.toHaveBeenCalled();
         expect(BookRepository.prototype.save).toHaveBeenCalled();
       });
     });
@@ -499,6 +506,7 @@ describe('BookService', () => {
       it('should handle all cache hits in batch operations', async () => {
         // Arrange
         vi.mocked(BookRepository.prototype.findByISBN).mockResolvedValue(mockBookRecord);
+        const enrichSpy = vi.spyOn(enrichment, 'enrichMultipleBooks');
 
         // Act
         const results = await batchEnrichBooks(testISBNs, mockEnv, mockCtx);
@@ -511,7 +519,7 @@ describe('BookService', () => {
         });
 
         expect(consoleSpy).toHaveBeenCalledWith('[BookService] Batch enrichment: 3 cached, 0 to fetch');
-        expect(enrichment.enrichMultipleBooks).not.toHaveBeenCalled();
+        expect(enrichSpy).not.toHaveBeenCalled();
         expect(BookRepository.prototype.save).not.toHaveBeenCalled();
       });
 
@@ -569,7 +577,7 @@ describe('BookService', () => {
 
         // Assert
         expect(results.size).toBe(25);
-        expect(consoleSpy).toHaveBeenCalledWith('Processing 25 covers in batches of 10');
+        expect(consoleSpy).toHaveBeenCalledWith('[BookService] Processing 25 covers with optimized concurrency control');
 
         // Should have processed all covers
         expect(alexandria.processBookCover).toHaveBeenCalledTimes(25);
@@ -584,8 +592,17 @@ describe('BookService', () => {
       it('should handle cover processing failures gracefully in batch operations', async () => {
         // Arrange
         vi.mocked(BookRepository.prototype.findByISBN).mockResolvedValue(null);
+
+        // Return deep copies to avoid shared object mutations
         // @ts-ignore
-        vi.spyOn(enrichment, 'enrichMultipleBooks').mockResolvedValue(mockEnrichmentResult);
+        vi.spyOn(enrichment, 'enrichMultipleBooks').mockImplementation(() =>
+          Promise.resolve({
+            works: [{ ...testWork }],
+            editions: [{ ...testEdition }],
+            authors: [{ ...testAuthor }]
+          })
+        );
+
         // @ts-ignore
         vi.spyOn(alexandria, 'processBookCover')
           .mockResolvedValueOnce({ success: true, urls: { small: 'success.jpg', medium: 'success.jpg', large: 'success.jpg' } })
@@ -602,11 +619,11 @@ describe('BookService', () => {
         const result2 = results.get(testISBNs[1] ?? '');
         const result3 = results.get(testISBNs[2] ?? '');
 
-        // First and third should have Alexandria URLs
+        // First and third should have Alexandria URLs (processed successfully)
         expect(result1?.works[0]?.coverImageURL).toBe('success.jpg');
         expect(result3?.works[0]?.coverImageURL).toBe('success2.jpg');
 
-        // Second should fall back to provider URL
+        // Second should fall back to provider URL (processing failed)
         expect(result2?.works[0]?.coverImageURL).toBe(testWork.coverImageURL);
       });
 
@@ -622,14 +639,15 @@ describe('BookService', () => {
         vi.mocked(BookRepository.prototype.findByISBN).mockResolvedValue(null);
         // @ts-ignore
         vi.spyOn(enrichment, 'enrichMultipleBooks').mockResolvedValue(enrichmentWithoutCover);
+        const processCoverSpy = vi.spyOn(alexandria, 'processBookCover');
 
         // Act
         const results = await batchEnrichBooks([testISBN], mockEnv, mockCtx);
 
         // Assert
         expect(results.size).toBe(1);
-        expect(consoleSpy).toHaveBeenCalledWith('Processing 0 covers in batches of 10');
-        expect(alexandria.processBookCover).not.toHaveBeenCalled();
+        expect(consoleSpy).toHaveBeenCalledWith('[BookService] Processing 0 covers with optimized concurrency control');
+        expect(processCoverSpy).not.toHaveBeenCalled();
       });
     });
 

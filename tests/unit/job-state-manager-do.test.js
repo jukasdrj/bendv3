@@ -108,7 +108,10 @@ describe('JobStateManagerDO', () => {
           canceled: false
         })
       );
-      expect(doInstance.currentPipeline).toBe(pipeline);
+
+      // Verify the job state was stored (removed check for deprecated currentPipeline property)
+      const storedState = await mockState.storage.get('jobState');
+      expect(storedState.pipeline).toBe(pipeline);
     });
 
     it('should set start time on initialization', async () => {
@@ -494,7 +497,8 @@ describe('JobStateManagerDO', () => {
     it('should return null for non-existent state', async () => {
       const result = await doInstance.getJobState();
 
-      expect(result).toBeUndefined();
+      // Implementation returns null for non-existent state (not undefined)
+      expect(result).toBeNull();
     });
   });
 

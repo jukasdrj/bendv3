@@ -4,8 +4,13 @@ import { getCached, setCached } from "../../src/utils/cache/cache";
 import { withCircuitBreaker } from "../../src/services/circuit-breaker";
 
 // Mock dependencies
-vi.mock("../../src/utils/cache");
-vi.mock("../../src/services/circuit-breaker");
+vi.mock("../../src/utils/cache/cache", () => ({
+    getCached: vi.fn(),
+    setCached: vi.fn(),
+}));
+vi.mock("../../src/services/circuit-breaker", () => ({
+    withCircuitBreaker: vi.fn(),
+}));
 vi.mock("../../src/utils/analytics-logger", () => ({
     logExternalApiCall: vi.fn((_provider, fn) => fn()),
 }));
