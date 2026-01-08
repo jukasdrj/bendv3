@@ -1,5 +1,6 @@
 // src/providers/gemini-csv-provider.ts
 // Issue #179: Retry logic with exponential backoff for Gemini API failures
+// Issue #253: JSON repair for Gemini truncation errors
 // A/B Testing: Support for multiple Gemini models (2.5-flash, 3-flash-preview, 2.5-flash-lite)
 
 import type { GeminiCSVModel } from '../config/gemini-models'
@@ -8,6 +9,7 @@ import type { CSVParseABTestEvent } from '../types/analytics'
 import type { CSVParsedBook } from '../types/gemini-schemas'
 import { CSV_BOOK_SCHEMA } from '../types/gemini-schemas'
 import { retryWithBackoff } from '../utils/concurrency/retry'
+import { parseJSONWithRepair } from '../utils/json-repair'
 
 /**
  * Result of parsing CSV with Gemini, including both valid books and validation errors
@@ -147,8 +149,9 @@ export async function parseCSVWithGemini(
     enableTelemetry?: boolean
   },
 ): Promise<GeminiParseResult> {
-  // A/B Testing: Select model and configuration
-  const selectedModel = options?.model || 'gemini-2.5-flash'
+  // Default to gemini-3-flash-preview for reliability (Issue #253)
+  // Can be overridden via options.model if A/B testing is re-enabled
+  const selectedModel = options?.model || 'gemini-3-flash-preview'
   const modelConfig = getModelConfig(selectedModel)
   const endpoint = getModelEndpoint(selectedModel)
   const timeout = modelConfig.recommendedTimeout
@@ -254,15 +257,35 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
     throw new Error('Gemini returned empty response')
   }
 
-  // With structured output, response is guaranteed to be valid JSON matching schema
-  try {
-    const parsed: unknown = JSON.parse(textResponse)
+  // Issue #253: Parse with automatic JSON repair for truncation errors
+  // Gemini API has known issues with "Unterminated string in JSON" when hitting token limits
+  const parseResult = parseJSONWithRepair<CSVParsedBook[]>(textResponse, {
+    includeRawText: true, // Include for debugging
+    maxRepairAttempts: 3,
+  })
 
-    // Lightweight defensive check: Catches API bugs, not schema violations
-    // (Schema guarantees array of books with title+author, but we verify to catch unexpected API changes)
-    if (!Array.isArray(parsed)) {
-      throw new Error(`Schema violation: Expected array, got ${typeof parsed}`)
-    }
+  if (!parseResult.success) {
+    throw new Error(
+      `Invalid JSON from Gemini: ${parseResult.error}${parseResult.repairAttempted ? ' (repair attempted)' : ''}`,
+    )
+  }
+
+  const parsed = parseResult.data!
+
+  // Lightweight defensive check: Catches API bugs, not schema violations
+  // (Schema guarantees array of books with title+author, but we verify to catch unexpected API changes)
+  if (!Array.isArray(parsed)) {
+    throw new Error(`Schema violation: Expected array, got ${typeof parsed}`)
+  }
+
+  // Log if JSON repair was used (indicates potential token limit issues)
+  if (parseResult.repairAttempted) {
+    console.warn(
+      `[GeminiCSVProvider] JSON repair was applied for model ${selectedModel}. Consider increasing maxOutputTokens or simplifying schema.`,
+    )
+  }
+
+  try {
 
     // Issue #160: Post-parse validation for empty/whitespace-only authors
     // Schema minLength prevents empty strings, but whitespace-only may slip through

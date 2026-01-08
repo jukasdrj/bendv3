@@ -1,5 +1,6 @@
 // tests/unit/csv-ab-testing.test.ts
 // Unit tests for CSV A/B testing framework
+// UPDATED: Jan 8, 2026 - Baseline changed to gemini-3-flash-preview
 
 import { describe, expect, it } from 'vitest'
 import type { GeminiCSVModel } from '../../src/config/gemini-models'
@@ -20,21 +21,22 @@ describe('Gemini Model Configuration', () => {
   })
 
   it('should get model config for baseline', () => {
-    const config = getModelConfig('gemini-2.5-flash')
-    expect(config.modelId).toBe('gemini-2.5-flash')
-    expect(config.displayName).toBe('Gemini 2.5 Flash')
-    expect(config.contextWindow).toBe(1_000_000)
-    expect(config.recommendedTimeout).toBe(90_000)
-  })
-
-  it('should get model config for variant A', () => {
     const config = getModelConfig('gemini-3-flash-preview')
     expect(config.modelId).toBe('gemini-3-flash-preview')
     expect(config.displayName).toBe('Gemini 3 Flash Preview')
+    expect(config.contextWindow).toBe(1_000_000)
+    expect(config.recommendedTimeout).toBe(90_000)
     expect(config.characteristics.accuracy).toBe('excellent')
   })
 
-  it('should get model config for variant B', () => {
+  it('should get model config for variant A (deprecated)', () => {
+    const config = getModelConfig('gemini-2.5-flash')
+    expect(config.modelId).toBe('gemini-2.5-flash')
+    expect(config.displayName).toContain('DEPRECATED')
+    expect(config.contextWindow).toBe(1_000_000)
+  })
+
+  it('should get model config for variant B (lite)', () => {
     const config = getModelConfig('gemini-2.5-flash-lite')
     expect(config.modelId).toBe('gemini-2.5-flash-lite')
     expect(config.displayName).toBe('Gemini 2.5 Flash Lite')
@@ -60,9 +62,10 @@ describe('Model Selection Logic', () => {
     const model2 = selectModelForUser('user-456', 0)
     const model3 = selectModelForUser('user-789', 0)
 
-    expect(model1).toBe('gemini-2.5-flash')
-    expect(model2).toBe('gemini-2.5-flash')
-    expect(model3).toBe('gemini-2.5-flash')
+    // NEW BASELINE: gemini-3-flash-preview (Jan 8, 2026)
+    expect(model1).toBe('gemini-3-flash-preview')
+    expect(model2).toBe('gemini-3-flash-preview')
+    expect(model3).toBe('gemini-3-flash-preview')
   })
 
   it('should distribute evenly at 100% rollout', () => {
@@ -74,21 +77,18 @@ describe('Model Selection Logic', () => {
       models.push(model)
     }
 
-    const baseline = models.filter((m) => m === 'gemini-2.5-flash').length
-    const variantA = models.filter((m) => m === 'gemini-3-flash-preview').length
-    const variantB = models.filter((m) => m === 'gemini-2.5-flash-lite').length
+    const baseline = models.filter((m) => m === 'gemini-3-flash-preview').length
+    const variantLite = models.filter((m) => m === 'gemini-2.5-flash-lite').length
 
-    // Each variant should get roughly 33% (±10% tolerance)
-    expect(baseline).toBeGreaterThan(80) // ~33% of 300 = 100
-    expect(baseline).toBeLessThan(120)
+    // NEW A/B TEST: 50/50 split between baseline and lite
+    // Each variant should get roughly 50% (±10% tolerance)
+    expect(baseline).toBeGreaterThan(120) // ~50% of 300 = 150
+    expect(baseline).toBeLessThan(180)
 
-    expect(variantA).toBeGreaterThan(80)
-    expect(variantA).toBeLessThan(120)
+    expect(variantLite).toBeGreaterThan(120)
+    expect(variantLite).toBeLessThan(180)
 
-    expect(variantB).toBeGreaterThan(80)
-    expect(variantB).toBeLessThan(120)
-
-    expect(baseline + variantA + variantB).toBe(300)
+    expect(baseline + variantLite).toBe(300)
   })
 
   it('should be consistent for same user ID', () => {
@@ -111,15 +111,15 @@ describe('Model Selection Logic', () => {
       models.push(model)
     }
 
-    const baseline = models.filter((m) => m === 'gemini-2.5-flash').length
-    const variants = models.filter((m) => m !== 'gemini-2.5-flash').length
+    const baseline = models.filter((m) => m === 'gemini-3-flash-preview').length
+    const variantLite = models.filter((m) => m === 'gemini-2.5-flash-lite').length
 
-    // At 10% rollout: ~90% baseline, ~10% variants
+    // At 10% rollout: ~90% baseline, ~10% lite variant
     expect(baseline).toBeGreaterThan(850) // ~90%
     expect(baseline).toBeLessThan(950)
 
-    expect(variants).toBeGreaterThan(50) // ~10%
-    expect(variants).toBeLessThan(150)
+    expect(variantLite).toBeGreaterThan(50) // ~10%
+    expect(variantLite).toBeLessThan(150)
   })
 })
 

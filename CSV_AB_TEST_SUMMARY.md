@@ -1,27 +1,70 @@
 # CSV Import A/B Testing - Implementation Summary
 
 **Created:** January 7, 2026
-**Status:** ✅ Ready for testing (disabled by default)
+**Updated:** January 8, 2026
+**Status:** ✅ UPDATED - Baseline switched to gemini-3-flash-preview
 
 ---
 
 ## 🎯 What We Built
 
-A complete A/B testing framework for comparing three Gemini models for CSV parsing:
+A complete A/B testing framework for comparing Gemini models for CSV parsing:
 
-1. **gemini-2.5-flash** (baseline) - Current production model
-2. **gemini-3-flash-preview** (variant A) - Newest, best multimodal
-3. **gemini-2.5-flash-lite** (variant B) - Ultra-fast, cost-optimized
+1. **gemini-3-flash-preview** (baseline) - NEW DEFAULT (reliability improvements)
+2. **gemini-2.5-flash-lite** (variant A) - Cost optimization candidate
+3. ~~**gemini-2.5-flash**~~ (DEPRECATED) - Removed due to 83% JSON failure rate
 
 ---
 
-## 📦 Files Created
+## 🚨 CRITICAL UPDATE: January 8, 2026
+
+### Default Model Changed to gemini-3-flash-preview
+
+**Previous:** `gemini-2.5-flash` (83% failure rate)
+**Current:** `gemini-3-flash-preview` (default for all CSV imports)
+
+**Reason:** Production testing revealed 83% failure rate with gemini-2.5-flash due to "Unterminated string in JSON" errors. This is a known Gemini API issue caused by token truncation.
+
+**Research Findings:**
+- Gemini 2.5 Flash has documented JSON reliability issues
+- Gemini 3 Flash Preview specifically addresses "syntax hallucinations and failure loops"
+- Community reports confirm intermittent JSON truncation across 2.5 models
+
+**Current Status:**
+- **A/B testing is DISABLED** (feature flags at 0%)
+- All CSV imports use `gemini-3-flash-preview` by default
+- Infrastructure remains in place for future model comparisons
+- Can be re-enabled if/when new models need testing
+
+### JSON Repair Safety Net
+
+**NEW:** Implemented automatic JSON repair layer (`src/utils/json-repair.ts`)
+
+**Handles:**
+- Unterminated strings from token truncation
+- Missing closing braces/brackets
+- Trailing commas
+- Up to 3 repair attempts before failing
+
+**Strategy:**
+1. Attempt standard JSON.parse()
+2. If "Unterminated string" error → Apply repair logic
+3. Balance brackets/braces
+4. Remove trailing commas
+5. Retry parse
+
+This provides a **belt-and-suspenders** approach: Gemini 3 Flash Preview reduces errors, JSON repair catches edge cases.
+
+---
+
+## 📦 Files Created/Updated
 
 ### Core Infrastructure
-- `src/config/gemini-models.ts` - Model configurations and selection logic
+- `src/config/gemini-models.ts` - **UPDATED** Model configurations (baseline → gemini-3-flash-preview)
 - `src/types/analytics.ts` - Telemetry event schemas
 - `src/utils/csv-ab-testing.ts` - Integration utilities
-- `src/providers/gemini-csv-provider.ts` - **UPDATED** to support A/B testing
+- `src/utils/json-repair.ts` - **NEW** JSON repair for truncation errors (Issue #253)
+- `src/providers/gemini-csv-provider.ts` - **UPDATED** A/B testing + JSON repair integration
 
 ### Configuration
 - `wrangler.jsonc` - Feature flags added:
@@ -40,9 +83,17 @@ A complete A/B testing framework for comparing three Gemini models for CSV parsi
 
 ---
 
-## 🚀 How to Use
+## 🚀 Current Configuration
 
-### 1. Enable A/B Testing (Production)
+### Production Default (Simplified)
+
+**All CSV imports now use `gemini-3-flash-preview` automatically.**
+
+No configuration needed - it just works! The model is hardcoded as the default in `src/providers/gemini-csv-provider.ts`.
+
+### Optional: Re-enable A/B Testing (Future)
+
+If you want to test new models in the future:
 
 ```bash
 # Set rollout percentage (0-100)
@@ -144,29 +195,30 @@ if (result.telemetry) {
 
 ## 🎛️ Feature Flags
 
-### Current State (Default)
+### Current State (A/B Testing Disabled)
+
 ```jsonc
 {
-  "CSV_MODEL_AB_TEST_PERCENT": "0",  // 100% baseline (disabled)
-  "ENABLE_CSV_AB_TELEMETRY": "false" // No telemetry
+  "CSV_MODEL_AB_TEST_PERCENT": "0",     // A/B testing disabled
+  "ENABLE_CSV_AB_TELEMETRY": "false"    // No telemetry
 }
 ```
 
-### Rollout Example (10%)
+**Result:** All CSV imports use `gemini-3-flash-preview` (hardcoded default in provider).
+
+### Optional: Future A/B Testing
+
+If you want to test new models later, you can re-enable:
+
+**Example: Test 50% traffic with a new model**
 ```jsonc
 {
-  "CSV_MODEL_AB_TEST_PERCENT": "10",  // 10% variants, 90% baseline
-  "ENABLE_CSV_AB_TELEMETRY": "true"   // Log all events
+  "CSV_MODEL_AB_TEST_PERCENT": "50",  // 50% baseline, 50% test variant
+  "ENABLE_CSV_AB_TELEMETRY": "true"   // Log telemetry
 }
 ```
 
-### Full A/B/C Test (100%)
-```jsonc
-{
-  "CSV_MODEL_AB_TEST_PERCENT": "100", // 33.3% each variant
-  "ENABLE_CSV_AB_TELEMETRY": "true"
-}
-```
+**Note:** Feature flags are ignored when set to `0` - the hardcoded default is always used.
 
 ---
 
@@ -232,35 +284,35 @@ If issues arise:
 
 ---
 
-## 📝 Next Steps
+## 📝 Current Status
 
-1. **Internal Testing (You):**
-   - Run manual tests with `small.csv` and `medium.csv`
-   - Enable `ENABLE_CSV_AB_TELEMETRY=true` locally
-   - Verify telemetry events are logged correctly
+**✅ COMPLETE - Production Ready**
 
-2. **Canary Deployment:**
-   - Set `CSV_MODEL_AB_TEST_PERCENT=10` in production
-   - Monitor for 3-5 days
-   - Collect initial metrics
+1. **Default Model:** `gemini-3-flash-preview` (hardcoded)
+2. **JSON Repair:** Automatic safety net for truncation errors
+3. **A/B Testing:** Disabled (infrastructure remains for future use)
+4. **Feature Flags:** Set to 0 (no-ops)
 
-3. **Gradual Rollout:**
-   - Increase to 25% → 50% → 100% over 1-2 weeks
-   - Ensure minimum 100 samples per variant
+### Next Steps
 
-4. **Analysis:**
-   - Review Analytics Engine data
-   - Calculate weighted scores
-   - Select winning variant
+1. **Deploy to Production:**
+   ```bash
+   npm run deploy
+   ```
 
-5. **Production Update:**
-   - Update default model in code
-   - Disable A/B testing (`CSV_MODEL_AB_TEST_PERCENT=0`)
-   - Document decision in CHANGELOG
+2. **Monitor (3-5 days):**
+   - Watch error rates in Cloudflare dashboard
+   - Expected: >95% success rate (vs 17% with gemini-2.5-flash)
+   - CSV imports should complete reliably
+
+3. **Future Model Testing (Optional):**
+   - When new Gemini models release, re-enable A/B testing
+   - Update `CSV_MODEL_AB_TEST_PERCENT` to test new variants
+   - Framework is ready to use
 
 ---
 
-**Status:** ✅ All implementation complete, ready for Phase 1 (Internal Testing)
+**Status:** ✅ Simple, reliable, ready to ship
 
 **Owner:** @jukasdrj
 **Last Updated:** January 7, 2026

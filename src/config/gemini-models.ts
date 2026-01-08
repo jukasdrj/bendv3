@@ -28,18 +28,23 @@ export interface GeminiModelConfig {
 
 /**
  * Model configurations for A/B testing
+ *
+ * UPDATED: Jan 8, 2026 - gemini-2.5-flash deprecated due to JSON reliability issues
+ * Current baseline: gemini-3-flash-preview (addresses "syntax hallucinations and failure loops")
  */
 export const GEMINI_MODEL_CONFIGS: Record<GeminiCSVModel, GeminiModelConfig> = {
   'gemini-2.5-flash': {
     modelId: 'gemini-2.5-flash',
-    displayName: 'Gemini 2.5 Flash',
+    displayName: 'Gemini 2.5 Flash (DEPRECATED)',
     contextWindow: 1_000_000,
     characteristics: {
       speed: 'fast',
       accuracy: 'high',
       cost: 'medium',
     },
-    recommendedTimeout: 90_000, // Current production timeout
+    recommendedTimeout: 90_000,
+    // DEPRECATED: 83% failure rate with JSON truncation errors
+    // Kept for backwards compatibility only - DO NOT USE
   },
   'gemini-3-flash-preview': {
     modelId: 'gemini-3-flash-preview',
@@ -47,10 +52,11 @@ export const GEMINI_MODEL_CONFIGS: Record<GeminiCSVModel, GeminiModelConfig> = {
     contextWindow: 1_000_000,
     characteristics: {
       speed: 'fast',
-      accuracy: 'excellent',
+      accuracy: 'excellent', // Improved JSON reliability vs 2.5-flash
       cost: 'high',
     },
-    recommendedTimeout: 90_000, // Same as baseline for fair comparison
+    recommendedTimeout: 90_000,
+    // DEFAULT BASELINE: Addresses JSON reliability issues
   },
   'gemini-2.5-flash-lite': {
     modelId: 'gemini-2.5-flash-lite',
@@ -62,6 +68,7 @@ export const GEMINI_MODEL_CONFIGS: Record<GeminiCSVModel, GeminiModelConfig> = {
       cost: 'low',
     },
     recommendedTimeout: 60_000, // Lower timeout for faster model
+    // VARIANT A: Cost optimization candidate
   },
 }
 
@@ -84,42 +91,41 @@ export function getModelEndpoint(model: GeminiCSVModel): string {
  * Select model based on A/B test percentage
  *
  * Distribution (controlled by CSV_MODEL_AB_TEST_PERCENT):
- * - 0%: 100% baseline (gemini-2.5-flash)
- * - 50%: 50% baseline, 25% variant A, 25% variant B
- * - 100%: 33.3% each variant (full A/B/C test)
+ * - 0%: 100% baseline (gemini-3-flash-preview) - UPDATED Jan 8, 2026
+ * - 50%: 50% baseline, 50% variant A (gemini-2.5-flash-lite)
+ * - 100%: 50% baseline, 50% variant A (full A/B test)
+ *
+ * NOTE: gemini-2.5-flash REMOVED from testing due to JSON reliability issues
+ * (83% failure rate with "Unterminated string in JSON" errors).
+ * See issue #253 for details.
  *
  * @param userId - User ID or session ID for consistent bucketing
  * @param abTestPercent - A/B test rollout percentage (0-100)
  * @returns Selected model for this user
  */
 export function selectModelForUser(userId: string, abTestPercent: number): GeminiCSVModel {
-  // Disabled: Use baseline only
+  // Disabled: Use baseline only (gemini-3-flash-preview for reliability)
   if (abTestPercent === 0) {
-    return 'gemini-2.5-flash'
+    return 'gemini-3-flash-preview'
   }
 
-  // Full rollout: 100% A/B/C test (33.3% each variant)
-  if (abTestPercent === 100) {
-    const hash = hashString(userId)
-    const bucket = hash % 3
-    if (bucket === 0) return 'gemini-2.5-flash'
-    if (bucket === 1) return 'gemini-3-flash-preview'
-    return 'gemini-2.5-flash-lite'
-  }
-
-  // Partial rollout: Gradual A/B test introduction
-  // Example: 50% rollout = 50% baseline, 25% variant A, 25% variant B
+  // Partial/Full rollout: A/B test between baseline and lite variant
   const hash = hashString(userId)
   const bucket = hash % 100
 
-  // First X% get variants (split between A and B)
-  if (bucket < abTestPercent) {
-    const variantBucket = (hash % 10) % 2 // 50/50 split between variants
-    return variantBucket === 0 ? 'gemini-3-flash-preview' : 'gemini-2.5-flash-lite'
+  // At 100% rollout: 50/50 split between baseline and lite
+  if (abTestPercent === 100) {
+    return bucket < 50 ? 'gemini-3-flash-preview' : 'gemini-2.5-flash-lite'
   }
 
-  // Remaining users get baseline
-  return 'gemini-2.5-flash'
+  // Partial rollout: First X% get lite variant, rest get baseline
+  // Example: 10% rollout = 10% lite, 90% baseline
+  if (bucket < abTestPercent) {
+    return 'gemini-2.5-flash-lite'
+  }
+
+  // Remaining users get baseline (gemini-3-flash-preview for reliability)
+  return 'gemini-3-flash-preview'
 }
 
 /**
