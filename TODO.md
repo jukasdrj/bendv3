@@ -14,6 +14,9 @@
 - ✅ Discovery endpoints already have comprehensive contract tests (507 lines)
 - ✅ Closed Issue #256 as "Not Planned" - test coverage is excellent as-is
 - ✅ Created comprehensive documentation: `docs/TEST_COVERAGE_ANALYSIS_2026-01-09.md`
+- ✅ Refactored API documentation to V3-only (removed all V1/V2 references)
+- ✅ Created `docs/API_V3_OVERVIEW.md` - V3-only comprehensive guide
+- ✅ Updated CLAUDE.md to clarify V3-only status (V1/V2 completely removed)
 
 **Previous Session (Jan 8):**
 - ✅ TODO comment audit (11 comments reviewed, 2 stale removed, 1 converted to issue)
