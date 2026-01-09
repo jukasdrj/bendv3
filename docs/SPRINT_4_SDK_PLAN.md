@@ -191,168 +191,215 @@ npm install @jukasdrj/bookstrack-api-client
 
 ---
 
-## Phase 2: API Versioning Documentation
+## Phase 2: API Documentation (V3 Only)
 
-**Duration:** 1-2 hours
+**Duration:** 30-45 minutes
 **Priority:** P1 - Important for API governance
 
-### Task 2.1: Create API Versioning Policy
+### Task 2.1: Document V3 API Status
 
-**Duration:** 45 minutes
+**Duration:** 30 minutes
 **Status:** TODO
 
-**Document:** `docs/API_VERSIONING.md`
+**Document:** `docs/API_V3_OVERVIEW.md`
 
 **Sections:**
-1. **Versioning Strategy**
-   - URL-based versioning (`/v3/...`)
-   - Semantic versioning for breaking changes
-   - Deprecation timeline (6 months notice)
+1. **Current Status**
+   - V3 is the ONLY supported version
+   - V1 and V2 have been completely removed (not deprecated, REMOVED)
+   - All functionality exists in V3
 
-2. **Version Lifecycle**
-   - CURRENT: V3 (production, fully supported)
-   - DEPRECATED: V2 (sunset March 2026)
-   - REMOVED: V1 (sunset December 2025)
+2. **Semantic Versioning**
+   - Major (3.x.x): Breaking changes requiring code updates
+   - Minor (x.4.x): New features, backward compatible
+   - Patch (x.x.2): Bug fixes, backward compatible
 
 3. **Breaking vs Non-Breaking Changes**
-   - Breaking: Require new major version
+   - Breaking: Require new major version (V4)
    - Non-Breaking: Patch/minor versions OK
-
-4. **Deprecation Process**
-   - 6 months notice via CHANGELOG
-   - Sunset date announcement
-   - Migration guide provided
-   - Gradual traffic migration
-
-5. **Client Migration Guide**
-   - V1 → V3 migration steps
-   - V2 → V3 migration steps
-   - SDK version compatibility matrix
+   - Deprecation: 6 months notice via CHANGELOG
 
 **Template:**
 ```markdown
-# API Versioning Strategy
-
-## Current Status (January 2026)
-
-| Version | Status | Sunset Date | Support Level |
-|---------|--------|-------------|---------------|
-| V3      | ✅ CURRENT | N/A | Full support |
-| V2      | ⛔ DEPRECATED | March 2026 | Security fixes only |
-| V1      | ⛔ REMOVED | December 2025 | No support |
-
-## Version Numbering
-
-We use semantic versioning for the API:
-- **Major (3.x.x)**: Breaking changes requiring code updates
-- **Minor (x.4.x)**: New features, backward compatible
-- **Patch (x.x.1)**: Bug fixes, backward compatible
-
-## Deprecation Policy
-
-1. **6 Months Notice**: Announce deprecation in CHANGELOG
-2. **Migration Guide**: Provide comprehensive migration documentation
-3. **Gradual Rollout**: Monitor error rates during migration
-4. **Sunset Date**: Hard cutoff after 6 months
-
-## Current Version: V3
+# BooksTrack V3 API - Overview
 
 **Base URL:** `https://api.oooefam.net/v3`
 **OpenAPI Spec:** `https://api.oooefam.net/v3/openapi.json`
-**SDK:** `npm install @jukasdrj/bookstrack-api-client@3.4.2`
+**TypeScript SDK:** `npm install @jukasdrj/bookstrack-api-client@3.4.2`
+**Documentation:** https://api.oooefam.net/v3/docs
 
-### V3 Endpoints (Production Ready)
+---
 
+## Current Status (January 2026)
+
+**V3 is the ONLY supported API version.**
+
+- ✅ **V3:** Production, fully supported, all features available
+- ⛔ **V2:** Completely removed (March 2026)
+- ⛔ **V1:** Completely removed (December 2025)
+
+**All legacy endpoints return 404.** There are no migration guides because V1 and V2 are gone.
+
+---
+
+## Semantic Versioning
+
+BooksTrack V3 follows semantic versioning:
+
+- **Major (3.x.x)**: Breaking changes requiring client updates
+  - Example: Removing endpoints, changing response schemas
+  - Advance notice: 6 months via CHANGELOG
+
+- **Minor (x.4.x)**: New features, backward compatible
+  - Example: New endpoints, optional fields
+  - No client changes required
+
+- **Patch (x.x.2)**: Bug fixes, backward compatible
+  - Example: Error handling improvements, performance fixes
+  - No client changes required
+
+**Current Version:** 3.4.2
+
+---
+
+## V3 API Endpoints
+
+### Book Operations
 - `GET /v3/books/{isbn}` - Get book by ISBN
 - `GET /v3/books/search` - Search books (text, semantic, similar)
-- `POST /v3/books/enrich` - Enrich book metadata
-- `GET /v3/capabilities` - API capabilities discovery
-- `GET /v3/recommendations/weekly` - Weekly recommendations
-- `POST /v3/jobs/imports` - CSV import workflow
-- `POST /v3/jobs/scans` - Bookshelf photo scanning
-- `POST /v3/jobs/enrichment` - Batch enrichment
-- `POST /v3/webhooks/alexandria/enrichment-complete` - Alexandria callback
+- `POST /v3/books/enrich` - Enrich book metadata (sync mode)
 
-## Migration Guides
+### Job Management
+- `POST /v3/jobs/imports` - Start CSV import job
+- `GET /v3/jobs/imports/{jobId}` - Get import job status
+- `GET /v3/jobs/imports/{jobId}/stream` - SSE progress stream
+- `POST /v3/jobs/scans` - Start bookshelf photo scan
+- `GET /v3/jobs/scans/{jobId}` - Get scan job status
+- `GET /v3/jobs/scans/{jobId}/stream` - SSE progress stream
+- `POST /v3/jobs/enrichment` - Start batch enrichment
+- `GET /v3/jobs/enrichment/{jobId}` - Get enrichment status
+- `GET /v3/jobs/enrichment/{jobId}/stream` - SSE progress stream
+- `GET /v3/jobs/enrichment/{jobId}/results` - Get enriched books (paginated)
+- `DELETE /v3/jobs/enrichment/{jobId}` - Cancel enrichment job
 
-### V2 → V3 Migration
+### Discovery
+- `GET /v3/capabilities` - API feature discovery
+- `GET /v3/recommendations/weekly` - Weekly book recommendations
 
-See [V3_MIGRATION.md](../packages/api-client/V3_MIGRATION.md) for comprehensive guide.
+### Documentation
+- `GET /v3/openapi.json` - OpenAPI 3.1 specification
+- `GET /v3/docs` - Interactive Swagger UI
 
-**Key Changes:**
-1. **Error Format**: V2 used custom format, V3 uses RFC 9457 Problem Details
-2. **Response Envelope**: V3 uses discriminated union (`success: boolean`)
-3. **Author Search**: V2 had `/v2/search/author`, V3 uses `/v3/books/search?mode=text`
-4. **Streaming**: V3 adds SSE streaming for long-running jobs
+### Webhooks
+- `POST /v3/webhooks/alexandria/enrichment-complete` - Alexandria processing callback
 
-### V1 → V3 Migration
+---
 
-V1 was removed December 2025. All V1 clients must migrate to V3.
+## TypeScript SDK
 
-**Breaking Changes:**
-1. **No `/v1/search/isbn`**: Use `/v3/books/{isbn}` instead
-2. **No `/v1/enrich`**: Use `/v3/books/enrich` instead
-3. **Different response format**: V1 had flat structure, V3 has nested with metadata
-
-## Support Lifecycle
-
-### V3 (Current)
-- **Full Support**: All features, bug fixes, security updates
-- **Documentation**: Comprehensive OpenAPI spec + SDK
-- **Breaking Changes**: New major version (V4) would be announced 6 months in advance
-
-### V2 (Deprecated)
-- **Security Fixes Only**: Critical vulnerabilities patched
-- **No New Features**: Feature development frozen
-- **Sunset**: March 2026 (hard cutoff)
-
-### V1 (Removed)
-- **No Support**: Returns 404 for all requests
-- **Removed**: December 2025
-
-## Version Compatibility Matrix
-
-| SDK Version | API Version | Status |
-|-------------|-------------|--------|
-| 3.4.x       | V3          | ✅ Current |
-| 3.3.x       | V3          | ✅ Supported |
-| 2.x.x       | V2          | ⛔ Deprecated |
-| 1.x.x       | V1          | ⛔ Removed |
-
-## Client Upgrade Path
-
-**Recommended:** Always use latest SDK version (3.4.2+)
-
+**Installation:**
 ```bash
-# Upgrade to latest SDK
-npm install @jukasdrj/bookstrack-api-client@latest
+npm install @jukasdrj/bookstrack-api-client@3.4.2
 ```
 
-## Contact
+**Usage:**
+```typescript
+import { createBooksTrackClient } from '@jukasdrj/bookstrack-api-client'
 
-Questions about API versioning? See [GitHub Issues](https://github.com/jukasdrj/bendv3/issues)
+const client = createBooksTrackClient({
+  baseUrl: 'https://api.oooefam.net'
+})
+
+// Get book by ISBN
+const { data, error } = await client.GET('/v3/books/{isbn}', {
+  params: { path: { isbn: '9780439708180' } }
+})
+
+if (error) {
+  console.error('Error:', error.detail)
+} else {
+  console.log('Title:', data.title)
+}
+```
+
+**Features:**
+- ✅ Full TypeScript type safety
+- ✅ Auto-generated from OpenAPI spec
+- ✅ SSE streaming support for long-running jobs
+- ✅ Tree-shakeable ESM/CJS builds
+- ✅ IntelliSense support in VS Code
+
+---
+
+## Response Format
+
+All V3 endpoints use RFC 9457 Problem Details for errors:
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": { /* endpoint-specific data */ },
+  "metadata": {
+    "timestamp": "2026-01-09T12:00:00Z",
+    "source": "alexandria",
+    "cached": true
+  }
+}
+```
+
+**Error Response (RFC 9457):**
+```json
+{
+  "type": "https://api.oooefam.net/errors/not-found",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Book with ISBN '1234567890' not found",
+  "instance": "/v3/books/1234567890"
+}
 ```
 
 ---
 
-### Task 2.2: Update CLAUDE.md with Versioning Reference
+## Breaking Changes Policy
 
-**Duration:** 15 minutes
+When V3 needs breaking changes, we will:
+
+1. **Announce 6 months in advance** via CHANGELOG and GitHub
+2. **Release V4 with breaking changes**
+3. **Maintain V3 for 6 months** alongside V4
+4. **Remove V3 after 6 months** (returns 404)
+
+**No V1/V2 migration guides exist** because those versions are completely removed.
+
+---
+
+## Support
+
+- **Documentation:** https://api.oooefam.net/v3/docs
+- **OpenAPI Spec:** https://api.oooefam.net/v3/openapi.json
+- **SDK:** https://www.npmjs.com/package/@jukasdrj/bookstrack-api-client
+- **Issues:** https://github.com/jukasdrj/bendv3/issues
+```
+
+---
+
+### Task 2.2: Update CLAUDE.md with V3-Only Status
+
+**Duration:** 10 minutes
 **Status:** TODO
 
-Add to `.claude/CLAUDE.md`:
+Update `.claude/CLAUDE.md` to clarify V3-only status:
 
 ```markdown
-## API Versioning
+## API Status
 
-**📖 See [docs/API_VERSIONING.md](../docs/API_VERSIONING.md) for versioning strategy**
+**Current Version:** V3 (3.4.2)
+**Legacy Versions:** V1 and V2 completely removed
 
-**Quick Reference:**
-- V3 (Current): Production, full support
-- V2 (Deprecated): Sunset March 2026
-- V1 (Removed): Sunset December 2025
+**📖 See [docs/API_V3_OVERVIEW.md](../docs/API_V3_OVERVIEW.md) for complete API documentation**
 
-**Deprecation Policy:** 6 months notice, migration guides provided
+**Breaking Changes Policy:** 6 months notice before V4, migration guides provided
 ```
 
 ---

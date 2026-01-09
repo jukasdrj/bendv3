@@ -507,33 +507,42 @@ Request → KV Cache (hit?) → Alexandria RPC → Fallback Providers → KV Wri
 
 ---
 
+## API Status
+
+**Current Version:** V3 (3.4.2) - ONLY supported version
+**Legacy Versions:** V1 and V2 completely removed (all legacy endpoints return 404)
+
+**📖 Complete API Documentation:** [docs/API_V3_OVERVIEW.md](../docs/API_V3_OVERVIEW.md)
+
+**Breaking Changes Policy:** 6 months notice before V4, migration guides provided
+
+---
+
 ## V3 API Endpoints
 
 ### Book Operations
-- `GET /v3/books/:isbn` - Get book by ISBN
+- `GET /v3/books/{isbn}` - Get book by ISBN
 - `GET /v3/books/search` - Search books (text, semantic, similar)
 - `POST /v3/books/enrich` - Sync enrichment with optional embedding
 
 ### Job Management
-- `POST /v3/jobs/imports` - Start CSV import
-- `GET /v3/jobs/imports/:jobId` - Import status
-- `GET /v3/jobs/imports/:jobId/stream` - SSE progress
-- `POST /v3/jobs/scans` - Start bookshelf scan
-- `GET /v3/jobs/scans/:jobId` - Scan status
-- `GET /v3/jobs/scans/:jobId/stream` - SSE progress
+- `POST /v3/jobs/imports` - Start CSV import job
+- `GET /v3/jobs/imports/{jobId}` - Import job status
+- `GET /v3/jobs/imports/{jobId}/stream` - SSE progress stream
+- `POST /v3/jobs/scans` - Start bookshelf photo scan
+- `GET /v3/jobs/scans/{jobId}` - Scan job status
+- `GET /v3/jobs/scans/{jobId}/stream` - SSE progress stream
 - `POST /v3/jobs/enrichment` - Start batch enrichment
-- `GET /v3/jobs/enrichment/:jobId` - Enrichment status
-- `GET /v3/jobs/enrichment/:jobId/stream` - SSE progress
-- `GET /v3/jobs/enrichment/:jobId/results` - Paginated results
-- `DELETE /v3/jobs/enrichment/:jobId` - Cancel job
+- `GET /v3/jobs/enrichment/{jobId}` - Enrichment job status
+- `GET /v3/jobs/enrichment/{jobId}/stream` - SSE progress stream
+- `GET /v3/jobs/enrichment/{jobId}/results` - Fetch enriched books (paginated)
+- `DELETE /v3/jobs/enrichment/{jobId}` - Cancel enrichment job
 
 ### Discovery
-- `GET /v3/capabilities` - API capabilities
-- `GET /v3/recommendations` - Weekly recommendations
-- `GET /v3/openapi.json` - OpenAPI spec
-- `GET /v3/docs` - Swagger UI
-
-**📖 API Versioning:** See [docs/API_VERSIONING.md](../docs/API_VERSIONING.md) for versioning strategy, deprecation policy, and migration guides.
+- `GET /v3/capabilities` - API feature discovery
+- `GET /v3/recommendations/weekly` - Weekly book recommendations
+- `GET /v3/openapi.json` - OpenAPI 3.1 specification
+- `GET /v3/docs` - Interactive Swagger UI
 
 ### Webhooks
 - `POST /v3/webhooks/alexandria/books/:isbn` - Alexandria book processing callback
