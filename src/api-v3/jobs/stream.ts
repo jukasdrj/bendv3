@@ -6,6 +6,17 @@
  * Server-Sent Events (SSE) for real-time job progress updates.
  * Replaces WebSocket-based progress tracking from V1/V2.
  *
+ * **Error Handling Strategy:**
+ * - **HTTP Pre-Flight Errors**: Use RFC 9457 Problem Details
+ *   - Invalid Accept header, missing/expired tokens
+ *   - Sent as JSON HTTP responses BEFORE SSE connection
+ * - **SSE In-Stream Errors**: Use SSEErrorEvent schema
+ *   - Job not found, stream timeouts, processing failures
+ *   - Sent as SSE events AFTER connection established
+ *   - Format intentionally deviates from RFC 9457 per SSE spec requirements
+ *
+ * @see https://html.spec.whatwg.org/multipage/server-sent-events.html
+ * @see packages/schemas/src/jobs.ts (SSEErrorEvent schema)
  * @module api-v3/jobs/stream
  */
 
@@ -15,6 +26,7 @@ import type {
   SSEPingEvent,
   SSEProgressEvent,
 } from '@bookstrack/schemas'
+import { createProblemDetails } from '@bookstrack/schemas/errors'
 import type { Context } from 'hono'
 import type { Env } from '../../types/env'
 import { fetchJobResults, parseLastEventId, validateTokenFormat } from './common'
@@ -202,17 +214,14 @@ export async function handleSSEStream(
 
   if (!isSSERequest) {
     return c.json(
-      {
-        success: false,
-        error: {
-          code: 'INVALID_ACCEPT_HEADER',
-          message: 'This endpoint requires Accept: text/event-stream header',
-          hint: 'Use EventSource API or set Accept header to text/event-stream',
+      createProblemDetails(
+        'INVALID_REQUEST',
+        'This endpoint requires Accept: text/event-stream header. Use EventSource API or set Accept header to text/event-stream.',
+        {
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
         },
-        metadata: {
-          timestamp: new Date().toISOString(),
-        },
-      },
+      ),
       400,
     )
   }
@@ -223,16 +232,14 @@ export async function handleSSEStream(
 
   if (!validateTokenFormat(token)) {
     return c.json(
-      {
-        success: false,
-        error: {
-          code: 'INVALID_TOKEN',
-          message: 'Valid Bearer token required. Obtain from job initiation response.',
+      createProblemDetails(
+        'UNAUTHORIZED',
+        'Valid Bearer token required. Obtain from job initiation response.',
+        {
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
         },
-        metadata: {
-          timestamp: new Date().toISOString(),
-        },
-      },
+      ),
       401,
     )
   }
@@ -245,18 +252,16 @@ export async function handleSSEStream(
   const tokenValidation = await wsDoStub.validateAuthToken(token)
   if (!tokenValidation.valid) {
     return c.json(
-      {
-        success: false,
-        error: {
-          code: tokenValidation.expired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN',
-          message: tokenValidation.expired
-            ? 'Auth token expired. Tokens are valid for 1 hour.'
-            : 'Invalid auth token. Token does not match this job.',
+      createProblemDetails(
+        'UNAUTHORIZED',
+        tokenValidation.expired
+          ? 'Auth token expired. Tokens are valid for 1 hour.'
+          : 'Invalid auth token. Token does not match this job.',
+        {
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
         },
-        metadata: {
-          timestamp: new Date().toISOString(),
-        },
-      },
+      ),
       401,
     )
   }
