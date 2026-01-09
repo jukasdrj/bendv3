@@ -1,0 +1,403 @@
+---
+name: agents-readme
+description: Documentation for BooksTrack autonomous agents
+---
+
+# BooksTrack Autonomous Agents
+
+This directory contains specialized AI agents that work autonomously to manage Cloudflare Workers deployments and code quality.
+
+**Claude Code Version:** 2.0.62 - 2.0.65 compatible
+
+---
+
+## What's New (v2.0.62-2.0.65)
+
+### Async Agent Execution (v2.0.64)
+- Agents can run in background with `run_in_background: true`
+- Use **TaskOutput** tool to retrieve results (replaces AgentOutputTool)
+- Background agents send wake messages when complete
+
+### Session Features (v2.0.64)
+- **Named sessions:** `/rename <name>` to name, `/resume <name>` to continue
+- Resume agents maintain full conversation context
+- **Usage stats:** `/stats` shows your Claude Code usage patterns
+
+### UI Improvements (v2.0.62)
+- **(Recommended)** indicator on first option in multiple-choice questions
+- Agents should put recommended option first in AskUserQuestion
+
+### Rules Directory (v2.0.64)
+- Project rules in `.claude/rules/` load automatically
+- See: `.claude/rules/README.md`
+
+---
+
+## Multi-Agent Development Workflow
+
+BooksTrack now supports a **three-agent development workflow** for complex features:
+
+### 🎯 Workflow: Sonnet 4.5 → Haiku → Grok-4
+
+1. **Sonnet 4.5 (PM & Orchestrator)** - You!
+   - Requirements clarification
+   - Architecture decisions
+   - Task decomposition
+   - Quality validation
+
+2. **Haiku (Implementation Specialist)** via PAL MCP
+   - Rapid code generation
+   - Feature implementation
+   - Test coverage
+   - Following established patterns
+
+3. **Grok-4 (Quality Reviewer)** via PAL MCP
+   - Security & vulnerability analysis
+   - Performance optimization
+   - Code smell detection
+   - Standards compliance
+
+**To use this workflow:** Reference the `multi-agent-dev` skill in `.claude/skills/`
+
+**Example invocation:**
+```
+User: "Implement pagination for the book search endpoint with Haiku, then have Grok-4 review it"
+
+Sonnet:
+1. Clarifies requirements (page/limit params, max limits, response format)
+2. Delegates to Haiku with complete context via mcp__pal__chat
+3. Reviews Haiku's implementation
+4. Delegates to Grok-4 for security/performance review via mcp__pal__codereview
+5. Addresses critical findings
+6. Delivers final implementation to user
+```
+
+---
+
+## Cloudflare-Specific Agents
+
+### 🚀 cf-ops-monitor
+**Purpose:** Deployment automation, observability, and incident response
+**Permission Mode:** `ask` (requires approval for deployments)
+
+**Invoke:**
+```bash
+# Manual invocation
+@cf-ops-monitor
+
+# Ask Claude Code to invoke
+"Use the cf-ops-monitor agent to deploy and monitor the latest changes"
+```
+
+**Automatic Triggers:**
+- When `wrangler deploy` is executed
+- When `wrangler tail` streams logs
+- When `wrangler.jsonc` is modified
+
+**Common Tasks:**
+- Deploy to production with health checks
+- Investigate error spikes in logs
+- Analyze performance bottlenecks
+- Monitor KV cache hit rates
+- Track external API quota usage
+- Auto-rollback on failures
+
+---
+
+### ✅ cf-code-reviewer
+**Purpose:** Code quality enforcement for Cloudflare Workers patterns
+**Permission Mode:** `allow` (auto-runs without approval)
+
+**Invoke:**
+```bash
+# Manual invocation
+@cf-code-reviewer
+
+# Ask Claude Code to invoke
+"Have the cf-code-reviewer validate my changes to the search handler"
+```
+
+**Automatic Triggers:**
+- When code in `src/handlers/` or `src/services/` is modified
+- When `wrangler.jsonc` is updated
+
+**Common Tasks:**
+- Pre-PR code reviews
+- Validate Workers-specific patterns
+- Check security (input validation, secrets)
+- Enforce canonical response format
+- Detect anti-patterns (blocking, missing timeouts)
+- Performance optimization suggestions
+
+---
+
+## Agent Coordination
+
+### When Both Agents Work Together
+- **Config changes:** `wrangler.jsonc` modifications trigger both agents
+- **Major refactors:** `cf-code-reviewer` validates, then `cf-ops-monitor` deploys
+- **Incident response:** `cf-ops-monitor` detects issue, `cf-code-reviewer` validates fix
+
+### Escalation to PAL MCP
+For complex issues requiring deep analysis:
+- Security vulnerabilities → `@pal secaudit`
+- Complex bugs → `@pal debug`
+- Architecture review → `@pal codereview`
+- Multi-stage reasoning → `@pal thinkdeep`
+
+---
+
+## Hook Integration
+
+### Post-Tool-Use Hook
+Location: `.claude/hooks/post-tool-use.sh`
+
+**Monitors:**
+- `Bash` tool executing `wrangler` commands
+- `Write`/`Edit` tools modifying Workers code
+- Changes to deployment configuration
+
+**Suggests agent invocation** when relevant operations are detected.
+
+### Pre-Commit Hook
+Location: `.claude/hooks/pre-commit.sh`
+
+**Validates:**
+- No sensitive files committed
+- No hardcoded secrets
+- JavaScript syntax validity
+- `wrangler.jsonc` configuration
+- Test coverage for new handlers
+
+---
+
+## Agent Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   User Request                      │
+└─────────────────┬───────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────┐
+│              Claude Code (Orchestrator)             │
+│  - Multi-file refactoring                           │
+│  - Architecture decisions                           │
+│  - Agent coordination                               │
+└───┬─────────────────────────────────────────────┬───┘
+    │                                             │
+    ▼                                             ▼
+┌───────────────────────┐         ┌───────────────────────────┐
+│   cf-code-reviewer    │         │     cf-ops-monitor        │
+│  - Code quality       │         │  - Deployment             │
+│  - Workers patterns   │◄───────►│  - Monitoring             │
+│  - Security checks    │         │  - Rollback               │
+└───────────┬───────────┘         └───────────┬───────────────┘
+            │                                  │
+            │         ┌────────────────────┐   │
+            └────────►│   PAL MCP Tools    │◄──┘
+                      │  - debug           │
+                      │  - secaudit        │
+                      │  - codereview      │
+                      │  - thinkdeep       │
+                      └────────────────────┘
+```
+
+---
+
+## Usage Examples
+
+### Example 1: Deploy New Feature
+```
+User: "Deploy the new batch enrichment feature to production"
+
+Claude Code:
+  1. Invokes cf-code-reviewer to validate code quality
+  2. Invokes cf-ops-monitor to deploy with health checks
+  3. cf-ops-monitor streams logs for 5 minutes
+  4. Auto-rollback if error rate exceeds threshold
+```
+
+### Example 2: Investigate Production Errors
+```
+User: "We're seeing 5xx errors on /v1/search/isbn"
+
+cf-ops-monitor:
+  1. Streams npx wrangler tail --remote to analyze error patterns
+  2. Identifies Google Books API timeout issue
+  3. Checks KV cache hit rate (low, causing more API calls)
+  4. Suggests increasing cache TTL
+  5. Hands off to cf-code-reviewer to validate fix
+```
+
+### Example 3: Code Review Before PR
+```
+User: "Review my changes to the bookshelf scan handler"
+
+cf-code-reviewer:
+  1. Validates input sanitization for user uploads
+  2. Checks Gemini API timeout (should be 30s max)
+  3. Ensures proper error handling for AI failures
+  4. Validates canonical response format
+  5. Suggests extracting OCR logic to service layer
+```
+
+---
+
+## Customization
+
+### Adding New Agent Behaviors
+
+**Location:** `.claude/skills/{agent-name}/skill.md`
+
+**Structure:**
+```markdown
+# Agent Name
+
+**Purpose:** Brief description
+
+**When to use:** Trigger conditions
+
+---
+
+## Core Responsibilities
+1. Responsibility 1
+2. Responsibility 2
+
+## Autonomous Capabilities
+- Capability 1
+- Capability 2
+
+## Common Operations
+- Operation 1 with code examples
+```
+
+### Modifying Hook Triggers
+
+**Location:** `.claude/hooks/post-tool-use.sh`
+
+**Add new trigger:**
+```bash
+# Example: Trigger on test file changes
+elif [[ "$TOOL_NAME" =~ ^(Write|Edit)$ ]] && echo "$TOOL_PATH" | grep -q "test/"; then
+  INVOKE_AGENT="test-runner"
+  AGENT_CONTEXT="Test files modified. Running test suite..."
+fi
+```
+
+---
+
+## API Contract Compliance
+
+### Authoritative Documentation
+**ALL AGENTS MUST REFERENCE:** `docs/openapi.yaml` (OpenAPI 3.1 specification)
+
+This is the legal contract with frontend teams. Any API changes must honor this contract.
+
+**TypeScript SDK:** `packages/api-client/` - Auto-generated from OpenAPI spec
+
+**cf-code-reviewer responsibilities:**
+- ✅ Verify new endpoints match `openapi.yaml` response format
+- ✅ Ensure DTOs (WorkDTO, EditionDTO, AuthorDTO) match documented schemas
+- ✅ Check error codes are from the approved list
+- ✅ Validate rate limiting behavior
+- ✅ Flag breaking changes (require 90-day notice)
+
+**cf-ops-monitor responsibilities:**
+- ✅ Monitor SLA compliance (99.9% uptime, <500ms P95 latency)
+- ✅ Track data quality metrics (ISBN match rate, cover availability)
+- ✅ Alert on contract violations (wrong response format, missing fields)
+
+---
+
+## Best Practices
+
+### When to Use Agents
+- ✅ **cf-ops-monitor:** Production deployments, live debugging, metrics analysis
+- ✅ **cf-code-reviewer:** Pre-PR reviews, refactoring validation, pattern enforcement, **API contract compliance**
+- ✅ **PAL MCP:** Deep investigations, security audits, complex architectural decisions
+
+### When NOT to Use Agents
+- ❌ Simple one-line changes (use Claude Code directly)
+- ❌ Documentation updates (unless API changes - then update `openapi.yaml` first!)
+- ❌ Non-Workers specific code (generic Node.js patterns)
+
+### Agent Response Time
+- **cf-code-reviewer:** ~30 seconds for single file review
+- **cf-ops-monitor:** ~2 minutes for deployment + monitoring
+- **PAL MCP tools:** ~1-5 minutes depending on complexity
+
+---
+
+## Troubleshooting
+
+### Agent Not Auto-Invoking
+1. Check hook is executable: `ls -la .claude/hooks/`
+2. Verify hook output: Check for agent suggestions in terminal
+3. Manually invoke: `/skill {agent-name}`
+
+### Agent Suggestions Incorrect
+1. Review agent skill definition: `.claude/skills/{agent}/skill.md`
+2. Update trigger conditions in `.claude/hooks/post-tool-use.sh`
+3. Provide feedback to improve agent behavior
+
+### Hook Execution Errors
+```bash
+# Test hook manually
+bash .claude/hooks/post-tool-use.sh
+
+# Check logs
+echo $CLAUDE_TOOL_NAME
+echo $CLAUDE_TOOL_PATH
+```
+
+---
+
+## Contributing
+
+### Adding a New Agent
+1. Create directory: `.claude/skills/{agent-name}/`
+2. Write skill definition: `skill.md` with capabilities and examples
+3. Update hook triggers: `.claude/hooks/post-tool-use.sh`
+4. Update this README with agent description
+5. Test invocation: `/skill {agent-name}`
+
+### Improving Existing Agents
+1. Edit skill definition: `.claude/skills/{agent-name}/skill.md`
+2. Add new capabilities or refine existing ones
+3. Update `.claude/CLAUDE.md` if major changes
+4. Test with real scenarios before committing
+
+---
+
+## Background Execution (v2.0.64+)
+
+### Running Agents in Background
+```javascript
+// Launch agent in background
+Task({
+  subagent_type: "cf-ops-monitor",
+  prompt: "Monitor deployment health for 5 minutes",
+  run_in_background: true
+})
+
+// Continue working...
+
+// Later, retrieve results
+TaskOutput({
+  task_id: "<agent-id>",
+  block: true  // Wait for completion
+})
+```
+
+### Best Practices
+- Use background mode for long-running monitoring tasks
+- Use foreground mode for interactive code reviews
+- TaskOutput with `block: false` checks status without waiting
+- Agent IDs shown with `/tasks` command
+
+---
+
+**Last Updated:** December 11, 2025
+**Maintained By:** AI Team (Claude Code, cf-ops-monitor, cf-code-reviewer)
+**Claude Code Version:** 2.0.62 - 2.0.65

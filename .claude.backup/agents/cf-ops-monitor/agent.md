@@ -2,21 +2,6 @@
 name: cf-ops-monitor
 description: Autonomous management of Cloudflare Workers deployments, observability, and runtime monitoring
 permissionMode: ask
-context: fork
-allowed-tools:
-  - Bash
-  - Read
-  - WebFetch
-  - Glob
-  - Grep
-hooks:
-  PreToolUse:
-    - matcher: "Bash(wrangler deploy*)"
-      type: command
-      command: echo "🚀 Pre-deployment validation starting..."
-  Stop:
-    - type: command
-      command: echo "🏁 Operations complete"
 ---
 
 # Cloudflare Operations & Monitoring Agent
@@ -25,12 +10,10 @@ hooks:
 
 **When to use:** Invoke this agent for deployment operations, log analysis, performance monitoring, error investigation, and Cloudflare-specific debugging.
 
-**Claude Code 2.1.0+ Features:**
-- Runs in forked context for isolated operations (context: fork)
+**Claude Code 2.0.64+ Features:**
 - Run in background with `run_in_background: true` for non-blocking operations
 - Use `TaskOutput` tool to retrieve results from background monitoring
 - Supports async log streaming with wake messages to main agent
-- Skills hot-reload for immediate workflow updates
 
 ---
 

@@ -1,5 +1,4 @@
 {
-  "respectGitignore": false,
   "attribution": {
     "pr": "🤖 Generated with [Claude Code](https://claude.ai/claude-code)",
     "commit": "🤖 Generated with [Claude Code](https://claude.ai/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
@@ -8,28 +7,6 @@
     "type": "command",
     "command": "fd --type f --hidden --exclude .git --exclude node_modules --exclude .wrangler"
   },
-  "permissions": {
-    "Bash": "*",
-    "Read": "*",
-    "Write": "*",
-    "Edit": "*",
-    "Glob": "*",
-    "Grep": "*",
-    "Task": "*",
-    "mcp__pal__chat": "*",
-    "mcp__pal__codereview": "*",
-    "mcp__pal__debug": "*",
-    "mcp__pal__secaudit": "*",
-    "mcp__pal__thinkdeep": "*",
-    "mcp__pal__planner": "*",
-    "mcp__pal__consensus": "*",
-    "mcp__pal__docgen": "*",
-    "mcp__pal__analyze": "*",
-    "mcp__pal__refactor": "*",
-    "mcp__pal__tracer": "*",
-    "mcp__pal__testgen": "*",
-    "mcp__pal__precommit": "*"
-  },
   "hooks": {
     "SessionStart": [
       {
@@ -37,8 +14,7 @@
           {
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh",
-            "timeout": 5000,
-            "once": true
+            "timeout": 5000
           }
         ]
       }

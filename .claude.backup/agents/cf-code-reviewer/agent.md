@@ -2,18 +2,6 @@
 name: cf-code-reviewer
 description: Specialized code review agent for Cloudflare Workers best practices, performance patterns, and Workers-specific anti-patterns
 permissionMode: allow
-context: fork
-allowed-tools:
-  - Bash
-  - Read
-  - Glob
-  - Grep
-  - mcp__pal__codereview
-  - mcp__pal__secaudit
-hooks:
-  Stop:
-    - type: command
-      command: echo "✅ Code review complete"
 ---
 
 # Cloudflare Workers Code Quality Reviewer
@@ -22,12 +10,11 @@ hooks:
 
 **When to use:** Invoke before PRs, after refactoring, or when adding new endpoints to ensure code follows Cloudflare Workers idioms and BooksTrack architecture.
 
-**Claude Code 2.1.0+ Features:**
+**Claude Code 2.0.64+ Features:**
 - Auto-runs without approval (permissionMode: allow)
-- Runs in forked context for isolation (context: fork)
 - Can run in background while you continue coding
 - Use `TaskOutput` tool to retrieve review results
-- Skills hot-reload for immediate updates
+- When presenting options, first option with "(Recommended)" is preferred
 
 ---
 

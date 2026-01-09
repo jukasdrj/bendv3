@@ -1,44 +1,27 @@
 ---
 name: multi-agent-dev
 description: Coordinates PM (Sonnet 4.5) → Dev (Haiku) → Review (Grok-4) workflow for structured development
-user-invocable: true
-allowed-tools:
-  - mcp__pal__chat
-  - mcp__pal__codereview
-  - mcp__pal__debug
-  - mcp__pal__secaudit
-  - mcp__pal__refactor
-  - Task
-  - TaskOutput
-  - Read
-  - Glob
-  - Grep
-  - AskUserQuestion
 ---
 
 # Multi-Agent Development Coordination
 
-**Claude Code Version:** 2.1.0+ compatible
+**Claude Code Version:** 2.0.62 - 2.0.65 compatible
 
-## What's New (v2.1.0+)
-
-### Skills Hot-Reload
-- Skills created or modified in `.claude/skills` are immediately available
-- No need to restart sessions when updating workflows
-
-### Forked Context Execution
-- Use `context: fork` in skill frontmatter for isolated sub-agent context
-- Better resource management and interruption handling
+## What's New (v2.0.64+)
 
 ### Async Agent Execution
 - Run implementation and review agents in background with `run_in_background: true`
-- Use **TaskOutput** tool to retrieve results
+- Use **TaskOutput** tool to retrieve results (replaces AgentOutputTool)
 - Continue orchestration while agents work asynchronously
 
 ### Session Management
 - Use `/rename <name>` to name complex multi-agent sessions
 - Resume with `/resume <name>` or `claude --resume <name>`
 - Full conversation context preserved across resume
+
+### UI Improvements (v2.0.62)
+- When using AskUserQuestion, put **(Recommended)** option first
+- Model switching with `Alt+P` / `Option+P` while typing
 
 ---
 
@@ -467,8 +450,8 @@ const reviewResult = TaskOutput({
 
 ---
 
-**Version**: 2.1
-**Last Updated**: 2026-01-09
+**Version**: 2.0
+**Last Updated**: 2025-12-11
 **Maintained By**: Justin (user)
 **Project**: BooksTrack Backend (Cloudflare Workers)
-**Claude Code Version**: 2.1.0+
+**Claude Code Version**: 2.0.62 - 2.0.65

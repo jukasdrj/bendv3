@@ -61,3 +61,8 @@ docs/openapi-v3.json
 scripts/dev/output/
 .wrangler-fixes-backup-*/
 rollback-wrangler-fixes.sh
+
+# Manus planning files (task-specific, not version controlled)
+task_plan.md
+findings.md
+progress.md
