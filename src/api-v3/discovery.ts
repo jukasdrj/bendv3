@@ -14,6 +14,7 @@ import type { OpenAPIHono } from '@hono/zod-openapi'
 import { createRoute, z } from '@hono/zod-openapi'
 import type { RequestContext } from '../middleware/request-context'
 import type { Env } from '../types/env.js'
+import { sanitizeErrorMessage } from '../utils/error-sanitizer'
 
 // ============================================================================
 // Capabilities Schemas (iOS-compatible flat format)
@@ -184,7 +185,7 @@ export function registerDiscoveryRoutes(
     } catch (error: any) {
       console.error('[V3 Capabilities] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),
@@ -372,7 +373,7 @@ export function registerDiscoveryRoutes(
     } catch (error: any) {
       console.error('[V3 Recommendations] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),

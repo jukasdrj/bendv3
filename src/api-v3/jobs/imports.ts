@@ -27,6 +27,7 @@ import {
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { RequestContext } from '../../middleware/request-context'
 import type { Env } from '../../types/env'
+import { sanitizeErrorMessage } from '../../utils/error-sanitizer'
 import {
   buildStreamUrl,
   createJobLinks,
@@ -196,7 +197,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
     } catch (error: any) {
       console.error('[V3 Import] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),
@@ -274,7 +275,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
     } catch (error: any) {
       console.error('[V3 Import Status] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),
@@ -451,7 +452,7 @@ Results cached in KV for 1 hour after completion.`,
     } catch (error: any) {
       console.error('[V3 Import Results] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),
@@ -548,7 +549,7 @@ Results cached in KV for 1 hour after completion.`,
     } catch (error: any) {
       console.error('[V3 Import Cancel] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),

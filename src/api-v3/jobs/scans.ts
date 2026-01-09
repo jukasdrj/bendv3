@@ -29,6 +29,7 @@ import {
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { RequestContext } from '../../middleware/request-context'
 import type { Env } from '../../types/env'
+import { sanitizeErrorMessage } from '../../utils/error-sanitizer'
 import { deleteR2Objects } from '../../utils/r2/r2-utils'
 import {
   buildStreamUrl,
@@ -382,7 +383,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
     } catch (error: any) {
       console.error('[V3 Scan] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),
@@ -460,7 +461,7 @@ Returns immediately with jobId for progress tracking via SSE stream.
     } catch (error: any) {
       console.error('[V3 Scan Status] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),
@@ -653,7 +654,7 @@ Results cached in KV for 2 hours after completion.`,
     } catch (error: any) {
       console.error('[V3 Scan Results] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),
@@ -784,7 +785,7 @@ Results cached in KV for 2 hours after completion.`,
     } catch (error: any) {
       console.error('[V3 Scan Cancel] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),

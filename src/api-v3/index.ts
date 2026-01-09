@@ -31,6 +31,7 @@ import { generateBookEmbedding, storeEmbedding } from '../services/embedding-ser
 // Alexandria now returns per-work embedded authors array, no client-side matching needed
 import { enrichMultipleBooks } from '../services/enrichment'
 import type { Env } from '../types/env.js'
+import { sanitizeErrorMessage } from '../utils/error-sanitizer'
 import { normalizeTitle } from '../utils/transform/normalization'
 import { isValidEnrichedBookCacheEntry } from '../utils/validation/book-validation'
 import { registerDiscoveryRoutes } from './discovery'
@@ -327,7 +328,7 @@ Supports both offset-based (page/limit) and cursor-based pagination.`,
       console.error(`[V3 Search] Error:`, error)
 
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),
@@ -782,7 +783,7 @@ for semantic search.`,
       console.error(`[V3 Enrich] Error:`, error)
 
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),
@@ -976,7 +977,7 @@ for semantic search.`,
       }
 
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),

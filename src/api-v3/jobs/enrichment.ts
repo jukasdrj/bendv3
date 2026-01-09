@@ -27,6 +27,7 @@ import {
 import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { RequestContext } from '../../middleware/request-context'
 import type { Env } from '../../types/env'
+import { sanitizeErrorMessage } from '../../utils/error-sanitizer'
 import { getJobStateManagerDO, mapDOStateToJob } from './common'
 import { handleSSEStream } from './stream'
 
@@ -107,7 +108,7 @@ export function registerEnrichmentRoutes(
     } catch (error: any) {
       console.error('[V3 Enrichment Status] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),
@@ -293,7 +294,7 @@ Results cached in KV for 2 hours after completion.`,
     } catch (error: any) {
       console.error('[V3 Enrichment Results] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),
@@ -401,7 +402,7 @@ Results cached in KV for 2 hours after completion.`,
     } catch (error: any) {
       console.error('[V3 Enrichment Cancel] Error:', error)
       return c.json(
-        createProblemDetails('INTERNAL_ERROR', error.message, {
+        createProblemDetails('INTERNAL_ERROR', sanitizeErrorMessage(error, c.req.url), {
           requestId: ctx.requestId,
           instance: c.req.url,
         }),
