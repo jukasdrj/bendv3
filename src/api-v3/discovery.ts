@@ -20,7 +20,8 @@ import type { Env } from '../types/env.js'
 // ============================================================================
 
 // iOS app expects this exact flat structure - no wrapper
-const CapabilitiesFeaturesSchema = z
+// Exported for contract testing
+export const CapabilitiesFeaturesSchema = z
   .object({
     semantic_search: z.boolean().describe('Semantic search enabled'),
     similar_books: z.boolean().describe('Similar books search enabled'),
@@ -31,7 +32,7 @@ const CapabilitiesFeaturesSchema = z
   })
   .openapi('CapabilitiesFeatures')
 
-const CapabilitiesLimitsSchema = z
+export const CapabilitiesLimitsSchema = z
   .object({
     semantic_search_rpm: z.number().int().describe('Semantic search requests per minute'),
     text_search_rpm: z.number().int().describe('Text search requests per minute'),
@@ -41,7 +42,8 @@ const CapabilitiesLimitsSchema = z
   .openapi('CapabilitiesLimits')
 
 // Direct response schema (no wrapper) for iOS compatibility
-const CapabilitiesResponseSchema = z
+// Exported for contract testing
+export const CapabilitiesResponseSchema = z
   .object({
     features: CapabilitiesFeaturesSchema.describe('Available API features'),
     limits: CapabilitiesLimitsSchema.describe('API limits and quotas'),
@@ -53,7 +55,8 @@ const CapabilitiesResponseSchema = z
 // Recommendations Schemas
 // ============================================================================
 
-const RecommendationSchema = z
+// Exported for contract testing
+export const RecommendationSchema = z
   .object({
     isbn: z.string().describe('Book ISBN'),
     title: z.string().describe('Book title'),
@@ -63,7 +66,7 @@ const RecommendationSchema = z
   })
   .openapi('Recommendation')
 
-const RecommendationsDataSchema = z
+export const RecommendationsDataSchema = z
   .object({
     weekOf: z.string().describe('Week start date (ISO 8601)'),
     recommendations: z.array(RecommendationSchema).describe('Recommended books'),
@@ -72,7 +75,7 @@ const RecommendationsDataSchema = z
   })
   .openapi('RecommendationsData')
 
-const RecommendationsResponseSchema = SuccessResponseSchema(RecommendationsDataSchema)
+export const RecommendationsResponseSchema = SuccessResponseSchema(RecommendationsDataSchema)
 
 // ============================================================================
 // Route Definitions

@@ -12,8 +12,8 @@ import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { RequestContext } from '../../middleware/request-context'
 import type { Env } from '../../types/env'
 
-// Schema for the webhook payload
-const EnrichmentCompleteSchema = z.object({
+// Schema for the webhook payload (exported for contract testing)
+export const EnrichmentCompleteSchema = z.object({
   isbn: z.string(),
   type: z.enum(['edition', 'work', 'author']),
   quality_improvement: z.number().optional(),
