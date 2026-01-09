@@ -12,6 +12,8 @@
  * - Each request consumes 1 token
  * - Window resets 60 seconds after first request
  *
+ * Error Responses: RFC 9457 Problem Details (application/problem+json)
+ *
  * @example
  * ```typescript
  * const rateLimitResponse = await checkRateLimit(request, env);
@@ -19,6 +21,7 @@
  * ```
  */
 
+import { createProblemDetails } from '@bookstrack/schemas/errors'
 import type { Env } from '../types/env.js'
 
 /**
@@ -102,36 +105,34 @@ export async function checkRateLimit(
     const { allowed, remaining, resetAt } = result
 
     if (!allowed) {
-      // Rate limit exceeded
+      // Rate limit exceeded - return RFC 9457 Problem Details
       const retryAfterSeconds = Math.ceil((resetAt - Date.now()) / 1000)
       const retryAfter = Math.max(1, retryAfterSeconds) // Ensure positive value
       console.warn(
-        `[Rate Limit] Blocked request from IP: ${clientIP} (limit exceeded, endpoint: ${pathname}, limit: ${limitForEndpoint})`,
+        `[Rate Limit] Blocked request from IP: ${clientIP.substring(0, 8)}... (limit exceeded, endpoint: ${pathname}, limit: ${limitForEndpoint})`,
       )
 
-      return new Response(
-        JSON.stringify({
-          error: `Rate limit exceeded. Please try again in ${retryAfter} seconds.`,
-          code: 'RATE_LIMIT_EXCEEDED',
-          details: {
-            retryAfter,
-            clientIP: `${clientIP.substring(0, 8)}...`, // Partial IP for privacy
-            requestsRemaining: remaining,
-            requestsLimit: limitForEndpoint,
-            endpoint: pathname,
-          },
-        }),
+      // Use RFC 9457 Problem Details format for consistency with V3 API
+      const problemDetails = createProblemDetails(
+        'RATE_LIMIT_EXCEEDED',
+        `Rate limit exceeded. Please try again in ${retryAfter} seconds.`,
         {
-          status: 429,
-          headers: {
-            'Content-Type': 'application/json',
-            'Retry-After': retryAfter.toString(),
-            'X-RateLimit-Limit': limitForEndpoint.toString(),
-            'X-RateLimit-Remaining': remaining.toString(),
-            'X-RateLimit-Reset': resetAt.toString(),
-          },
+          instance: request.url, // Full URL per RFC 9457 (includes query params)
+          requestId: request.headers.get('X-Request-ID') || undefined, // Optional (rate limiter runs before request-context middleware)
+          retryAfterMs: retryAfter * 1000, // Milliseconds (complements HTTP Retry-After header which is in seconds)
         },
       )
+
+      return new Response(JSON.stringify(problemDetails), {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/problem+json', // RFC 9457 media type
+          'Retry-After': retryAfter.toString(), // RFC 6585 standard header (seconds)
+          'X-RateLimit-Limit': limitForEndpoint.toString(), // Industry standard
+          'X-RateLimit-Remaining': remaining.toString(), // Industry standard
+          'X-RateLimit-Reset': resetAt.toString(), // Industry standard (Unix timestamp)
+        },
+      })
     }
 
     // Request allowed - return null
