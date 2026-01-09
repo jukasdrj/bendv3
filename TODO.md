@@ -1,14 +1,20 @@
 # BooksTrack Backend - Master TODO
 
-**Last Updated:** January 8, 2026 (Code Quality + Test Coverage Review Complete!)
+**Last Updated:** January 9, 2026 (Issue #256 Test Coverage Analysis Complete!)
 **Production:** https://api.oooefam.net
 **Health:** 🟢 0% error rate, all systems operational
 **Code Quality:** 8.5/10 - Production Ready (CF Code Review)
 **SDK:** 📦 [@jukasdrj/bookstrack-api-client@3.4.2](https://www.npmjs.com/package/@jukasdrj/bookstrack-api-client)
 **Test Suite:** 293 passing | 2 skipped (99.3% pass rate)
-**Open Issues:** 1 (Issue #256 - V3 API Testing Gaps)
+**Open Issues:** 1 (Issue #256 - Downgraded to P3/Low)
 
-**Today's Completions (Jan 8):**
+**Today's Completions (Jan 9):**
+- ✅ Issue #256 test coverage analysis - discovered actual coverage significantly better than expected
+- ✅ Webhook async flow already tested in `tests/workers/verify_csv_flow.test.ts`
+- ✅ Discovery endpoints already have comprehensive contract tests
+- ✅ Downgraded Issue #256 from P2 (Medium) to P3 (Low) priority
+
+**Previous Session (Jan 8):**
 - ✅ TODO comment audit (11 comments reviewed, 2 stale removed, 1 converted to issue)
 - ✅ Circuit breaker optimization verified (WRITE_BATCH_SIZE = 10 is optimal)
 - ✅ Utils directory organization documented (`docs/UTILS_ORGANIZATION.md`)
@@ -389,7 +395,24 @@ npm run validate
 - **Documentation:** `docs/UTILS_ORGANIZATION.md`
 - **Completed:** January 8, 2026
 
-### 9. Optional Enhancements (#233)
+### 9. V3 API Testing Gaps (#256)
+- **Priority:** P3 - LOW (Downgraded from P2 Medium on Jan 9, 2026)
+- **Status:** ✅ ANALYSIS COMPLETE - Most gaps already covered
+- **Effort:** 3-4 hours (optional enhancements)
+- **Impact:** Contract tests + integration tests provide excellent coverage
+- **Findings:**
+  - ✅ Webhook async flow already tested (`tests/workers/verify_csv_flow.test.ts`)
+  - ✅ Discovery endpoints have comprehensive contract tests (`tests/contract/discovery.test.ts`)
+  - ✅ Error classification documented in webhook contracts
+  - 🟡 Integration tests for runtime behavior partially covered (acceptable)
+- **Optional Enhancements (defer until needed):**
+  - Discovery endpoint integration tests (1 hour)
+  - Webhook error classification edge cases (1 hour)
+  - Service layer tests (ai-scanner, alert-monitor, author-discovery) (2 hours)
+- **Decision:** Test coverage is significantly better than initially assessed. Defer optional work.
+- **Completed:** January 9, 2026 (Analysis and documentation)
+
+### 10. Optional Enhancements (#233)
 - **Priority:** P3 - LOW
 - **Status:** Backlog of nice-to-have features
 - **Tracking:** Meta-issue for future improvements
