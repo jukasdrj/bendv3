@@ -1,14 +1,25 @@
 # BooksTrack Backend - Master TODO
 
-**Last Updated:** January 9, 2026 (Issue #256 Closed - Test Coverage Excellent!)
+**Last Updated:** January 11, 2026 (Issue #257/258 - Recommendations Ready!)
 **Production:** https://api.oooefam.net
 **Health:** 🟢 0% error rate, all systems operational
 **Code Quality:** 8.5/10 - Production Ready (CF Code Review)
 **SDK:** 📦 [@jukasdrj/bookstrack-api-client@3.4.2](https://www.npmjs.com/package/@jukasdrj/bookstrack-api-client)
 **Test Suite:** 293 passing | 2 skipped (99.3% pass rate)
-**Open Issues:** 0 - All clear! 🎉
+**Open Issues:** 1 - Issue #258 (Blocked by Alexandria) 🔄
 
-**Today's Completions (Jan 9):**
+**Today's Completions (Jan 11):**
+- ✅ Issue #257 comprehensive audit - discovered 90% of recommendations infrastructure already complete!
+- ✅ Verified D1 migration exists: `migrations/0010_add_reading_preferences.sql` (applied)
+- ✅ Found RecommendationService: `src/services/recommendations.ts` (573 lines, production-ready)
+- ✅ Found API routes: `src/routes/recommendations.ts` (147 lines, fully integrated)
+- ✅ Created test data for local development (3 rated books, user preferences)
+- ✅ Identified blocker: Alexandria ratings endpoints return 404 (not deployed yet)
+- ✅ Closed Issue #257 as "not planned" - bendv3 work complete, blocked by Alexandria
+- ✅ Created Issue #258 to track deployment once Alexandria is ready
+- ✅ Documented Alexandria requirements (4 RPC endpoints needed)
+
+**Previous Session (Jan 9):**
 - ✅ Issue #256 test coverage analysis - discovered actual coverage significantly better than expected
 - ✅ Webhook async flow already tested in `tests/workers/verify_csv_flow.test.ts`
 - ✅ Discovery endpoints already have comprehensive contract tests (507 lines)
@@ -350,7 +361,33 @@ npm run validate
 
 ## 🟢 Low Priority (P3) - Backlog
 
-### 4. D1 Concurrency Limit Tuning (#247)
+### 4. Deploy Personalized Recommendations API (#258)
+- **Priority:** P3 - LOW
+- **Status:** 🔄 BLOCKED by Alexandria ratings infrastructure
+- **Parent Issue:** Closed #257 (bendv3 implementation complete)
+- **Effort:** 3-4 hours (once Alexandria is ready)
+- **Impact:** User-facing feature enhancement
+- **Timeline:** 2-3 weeks (waiting for Alexandria deployment)
+- **Completion Status:**
+  - ✅ D1 schema: `migrations/0010_add_reading_preferences.sql` (applied)
+  - ✅ RecommendationService: `src/services/recommendations.ts` (573 lines, production-ready)
+  - ✅ API routes: `src/routes/recommendations.ts` (147 lines, fully integrated)
+  - ✅ Router registration: `src/router.ts:133`
+  - ✅ Test data created for local development
+  - ⛔ Alexandria endpoints: 4 RPC endpoints return 404 (not deployed)
+- **Alexandria Requirements:**
+  - `GET /works/top-rated` - Top-rated books by composite rating
+  - `GET /works/:workKey/ratings` - Rating data for specific work
+  - `GET /api/recommendations/subjects` - Subjects for book IDs
+  - `GET /api/recommendations/similar` - Similar books by subject overlap
+- **Remaining Work (once Alexandria ready):**
+  - 30 min: Verify Alexandria endpoints
+  - 2 hours: Integration testing
+  - 1 hour: Production deployment
+- **Files:** See Issue #258 for full details
+- **Next Steps:** Wait for Alexandria team to deploy ratings infrastructure
+
+### 5. D1 Concurrency Limit Tuning (#247)
 - **Priority:** P3 - LOW
 - **Status:** Optional optimization
 - **Effort:** 5 minutes

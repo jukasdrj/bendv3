@@ -7,5 +7,6 @@
 export { createAdminRoutes } from './admin'
 export { createCacheRoutes } from './cache'
 export { createImageRoutes } from './images'
+export { createRecommendationRoutes } from './recommendations'
 export { createTestRoutes } from './test'
 export { createJobApiRoutes, createWebSocketRoutes } from './websocket'

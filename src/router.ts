@@ -33,6 +33,7 @@ import {
   createCacheRoutes,
   createImageRoutes,
   createJobApiRoutes,
+  createRecommendationRoutes,
   createTestRoutes,
   createWebSocketRoutes,
 } from './routes'
@@ -127,6 +128,9 @@ app.route('/ws', createWebSocketRoutes())
 
 // Image routes: /images/*
 app.route('/images', createImageRoutes())
+
+// Recommendation routes: /api/recommendations/*
+app.route('/api/recommendations', createRecommendationRoutes())
 
 // Test routes: /test/* (DEBUG mode only - middleware handles auth)
 app.route('/test', createTestRoutes())
