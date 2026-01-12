@@ -2,8 +2,29 @@
 
 **Repo:** `~/dev_repos/bendv3` (BooksTrack API Gateway)
 **Created:** December 30, 2025
-**Status:** Planning Phase
+**Last Updated:** January 11, 2026
+**Status:** 🟢 90% COMPLETE - Blocked by Alexandria
 **Owner:** @jukasdrj
+
+> **⚠️ CURRENT STATE (January 11, 2026):**
+>
+> **BooksTrack Implementation: 90% COMPLETE ✅**
+> - ✅ D1 schema: `migrations/0010_add_reading_preferences.sql` (applied)
+> - ✅ RecommendationService: `src/services/recommendations.ts` (573 lines, production-ready)
+> - ✅ API routes: `src/routes/recommendations.ts` (147 lines, fully integrated)
+> - ✅ Router registration: `src/router.ts:133`
+> - ✅ Test data created for local development
+>
+> **Alexandria Blocker: ⛔**
+> - Alexandria ratings endpoints return 404 (not deployed yet)
+> - Required endpoints: `GET /works/top-rated`, `GET /works/:workKey/ratings`
+>
+> **Next Steps:**
+> - Wait for Alexandria team to deploy ratings infrastructure (2-3 weeks)
+> - Integration testing once Alexandria endpoints are live (2 hours)
+> - See **Issue #258** for deployment tracking
+>
+> This document represents the original planning phase. Most implementation is already complete.
 
 ---
 
