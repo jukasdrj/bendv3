@@ -18,7 +18,6 @@
 
 import { BookRepository } from '../repositories/book-repository'
 import type { AuthorDTO, EditionDTO, WorkDTO } from '../types/canonical'
-import type { BookRecord } from '../types/database'
 import { buildBookRecordFromEnrichment } from '../utils/book-record-builder'
 import {
   type CoverProcessingTask,

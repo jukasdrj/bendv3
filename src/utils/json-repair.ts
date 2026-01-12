@@ -76,7 +76,7 @@ export function parseJSONWithRepair<T = unknown>(
           repairAttempted: true,
           ...(includeRawText && { rawText: text }),
         }
-      } catch (repairError) {
+      } catch (_repairError) {
         // Continue to next repair attempt
         if (attempt === maxRepairAttempts) {
           return {
@@ -133,7 +133,7 @@ function repairJSON(text: string, errorMessage: string): string {
       const afterQuote = repaired.slice(lastQuoteIndex + 1)
       if (!afterQuote.includes('"') && !afterQuote.includes('}')) {
         // Close the string
-        repaired = repaired.slice(0, lastQuoteIndex + 1) + '"'
+        repaired = `${repaired.slice(0, lastQuoteIndex + 1)}"`
       }
     }
   }
