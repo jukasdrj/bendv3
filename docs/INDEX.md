@@ -37,12 +37,14 @@ This is the central navigation hub for all BooksTrack backend documentation.
 
 ### Testing
 - **[README_TESTING.md](../README_TESTING.md)** - Resource-aware testing (smoke, safe, full)
-- **[TEST_SUITE_CLEANUP.md](TEST_SUITE_CLEANUP.md)** - Test organization and cleanup
 - **[TEST_COVERAGE_ANALYSIS_2026-01-09.md](TEST_COVERAGE_ANALYSIS_2026-01-09.md)** - Coverage analysis
 
 ### Code Organization
 - **[UTILS_ORGANIZATION.md](UTILS_ORGANIZATION.md)** - Utility file organization
 - **[D1_CONCURRENCY_ANALYSIS.md](D1_CONCURRENCY_ANALYSIS.md)** - D1 database patterns
+
+### Feature Guides
+- **[guides/CSV_AB_TESTING_CONSOLIDATED.md](guides/CSV_AB_TESTING_CONSOLIDATED.md)** - CSV import A/B testing (Gemini models)
 
 ### Integration
 - **[ALEXANDRIA-CONTRACT-TESTING.md](ALEXANDRIA-CONTRACT-TESTING.md)** - Alexandria RPC testing
@@ -54,11 +56,12 @@ This is the central navigation hub for all BooksTrack backend documentation.
 
 ## 📋 Sprint Planning
 
-### Active Sprints
-- **[SPRINT_4_SDK_PLAN.md](SPRINT_4_SDK_PLAN.md)** - Current sprint (SDK publication)
-- **[SPRINT_PLAN_3_4.md](SPRINT_PLAN_3_4.md)** - Sprint 3 & 4 roadmap
+### Current Work
+- **[TODO.md](../TODO.md)** - Master TODO with current sprint status and prioritized work items
 
 ### Sprint History
+- **[archive/2026-01/SPRINT_PLAN_3_4.md](archive/2026-01/SPRINT_PLAN_3_4.md)** - Sprint 3 & 4 roadmap (COMPLETE)
+- **[archive/2026-01/SPRINT_4_SDK_PLAN.md](archive/2026-01/SPRINT_4_SDK_PLAN.md)** - Sprint 4 Phase 1 SDK publication (COMPLETE)
 - **[TODO_AUDIT_2026-01-08.md](TODO_AUDIT_2026-01-08.md)** - Sprint 2 completion audit
 
 ---
@@ -93,9 +96,12 @@ Claude Code configuration and guidelines:
 
 ## 📊 Project Status
 
-**Current Phase:** Sprint 4 - SDK Publication (Phase 1 in progress)
+**Current Phase:** Sprint 3 Planning (as of Jan 11, 2026) - 100% Test Pass Rate Achieved! 🎉
 
 **Recent Completions:**
+- ✅ 100% Test Pass Rate: 1,097 tests passing (Jan 11, 2026)
+- ✅ Sprint 4 Phase 1: SDK published to npm (Jan 7, 2026)
+- ✅ Sprint 3: Test architecture modernization (Jan 7, 2026)
 - ✅ Sprint 2: Frontend Optimization (Jan 6, 2026)
 - ✅ Sprint 1: TypeScript Error Resolution (95.8% type safety)
 - ✅ TypeScript Migration: 100% complete (149/149 files)
@@ -106,7 +112,7 @@ Claude Code configuration and guidelines:
 - 0% error rate (7 days)
 - P95 latency: 145ms (cached), 850ms (cold)
 - Cache hit ratio: 73%
-- Test coverage: 75%+
+- Test suite: 1,097 passing | 6 skipped (100% pass rate)
 
 ---
 
