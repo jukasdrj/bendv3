@@ -291,5 +291,6 @@ packages/
 ---
 
 **Last Updated:** January 11, 2026
+**Last Reviewed:** January 11, 2026
 **Maintained by:** Justin Gardner (@jukasdrj)
 **Full Documentation:** [.claude/CLAUDE.md](.claude/CLAUDE.md)

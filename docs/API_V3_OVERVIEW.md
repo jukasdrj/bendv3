@@ -161,5 +161,6 @@ When V3 needs breaking changes, we will:
 ---
 
 **Last Updated:** January 9, 2026
+**Last Reviewed:** January 11, 2026
 **Maintained By:** @jukasdrj
 **Version:** 3.4.2
