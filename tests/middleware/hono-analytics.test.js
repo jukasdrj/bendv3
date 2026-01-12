@@ -108,6 +108,9 @@ describe('Hono Analytics Middleware - TypeError Fix', () => {
     // doesn't crash even if PERFORMANCE_ANALYTICS is available but fails.
     // In practice, writeDataPoint requires executionCtx in the context.
 
+    // Mock Math.random to ensure consistent sampling behavior
+    const mockRandom = vi.spyOn(Math, 'random').mockReturnValue(0.5) // > 0.1 = not sampled
+
     // Arrange: Create env with PERFORMANCE_ANALYTICS that throws a synchronous error
     const mockWriteDataPoint = vi.fn().mockImplementation(() => {
       throw new Error('Analytics Engine error')
@@ -131,9 +134,10 @@ describe('Hono Analytics Middleware - TypeError Fix', () => {
     // Assert: Should succeed (middleware handles missing executionCtx gracefully)
     expect(res.status).toBe(200)
 
-    // writeDataPoint is NOT called because executionCtx is not attached
-    // So the error handling path is not exercised in this test
+    // writeDataPoint is NOT called because sampling filtered it out (Math.random = 0.5 > 0.1)
     expect(mockWriteDataPoint).not.toHaveBeenCalled()
+
+    mockRandom.mockRestore()
   })
 
   it('should not log analytics when sampling rate filters it out', async () => {

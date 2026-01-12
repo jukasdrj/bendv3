@@ -280,9 +280,9 @@ describe('Rate Limiter Middleware', () => {
 
     const body = await result.json()
     expect(body.code).toBe('RATE_LIMIT_EXCEEDED')
-    expect(body.error).toContain('Rate limit exceeded')
-    expect(body.details.retryAfter).toBeGreaterThan(0)
-    expect(body.details.requestsLimit).toBe(100) // Default limit
+    expect(body.detail).toContain('Rate limit exceeded') // RFC 9457: uses 'detail' not 'error'
+    expect(body.retryAfterMs).toBeGreaterThan(0) // RFC 9457: retryAfterMs at top level
+    expect(body.status).toBe(429) // Verify status matches
   })
 
   it('should include rate limit headers in 429 response', async () => {
