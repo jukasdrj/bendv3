@@ -28,7 +28,18 @@
     "mcp__pal__refactor": "*",
     "mcp__pal__tracer": "*",
     "mcp__pal__testgen": "*",
-    "mcp__pal__precommit": "*"
+    "mcp__pal__precommit": "*",
+    "Skill(work-review)": "*",
+    "Skill(planning-with-files)": "*",
+    "Skill(commit-push-pr)": "*",
+    "Skill(multi-agent-dev)": "*",
+    "Skill(deploy)": "*",
+    "Skill(review)": "*",
+    "Skill(logs)": "*",
+    "Skill(rollback)": "*",
+    "Skill(cache-check)": "*",
+    "Skill(test-safe)": "*",
+    "Skill(validate)": "*"
   },
   "hooks": {
     "SessionStart": [
