@@ -121,7 +121,7 @@ export function generateAuthToken(): string {
  * ```typescript
  * const token = c.req.header('Authorization')?.replace('Bearer ', '')
  * if (!validateTokenFormat(token)) {
- *   return c.json({ error: 'Invalid token format' }, 401)
+ *   return c.json(createProblemDetails('UNAUTHORIZED', 'Invalid token format'), 401)
  * }
  * ```
  */
