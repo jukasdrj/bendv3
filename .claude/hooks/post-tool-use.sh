@@ -88,6 +88,42 @@ elif [[ "$TOOL_NAME" =~ ^(Write|Edit)$ ]] && echo "$TOOL_PATH" | grep -qE "src/(
     IS_CRITICAL=false
   fi
 
+# Security-sensitive code changes → suggest PAL MCP review (optional)
+elif [[ "$TOOL_NAME" =~ ^(Write|Edit)$ ]] && echo "$TOOL_PATH" | grep -qE "src/(middleware|api-v3/webhooks)/"; then
+  if [ "$LINES_CHANGED" -ge 5 ]; then
+    echo ""
+    echo "🔒 SECURITY-SENSITIVE CODE MODIFIED: $TOOL_PATH"
+    echo ""
+    echo "   Consider PAL MCP security review for:"
+    echo "   - Authentication/authorization logic"
+    echo "   - Webhook HMAC verification"
+    echo "   - Input validation"
+    echo "   - Rate limiting"
+    echo ""
+    echo "   Quick Review (FREE):"
+    echo "   mcp__pal__codereview model=gemini-3-flash-preview review_type=quick"
+    echo ""
+    echo "   Deep Review (PAID - for critical auth changes):"
+    echo "   mcp__pal__codereview model=grok-code-fast-1 review_type=security"
+    echo ""
+  fi
+
+# Database/KV changes → suggest review (data integrity)
+elif [[ "$TOOL_NAME" =~ ^(Write|Edit)$ ]] && echo "$TOOL_PATH" | grep -qE "src/repositories/"; then
+  if [ "$LINES_CHANGED" -ge 5 ]; then
+    echo ""
+    echo "💾 DATA LAYER MODIFIED: $TOOL_PATH"
+    echo ""
+    echo "   Consider PAL MCP review for:"
+    echo "   - Data integrity (race conditions, consistency)"
+    echo "   - Query performance (D1 indexes, KV patterns)"
+    echo "   - Error handling (data loss prevention)"
+    echo ""
+    echo "   Quick Review (FREE):"
+    echo "   mcp__pal__codereview model=gemini-3-flash-preview review_type=quick"
+    echo ""
+  fi
+
 # Log streaming → cf-ops-monitor (non-critical, informational)
 elif [[ "$TOOL_NAME" == "Bash" ]] && echo "$TOOL_PATH" | grep -q "wrangler tail"; then
   INVOKE_AGENT="cf-ops-monitor"
