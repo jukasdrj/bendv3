@@ -16,6 +16,14 @@
 - 🔄 **1 Open Issue** - #258 (blocked by Alexandria, P3 priority)
 - 📦 **0 Open PRs** - All work merged or closed
 
+**Latest Merge (Jan 14, 2026):**
+- ✅ **PR #259** - Genre Taxonomy Expansion (44 → 92 genres)
+  - 48 new subgenres (Cyberpunk, Cozy Fantasy, Romantasy, Techno-Thriller, etc.)
+  - 2026 trends: Cozy Fantasy, Romantasy, Gothic Horror, Folk Horror
+  - 37 comprehensive tests (100% pass rate)
+  - Zero breaking changes (backward compatible)
+  - Related: Issue #185 (Canonical Data Contracts)
+
 **Recent Completions (Jan 11):**
 - ✅ **Issue #257/258 - Recommendations Infrastructure Audit**
   - Discovered 90% of recommendations infrastructure already complete!
