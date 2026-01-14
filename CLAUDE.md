@@ -214,10 +214,11 @@ packages/
 - Analytics logging for observability
 
 **Cache Architecture (v3.0 - Alexandria-First):**
-- **Primary Provider:** Alexandria RPC (49M+ ISBNs, internal data, <100ms)
+- **Primary Provider:** Alexandria RPC v2.8.0 (49M+ ISBNs, internal data, <100ms)
 - **KV Cache:** Book metadata with 2h hot / 14d cold TTL
 - **Service Binding:** Sub-millisecond RPC when available
 - **Provider Chain:** Alexandria → Google Books → OpenLibrary
+- **New in v2.8.0:** Analytics tracking utilities, improved orchestration
 
 **Testing (Dual Pool):**
 - **Workers Pool:** Smoke tests, pure utilities (runs in workerd)
@@ -235,6 +236,15 @@ packages/
 **📋 See [TODO.md](TODO.md) for complete sprint planning and prioritized work items**
 
 **Recent Completions:**
+- ✅ **Alexandria v2.8.0 Upgrade** 🚀 (Jan 14, 2026)
+  - Updated from v2.4.0 → v2.8.0 (4 minor versions)
+  - Service Provider Framework updates with improved orchestration
+  - Analytics tracking utilities available (opt-in)
+  - Zero breaking changes, all 376 tests passing
+- ✅ **Genre Taxonomy Expansion** 📚 (Jan 14, 2026)
+  - Expanded from 44 → 92 canonical genres (109% increase)
+  - Added 2026 trends: Cozy Fantasy, Romantasy, Techno-Thriller
+  - 37 comprehensive tests, backward compatible
 - ✅ **100% Test Pass Rate Achieved!** 🎉 (Jan 11, 2026)
   - Fixed rate limiter test: Updated to RFC 9457 `detail` field (not `error`)
   - Fixed analytics test: Added Math.random() mocking to prevent flaky tests

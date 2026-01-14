@@ -20,6 +20,7 @@
 **Test Suite:** ✅ 1,097 passing | 6 skipped (100% pass rate)
 **Open Issues:** 1 P3 (blocked by Alexandria)
 **Type Safety:** 95.8% (453/506 errors resolved)
+**Dependencies:** Alexandria v2.8.0, 92 canonical genres
 
 See [TODO.md](TODO.md) for complete project status and sprint history.
 
@@ -80,7 +81,8 @@ Single monolith worker with direct function calls (no RPC service bindings):
 
 ### Features
 
-- **Book Search**: Google Books, OpenLibrary, ISBNdb
+- **Book Search**: Alexandria RPC (49M+ ISBNs), Google Books, OpenLibrary, ISBNdb
+- **Genre Normalization**: 92 canonical genres (expanded Jan 2026)
 - **AI Bookshelf Scanning**: Gemini 2.0 Flash with 2M token context
 - **CSV Import**: AI-powered parsing with zero configuration
 - **Batch Enrichment**: Background job processing

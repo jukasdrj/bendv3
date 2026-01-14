@@ -396,6 +396,7 @@ Logs request/response metrics to Analytics Engine:
 ## External Integrations
 
 ### Alexandria RPC (Primary Provider)
+- **Version:** v2.8.0 (upgraded Jan 14, 2026)
 - **Integration:** Service Binding (internal) or HTTPS (external)
 - **Base URL:** `https://alexandria.ooheynerds.com` (fallback)
 - **Dataset:** 49M+ ISBNs with OpenLibrary metadata
@@ -403,6 +404,7 @@ Logs request/response metrics to Analytics Engine:
 - **Latency:** <100ms (typical), sub-millisecond via Service Binding
 - **Client:** `src/services/alexandria-client.ts` (Hono RPC)
 - **Circuit breaker:** 5 failures → OPEN, 60s cooldown
+- **New in v2.8.0:** Improved Service Provider Framework, analytics tracking utilities (opt-in)
 
 ```typescript
 import { alexandriaClient } from './services/alexandria-client'
@@ -787,6 +789,16 @@ const book = await circuitBreaker.execute('google-books', () =>
 **Status:** ✅ 0 open P0/P1/P2 issues | 1 open P3 issue (blocked externally)
 
 **Recent Completions:**
+- ✅ **Alexandria v2.8.0 Upgrade** (Jan 14, 2026)
+  - Updated from v2.4.0 → v2.8.0 (4 minor versions)
+  - Service Provider Framework improvements (automatic benefits)
+  - Analytics tracking utilities available (opt-in)
+  - Zero breaking changes, all tests passing
+- ✅ **Genre Taxonomy Expansion** (PR #259, Jan 14, 2026)
+  - Expanded from 44 to 92 canonical genres
+  - New 2026 trends: Cozy Fantasy, Romantasy, Techno-Thriller, Folk Horror
+  - Improved genre detection accuracy
+  - Zero breaking changes, all tests passing
 - ✅ **Sprint 4: SDK Publication** - COMPLETE (Jan 7, 2026)
   - TypeScript SDK published to npm (`@jukasdrj/bookstrack-api-client@3.4.2`)
   - Full V3 API support (17 endpoints)
