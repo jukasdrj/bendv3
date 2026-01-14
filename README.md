@@ -2,6 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@jukasdrj/bookstrack-api-client.svg)](https://www.npmjs.com/package/@jukasdrj/bookstrack-api-client)
 [![TypeScript](https://img.shields.io/badge/TypeScript-98.7%25-blue.svg)](https://www.typescriptlang.org/)
+[![Tests](https://img.shields.io/badge/Tests-1,097%20passing-success.svg)](./TODO.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Cloudflare Workers API** for book search, enrichment, and AI-powered scanning.
@@ -9,6 +10,18 @@
 **Production URL:** https://api.oooefam.net
 **Harvest Dashboard:** https://harvest.oooefam.net 📊 (Real-time monitoring)
 **TypeScript SDK:** [`@jukasdrj/bookstrack-api-client`](https://www.npmjs.com/package/@jukasdrj/bookstrack-api-client)
+**API Docs:** https://api.oooefam.net/v3/docs (Interactive Swagger UI)
+**OpenAPI Spec:** https://api.oooefam.net/v3/openapi.json
+
+## Project Status
+
+**Phase:** Maintenance Mode (All sprints complete! 🎉)
+**Health:** 🟢 0% error rate over 7 days
+**Test Suite:** ✅ 1,097 passing | 6 skipped (100% pass rate)
+**Open Issues:** 1 P3 (blocked by Alexandria)
+**Type Safety:** 95.8% (453/506 errors resolved)
+
+See [TODO.md](TODO.md) for complete project status and sprint history.
 
 ## Repository Structure
 
