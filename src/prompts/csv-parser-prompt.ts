@@ -20,7 +20,7 @@ export function buildCSVParserPrompt(): string {
 COLUMN MAPPING:
 - Title/Book Title → "title"
 - Author/Authors/Author Name → "author"
-- ISBN/ISBN13 → "isbn"
+- ISBN/ISBN13/ISBN-13/ISBN-10/ISBN10 → "isbn"
 - My Rating/Rating/User Rating → "userRating" (0-5)
 - Exclusive Shelf/Read Status → "readingStatus"
 - Book Id/Goodreads ID → "goodreadsId"
