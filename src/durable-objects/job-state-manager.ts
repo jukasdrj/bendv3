@@ -505,7 +505,8 @@ export class JobStateManagerDO extends DurableObject<Env> {
     console.log(`[JobStateManager] scheduleCSVProcessing called for job ${jobId}, CSV size: ${csvText.length} bytes`)
     await this.ctx.storage.put('csvText', csvText)
     await this.ctx.storage.put('processingType', 'csv_import')
-    const alarmTime = Date.now()
+    // CRITICAL: Alarm must be in the future (5s delay for WebSocket connection)
+    const alarmTime = Date.now() + 5000
     await this.ctx.storage.setAlarm(alarmTime)
     console.log(`[JobStateManager] ✅ Alarm scheduled for job ${jobId} at ${new Date(alarmTime).toISOString()}`)
     return { success: true }
@@ -530,7 +531,8 @@ export class JobStateManagerDO extends DurableObject<Env> {
     // Store R2 keys (small strings, well under 128KB limit)
     await this.ctx.storage.put('scanImageR2Keys', r2Keys)
     await this.ctx.storage.put('processingType', 'bookshelf_scan')
-    await this.ctx.storage.setAlarm(Date.now()) // Trigger immediately
+    // CRITICAL: Alarm must be in the future (5s delay for WebSocket connection)
+    await this.ctx.storage.setAlarm(Date.now() + 5000)
     console.log(
       `[JobStateManager] Scheduled bookshelf scan for job ${jobId} (${r2Keys.length} photos in R2)`,
     )
@@ -556,7 +558,8 @@ export class JobStateManagerDO extends DurableObject<Env> {
     await this.ctx.storage.put('enrichmentISBNs', isbns)
     await this.ctx.storage.put('includeEmbedding', includeEmbedding)
     await this.ctx.storage.put('processingType', 'enrichment')
-    await this.ctx.storage.setAlarm(Date.now()) // Trigger immediately
+    // CRITICAL: Alarm must be in the future (5s delay for WebSocket connection)
+    await this.ctx.storage.setAlarm(Date.now() + 5000)
     console.log(
       `[JobStateManager] Scheduled enrichment for job ${jobId} (${isbns.length} ISBNs, embeddings: ${includeEmbedding})`,
     )
