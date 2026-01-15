@@ -23,7 +23,7 @@
   "//": "====================================================================================",
   "name": "api-worker",
   "main": "src/index.ts",
-  "compatibility_date": "2025-11-14",
+  "compatibility_date": "2026-01-15",
   "workers_dev": true,
   "compatibility_flags": [
     "nodejs_compat",
@@ -136,31 +136,33 @@
       "entrypoint": "default"
     }
   ],
+  "//": "KV Namespaces:",
+  "//": "- CACHE: Primary book metadata cache",
+  "//": "- RECOMMENDATIONS_CACHE: Weekly recommendations (Sprint 3)",
+  "//": "- EXTERNAL_IDS: ASIN → ISBN mappings (Alexandria v2.3.0, 7d TTL)",
   "kv_namespaces": [
     {
       "binding": "CACHE",
       "id": "b9cade63b6db48fd80c109a013f38fdb"
     },
     {
-      "//": "Sprint 3: Weekly recommendations cache",
       "binding": "RECOMMENDATIONS_CACHE",
       "id": "be0ca7077bab4942b57c02d547f1c968"
     },
     {
-      "//": "External ID resolution cache (Alexandria v2.3.0 integration)",
-      "//": "Caches ASIN → ISBN mappings and other provider cross-references",
-      "//": "TTL: 7 days (stable mappings, 95%+ hit rate after 30 days)",
       "binding": "EXTERNAL_IDS",
       "id": "4593d61085374820a72fd7bdc241e3a7"
     }
   ],
+  "//": "R2 Buckets:",
+  "//": "- BOOKSHELF_IMAGES: User-uploaded bookshelf photos",
+  "//": "- BOOK_COVERS: bendv3 CDN cache (separate from Alexandria's canonical store)",
   "r2_buckets": [
     {
       "binding": "BOOKSHELF_IMAGES",
       "bucket_name": "bookshelf-images"
     },
     {
-      "//": "bendv3 CDN cache for user-facing cover serving (separate from Alexandria's canonical bookstrack-covers-processed)",
       "binding": "BOOK_COVERS",
       "bucket_name": "bookstrack-covers"
     }
@@ -274,6 +276,10 @@
   "placement": {
     "mode": "smart"
   },
+  "//": "Queue Producers:",
+  "//": "- AUTHOR_WARMING_QUEUE: Author cache warming",
+  "//": "- ENRICHMENT_QUEUE: Async book enrichment → Alexandria (Sprint 3)",
+  "//": "- ALEXANDRIA_COVER_QUEUE: Cover processing → Alexandria",
   "queues": {
     "producers": [
       {
@@ -281,12 +287,10 @@
         "queue": "author-warming-queue"
       },
       {
-        "//": "Sprint 3: Async book enrichment with vectorization - Routes to Alexandria",
         "binding": "ENRICHMENT_QUEUE",
         "queue": "alexandria-enrichment-queue"
       },
       {
-        "//": "Cover & Queue Architecture: Send cover requests to Alexandria",
         "binding": "ALEXANDRIA_COVER_QUEUE",
         "queue": "alexandria-cover-queue"
       }
