@@ -279,19 +279,30 @@ export class JobStateManagerDO extends DurableObject<Env> {
     // Extract summary stats without the full books array to stay under 128KB limit.
     const { books, ...resultSummary } = payload
 
+    // Extract total count from payload (prioritize summary.totalProcessed for CSV imports)
+    // Fallback chain: summary.totalProcessed → booksCount → books.length → existing totalCount
+    const extractedTotalCount =
+      payload.summary?.totalProcessed ?? payload.booksCount ?? books?.length ?? jobState.totalCount
+
     const completedState = {
       ...jobState,
       status: 'completed',
       progress: 1.0,
       completedTime: Date.now(),
+      // FIX: Update totalCount from payload to override initial 0 value
+      totalCount: extractedTotalCount,
+      // FIX: Sync processedCount to match totalCount (job fully processed at completion)
+      processedCount: extractedTotalCount,
       // Store only summary (totalDetected, totalUnique, approved, needsReview, resultsUrl)
       // Full books array is stored in KV at `scan-results:{jobId}` or `import-results:{jobId}`
       result: resultSummary,
-      bookCount: books?.length || 0,
+      bookCount: extractedTotalCount || 0,
     }
 
     await this.ctx.storage.put('jobState', completedState)
-    console.log(`[JobStateManager] Job ${jobState.jobId} completed`)
+    console.log(
+      `[JobStateManager] Job ${jobState.jobId} completed with totalCount: ${extractedTotalCount}, processedCount: ${extractedTotalCount}`,
+    )
 
     // Calculate expiry timestamp (24 hours from now)
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
