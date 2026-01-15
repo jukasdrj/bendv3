@@ -213,19 +213,25 @@ export const CSV_BOOK_SCHEMA = {
 } as const
 
 /**
- * TypeScript type inferred from CSV_BOOK_SCHEMA
+ * TypeScript type inferred from CSV_BOOK_SCHEMA (v2)
+ *
+ * CRITICAL: Must match CSV_BOOK_SCHEMA exactly for Gemini structured output
+ * Last updated: 2026-01-15 (aligned with schema v2)
  */
 export interface CSVParsedBook {
   title: string
   author: string
   isbn?: string | null
-  publicationYear?: number | null
+  openLibraryId?: string | null
+  googleBooksId?: string | null
+  goodreadsId?: string | null
+  publishedYear?: number | null
   publisher?: string | null
   pageCount?: number | null
-  genre?: string | null
-  rating?: number | null
+  userRating?: number | null
+  readingStatus?: 'read' | 'reading' | 'to-read' | 'wishlist' | 'dnf' | null
   dateRead?: string | null
-  notes?: string | null
+  shelves?: string[] | null
 }
 
 /**
@@ -260,7 +266,10 @@ export function isBookshelfDetectedBook(obj: unknown): obj is BookshelfDetectedB
 }
 
 /**
- * Type guard to validate CSV parsed book structure
+ * Type guard to validate CSV parsed book structure (v2)
+ *
+ * CRITICAL: Must validate against CSV_BOOK_SCHEMA v2 fields
+ * Last updated: 2026-01-15 (aligned with schema v2)
  */
 export function isCSVParsedBook(obj: unknown): obj is CSVParsedBook {
   if (typeof obj !== 'object' || obj === null) return false
@@ -272,14 +281,35 @@ export function isCSVParsedBook(obj: unknown): obj is CSVParsedBook {
   // Author must not be empty (Issue #160)
   if (book.author.length === 0) return false
 
-  // Optional fields validation
+  // Optional fields validation (schema v2)
   if (book.isbn !== undefined && book.isbn !== null && typeof book.isbn !== 'string') {
     return false
   }
   if (
-    book.publicationYear !== undefined &&
-    book.publicationYear !== null &&
-    typeof book.publicationYear !== 'number'
+    book.openLibraryId !== undefined &&
+    book.openLibraryId !== null &&
+    typeof book.openLibraryId !== 'string'
+  ) {
+    return false
+  }
+  if (
+    book.googleBooksId !== undefined &&
+    book.googleBooksId !== null &&
+    typeof book.googleBooksId !== 'string'
+  ) {
+    return false
+  }
+  if (
+    book.goodreadsId !== undefined &&
+    book.goodreadsId !== null &&
+    typeof book.goodreadsId !== 'string'
+  ) {
+    return false
+  }
+  if (
+    book.publishedYear !== undefined &&
+    book.publishedYear !== null &&
+    typeof book.publishedYear !== 'number'
   ) {
     return false
   }
@@ -295,19 +325,28 @@ export function isCSVParsedBook(obj: unknown): obj is CSVParsedBook {
       return false
     }
   }
-  if (book.genre !== undefined && book.genre !== null && typeof book.genre !== 'string') {
-    return false
+  if (book.userRating !== undefined && book.userRating !== null) {
+    if (typeof book.userRating !== 'number' || book.userRating < 0 || book.userRating > 5) {
+      return false
+    }
   }
-  if (book.rating !== undefined && book.rating !== null) {
-    if (typeof book.rating !== 'number' || book.rating < 0 || book.rating > 5) {
+  if (book.readingStatus !== undefined && book.readingStatus !== null) {
+    const validStatuses = ['read', 'reading', 'to-read', 'wishlist', 'dnf']
+    if (!validStatuses.includes(book.readingStatus as string)) {
       return false
     }
   }
   if (book.dateRead !== undefined && book.dateRead !== null && typeof book.dateRead !== 'string') {
     return false
   }
-  if (book.notes !== undefined && book.notes !== null && typeof book.notes !== 'string') {
-    return false
+  if (book.shelves !== undefined && book.shelves !== null) {
+    if (!Array.isArray(book.shelves)) {
+      return false
+    }
+    // Validate all elements are strings
+    if (!book.shelves.every((shelf) => typeof shelf === 'string')) {
+      return false
+    }
   }
 
   return true

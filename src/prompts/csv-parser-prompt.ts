@@ -21,9 +21,14 @@ COLUMN MAPPING:
 - Title/Book Title → "title"
 - Author/Authors/Author Name → "author"
 - ISBN/ISBN13 → "isbn"
-- My Rating/Rating → "userRating" (0-5)
+- My Rating/Rating/User Rating → "userRating" (0-5)
 - Exclusive Shelf/Read Status → "readingStatus"
-- Book Id → "goodreadsId"
+- Book Id/Goodreads ID → "goodreadsId"
+- Publication Year/Published Year/Year Published → "publishedYear"
+- Publisher → "publisher"
+- Page Count/Pages/Number of Pages → "pageCount"
+- Date Read/Date Finished → "dateRead"
+- Bookshelves/Shelves/Tags → "shelves" (array)
 
 EXAMPLES:
 
