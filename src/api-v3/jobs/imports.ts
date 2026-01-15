@@ -168,10 +168,10 @@ Returns immediately with jobId for progress tracking via SSE stream.
 
       // Schedule CSV processing via DO alarm (avoids Worker CPU limits)
       const csvText = await file.text()
-      const csvProcessingPromise = doStub.scheduleCSVProcessing?.(csvText, jobId)
-      if (csvProcessingPromise) {
-        c.executionCtx.waitUntil(csvProcessingPromise)
-      }
+      console.log(`[V3 Import] Calling scheduleCSVProcessing for job ${jobId}, CSV size: ${csvText.length} bytes`)
+      const csvProcessingPromise = doStub.scheduleCSVProcessing(csvText, jobId)
+      console.log(`[V3 Import] scheduleCSVProcessing returned promise:`, typeof csvProcessingPromise)
+      c.executionCtx.waitUntil(csvProcessingPromise)
 
       const streamUrl = buildStreamUrl(c.req.url, 'imports', jobId)
 

@@ -73,39 +73,80 @@ export interface IWebSocketConnectionDO {
 /**
  * Job State Manager Durable Object stub interface
  *
- * Manages job state persistence and coordination.
+ * Manages job state persistence and coordination for CSV imports, scans, and batch enrichment.
+ * CRITICAL: Keep this interface in sync with src/durable-objects/job-state-manager.ts
  */
 export interface IJobStateManagerDO {
   /**
-   * Initialize a new job
+   * Initialize job state (V3 API method)
    * @param jobId - Unique job identifier
-   * @param metadata - Initial job metadata
+   * @param pipeline - Pipeline type (csv_import, bookshelf_scan, batch_enrichment)
+   * @param totalCount - Total items to process (0 if unknown)
    */
-  initializeJob(jobId: string, metadata: Record<string, unknown>): Promise<void>
-
-  /**
-   * Update job progress
-   * @param progress - Progress percentage (0-100)
-   * @param status - Current status string
-   */
-  updateProgress(progress: number, status: string): Promise<void>
+  initializeJobState(
+    jobId: string,
+    pipeline: 'csv_import' | 'bookshelf_scan' | 'batch_enrichment',
+    totalCount: number,
+  ): Promise<{ success: boolean }>
 
   /**
    * Get current job state
    */
-  getState(): Promise<Record<string, unknown> | null>
+  getJobState(): Promise<{
+    jobId: string
+    type: string
+    status: string
+    progress: number
+    processedCount: number
+    totalCount: number
+    startTime: string
+    completedTime?: string
+    error?: { code: string; message: string }
+  } | null>
 
   /**
-   * Mark job as complete
-   * @param result - Final result data
+   * Send error to job (marks as failed)
+   * @param pipeline - Pipeline type
+   * @param payload - Error details
    */
-  complete(result: Record<string, unknown>): Promise<void>
+  sendError(
+    pipeline: string,
+    payload: {
+      code: string
+      message: string
+      retryable?: boolean
+      details?: Record<string, unknown>
+    },
+  ): Promise<{ success: boolean }>
 
   /**
-   * Mark job as failed
-   * @param error - Error message or details
+   * Schedule CSV processing via alarm
+   * @param csvText - Raw CSV content
+   * @param jobId - Job identifier
    */
-  fail(error: string | Error): Promise<void>
+  scheduleCSVProcessing(csvText: string, jobId: string): Promise<{ success: boolean }>
+
+  /**
+   * Schedule bookshelf scan processing via alarm
+   * @param scanImageR2Keys - R2 keys for uploaded images
+   * @param jobId - Job identifier
+   */
+  scheduleBookshelfScanProcessing(
+    scanImageR2Keys: string[],
+    jobId: string,
+  ): Promise<{ success: boolean }>
+
+  /**
+   * Schedule batch enrichment processing via alarm
+   * @param isbns - ISBNs to enrich
+   * @param options - Enrichment options
+   * @param jobId - Job identifier
+   */
+  scheduleBatchEnrichmentProcessing(
+    isbns: string[],
+    options: { includeEmbedding: boolean },
+    jobId: string,
+  ): Promise<{ success: boolean }>
 }
 
 /**

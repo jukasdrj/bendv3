@@ -149,9 +149,9 @@ export async function parseCSVWithGemini(
     enableTelemetry?: boolean
   },
 ): Promise<GeminiParseResult> {
-  // Default to gemini-3-flash-preview for reliability (Issue #253)
-  // Can be overridden via options.model if A/B testing is re-enabled
-  const selectedModel = options?.model || 'gemini-3-flash-preview'
+  // TEMPORARY DEBUG: Switch back to gemini-2.5-flash to test if model is the issue
+  // Original default: 'gemini-3-flash-preview'
+  const selectedModel = options?.model || 'gemini-2.5-flash'
   const modelConfig = getModelConfig(selectedModel)
   const endpoint = getModelEndpoint(selectedModel)
   const timeout = modelConfig.recommendedTimeout
@@ -271,6 +271,12 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
   }
 
   const parsed = parseResult.data!
+
+  // DEBUG: Log what Gemini actually returned
+  console.log(
+    `[GeminiCSVProvider] Gemini returned ${Array.isArray(parsed) ? parsed.length : 'non-array'} items. First item:`,
+    JSON.stringify(parsed[0], null, 2),
+  )
 
   // Lightweight defensive check: Catches API bugs, not schema violations
   // (Schema guarantees array of books with title+author, but we verify to catch unexpected API changes)

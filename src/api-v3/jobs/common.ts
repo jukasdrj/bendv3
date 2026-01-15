@@ -15,16 +15,18 @@ import type { Env } from '../../types/env'
  *
  * Type-safe interface for JobStateManagerDO methods
  * Note: Auth token management is handled by WebSocketConnectionDO (separation of concerns)
+ * CRITICAL: Keep in sync with src/types/durable-objects.ts and actual DO implementation
  */
 export interface JobStateManagerDO {
-  initializeJobState(jobId: string, type: string, totalCount: number): Promise<void>
+  initializeJobState(jobId: string, type: string, totalCount: number): Promise<{success: boolean}>
   updateProgress(progress: number, processedCount: number): Promise<void>
   getJobState(): Promise<any>
   complete(results?: any): Promise<void>
-  sendError(error: { code: string; message: string; retryable?: boolean }): Promise<void>
-  scheduleCSVProcessing?(csvText: string, jobId: string): Promise<void>
-  scheduleBookshelfScan?(images: any[], jobId: string): Promise<void>
-  scheduleEnrichment?(isbns: string[], includeEmbedding: boolean, jobId: string): Promise<void>
+  sendError(pipeline: string, error: { code: string; message: string; retryable?: boolean; details?: Record<string, unknown> }): Promise<{success: boolean}>
+  // REQUIRED methods (not optional!) - alarm-based processing
+  scheduleCSVProcessing(csvText: string, jobId: string): Promise<{success: boolean}>
+  scheduleBookshelfScanProcessing(scanImageR2Keys: string[], jobId: string): Promise<{success: boolean}>
+  scheduleBatchEnrichmentProcessing(isbns: string[], options: {includeEmbedding: boolean}, jobId: string): Promise<{success: boolean}>
 }
 
 /**

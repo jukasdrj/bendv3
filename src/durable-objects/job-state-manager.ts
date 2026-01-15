@@ -502,10 +502,12 @@ export class JobStateManagerDO extends DurableObject<Env> {
    * @returns {Promise<{success: boolean}>}
    */
   async scheduleCSVProcessing(csvText: string, jobId: string): Promise<{ success: boolean }> {
+    console.log(`[JobStateManager] scheduleCSVProcessing called for job ${jobId}, CSV size: ${csvText.length} bytes`)
     await this.ctx.storage.put('csvText', csvText)
     await this.ctx.storage.put('processingType', 'csv_import')
-    await this.ctx.storage.setAlarm(Date.now()) // Trigger immediately
-    console.log(`[JobStateManager] Scheduled CSV processing for job ${jobId}`)
+    const alarmTime = Date.now()
+    await this.ctx.storage.setAlarm(alarmTime)
+    console.log(`[JobStateManager] ✅ Alarm scheduled for job ${jobId} at ${new Date(alarmTime).toISOString()}`)
     return { success: true }
   }
 
@@ -904,10 +906,11 @@ export class JobStateManagerDO extends DurableObject<Env> {
    */
   override async alarm(): Promise<void> {
     const processingType = await this.ctx.storage.get<string>('processingType')
+    console.log(`[JobStateManager] ⏰ ALARM FIRED! Processing type: ${processingType || '(none)'}`)
 
     if (processingType === 'csv_import') {
       // CSV processing path
-      console.log('[JobStateManager] Alarm triggered for CSV processing')
+      console.log('[JobStateManager] ✅ CSV processing path detected')
 
       const csvText = await this.ctx.storage.get<string>('csvText')
       const jobState = await this.ctx.storage.get<JobState>('jobState')
