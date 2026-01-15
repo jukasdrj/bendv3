@@ -62,7 +62,7 @@ Use it for:
             data: {
               status: 'ok',
               worker: 'api-worker',
-              version: '3.3.0',
+              version: '3.4.2',
               router: 'hono',
             },
             metadata: {
