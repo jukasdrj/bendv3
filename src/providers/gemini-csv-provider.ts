@@ -197,10 +197,10 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
       generationConfig: {
         temperature: 0.1, // Maximum determinism for structured parsing with Flash-Lite
         topP: 0.95, // Nucleus sampling for quality
-        maxOutputTokens: 8192,
+        maxOutputTokens: 16384, // Increased from 8192 to handle larger CSVs (Issue #253)
         responseMimeType: 'application/json', // Force JSON output (eliminates markdown code blocks)
         responseSchema: CSV_BOOK_SCHEMA, // Schema-enforced validation (guarantees title+author)
-        stopSequences: ['\n\n\n'], // Stop on triple newline (prevents unnecessary continuation)
+        // stopSequences removed - was causing premature truncation (Issue #253)
       },
     }
 
