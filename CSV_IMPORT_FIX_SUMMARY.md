@@ -92,17 +92,28 @@ Results:
 
 ---
 
-## Known Minor Issue
+## ✅ RESOLVED: totalCount Issue Fixed (January 15, 2026)
 
-**Job status reports `totalCount: 0` despite successful processing.**
+**Previous Issue**: Job status reported `totalCount: 0` despite successful processing.
 
-This is a cosmetic issue in the job state management. The actual book processing works correctly:
-- Books ARE parsed by Gemini
-- Books ARE saved to D1 database
-- Books ARE cached in KV
-- Books ARE queued for enrichment
+**Root Cause**: The `complete()` method in JobStateManagerDO never extracted `totalCount` from the completion payload, preserving the initial 0 value set during job initialization.
 
-The issue is that the job completion logic doesn't update the `totalCount` field. This should be addressed in a future update but doesn't affect functionality.
+**Fix Applied** (commit `cedfed9`):
+- Extract `totalCount` from payload (`summary.totalProcessed` for CSV imports)
+- Fallback chain: `summary.totalProcessed` → `booksCount` → `books.length` → existing `totalCount`
+- Update `completedState.totalCount` and `processedCount` to match extracted value
+- Enhanced logging to show final counts
+
+**Verification** (job `9e8390bc-d0a6-47ba-8e17-511a04cc9995`):
+```json
+{
+  "status": "completed",
+  "totalCount": 2,      // ✅ Now shows correct count
+  "processedCount": 2   // ✅ Synced with totalCount
+}
+```
+
+**Credit**: Issue identified and fix suggested by Grok Code Fast (xAI)
 
 ---
 
