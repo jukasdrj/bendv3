@@ -89,16 +89,22 @@ export interface BookshelfDetectedBook {
 }
 
 /**
- * CSV Parser Response Schema
+ * CSV Parser Response Schema (v2)
  *
  * Used by: gemini-csv-provider.ts (parseCSVWithGemini)
- * Model: Gemini 2.5 Flash-Lite
+ * Model: Gemini 3 Flash Preview / 2.5 Flash Lite
+ *
+ * Changes in v2 (2026-01-15):
+ * - Removed authorGender, authorCulturalRegion (problematic inference)
+ * - Removed languageCode (can infer from title/publisher downstream)
+ * - Simplified to core book metadata only
+ * - Added external ID fields (goodreadsId, openLibraryId, googleBooksId)
  *
  * Enforces:
  * - All books have title and author (required fields)
- * - Rating range: 0-5 (when present)
- * - PageCount minimum: 1 (when present)
- * - DateRead format: YYYY-MM-DD (when present)
+ * - userRating range: 0-5 (when present)
+ * - pageCount minimum: 1 (when present)
+ * - dateRead format: YYYY-MM-DD (when present)
  * - ISBN format: 10 or 13 digits (when present)
  *
  * ISBN Validation Rules:
@@ -106,9 +112,6 @@ export interface BookshelfDetectedBook {
  * - ISBN-13: exactly 13 digits starting with 978 or 979
  * - All hyphens/spaces must be removed before returning
  * - Invalid/malformed ISBNs should be null, not returned
- *
- * Note: Schema guarantees no books will be returned without title+author,
- * eliminating the need for manual filtering loops in csv-import.js
  */
 export const CSV_BOOK_SCHEMA = {
   type: 'array' as const,
@@ -129,9 +132,23 @@ export const CSV_BOOK_SCHEMA = {
         description:
           'ISBN-10 (10 chars, may end in X) or ISBN-13 (13 digits starting with 978/979). Must be valid format or null.',
         nullable: true,
-        // Note: Gemini API doesn't support regex patterns in schema, validation is prompt-based
       },
-      publicationYear: {
+      openLibraryId: {
+        type: 'string' as const,
+        description: 'OpenLibrary work ID (e.g., OL45804W)',
+        nullable: true,
+      },
+      googleBooksId: {
+        type: 'string' as const,
+        description: 'Google Books volume ID',
+        nullable: true,
+      },
+      goodreadsId: {
+        type: 'string' as const,
+        description: 'Goodreads Book ID',
+        nullable: true,
+      },
+      publishedYear: {
         type: 'integer' as const,
         description: 'Year of publication',
         nullable: true,
@@ -147,43 +164,50 @@ export const CSV_BOOK_SCHEMA = {
         nullable: true,
         minimum: 1,
       },
-      genre: {
-        type: 'string' as const,
-        description: 'Primary genre or subject',
-        nullable: true,
-      },
-      rating: {
+      userRating: {
         type: 'number' as const,
         description: 'User rating (0-5 scale)',
         nullable: true,
         minimum: 0,
         maximum: 5,
       },
+      readingStatus: {
+        type: 'string' as const,
+        description: 'Reading status',
+        enum: ['read', 'reading', 'to-read', 'wishlist', 'dnf'] as const,
+        nullable: true,
+      },
       dateRead: {
         type: 'string' as const,
         description: 'Date finished reading (YYYY-MM-DD format)',
         nullable: true,
       },
-      notes: {
-        type: 'string' as const,
-        description: 'User notes or review',
+      shelves: {
+        type: 'array' as const,
+        items: {
+          type: 'string' as const,
+        },
+        description: 'User-defined bookshelves/tags',
         nullable: true,
       },
     },
     required: ['title', 'author'] as const,
     // propertyOrdering ensures consistent key order in output (Gemini 2.5+ feature)
-    // Order: primary identifiers → publication metadata → user-specific data
+    // Order: identifiers → publication metadata → user data
     propertyOrdering: [
       'title',
       'author',
       'isbn',
-      'publicationYear',
+      'openLibraryId',
+      'googleBooksId',
+      'goodreadsId',
+      'publishedYear',
       'publisher',
       'pageCount',
-      'genre',
-      'rating',
+      'userRating',
+      'readingStatus',
       'dateRead',
-      'notes',
+      'shelves',
     ] as const,
   },
 } as const
