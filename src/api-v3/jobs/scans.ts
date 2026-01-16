@@ -634,10 +634,14 @@ Results cached in KV for 2 hours after completion.`,
         )
       }
 
+      // FIX: Issue found during shelf scan validation (2026-01-16)
+      // KV stores: { books: [...], totalDetected, metadata }
+      // But GET endpoint expected: [...]
+      // This caused all results to return as empty array []
       const data: JobResultsData = {
         jobId: state.jobId,
         status: state.status,
-        results: Array.isArray(results) ? results : [],
+        results: Array.isArray(results) ? results : (results.books || []),
       }
 
       return c.json(

@@ -101,20 +101,34 @@ interface ScanResult {
 export async function scanImageWithGemini(imageData: ArrayBuffer, env: Env): Promise<ScanResult> {
   const startTime = Date.now()
 
-  // DIAGNOSTIC: Log secret binding status
-  console.log('[GeminiProvider] DIAGNOSTIC: Checking GEMINI_API_KEY binding...')
-  console.log('[GeminiProvider] env.GEMINI_API_KEY exists:', !!env.GEMINI_API_KEY)
+  /**
+   * GEMINI_API_KEY binding supports two patterns:
+   *   1. Secrets Store binding (production): env.GEMINI_API_KEY is a SecretsStore object with .get() method
+   *   2. Plain string binding (local dev): env.GEMINI_API_KEY is a string
+   *
+   * FIX: Issue found during shelf scan validation (2026-01-16)
+   * - Production was returning the binding object, not the actual key value
+   * - Need to call .get() to retrieve the secret value from Secrets Store
+   */
+  const geminiApiKey = env.GEMINI_API_KEY as string | { get?: () => Promise<string> }
+  let apiKey: string
 
-  // Get API key (support both string and secret binding)
-  const apiKey = env.GEMINI_API_KEY
-
-  console.log('[GeminiProvider] DIAGNOSTIC: API key retrieved:', !!apiKey)
-  console.log('[GeminiProvider] DIAGNOSTIC: API key length:', apiKey?.length || 0)
+  if (typeof geminiApiKey === 'object' && geminiApiKey.get) {
+    // Production: Secrets Store binding - call .get() to retrieve secret value
+    console.log('[GeminiProvider] Using Secrets Store binding (production mode)')
+    apiKey = await geminiApiKey.get()
+  } else {
+    // Local dev: Plain string
+    console.log('[GeminiProvider] Using plain string binding (local dev mode)')
+    apiKey = geminiApiKey as string
+  }
 
   if (!apiKey) {
-    console.error('[GeminiProvider] ERROR: GEMINI_API_KEY not configured or empty')
+    console.error('[GeminiProvider] ERROR: GEMINI_API_KEY not configured or empty after resolution')
     throw new Error('GEMINI_API_KEY not configured')
   }
+
+  console.log('[GeminiProvider] API key retrieved successfully (length:', apiKey.length, ')')
 
   // Convert ArrayBuffer to base64 (FIXED: Issue #182 - O(n²) to O(n))
   // Before: 5MB image = 60s encoding (string concatenation in loop)
