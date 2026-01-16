@@ -641,7 +641,7 @@ Results cached in KV for 2 hours after completion.`,
       const data: JobResultsData = {
         jobId: state.jobId,
         status: state.status,
-        results: Array.isArray(results) ? results : (results.books || []),
+        results: Array.isArray(results) ? results : results.books || [],
       }
 
       return c.json(

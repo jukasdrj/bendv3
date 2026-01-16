@@ -13,7 +13,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { checkRateLimit } from '../middleware/rate-limiter.js'
 import type { Env } from '../types/env.js'
-import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
+import { createProblemResponse, ErrorCodes } from '../utils/http/response-builder'
 
 // DO stub interfaces for RPC calls
 interface WebSocketConnectionStub {
@@ -54,13 +54,13 @@ export function createWebSocketRoutes() {
     const jobId = c.req.query('jobId')?.substring(0, 100)
 
     if (!jobId || jobId.trim().length === 0) {
-      return createErrorResponse(
-        'Missing jobId parameter',
-        400,
-        ErrorCodes.MISSING_PARAMETER,
-        { parameter: 'jobId' },
-        c.req.raw,
-      )
+      return createProblemResponse(ErrorCodes.MISSING_PARAMETER, {
+        detail: 'Missing jobId parameter',
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        details: { parameter: 'jobId' },
+        corsRequest: c.req.raw,
+      })
     }
 
     // SECURITY: Token authentication uses WebSocket Subprotocol
@@ -86,13 +86,13 @@ export function createJobApiRoutes() {
       const { jobId, oldToken } = await c.req.json()
 
       if (!jobId || !oldToken) {
-        return createErrorResponse(
-          'Invalid request: jobId and oldToken required',
-          400,
-          ErrorCodes.INVALID_REQUEST,
-          { required: ['jobId', 'oldToken'] },
-          c.req.raw,
-        )
+        return createProblemResponse(ErrorCodes.INVALID_REQUEST, {
+          detail: 'Invalid request: jobId and oldToken required',
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
+          details: { required: ['jobId', 'oldToken'] },
+          corsRequest: c.req.raw,
+        })
       }
 
       const wsDoId = c.env.WEBSOCKET_CONNECTION_DO.idFromName(jobId)
@@ -102,7 +102,13 @@ export function createJobApiRoutes() {
       const result = await wsDoStub.refreshAuthToken(oldToken)
 
       if (result.error) {
-        return createErrorResponse(result.error, 401, ErrorCodes.UNAUTHORIZED, { jobId }, c.req.raw)
+        return createProblemResponse(ErrorCodes.UNAUTHORIZED, {
+          detail: result.error,
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
+          details: { jobId },
+          corsRequest: c.req.raw,
+        })
       }
 
       return c.json({
@@ -112,13 +118,12 @@ export function createJobApiRoutes() {
       })
     } catch (error) {
       console.error('Failed to refresh token:', error)
-      return createErrorResponse(
-        `Failed to refresh token: ${(error as Error).message}`,
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        undefined,
-        c.req.raw,
-      )
+      return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+        detail: `Failed to refresh token: ${(error as Error).message}`,
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        corsRequest: c.req.raw,
+      })
     }
   })
 
@@ -128,26 +133,26 @@ export function createJobApiRoutes() {
       const jobId = c.req.param('jobId')
 
       if (!jobId) {
-        return createErrorResponse(
-          'Invalid request: jobId required',
-          400,
-          ErrorCodes.INVALID_REQUEST,
-          { jobId },
-          c.req.raw,
-        )
+        return createProblemResponse(ErrorCodes.INVALID_REQUEST, {
+          detail: 'Invalid request: jobId required',
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
+          details: { jobId },
+          corsRequest: c.req.raw,
+        })
       }
 
       // Validate Bearer token (REQUIRED for auth)
       const authHeader = c.req.header('Authorization')
       const providedToken = authHeader?.replace('Bearer ', '')
       if (!providedToken) {
-        return createErrorResponse(
-          'Missing authorization token',
-          401,
-          ErrorCodes.UNAUTHORIZED,
-          { endpoint: '/api/job-state/:jobId' },
-          c.req.raw,
-        )
+        return createProblemResponse(ErrorCodes.UNAUTHORIZED, {
+          detail: 'Missing authorization token',
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
+          details: { endpoint: '/api/job-state/:jobId' },
+          corsRequest: c.req.raw,
+        })
       }
 
       // Query JOB_STATE_MANAGER_DO and WEBSOCKET_CONNECTION_DO separately
@@ -166,48 +171,48 @@ export function createJobApiRoutes() {
       const authResult = await wsDoStub.getAuthToken()
 
       if (!jobState) {
-        return createErrorResponse(
-          'Job not found or state not initialized',
-          404,
-          ErrorCodes.NOT_FOUND,
-          { jobId },
-          c.req.raw,
-        )
+        return createProblemResponse(ErrorCodes.NOT_FOUND, {
+          detail: 'Job not found or state not initialized',
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
+          details: { jobId },
+          corsRequest: c.req.raw,
+        })
       }
 
       if (!authResult) {
-        return createErrorResponse(
-          'Job authentication not found',
-          404,
-          ErrorCodes.NOT_FOUND,
-          { jobId },
-          c.req.raw,
-        )
+        return createProblemResponse(ErrorCodes.NOT_FOUND, {
+          detail: 'Job authentication not found',
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
+          details: { jobId },
+          corsRequest: c.req.raw,
+        })
       }
 
       const { token: authToken, expiresAt: authTokenExpiration } = authResult
 
       // Validate token matches and is not expired
       if (!authToken || providedToken !== authToken || Date.now() > authTokenExpiration) {
-        return createErrorResponse(
-          'Invalid or expired token',
-          401,
-          ErrorCodes.UNAUTHORIZED,
-          { jobId, tokenExpired: Date.now() > authTokenExpiration },
-          c.req.raw,
-        )
+        return createProblemResponse(ErrorCodes.UNAUTHORIZED, {
+          detail: 'Invalid or expired token',
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
+          details: { jobId, tokenExpired: Date.now() > authTokenExpiration },
+          corsRequest: c.req.raw,
+        })
       }
 
       return c.json(jobState)
     } catch (error) {
       console.error('Failed to get job state:', error)
-      return createErrorResponse(
-        `Failed to get job state: ${(error as Error).message}`,
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        { jobId: c.req.param('jobId') },
-        c.req.raw,
-      )
+      return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+        detail: `Failed to get job state: ${(error as Error).message}`,
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        details: { jobId: c.req.param('jobId') },
+        corsRequest: c.req.raw,
+      })
     }
   })
 
@@ -217,13 +222,13 @@ export function createJobApiRoutes() {
       const { jobId } = await c.req.json()
 
       if (!jobId) {
-        return createErrorResponse(
-          'jobId required',
-          400,
-          ErrorCodes.MISSING_PARAMETER,
-          { parameter: 'jobId' },
-          c.req.raw,
-        )
+        return createProblemResponse(ErrorCodes.MISSING_PARAMETER, {
+          detail: 'jobId required',
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
+          details: { parameter: 'jobId' },
+          corsRequest: c.req.raw,
+        })
       }
 
       const stateDoId = c.env.JOB_STATE_MANAGER_DO.idFromName(jobId)
@@ -235,13 +240,13 @@ export function createJobApiRoutes() {
       return c.json(result)
     } catch (error) {
       console.error('Cancel batch error:', error)
-      return createErrorResponse(
-        'Failed to cancel batch',
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        { details: (error as Error).message },
-        c.req.raw,
-      )
+      return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+        detail: 'Failed to cancel batch',
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        details: { details: (error as Error).message },
+        corsRequest: c.req.raw,
+      })
     }
   })
 

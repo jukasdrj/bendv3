@@ -12,7 +12,7 @@
 
 import type { Context } from 'hono'
 import type { Env } from '../types/env.js'
-import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
+import { createProblemResponse, ErrorCodes } from '../utils/http/response-builder'
 
 /**
  * Window statistics for cache metrics
@@ -92,13 +92,13 @@ export async function handleCacheMetrics(c: Context<{ Bindings: Env }>): Promise
     // Validate window parameter
     const validWindows = ['minute', 'hour', 'day', 'total']
     if (!validWindows.includes(window)) {
-      return createErrorResponse(
-        `window must be one of: ${validWindows.join(', ')}`,
-        400,
-        ErrorCodes.INVALID_REQUEST,
-        { validWindows },
-        null,
-      )
+      return createProblemResponse(ErrorCodes.INVALID_REQUEST, {
+        detail: `window must be one of: ${validWindows.join(', ')}`,
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        details: { validWindows },
+        corsRequest: null,
+      })
     }
 
     // Get CacheMetricsDO singleton
@@ -173,12 +173,12 @@ export async function handleCacheMetrics(c: Context<{ Bindings: Env }>): Promise
     })
   } catch (error) {
     console.error('Failed to fetch cache metrics:', error)
-    return createErrorResponse(
-      'Failed to fetch cache metrics',
-      500,
-      ErrorCodes.INTERNAL_ERROR,
-      { errorMessage: error instanceof Error ? error.message : String(error) },
-      null,
-    )
+    return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+      detail: 'Failed to fetch cache metrics',
+      instance: c.req.url,
+      requestId: c.get('ctx')?.requestId,
+      details: { errorMessage: error instanceof Error ? error.message : String(error) },
+      corsRequest: null,
+    })
   }
 }

@@ -36,6 +36,8 @@
  * ```
  */
 
+import { createProblemDetails } from '@bookstrack/schemas/errors'
+import type { ErrorCode, FieldError } from '@bookstrack/schemas/response'
 import { getCorsHeaders } from '../../middleware/cors.js'
 import type { ResponseEnvelope } from '../../types/responses.js'
 
@@ -186,6 +188,101 @@ export function createErrorResponse(
 
   return new Response(JSON.stringify(envelope), {
     status: finalStatus,
+    headers,
+  })
+}
+
+// ============================================================================
+// RFC 9457 PROBLEM DETAILS FUNCTIONS (V3 API STANDARD)
+// ============================================================================
+
+/**
+ * Options for createProblemResponse (RFC 9457 compliant)
+ */
+export interface ProblemResponseOptions {
+  /** Specific error message for this occurrence */
+  detail?: string
+  /** URI reference identifying this specific occurrence (e.g., request path) */
+  instance?: string
+  /** Retry delay in milliseconds (sets Retry-After header for 429 responses) */
+  retryAfterMs?: number
+  /** Field-level validation errors */
+  errors?: FieldError[]
+  /** Request correlation ID */
+  requestId?: string
+  /** Request for CORS headers */
+  corsRequest?: Request | null
+}
+
+/**
+ * Create RFC 9457 Problem Details error response
+ *
+ * This is the STANDARD way to create error responses for V3 API and migrated legacy routes.
+ * Uses the RFC 9457 Problem Details format for consistent error handling.
+ *
+ * @param code - Error code (use ErrorCodes constants from schemas package)
+ * @param options - Error options (detail, instance, retryAfterMs, etc.)
+ * @returns Response object with RFC 9457 Problem Details format
+ *
+ * @example
+ * // Simple usage
+ * return createProblemResponse('NOT_FOUND', {
+ *   detail: 'Book with ISBN 9780439708180 not found',
+ *   instance: c.req.url,
+ *   requestId: ctx.requestId
+ * });
+ *
+ * // With validation errors
+ * return createProblemResponse('INVALID_REQUEST', {
+ *   detail: 'Multiple validation errors',
+ *   instance: c.req.url,
+ *   errors: [
+ *     { field: 'isbn', message: 'Invalid ISBN format' },
+ *     { field: 'title', message: 'Title is required' }
+ *   ],
+ *   requestId: ctx.requestId
+ * });
+ *
+ * // With rate limiting
+ * return createProblemResponse('RATE_LIMIT_EXCEEDED', {
+ *   detail: 'Rate limit exceeded. Please try again in 60 seconds.',
+ *   instance: c.req.url,
+ *   retryAfterMs: 60000,
+ *   requestId: ctx.requestId
+ * });
+ */
+export function createProblemResponse(
+  code: ErrorCode,
+  options: ProblemResponseOptions = {},
+): Response {
+  const { detail, instance, retryAfterMs, errors, requestId, corsRequest = null } = options
+
+  // Create RFC 9457 Problem Details object
+  const problemDetails = createProblemDetails(code, detail, {
+    instance,
+    retryAfterMs,
+    errors,
+    requestId,
+  })
+
+  // Log error for observability
+  console.error(`Error [${code}]:`, detail || problemDetails.title)
+
+  // Build headers
+  const headers: Record<string, string> = {
+    ...getCorsHeaders(corsRequest ?? undefined),
+    'Content-Type': 'application/problem+json', // RFC 9457 media type
+    'X-Response-Format': 'rfc-9457', // For monitoring compliance
+    'X-Error-Type': code, // For analytics tracking
+  }
+
+  // Add Retry-After header for rate-limited responses (RFC 6585)
+  if (problemDetails.status === 429 && retryAfterMs) {
+    headers['Retry-After'] = String(Math.ceil(retryAfterMs / 1000))
+  }
+
+  return new Response(JSON.stringify(problemDetails), {
+    status: problemDetails.status,
     headers,
   })
 }

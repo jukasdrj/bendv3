@@ -1,6 +1,6 @@
 import type { Context } from 'hono'
 import type { Env } from '../types/env.js'
-import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
+import { createProblemResponse, ErrorCodes } from '../utils/http/response-builder'
 
 /**
  * GET /metrics - Comprehensive metrics API endpoint
@@ -176,26 +176,27 @@ export async function handleMetricsRequest(c: Context<{ Bindings: Env }>): Promi
     // SECURITY: Validate authentication token
     const auth = c.req.header('Authorization')
     if (!auth || !auth.startsWith('Bearer ')) {
-      return createErrorResponse(
-        'Missing or invalid Authorization header. Use: Authorization: Bearer <metrics_token>',
-        401,
-        ErrorCodes.UNAUTHORIZED,
-        { endpoint: '/metrics' },
-        null,
-      )
+      return createProblemResponse(ErrorCodes.UNAUTHORIZED, {
+        detail:
+          'Missing or invalid Authorization header. Use: Authorization: Bearer <metrics_token>',
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        details: { endpoint: '/metrics' },
+        corsRequest: null,
+      })
     }
 
     const token = auth.substring(7) // Remove "Bearer " prefix
     const expectedToken = c.env.METRICS_API_KEY || 'metrics_default_key'
 
     if (token !== expectedToken) {
-      return createErrorResponse(
-        'Invalid metrics API key',
-        403,
-        ErrorCodes.FORBIDDEN,
-        { endpoint: '/metrics' },
-        null,
-      )
+      return createProblemResponse(ErrorCodes.FORBIDDEN, {
+        detail: 'Invalid metrics API key',
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        details: { endpoint: '/metrics' },
+        corsRequest: null,
+      })
     }
 
     const url = new URL(c.req.url)
@@ -205,13 +206,13 @@ export async function handleMetricsRequest(c: Context<{ Bindings: Env }>): Promi
     // Validate period
     const validPeriods = ['minute', 'hour', 'day', 'total']
     if (!validPeriods.includes(period)) {
-      return createErrorResponse(
-        `Period must be one of: ${validPeriods.join(', ')}`,
-        400,
-        ErrorCodes.INVALID_REQUEST,
-        { parameter: 'period', provided: period, valid: validPeriods },
-        null,
-      )
+      return createProblemResponse(ErrorCodes.INVALID_REQUEST, {
+        detail: `Period must be one of: ${validPeriods.join(', ')}`,
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        details: { parameter: 'period', provided: period, valid: validPeriods },
+        corsRequest: null,
+      })
     }
 
     // Check cache first (5min TTL)
@@ -253,13 +254,13 @@ export async function handleMetricsRequest(c: Context<{ Bindings: Env }>): Promi
     })
   } catch (error) {
     console.error('[Metrics Handler] Error:', error)
-    return createErrorResponse(
-      'Failed to fetch metrics',
-      500,
-      ErrorCodes.INTERNAL_ERROR,
-      { details: error instanceof Error ? error.message : String(error) },
-      null,
-    )
+    return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+      detail: 'Failed to fetch metrics',
+      instance: c.req.url,
+      requestId: c.get('ctx')?.requestId,
+      details: { details: error instanceof Error ? error.message : String(error) },
+      corsRequest: null,
+    })
   }
 }
 

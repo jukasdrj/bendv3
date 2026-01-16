@@ -12,7 +12,7 @@
 
 import { findSimilarBooks, semanticSearch } from '../services/embedding-service.js'
 import type { Env } from '../types/env.js'
-import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder.js'
+import { createProblemResponse, ErrorCodes } from '../utils/http/response-builder.js'
 
 // ============================================================================
 // Handlers
@@ -34,17 +34,23 @@ export async function handleSimilarBooks(request: Request, env: Env): Promise<Re
 
   // Validate ISBN parameter
   if (!isbn) {
-    return createErrorResponse('Missing required parameter: isbn', 400, ErrorCodes.INVALID_REQUEST)
+    return createProblemResponse(ErrorCodes.INVALID_REQUEST, {
+      detail: 'Missing required parameter: isbn',
+      instance: c.req.url,
+      requestId: c.get('ctx')?.requestId,
+      corsRequest: c.req.raw,
+    })
   }
 
   // Validate ISBN format
   const cleanIsbn = isbn.replace(/[-\s]/g, '')
   if (!/^\d{10}$|^\d{13}$/.test(cleanIsbn)) {
-    return createErrorResponse(
-      'Invalid ISBN format. Must be ISBN-10 or ISBN-13.',
-      400,
-      ErrorCodes.INVALID_REQUEST,
-    )
+    return createProblemResponse(ErrorCodes.INVALID_REQUEST, {
+      detail: 'Invalid ISBN format. Must be ISBN-10 or ISBN-13.',
+      instance: c.req.url,
+      requestId: c.get('ctx')?.requestId,
+      corsRequest: c.req.raw,
+    })
   }
 
   // Parse limit (default: 10, max: 50)
@@ -59,11 +65,12 @@ export async function handleSimilarBooks(request: Request, env: Env): Promise<Re
       const vectorize = (env as unknown as { BOOK_VECTORS?: unknown }).BOOK_VECTORS
 
       if (!vectorize) {
-        return createErrorResponse(
-          'Semantic search is not configured. Vectorize binding required.',
-          503,
-          'FEATURE_NOT_AVAILABLE',
-        )
+        return createProblemResponse('FEATURE_NOT_AVAILABLE', {
+          detail: 'Semantic search is not configured. Vectorize binding required.',
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
+          corsRequest: c.req.raw,
+        })
       }
     }
 
@@ -84,7 +91,12 @@ export async function handleSimilarBooks(request: Request, env: Env): Promise<Re
   } catch (error) {
     console.error('[SemanticSearch] Similar books error:', error)
 
-    return createErrorResponse('Failed to find similar books', 500, ErrorCodes.INTERNAL_ERROR)
+    return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+      detail: 'Failed to find similar books',
+      instance: c.req.url,
+      requestId: c.get('ctx')?.requestId,
+      corsRequest: c.req.raw,
+    })
   }
 }
 
@@ -105,11 +117,12 @@ export async function handleSemanticSearch(request: Request, env: Env): Promise<
 
   // Validate query parameter
   if (!q || q.trim().length === 0) {
-    return createErrorResponse(
-      'Missing required parameter: q (search query)',
-      400,
-      ErrorCodes.INVALID_REQUEST,
-    )
+    return createProblemResponse(ErrorCodes.INVALID_REQUEST, {
+      detail: 'Missing required parameter: q (search query)',
+      instance: c.req.url,
+      requestId: c.get('ctx')?.requestId,
+      corsRequest: c.req.raw,
+    })
   }
 
   // Sanitize and limit query length
@@ -126,11 +139,12 @@ export async function handleSemanticSearch(request: Request, env: Env): Promise<
       const vectorize = (env as unknown as { BOOK_VECTORS?: unknown }).BOOK_VECTORS
 
       if (!vectorize) {
-        return createErrorResponse(
-          'Semantic search is not configured. Vectorize binding required.',
-          503,
-          'FEATURE_NOT_AVAILABLE',
-        )
+        return createProblemResponse('FEATURE_NOT_AVAILABLE', {
+          detail: 'Semantic search is not configured. Vectorize binding required.',
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
+          corsRequest: c.req.raw,
+        })
       }
     }
 
@@ -151,6 +165,11 @@ export async function handleSemanticSearch(request: Request, env: Env): Promise<
   } catch (error) {
     console.error('[SemanticSearch] Search error:', error)
 
-    return createErrorResponse('Semantic search failed', 500, ErrorCodes.INTERNAL_ERROR)
+    return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+      detail: 'Semantic search failed',
+      instance: c.req.url,
+      requestId: c.get('ctx')?.requestId,
+      corsRequest: c.req.raw,
+    })
   }
 }

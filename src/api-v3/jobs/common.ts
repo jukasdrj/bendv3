@@ -18,15 +18,30 @@ import type { Env } from '../../types/env'
  * CRITICAL: Keep in sync with src/types/durable-objects.ts and actual DO implementation
  */
 export interface JobStateManagerDO {
-  initializeJobState(jobId: string, type: string, totalCount: number): Promise<{success: boolean}>
+  initializeJobState(jobId: string, type: string, totalCount: number): Promise<{ success: boolean }>
   updateProgress(progress: number, processedCount: number): Promise<void>
   getJobState(): Promise<any>
   complete(results?: any): Promise<void>
-  sendError(pipeline: string, error: { code: string; message: string; retryable?: boolean; details?: Record<string, unknown> }): Promise<{success: boolean}>
+  sendError(
+    pipeline: string,
+    error: {
+      code: string
+      message: string
+      retryable?: boolean
+      details?: Record<string, unknown>
+    },
+  ): Promise<{ success: boolean }>
   // REQUIRED methods (not optional!) - alarm-based processing
-  scheduleCSVProcessing(csvText: string, jobId: string): Promise<{success: boolean}>
-  scheduleBookshelfScanProcessing(scanImageR2Keys: string[], jobId: string): Promise<{success: boolean}>
-  scheduleBatchEnrichmentProcessing(isbns: string[], options: {includeEmbedding: boolean}, jobId: string): Promise<{success: boolean}>
+  scheduleCSVProcessing(csvText: string, jobId: string): Promise<{ success: boolean }>
+  scheduleBookshelfScanProcessing(
+    scanImageR2Keys: string[],
+    jobId: string,
+  ): Promise<{ success: boolean }>
+  scheduleBatchEnrichmentProcessing(
+    isbns: string[],
+    options: { includeEmbedding: boolean },
+    jobId: string,
+  ): Promise<{ success: boolean }>
 }
 
 /**

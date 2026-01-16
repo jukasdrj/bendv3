@@ -9,7 +9,7 @@
 
 import * as externalApis from '../services/external-apis'
 import type { Env } from '../types/env.js'
-import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
+import { createProblemResponse, ErrorCodes } from '../utils/http/response-builder'
 import { transformWorkToGoogleFormat, type Work } from '../utils/transform/transform-work'
 
 // ============================================================================
@@ -218,11 +218,12 @@ export async function handleAdvancedSearch(
       })
     }
     // Only true errors return success: false
-    return createErrorResponse(
-      negativeCache.error,
-      negativeCache.status || 500,
-      ErrorCodes.PROVIDER_ERROR,
-    )
+    return createProblemResponse(ErrorCodes.PROVIDER_ERROR, {
+      detail: negativeCache.error,
+      instance: c.req.url,
+      requestId: c.get('ctx')?.requestId,
+      corsRequest: c.req.raw,
+    })
   }
 
   // Check for in-flight request (request coalescing)
@@ -320,7 +321,12 @@ export async function handleAdvancedSearch(
         )
       }
 
-      return createErrorResponse(errorMessage || 'Search failed', 500, ErrorCodes.INTERNAL_ERROR)
+      return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+        detail: errorMessage || 'Search failed',
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        corsRequest: c.req.raw,
+      })
     } finally {
       // Clean up in-flight request
       IN_FLIGHT_REQUESTS.delete(cacheKey)

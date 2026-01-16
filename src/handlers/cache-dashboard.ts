@@ -13,7 +13,7 @@
 import type { Context } from 'hono'
 import { checkAlertThresholds } from '../services/alert-monitor'
 import { aggregateMetrics } from '../services/metrics-aggregator'
-import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
+import { createProblemResponse, ErrorCodes } from '../utils/http/response-builder'
 
 /**
  * Get cache health status
@@ -178,13 +178,13 @@ export async function handleCacheDashboard(c: Context) {
     )
   } catch (error) {
     console.error('[Cache Dashboard] Dashboard request failed:', error)
-    return createErrorResponse(
-      `Failed to load cache dashboard: ${(error as Error).message}`,
-      500,
-      ErrorCodes.INTERNAL_ERROR,
-      { details: (error as Error).message },
-      c.req.raw,
-    )
+    return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+      detail: `Failed to load cache dashboard: ${(error as Error).message}`,
+      instance: c.req.url,
+      requestId: c.get('ctx')?.requestId,
+      details: { details: (error as Error).message },
+      corsRequest: c.req.raw,
+    })
   }
 }
 
@@ -202,13 +202,13 @@ export async function handleCacheHealth(c: Context) {
     })
   } catch (error) {
     console.error('[Cache Dashboard] Health check failed:', error)
-    return createErrorResponse(
-      `Failed to check cache health: ${(error as Error).message}`,
-      500,
-      ErrorCodes.INTERNAL_ERROR,
-      { details: (error as Error).message },
-      c.req.raw,
-    )
+    return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+      detail: `Failed to check cache health: ${(error as Error).message}`,
+      instance: c.req.url,
+      requestId: c.get('ctx')?.requestId,
+      details: { details: (error as Error).message },
+      corsRequest: c.req.raw,
+    })
   }
 }
 
@@ -222,13 +222,13 @@ export async function handleCacheAlerts(c: Context) {
     const limit = limitParam ? parseInt(limitParam, 10) : 20
 
     if (Number.isNaN(limit) || limit < 1 || limit > 100) {
-      return createErrorResponse(
-        'Invalid limit parameter (must be 1-100)',
-        400,
-        ErrorCodes.INVALID_REQUEST,
-        { limit: limitParam },
-        c.req.raw,
-      )
+      return createProblemResponse(ErrorCodes.INVALID_REQUEST, {
+        detail: 'Invalid limit parameter (must be 1-100)',
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        details: { limit: limitParam },
+        corsRequest: c.req.raw,
+      })
     }
 
     const alerts = await getRecentAlerts(c.env, limit)
@@ -246,12 +246,12 @@ export async function handleCacheAlerts(c: Context) {
     )
   } catch (error) {
     console.error('[Cache Dashboard] Alert history request failed:', error)
-    return createErrorResponse(
-      `Failed to fetch alert history: ${(error as Error).message}`,
-      500,
-      ErrorCodes.INTERNAL_ERROR,
-      { details: (error as Error).message },
-      c.req.raw,
-    )
+    return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+      detail: `Failed to fetch alert history: ${(error as Error).message}`,
+      instance: c.req.url,
+      requestId: c.get('ctx')?.requestId,
+      details: { details: (error as Error).message },
+      corsRequest: c.req.raw,
+    })
   }
 }

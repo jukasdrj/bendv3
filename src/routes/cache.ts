@@ -14,7 +14,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { handleCacheMetrics } from '../handlers/cache-metrics.js'
 import type { Env } from '../types/env.js'
-import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
+import { createProblemResponse, ErrorCodes } from '../utils/http/response-builder'
 
 // DO stub interface for CacheMetricsDO
 interface CacheMetricsStub {
@@ -40,13 +40,13 @@ export function createCacheRoutes() {
       return c.json(stats)
     } catch (error) {
       console.error('Error fetching cache stats:', error)
-      return createErrorResponse(
-        'Internal server error while fetching cache statistics',
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        { details: (error as Error).message },
-        c.req.raw,
-      )
+      return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+        detail: 'Internal server error while fetching cache statistics',
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        details: { details: (error as Error).message },
+        corsRequest: c.req.raw,
+      })
     }
   })
 

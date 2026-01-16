@@ -10,7 +10,7 @@
 
 import { OpenAPIHono } from '@hono/zod-openapi'
 import type { Env } from '../types/env.js'
-import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
+import { createProblemResponse, ErrorCodes } from '../utils/http/response-builder'
 
 export function createAdminRoutes() {
   const router = new OpenAPIHono<{ Bindings: Env }>()
@@ -27,13 +27,13 @@ export function createAdminRoutes() {
       })
     } catch (error) {
       console.error('Failed to trigger recommendations cron:', error)
-      return createErrorResponse(
-        `Failed to trigger recommendations cron: ${(error as Error).message}`,
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        { details: (error as Error).message },
-        c.req.raw,
-      )
+      return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+        detail: `Failed to trigger recommendations cron: ${(error as Error).message}`,
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        details: { details: (error as Error).message },
+        corsRequest: c.req.raw,
+      })
     }
   })
 

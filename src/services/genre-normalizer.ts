@@ -19,11 +19,11 @@ const CANONICAL_GENRES: Record<string, string[]> = {
   // ============================================================================
 
   'Science Fiction': ['Sci-Fi', 'Science Fiction', 'SF', 'Scifi', 'Sci Fi'],
-  'Fantasy': ['Fantasy', 'Fantasie'],
-  'Mystery': ['Mystery', 'Detective', 'Whodunit', 'Mystrey'],
-  'Thriller': ['Thriller', 'Suspense'],
-  'Romance': ['Romance', 'Love Story'],
-  'Horror': ['Horror', 'Scary'],
+  Fantasy: ['Fantasy', 'Fantasie'],
+  Mystery: ['Mystery', 'Detective', 'Whodunit', 'Mystrey'],
+  Thriller: ['Thriller', 'Suspense'],
+  Romance: ['Romance', 'Love Story'],
+  Horror: ['Horror', 'Scary'],
   'Literary Fiction': ['Literary', 'Literature', 'Literary Fiction'],
   'Historical Fiction': ['Historical Fiction', 'Historical Novel'],
 
@@ -31,13 +31,13 @@ const CANONICAL_GENRES: Record<string, string[]> = {
   // SCIENCE FICTION - Subgenres (10 genres)
   // ============================================================================
 
-  'Cyberpunk': ['Cyberpunk', 'Cyber Punk', 'Cyber-punk'],
-  'Steampunk': ['Steampunk', 'Steam Punk', 'Steam-punk'],
-  'Solarpunk': ['Solarpunk', 'Solar Punk', 'Solar-punk', 'Climate Fiction', 'Cli-Fi'],
+  Cyberpunk: ['Cyberpunk', 'Cyber Punk', 'Cyber-punk'],
+  Steampunk: ['Steampunk', 'Steam Punk', 'Steam-punk'],
+  Solarpunk: ['Solarpunk', 'Solar Punk', 'Solar-punk', 'Climate Fiction', 'Cli-Fi'],
   'Space Opera': ['Space Opera', 'Galactic Empire', 'Space Adventure'],
   'Time Travel': ['Time Travel', 'Time-Travel Fiction', 'Time Travel Fiction'],
-  'Dystopian': ['Dystopian', 'Dystopia', 'Dystopian Fiction'],
-  'Utopian': ['Utopian', 'Utopia'],
+  Dystopian: ['Dystopian', 'Dystopia', 'Dystopian Fiction'],
+  Utopian: ['Utopian', 'Utopia'],
   'Post-Apocalyptic': ['Post-Apocalyptic', 'Post Apocalyptic', 'Apocalyptic', 'Post-Apocalypse'],
   'Hard Science Fiction': ['Hard SF', 'Hard Science Fiction', 'Hard Sci-Fi'],
   'Soft Science Fiction': ['Soft SF', 'Soft Science Fiction', 'Soft Sci-Fi'],
@@ -49,12 +49,12 @@ const CANONICAL_GENRES: Record<string, string[]> = {
   'Epic Fantasy': ['Epic Fantasy', 'High Fantasy'],
   'Urban Fantasy': ['Urban Fantasy'],
   'Dark Fantasy': ['Dark Fantasy'],
-  'Paranormal': ['Paranormal', 'Paranormal Fiction'],
+  Paranormal: ['Paranormal', 'Paranormal Fiction'],
   'Cozy Fantasy': ['Cozy Fantasy', 'Low-Stakes Fantasy', 'Comfort Fantasy'], // 2026 trend
   'Fairy Tales': ['Fairy Tale', 'Fairy Tales', 'Fairytale', 'Fairy tale'],
   'Magical Realism': ['Magical Realism', 'Magic Realism'],
   'Sword & Sorcery': ['Sword and Sorcery', 'Sword & Sorcery', 'Sword and sorcery'],
-  'Romantasy': ['Romantasy', 'Fantasy Romance'], // 2026 trend
+  Romantasy: ['Romantasy', 'Fantasy Romance'], // 2026 trend
   'Portal Fantasy': ['Portal Fantasy', 'Isekai'],
 
   // ============================================================================
@@ -63,10 +63,10 @@ const CANONICAL_GENRES: Record<string, string[]> = {
 
   'Cozy Mystery': ['Cozy Mystery', 'Cosy Mystery'],
   'Police Procedural': ['Police Procedural'],
-  'Noir': ['Noir', 'Hardboiled', 'Hard-boiled', 'Hard boiled'],
+  Noir: ['Noir', 'Hardboiled', 'Hard-boiled', 'Hard boiled'],
   'Crime Fiction': ['Crime Fiction', 'Crime'],
   'Legal Thriller': ['Legal Thriller', 'Courtroom Drama', 'Legal Drama'],
-  'Espionage': ['Spy Thriller', 'Espionage', 'Spy Fiction', 'Spy'],
+  Espionage: ['Spy Thriller', 'Espionage', 'Spy Fiction', 'Spy'],
   'Psychological Thriller': ['Psychological Thriller', 'Psychological Suspense'],
   'Domestic Suspense': ['Domestic Thriller', 'Domestic Suspense'], // 2026 trend
   'Techno-Thriller': ['Techno-Thriller', 'Tech Thriller', 'Technology Thriller', 'Techno Thriller'], // 2026 trend
@@ -85,7 +85,13 @@ const CANONICAL_GENRES: Record<string, string[]> = {
   'Romantic Comedy': ['Rom-Com', 'Romantic Comedy', 'RomCom', 'Rom Com'],
   'New Adult Romance': ['New Adult', 'NA Romance', 'NA'],
   'Erotic Romance': ['Erotic Romance', 'Erotica'],
-  'LGBTQ+ Romance': ['LGBTQ Romance', 'Queer Romance', 'Gay Romance', 'Lesbian Romance', 'LGBTQ+ Romance'],
+  'LGBTQ+ Romance': [
+    'LGBTQ Romance',
+    'Queer Romance',
+    'Gay Romance',
+    'Lesbian Romance',
+    'LGBTQ+ Romance',
+  ],
   'Western Romance': ['Western Romance', 'Cowboy Romance'],
 
   // ============================================================================
@@ -98,62 +104,62 @@ const CANONICAL_GENRES: Record<string, string[]> = {
   'Psychological Horror': ['Psychological Horror'],
   'Supernatural Horror': ['Supernatural Horror', 'Supernatural'],
   'Body Horror': ['Body Horror'],
-  'Splatterpunk': ['Splatterpunk', 'Extreme Horror'],
+  Splatterpunk: ['Splatterpunk', 'Extreme Horror'],
   'Ghost Stories': ['Ghost Story', 'Ghost Stories', 'Haunted House', 'Ghosts'],
 
   // ============================================================================
   // NON-FICTION - Core Categories (7 genres)
   // ============================================================================
 
-  'Biography': ['Biography', 'Memoir', 'Autobiography', 'Biographies'],
-  'History': ['History', 'Historical'],
-  'Science': ['Science', 'Popular Science'],
-  'Philosophy': ['Philosophy', 'Philosophical'],
+  Biography: ['Biography', 'Memoir', 'Autobiography', 'Biographies'],
+  History: ['History', 'Historical'],
+  Science: ['Science', 'Popular Science'],
+  Philosophy: ['Philosophy', 'Philosophical'],
   'Self-Help': ['Self-Help', 'Self Improvement', 'Personal Development', 'Self Help'],
-  'Business': ['Business', 'Economics', 'Entrepreneurship'],
+  Business: ['Business', 'Economics', 'Entrepreneurship'],
   'True Crime': ['True Crime', 'Crime'],
 
   // ============================================================================
   // NON-FICTION - Expanded Categories (15 genres)
   // ============================================================================
 
-  'Psychology': ['Psychology', 'Behavioral Science'],
+  Psychology: ['Psychology', 'Behavioral Science'],
   'Health & Wellness': ['Health', 'Wellness', 'Fitness', 'Health & Wellness'],
-  'Spirituality': ['Spirituality', 'Religion', 'Faith', 'Religious'],
-  'Travel': ['Travel', 'Travel Writing'],
-  'Cookbooks': ['Cookbook', 'Cooking', 'Recipes', 'Cookbooks'],
+  Spirituality: ['Spirituality', 'Religion', 'Faith', 'Religious'],
+  Travel: ['Travel', 'Travel Writing'],
+  Cookbooks: ['Cookbook', 'Cooking', 'Recipes', 'Cookbooks'],
   'Art & Photography': ['Art', 'Photography', 'Design'],
-  'Music': ['Music', 'Music Theory'],
-  'Technology': ['Technology', 'Computing', 'Programming', 'Tech'],
-  'Nature': ['Nature', 'Natural History', 'Environment', 'Environmental'],
-  'Politics': ['Politics', 'Political Science', 'Government'],
-  'Sports': ['Sports', 'Athletics'],
-  'Humor': ['Humor', 'Comedy', 'Satire', 'Humour'],
-  'Essays': ['Essays', 'Essay Collection', 'Essay'],
-  'Education': ['Education', 'Teaching', 'Learning'],
-  'Parenting': ['Parenting', 'Childcare', 'Family'],
+  Music: ['Music', 'Music Theory'],
+  Technology: ['Technology', 'Computing', 'Programming', 'Tech'],
+  Nature: ['Nature', 'Natural History', 'Environment', 'Environmental'],
+  Politics: ['Politics', 'Political Science', 'Government'],
+  Sports: ['Sports', 'Athletics'],
+  Humor: ['Humor', 'Comedy', 'Satire', 'Humour'],
+  Essays: ['Essays', 'Essay Collection', 'Essay'],
+  Education: ['Education', 'Teaching', 'Learning'],
+  Parenting: ['Parenting', 'Childcare', 'Family'],
 
   // ============================================================================
   // AGE GROUPS (3 genres)
   // ============================================================================
 
   'Young Adult': ['Young Adult', 'YA', 'Teen'],
-  "Children's": ["Children's", 'Kids', 'Juvenile', 'Children', "Childrens"],
+  "Children's": ["Children's", 'Kids', 'Juvenile', 'Children', 'Childrens'],
   'Middle Grade': ['Middle Grade', 'MG'],
 
   // ============================================================================
   // SPECIAL CATEGORIES (10 genres)
   // ============================================================================
 
-  'Classics': ['Classic', 'Classics', 'Classical'],
-  'Contemporary': ['Contemporary', 'Modern'],
+  Classics: ['Classic', 'Classics', 'Classical'],
+  Contemporary: ['Contemporary', 'Modern'],
   'Graphic Novels': ['Graphic Novel', 'Comics', 'Manga', 'Webcomic', 'Comic'],
-  'Poetry': ['Poetry', 'Poems', 'Verse'],
-  'Fiction': ['Fiction', 'General Fiction'],
-  'Drama': ['Drama', 'Plays', 'Theatre', 'Theater'],
+  Poetry: ['Poetry', 'Poems', 'Verse'],
+  Fiction: ['Fiction', 'General Fiction'],
+  Drama: ['Drama', 'Plays', 'Theatre', 'Theater'],
   'Short Stories': ['Short Story', 'Short Stories', 'Story Collection', 'Short Fiction'],
-  'Anthologies': ['Anthology', 'Anthologies', 'Collection'],
-  'LitRPG': ['LitRPG', 'Lit RPG', 'GameLit', 'Game Literature'],
+  Anthologies: ['Anthology', 'Anthologies', 'Collection'],
+  LitRPG: ['LitRPG', 'Lit RPG', 'GameLit', 'Game Literature'],
   'Alternate History': ['Alternate History', 'Alternative History', 'What If', 'Alternate history'],
 }
 
@@ -174,8 +180,16 @@ const PROVIDER_MAPPINGS: Record<string, string[]> = {
   'Fiction / Science Fiction / Steampunk': ['Steampunk', 'Science Fiction', 'Fiction'],
   'Fiction / Science Fiction / Space Opera': ['Space Opera', 'Science Fiction', 'Fiction'],
   'Fiction / Science Fiction / Time Travel': ['Time Travel', 'Science Fiction', 'Fiction'],
-  'Fiction / Science Fiction / Post-Apocalyptic': ['Post-Apocalyptic', 'Science Fiction', 'Fiction'],
-  'Fiction / Science Fiction / Hard Science Fiction': ['Hard Science Fiction', 'Science Fiction', 'Fiction'],
+  'Fiction / Science Fiction / Post-Apocalyptic': [
+    'Post-Apocalyptic',
+    'Science Fiction',
+    'Fiction',
+  ],
+  'Fiction / Science Fiction / Hard Science Fiction': [
+    'Hard Science Fiction',
+    'Science Fiction',
+    'Fiction',
+  ],
 
   // Fantasy subgenres
   'Fiction / Fantasy / General': ['Fantasy', 'Fiction'],
@@ -286,10 +300,10 @@ const PROVIDER_MAPPINGS: Record<string, string[]> = {
 
   'Sci-fi dystopia': ['Science Fiction', 'Dystopian'],
   'Cozy fantasy': ['Cozy Fantasy', 'Fantasy'],
-  'Romantasy': ['Romantasy', 'Romance', 'Fantasy'],
+  Romantasy: ['Romantasy', 'Romance', 'Fantasy'],
   'Techno-thriller': ['Techno-Thriller', 'Thriller'],
   'Folk horror': ['Folk Horror', 'Horror'],
-  'LitRPG': ['LitRPG', 'Fantasy'],
+  LitRPG: ['LitRPG', 'Fantasy'],
 }
 
 /**

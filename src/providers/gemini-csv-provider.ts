@@ -216,10 +216,16 @@ Always return ONLY a valid JSON array. Do not include explanatory text.`,
       // DEBUG: Log request payload size and CSV truncation check
       console.log(`[GeminiCSVProvider] Request payload size: ${requestBodyStr.length} bytes`)
       console.log(`[GeminiCSVProvider] Original CSV size: ${csvText.length} bytes`)
-      console.log(`[GeminiCSVProvider] CSV in payload: ${requestBodyStr.includes(csvText.slice(-100)) ? 'FULL' : 'TRUNCATED'}`)
+      console.log(
+        `[GeminiCSVProvider] CSV in payload: ${requestBodyStr.includes(csvText.slice(-100)) ? 'FULL' : 'TRUNCATED'}`,
+      )
       if (!requestBodyStr.includes(csvText.slice(-100))) {
-        console.warn(`[GeminiCSVProvider] ⚠️ CSV TRUNCATED! Last 50 chars of original: ${csvText.slice(-50)}`)
-        console.warn(`[GeminiCSVProvider] ⚠️ CSV TRUNCATED! Last 100 chars in request: ${requestBodyStr.slice(-100)}`)
+        console.warn(
+          `[GeminiCSVProvider] ⚠️ CSV TRUNCATED! Last 50 chars of original: ${csvText.slice(-50)}`,
+        )
+        console.warn(
+          `[GeminiCSVProvider] ⚠️ CSV TRUNCATED! Last 100 chars in request: ${requestBodyStr.slice(-100)}`,
+        )
       }
 
       const res = await fetch(endpoint, {

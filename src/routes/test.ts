@@ -11,7 +11,7 @@
 
 import { OpenAPIHono } from '@hono/zod-openapi'
 import type { Env } from '../types/env.js'
-import { createErrorResponse, ErrorCodes } from '../utils/http/response-builder'
+import { createProblemResponse, ErrorCodes } from '../utils/http/response-builder'
 
 // DO stub interfaces for RPC calls
 interface CacheMetricsStub {
@@ -34,13 +34,12 @@ export function createTestRoutes() {
   // Middleware: Only allow in DEBUG mode
   router.use('*', async (c, next) => {
     if (c.env.LOG_LEVEL !== 'DEBUG') {
-      return createErrorResponse(
-        `Endpoint not found: ${c.req.method} ${c.req.path}`,
-        404,
-        ErrorCodes.NOT_FOUND,
-        undefined,
-        c.req.raw,
-      )
+      return createProblemResponse(ErrorCodes.NOT_FOUND, {
+        detail: `Endpoint not found: ${c.req.method} ${c.req.path}`,
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        corsRequest: c.req.raw,
+      })
     }
     return await next()
   })
@@ -98,13 +97,13 @@ export function createTestRoutes() {
       })
     } catch (error) {
       console.error('Failed to send test cache events:', error)
-      return createErrorResponse(
-        'Failed to send test cache events',
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        { details: (error as Error).message },
-        c.req.raw,
-      )
+      return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+        detail: 'Failed to send test cache events',
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        details: { details: (error as Error).message },
+        corsRequest: c.req.raw,
+      })
     }
   })
 
@@ -116,13 +115,13 @@ export function createTestRoutes() {
 
       // Validation
       if (!Number.isInteger(iterations) || iterations < 1 || iterations > 10000) {
-        return createErrorResponse(
-          'iterations must be an integer between 1 and 10000',
-          400,
-          ErrorCodes.INVALID_REQUEST,
-          { parameter: 'iterations', min: 1, max: 10000 },
-          c.req.raw,
-        )
+        return createProblemResponse(ErrorCodes.INVALID_REQUEST, {
+          detail: 'iterations must be an integer between 1 and 10000',
+          instance: c.req.url,
+          requestId: c.get('ctx')?.requestId,
+          details: { parameter: 'iterations', min: 1, max: 10000 },
+          corsRequest: c.req.raw,
+        })
       }
 
       // Get LatencyTestDO stub
@@ -135,13 +134,13 @@ export function createTestRoutes() {
       return c.json(result)
     } catch (error) {
       console.error('[RPC Latency Test] Error:', error)
-      return createErrorResponse(
-        `Failed to measure RPC latency: ${(error as Error).message}`,
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        { details: (error as Error).message },
-        c.req.raw,
-      )
+      return createProblemResponse(ErrorCodes.INTERNAL_ERROR, {
+        detail: `Failed to measure RPC latency: ${(error as Error).message}`,
+        instance: c.req.url,
+        requestId: c.get('ctx')?.requestId,
+        details: { details: (error as Error).message },
+        corsRequest: c.req.raw,
+      })
     }
   })
 

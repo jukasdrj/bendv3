@@ -172,9 +172,14 @@ Returns immediately with jobId for progress tracking via SSE stream.
       console.log(`[V3 Import] 📊 CSV line count: ${csvText.split('\n').length} lines`)
       console.log(`[V3 Import] 🔍 First 100 chars: ${csvText.slice(0, 100)}`)
       console.log(`[V3 Import] 🔍 Last 100 chars: ${csvText.slice(-100)}`)
-      console.log(`[V3 Import] Calling scheduleCSVProcessing for job ${jobId}, CSV size: ${csvText.length} bytes`)
+      console.log(
+        `[V3 Import] Calling scheduleCSVProcessing for job ${jobId}, CSV size: ${csvText.length} bytes`,
+      )
       const csvProcessingPromise = doStub.scheduleCSVProcessing(csvText, jobId)
-      console.log(`[V3 Import] scheduleCSVProcessing returned promise:`, typeof csvProcessingPromise)
+      console.log(
+        `[V3 Import] scheduleCSVProcessing returned promise:`,
+        typeof csvProcessingPromise,
+      )
       c.executionCtx.waitUntil(csvProcessingPromise)
 
       const streamUrl = buildStreamUrl(c.req.url, 'imports', jobId)
