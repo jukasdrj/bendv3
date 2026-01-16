@@ -236,6 +236,11 @@ packages/
 **📋 See [TODO.md](TODO.md) for complete sprint planning and prioritized work items**
 
 **Recent Completions:**
+- ✅ **RFC 9457 Error Schema Migration** 📐 (Jan 16, 2026)
+  - Migrated all legacy `/api/*` routes to RFC 9457 Problem Details format
+  - 55 error call sites updated across 18 files
+  - Unified error format API-wide (V3 + legacy routes)
+  - Zero breaking changes, 290 smoke tests passing
 - ✅ **Alexandria v2.8.0 Upgrade** 🚀 (Jan 14, 2026)
   - Updated from v2.4.0 → v2.8.0 (4 minor versions)
   - Service Provider Framework updates with improved orchestration
@@ -302,7 +307,7 @@ packages/
 
 ---
 
-**Last Updated:** January 14, 2026
-**Last Reviewed:** January 14, 2026
+**Last Updated:** January 16, 2026
+**Last Reviewed:** January 16, 2026
 **Maintained by:** Justin Gardner (@jukasdrj)
 **Full Documentation:** [.claude/CLAUDE.md](.claude/CLAUDE.md)
