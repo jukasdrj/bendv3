@@ -1,5 +1,6 @@
 {
   "respectGitignore": false,
+  "plansDirectory": ".claude/plans",
   "attribution": {
     "pr": "🤖 Generated with [Claude Code](https://claude.ai/claude-code)",
     "commit": "🤖 Generated with [Claude Code](https://claude.ai/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>"

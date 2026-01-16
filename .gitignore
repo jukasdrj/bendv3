@@ -66,3 +66,8 @@ rollback-wrangler-fixes.sh
 task_plan.md
 findings.md
 progress.md
+
+# Claude Code plans directory (session-specific, except docs)
+.claude/plans/*
+!.claude/plans/README.md
+!.claude/plans/SETUP.md
