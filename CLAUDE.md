@@ -237,10 +237,11 @@ packages/
 
 **Recent Completions:**
 - ✅ **RFC 9457 Error Schema Migration** 📐 (Jan 16, 2026)
-  - Migrated all legacy `/api/*` routes to RFC 9457 Problem Details format
+  - Unified ALL routes to RFC 9457 Problem Details format (V3 + non-V3)
   - 55 error call sites updated across 18 files
-  - Unified error format API-wide (V3 + legacy routes)
+  - Migrated: `/api/*` (jobs, cache), `/ws/*`, `/admin/*`, `/test/*`, handlers
   - Zero breaking changes, 290 smoke tests passing
+  - **Note:** Non-V3 routes are production infrastructure, not deprecated
 - ✅ **Alexandria v2.8.0 Upgrade** 🚀 (Jan 14, 2026)
   - Updated from v2.4.0 → v2.8.0 (4 minor versions)
   - Service Provider Framework updates with improved orchestration

@@ -3,7 +3,7 @@
 **Project:** BooksTrack Cloudflare Workers API
 **Stack:** Node.js, Cloudflare Workers, Durable Objects, KV Cache, D1 Database
 **Production:** https://api.oooefam.net
-**Updated:** January 3, 2026
+**Updated:** January 16, 2026
 
 ---
 
@@ -16,6 +16,17 @@
 - Single worker deployment for simplicity
 
 ### 2. API Design Patterns
+
+**Routing Architecture:**
+- **`/v3/*`** - Public RESTful API (books, search, jobs, webhooks)
+- **`/api/*`** - Infrastructure routes (job state, cache, recommendations)
+- **`/ws/*`** - WebSocket connections (real-time progress)
+- **`/admin/*`** - Admin operations (cron triggers, etc.)
+- **`/test/*`** - Debug endpoints (DEBUG mode only)
+- **`/health`, `/metrics`** - System monitoring
+
+**All routes use RFC 9457 for errors** (unified as of Jan 2026)
+
 **Canonical Response Format:**
 ```javascript
 {
@@ -29,14 +40,22 @@
 }
 ```
 
-**Error Response Format (RFC 9457 Problem Details):**
+**Error Response Format (RFC 9457 Problem Details - API-wide):**
 ```javascript
 {
+  success: false,  // Added for iOS client compatibility
   type: 'https://api.oooefam.net/errors/rate-limit',
   title: 'Rate Limit Exceeded',
   status: 429,
   detail: 'You have exceeded the rate limit of 100 requests per minute',
-  instance: '/v3/books/search?q=test'
+  instance: '/v3/books/search?q=test',
+  code: 'RATE_LIMIT_EXCEEDED',
+  retryable: true,
+  retryAfterMs: 60000,
+  metadata: {
+    timestamp: '2026-01-16T12:00:00.000Z',
+    requestId: 'abc-123'
+  }
 }
 ```
 
