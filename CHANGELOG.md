@@ -24,6 +24,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.4.0] - 2026-01-16
+
+### Added
+- **RFC 9457 Error Schema**: Unified all API routes to RFC 9457 Problem Details format
+- **Genre Taxonomy Expansion**: 44 → 92 canonical genres (109% increase, including 2026 trends)
+- **Request Correlation**: `requestId` field in all error responses for distributed tracing
+
+### Changed
+- **Error Format**: All routes now use `application/problem+json` media type
+- **Error Fields**: Added `type`, `title`, `instance`, `code`, `retryable`, `retryAfterMs`, `metadata`
+- **Alexandria Worker**: Upgraded to v2.8.0 (Service Provider Framework improvements)
+- **Route Documentation**: Clarified non-V3 routes are production infrastructure, not legacy
+
+### Fixed
+- **Shelf Scan Validation**: Secrets Store access and results extraction (#253)
+- **Test Suite**: 100% pass rate achieved (1,097 tests passing, 0 failures)
+- **Rate Limiter Test**: Updated to RFC 9457 `detail` field format
+
+### Migration
+```typescript
+// Error handling (backward compatible - check HTTP status OR success field)
+if (response.status >= 400) {
+  // RFC 9457 Problem Details
+  const error = await response.json()
+  console.error(`${error.title}: ${error.detail}`)
+  console.log(`Error code: ${error.code}`) // Machine-readable
+  console.log(`Retryable: ${error.retryable}`) // Retry guidance
+  console.log(`Request ID: ${error.metadata.requestId}`) // Correlation
+}
+```
+
+### Deployment
+- Version: `abcf68b`
+- Health: 🟢 0% error rate, 290 smoke tests passing
+
+---
+
 ## [3.3.0] - 2026-01-05
 
 ### Added

@@ -1,282 +1,130 @@
-# Documentation Audit Plan
-**Project:** BooksTrack Backend (bendv3/packages/api-client)
-**Date:** January 14, 2026
+# Documentation Audit Plan - BooksTrack Backend
 
-## Recommendations
+**Goal:** Identify stale, outdated, or forgotten documentation across the repository, with special focus on RFC 9457 migration, planning files consolidation, and Claude Code 2.1.9+ unified plans directory.
 
-### HIGH PRIORITY
-_(Blocks understanding or onboarding)_
-
-**✅ NONE** - All critical documentation is current and accurate!
-
-The recent updates (Jan 14, 2026) to CLAUDE.md, README.md, and creation of ALEXANDRIA_V2.8.0_UPGRADE.md demonstrate excellent documentation discipline.
+**Date Started:** 2026-01-16
+**Estimated Completion:** 2026-01-16
 
 ---
 
-### MEDIUM PRIORITY
-_(Reduces efficiency)_
+## Audit Phases
 
-#### M1. Archive Large Test Result Files (4.6 MB cleanup)
-**Effort:** 5 minutes
-**Impact:** Cleaner root directory, easier navigation
+### Phase 1: Initial Discovery ✅ COMPLETE
+**Objective:** Map all documentation files across repository
+**Actions:**
+- ✅ Scan root directory for .md files (16 files)
+- ✅ Scan docs/ directory structure (59 files)
+- ✅ Scan .claude/ directory (61 files)
+- ✅ Check for .claude/plans/ directory existence (EXISTS)
+- ✅ Find all planning/task files (30+ files found)
+- ✅ Catalog file counts and locations
 
-**Files to Archive:**
-- `test-results.txt` (1.5 MB)
-- `test-results-import-fixes.txt` (1.5 MB)
-- `test-results-cleanup.txt` (1.5 MB)
-- `FINAL_SUMMARY.txt` (5.9 KB)
+**Results:** ~140 .md files total, .claude/plans/ exists but empty
 
-**Destination:** `archive/2026-01/test-results/`
+### Phase 2: Staleness Analysis ✅ COMPLETE
+**Objective:** Identify outdated content
+**Actions:**
+- ✅ Check for "legacy routes" terminology (4 files, all intentional)
+- ✅ Verify RFC 9457 migration documentation (35 files reference, no guide)
+- ✅ Find references to removed V1/V2 APIs (21 files, mostly intentional)
+- ✅ Identify docs with old dates needing review (CHANGELOG last: Jan 5)
+- ✅ Cross-reference with recent completion dates (Jan 2026)
 
-**Rationale:**
-- These are historical artifacts from Sprint 1-3 (Jan 6-7, 2026)
-- Information already captured in TODO.md and sprint documentation
-- Test pass rate now 100% (1,097 passing) - old results no longer needed
+**Results:** CHANGELOG outdated, RFC 9457 migration guide missing
 
-**Commands:**
-```bash
-mkdir -p archive/2026-01/test-results
-mv test-results*.txt archive/2026-01/test-results/
-mv FINAL_SUMMARY.txt archive/2026-01/test-results/
-```
+### Phase 3: Planning Files Audit ✅ COMPLETE
+**Objective:** Consolidate scattered planning artifacts
+**Actions:**
+- ✅ Check if .claude/plans/ exists (YES, but empty)
+- ✅ Find all plan/task/findings files outside .claude/plans/ (8 in root)
+- ✅ Identify active vs completed planning docs (3 active, 5 completed)
+- ✅ Check docs/archive/ for proper archival (20+ properly archived)
+- ✅ Map planning files to issues/PRs
 
----
+**Results:** 3 active planning files in root (should be in .claude/plans/)
 
-#### M2. Archive Root Status Files
-**Effort:** 5 minutes
-**Impact:** Better root directory organization
+### Phase 4: Documentation Gaps ✅ COMPLETE
+**Objective:** Identify missing or incomplete documentation
+**Actions:**
+- ✅ CHANGELOG review for recent work (missing 6 releases)
+- ✅ RFC 9457 migration guides (MISSING - high priority)
+- ✅ API versioning docs accuracy (GOOD)
+- ✅ ADRs for recent architectural decisions (durable-objects.md exists)
+- ✅ Configuration documentation completeness (scattered in comments)
 
-**Files to Archive:**
-- `TYPESCRIPT_STATUS.md` - Sprint 1 artifact (95.8% type safety achieved)
-- `.laptop-testing-cheatsheet.txt` - May be obsoleted by README_TESTING.md
+**Results:** CHANGELOG gap, RFC 9457 guide missing, config docs scattered
 
-**Destination:** `archive/2026-01/sprint-artifacts/`
+### Phase 5: README Accuracy ✅ COMPLETE
+**Objective:** Validate primary documentation
+**Actions:**
+- ✅ Main README.md current state check (EXCELLENT, all current)
+- ✅ Testing documentation validation (GOOD, README_TESTING.md accurate)
+- ✅ Link verification (all links working)
+- ✅ Quick start accuracy (current)
+- ✅ API endpoint listing current (accurate)
 
-**Rationale:**
-- TypeScript migration complete (100%, all 149 files)
-- Sprint 1 complete with 95.8% type safety
-- README_TESTING.md provides comprehensive testing guide
-- Historical value but not actively needed
+**Results:** All READMEs excellent, no issues found
 
-**Commands:**
-```bash
-mkdir -p archive/2026-01/sprint-artifacts
-mv TYPESCRIPT_STATUS.md archive/2026-01/sprint-artifacts/
-# Optional: Compare .laptop-testing-cheatsheet.txt with README_TESTING.md first
-```
+### Phase 6: Recommendations Report ✅ COMPLETE
+**Objective:** Produce prioritized action plan
+**Actions:**
+- ✅ Categorize findings (3 HIGH, 3 MEDIUM, 3 LOW, 2 OPTIONAL)
+- ✅ Create specific file paths for changes
+- ✅ Draft consolidation/archival recommendations
+- ✅ Suggest new documentation needs
 
----
-
-### LOW PRIORITY
-_(Polish and minor improvements)_
-
-#### L1. Update docs/INDEX.md Project Status
-**Effort:** 2 minutes
-**Impact:** Accurate status representation
-
-**File:** `docs/INDEX.md:101`
-
-**Current:**
-```markdown
-**Current Phase:** Sprint 3 Planning (as of Jan 11, 2026) - 100% Test Pass Rate Achieved! 🎉
-```
-
-**Proposed:**
-```markdown
-**Current Phase:** Maintenance Mode (as of Jan 14, 2026) - All Sprints Complete! 🎉
-```
-
-**Rationale:**
-- TODO.md shows "Maintenance Mode - All Sprints Complete"
-- All sprints (1-4) complete as of Jan 14, 2026
-- No active P0/P1 issues
-- Only 1 P3 issue (#258, blocked by Alexandria)
+**Results:** 11 recommendations created, 3-phase execution plan
 
 ---
 
-#### L2. Consider Maintenance Mode Documentation (Optional)
-**Effort:** 30-60 minutes
-**Impact:** Clarity for future development
+## Success Criteria
 
-**Proposed File:** `docs/MAINTENANCE_MODE.md`
+- ✅ All .md files cataloged (~140 files)
+- ✅ Stale references identified with specific locations
+- ✅ Planning files consolidation plan created
+- ✅ Documentation gaps listed with recommendations
+- ✅ Prioritized action items for human review
 
-**Suggested Content:**
-```markdown
-# Maintenance Mode Guide
+**ALL SUCCESS CRITERIA MET!**
 
-**Entered:** January 14, 2026
-**Status:** ✅ Active
+## Audit Summary
 
-## What Maintenance Mode Means
-- All planned sprints (1-4) complete
-- 100% test pass rate (1,097 passing)
-- 0% error rate in production
-- No active P0/P1 issues
-- Only bug fixes and security updates
+**Documentation Health:** 8.5/10 - Excellent
 
-## When to Exit Maintenance Mode
-- New feature requests from users
-- Breaking changes in dependencies
-- Security vulnerabilities requiring features
+**Strengths:**
+- ✅ Core documentation current (README, TODO, CLAUDE)
+- ✅ Strong archival discipline (docs/archive/2026-01/)
+- ✅ Comprehensive architecture docs
+- ✅ API documentation excellent
+- ✅ Testing guidance clear
 
-## Monitoring Guidelines
-- Weekly: Check production error rate
-- Monthly: Review dependency updates
-- Quarterly: Security audit
+**Issues Found:**
+- ⚠️ CHANGELOG outdated (missing Jan 6-16 work)
+- ⚠️ Planning files scattered (3 in root, should be .claude/plans/)
+- ⚠️ 5 completed work docs in root (should archive)
+- ⚠️ RFC 9457 migration guide missing (external consumers need it)
 
-## Issue Triage in Maintenance Mode
-- P0 (Critical): Fix immediately
-- P1 (High): Fix within 1 week
-- P2 (Medium): Defer until batch of 5+ issues
-- P3 (Low): Defer until feature work resumes
-```
+**Total Recommendations:** 11
+- HIGH Priority: 3 (30 min to fix)
+- MEDIUM Priority: 3 (2 hours)
+- LOW Priority: 3 (3-4 hours)
+- OPTIONAL: 2
 
-**Rationale:**
-- Provides clear expectations for maintenance period
-- Helps prioritize future work
-- Documents when to resume active development
-
-**Decision:** OPTIONAL - Current TODO.md may be sufficient
+**Minimum Viable Cleanup:** 30 minutes (Phase 1 only)
+**Complete Cleanup:** 8-10 hours (all phases)
 
 ---
 
-#### L3. Genre Taxonomy Documentation (Optional)
-**Effort:** 20-30 minutes
-**Impact:** Better genre system understanding
+## Errors Encountered
 
-**Proposed File:** `docs/GENRE_TAXONOMY.md`
-
-**Suggested Content:**
-- List of 92 genres (44 original + 48 new from PR #259)
-- 2026 trends: Cozy Fantasy, Romantasy, Gothic Horror, Folk Horror
-- How genres are used in recommendations
-- How to add new genres
-- Testing approach (37 comprehensive tests)
-
-**Rationale:**
-- PR #259 added significant genre expansion (44 → 92 genres)
-- User-facing feature (affects book categorization)
-- May help with future genre additions
-
-**Decision:** OPTIONAL - PR #259 likely has sufficient detail
+| Error | Attempt | Resolution |
+|-------|---------|------------|
+| (none yet) | - | - |
 
 ---
 
-## Execution Details
+## File Locations
 
-### Changes by Category
-
-#### 1. Stale Documentation Updates
-
-**File:** `docs/INDEX.md` (line 101)
-- **Change:** Update project status from "Sprint 3 Planning" to "Maintenance Mode"
-- **Priority:** LOW
-- **Impact:** Improves accuracy of project status
-
-**Before:**
-```markdown
-**Current Phase:** Sprint 3 Planning (as of Jan 11, 2026) - 100% Test Pass Rate Achieved! 🎉
-```
-
-**After:**
-```markdown
-**Current Phase:** Maintenance Mode (as of Jan 14, 2026) - All Sprints Complete! 🎉
-```
-
----
-
-#### 2. Organization Improvements
-
-**Action:** Clean up root directory
-- **Priority:** MEDIUM
-- **Total Impact:** Remove 4.6 MB of historical test files
-- **Improves:** Repository navigation and discoverability
-
-**No structural reorganization needed** - Archive structure is excellent!
-
----
-
-#### 3. Archive Operations
-
-**Operation A: Test Result Files → archive/2026-01/test-results/**
-
-```bash
-cd /Users/juju/dev_repos/bendv3
-mkdir -p archive/2026-01/test-results
-mv test-results.txt archive/2026-01/test-results/
-mv test-results-import-fixes.txt archive/2026-01/test-results/
-mv test-results-cleanup.txt archive/2026-01/test-results/
-mv FINAL_SUMMARY.txt archive/2026-01/test-results/
-```
-
-**Files Moved:** 4 files, 4.6 MB total
-**Rationale:** Historical sprint testing artifacts, information preserved in docs
-
----
-
-**Operation B: Sprint Status Files → archive/2026-01/sprint-artifacts/**
-
-```bash
-cd /Users/juju/dev_repos/bendv3
-mkdir -p archive/2026-01/sprint-artifacts
-mv TYPESCRIPT_STATUS.md archive/2026-01/sprint-artifacts/
-# Optional: mv .laptop-testing-cheatsheet.txt archive/2026-01/sprint-artifacts/
-```
-
-**Files Moved:** 1-2 files
-**Rationale:** Sprint 1 completion artifact, TypeScript migration 100% complete
-
----
-
-**Archive README Creation:**
-
-Create `archive/2026-01/test-results/README.md`:
-```markdown
-# Test Results Archive - January 2026
-
-**Archived:** January 14, 2026
-**Sprint:** Sprint 1-3 completion
-**Final Status:** 100% pass rate (1,097 tests passing)
-
-## Files
-
-- `test-results.txt` - Initial test suite run (Jan 7, 2026)
-- `test-results-import-fixes.txt` - Post-import-fix results
-- `test-results-cleanup.txt` - Post-cleanup results
-- `FINAL_SUMMARY.txt` - Sprint 3 completion summary
-
-## Current Test Status
-
-See `TODO.md` for current test suite status:
-- **Smoke Tests:** 293 passing | 2 skipped (100% pass rate)
-- **Unit Tests:** 804 passing | 4 skipped (100% pass rate)
-- **Total:** 1,097 passing | 6 skipped (100% pass rate)
-
-## Restoration
-
-These files are historical artifacts and should not need restoration.
-If needed, they are preserved in git history.
-```
-
----
-
-#### 4. New Documentation Needed
-
-**Status:** NO CRITICAL GAPS ✅
-
-All recent changes are properly documented:
-- ✅ Alexandria v2.8.0 upgrade (`docs/ALEXANDRIA_V2.8.0_UPGRADE.md`)
-- ✅ Maintenance mode status (`TODO.md`)
-- ✅ Genre taxonomy expansion (PR #259, tracked in TODO.md)
-- ✅ Testing guide (`README_TESTING.md`)
-- ✅ Documentation policy (`docs/DOCUMENTATION_MAINTENANCE.md`)
-
-**Optional Enhancements:**
-- OPTIONAL: `docs/MAINTENANCE_MODE.md` (monitoring guidelines)
-- OPTIONAL: `docs/GENRE_TAXONOMY.md` (genre system reference)
-
-**Decision:** Defer optional docs until needed. Current documentation is excellent!
-
----
-
-_Last Updated: 2026-01-14_
+- **Plan File:** `/Users/juju/dev_repos/bendv3/doc_audit_plan.md`
+- **Findings File:** `/Users/juju/dev_repos/bendv3/doc_audit_findings.md`
+- **Progress File:** `/Users/juju/dev_repos/bendv3/doc_audit_progress.md`
