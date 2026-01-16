@@ -514,7 +514,19 @@ export class JobStateManagerDO extends DurableObject<Env> {
    */
   async scheduleCSVProcessing(csvText: string, jobId: string): Promise<{ success: boolean }> {
     console.log(`[JobStateManager] scheduleCSVProcessing called for job ${jobId}, CSV size: ${csvText.length} bytes`)
+    console.log(`[JobStateManager] 📊 CSV line count before storage: ${csvText.split('\n').length} lines`)
+    console.log(`[JobStateManager] 🔍 Last 100 chars before storage: ${csvText.slice(-100)}`)
+
     await this.ctx.storage.put('csvText', csvText)
+
+    // Verify storage didn't truncate
+    const storedCsv = await this.ctx.storage.get<string>('csvText')
+    console.log(`[JobStateManager] 📦 Stored CSV size: ${storedCsv?.length || 0} bytes`)
+    console.log(`[JobStateManager] 🔍 Last 100 chars after storage: ${storedCsv?.slice(-100) || 'MISSING'}`)
+    if (storedCsv?.length !== csvText.length) {
+      console.error(`[JobStateManager] ⚠️ STORAGE TRUNCATION! Original: ${csvText.length}, Stored: ${storedCsv?.length || 0}`)
+    }
+
     await this.ctx.storage.put('processingType', 'csv_import')
     // CRITICAL: Alarm must be in the future (5s delay for WebSocket connection)
     const alarmTime = Date.now() + 5000
@@ -928,6 +940,11 @@ export class JobStateManagerDO extends DurableObject<Env> {
 
       const csvText = await this.ctx.storage.get<string>('csvText')
       const jobState = await this.ctx.storage.get<JobState>('jobState')
+
+      console.log(`[JobStateManager] 📦 Retrieved CSV from storage: ${csvText?.length || 0} bytes`)
+      console.log(`[JobStateManager] 📊 Retrieved CSV line count: ${csvText?.split('\n').length || 0} lines`)
+      console.log(`[JobStateManager] 🔍 First 100 chars: ${csvText?.slice(0, 100) || 'MISSING'}`)
+      console.log(`[JobStateManager] 🔍 Last 100 chars: ${csvText?.slice(-100) || 'MISSING'}`)
 
       if (!csvText || !jobState) {
         console.error('[JobStateManager] Missing CSV text or job state in alarm handler')
