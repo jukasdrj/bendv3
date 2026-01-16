@@ -116,19 +116,33 @@ export async function scanImageWithGemini(imageData: ArrayBuffer, env: Env): Pro
   if (typeof geminiApiKey === 'object' && geminiApiKey.get) {
     // Production: Secrets Store binding - call .get() to retrieve secret value
     console.log('[GeminiProvider] Using Secrets Store binding (production mode)')
-    apiKey = await geminiApiKey.get()
+    try {
+      apiKey = await geminiApiKey.get()
+      console.log('[GeminiProvider] ✅ Secret retrieved from Secrets Store')
+    } catch (secretError) {
+      console.error('[GeminiProvider] ❌ Failed to retrieve secret from Secrets Store:', secretError)
+      throw new Error(
+        `Failed to retrieve GEMINI_API_KEY from Secrets Store: ${secretError instanceof Error ? secretError.message : 'Unknown error'}`,
+      )
+    }
   } else {
     // Local dev: Plain string
     console.log('[GeminiProvider] Using plain string binding (local dev mode)')
     apiKey = geminiApiKey as string
   }
 
-  if (!apiKey) {
-    console.error('[GeminiProvider] ERROR: GEMINI_API_KEY not configured or empty after resolution')
-    throw new Error('GEMINI_API_KEY not configured')
+  if (!apiKey || apiKey.trim().length === 0) {
+    console.error(
+      '[GeminiProvider] ERROR: GEMINI_API_KEY is empty or whitespace-only after resolution',
+    )
+    console.error('[GeminiProvider] Binding type:', typeof geminiApiKey)
+    console.error('[GeminiProvider] Value length:', apiKey?.length || 0)
+    throw new Error(
+      'GEMINI_API_KEY not configured or empty. Please verify Secrets Store secret "google_gemini_oooebooks" exists and has a value.',
+    )
   }
 
-  console.log('[GeminiProvider] API key retrieved successfully (length:', apiKey.length, ')')
+  console.log('[GeminiProvider] ✅ API key retrieved successfully (length:', apiKey.length, ')')
 
   // Convert ArrayBuffer to base64 (FIXED: Issue #182 - O(n²) to O(n))
   // Before: 5MB image = 60s encoding (string concatenation in loop)
