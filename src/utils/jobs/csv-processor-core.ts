@@ -416,6 +416,96 @@ export async function processCSVCore(
       )
     }
 
+    // FIX: Enrich books inline with Alexandria before returning results
+    // This ensures iOS client receives books with covers and descriptions
+    // Previously: Books returned with coverUrl: undefined, causing iOS to show 0 books
+    //
+    // TIMEOUT PROTECTION: For very large CSVs (>100 books), skip inline enrichment
+    // to avoid Workers CPU timeout. Books will be enriched via background queue instead.
+    const INLINE_ENRICHMENT_LIMIT = 100
+    const shouldEnrichInline = booksWithValidISBN.length <= INLINE_ENRICHMENT_LIMIT
+
+    if (!shouldEnrichInline) {
+      console.log(
+        `[CSV Processor Core] ⚠️ Skipping inline enrichment for ${booksWithValidISBN.length} books (exceeds ${INLINE_ENRICHMENT_LIMIT} limit)`,
+      )
+      console.log(
+        `[CSV Processor Core] 📤 Books will be enriched via background queue (already queued above)`,
+      )
+    }
+
+    await progressReporter.updateProgress('csv_import', {
+      progress: 0.85,
+      status: shouldEnrichInline
+        ? `Enriching ${booksWithValidISBN.length} books with metadata...`
+        : `Queued ${booksWithValidISBN.length} books for background enrichment`,
+      processedCount: parsedBooks.length,
+    })
+
+    const { enrichSingleBook } = await import('../../services/enrichment.js')
+    const enrichedBooksMap = new Map<string, CanonicalBook>()
+    let enrichmentSucceeded = 0
+    let enrichmentFailed = 0
+
+    // Enrich books with valid ISBNs (parallel with concurrency limit)
+    // Only enrich inline if under the limit to avoid CPU timeout
+    const enrichTasks = booksWithValidISBN.map((book) => async () => {
+      if (!book.isbn) return
+
+      try {
+        const result = await enrichSingleBook({ isbn: book.isbn }, env)
+
+        if (result && result.success) {
+          // Extract cover URL from edition (prioritize large → medium → small → legacy coverImageURL)
+          const coverUrl =
+            result.edition?.coverUrls?.large ||
+            result.edition?.coverUrls?.medium ||
+            result.edition?.coverUrls?.small ||
+            result.edition?.coverImageURL ||
+            undefined
+
+          enrichedBooksMap.set(book.isbn, {
+            isbn: result.edition?.isbn || book.isbn,
+            title: result.work.title || book.title,
+            authors: result.authors.map((a) => a.name),
+            publisher: result.edition?.publisher || undefined,
+            publishedDate: result.edition?.publicationDate || undefined,
+            description: result.work.description || undefined,
+            pageCount: result.edition?.pageCount || undefined,
+            categories: result.work.subjectTags?.slice(0, 5) || undefined, // Limit to top 5 categories
+            language: result.edition?.language || 'en',
+            coverUrl, // ✅ Now populated with actual cover URL!
+          })
+          enrichmentSucceeded++
+        } else {
+          enrichmentFailed++
+        }
+      } catch (error) {
+        console.warn(`[CSV Processor Core] Enrichment failed for ISBN ${book.isbn}:`, error)
+        enrichmentFailed++
+      }
+    })
+
+    // Process enrichment with concurrency limit (20 parallel requests)
+    // Skip if CSV is too large (timeout protection)
+    if (shouldEnrichInline) {
+      await processWithLimit(enrichTasks, 20)
+
+      await progressReporter.updateProgress('csv_import', {
+        progress: 0.95,
+        status: `Enriched ${enrichmentSucceeded}/${booksWithValidISBN.length} books`,
+        processedCount: parsedBooks.length,
+      })
+
+      console.log(
+        `[CSV Processor Core] ✅ Enrichment complete: ${enrichmentSucceeded} succeeded, ${enrichmentFailed} failed`,
+      )
+    } else {
+      console.log(
+        `[CSV Processor Core] ⏭️ Skipped inline enrichment (CSV too large - ${booksWithValidISBN.length} books)`,
+      )
+    }
+
     // Store full results in KV for HTTP retrieval (API Contract format)
     // Transform validatedBooks to canonical BookSchema format
     // BookSchema requires: isbn, title, authors (array), plus optional fields
@@ -423,6 +513,14 @@ export async function processCSVCore(
     const canonicalBooks: CanonicalBook[] = booksToSave
       .filter((book) => book.title && book.author)
       .map((book) => {
+        // Use enriched data if available, otherwise fall back to parsed data
+        const enrichedBook = book.isbn ? enrichedBooksMap.get(book.isbn) : undefined
+
+        if (enrichedBook) {
+          return enrichedBook
+        }
+
+        // Fallback: Use parsed data for books without ISBNs or failed enrichment
         // Parse author string into array (comma-separated authors)
         const authorString = String(book.author).trim()
         const authors = authorString
@@ -442,7 +540,7 @@ export async function processCSVCore(
           pageCount: book.pageCount ? Number(book.pageCount) : undefined,
           categories: book.genre ? [String(book.genre).trim()] : undefined,
           language: book.languageCode || 'en',
-          coverUrl: undefined, // Not available from CSV import
+          coverUrl: undefined, // No cover available for books without enrichment
         }
       })
 
@@ -458,10 +556,10 @@ export async function processCSVCore(
       booksCreated: canonicalBooks.length,
       booksUpdated: 0, // CSV import always creates new books
       duplicatesSkipped: duplicatesSkipped,
-      enrichmentSucceeded: 0, // CSV import doesn't enrich - set to 0 to be accurate
-      enrichmentFailed: 0, // TODO: Track enrichment failures
+      enrichmentSucceeded: enrichmentSucceeded, // ✅ FIXED: Now tracks actual enrichment count
+      enrichmentFailed: enrichmentFailed, // ✅ FIXED: Now tracks enrichment failures
       errors: formattedErrors, // ✅ FIXED: Populated errors array
-      books: canonicalBooks, // Canonical BookSchema format for iOS SwiftData
+      books: canonicalBooks, // Canonical BookSchema format for iOS SwiftData (now with covers!)
     }
     await env.CACHE.put(resourceId, JSON.stringify(apiContractResults), {
       expirationTtl: resultsTTL,

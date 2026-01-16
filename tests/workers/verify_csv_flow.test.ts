@@ -65,9 +65,37 @@ vi.mock('../../src/repositories/book-repository.js', () => {
     }
 });
 
-// Mock enrichMultipleBooks to verify it is skipped
+// Mock enrichment services to verify they work correctly
 vi.mock('../../src/services/enrichment.js', () => ({
   enrichMultipleBooks: vi.fn(() => Promise.resolve({ works: [], editions: [], authors: [] })),
+  enrichSingleBook: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      work: {
+        title: 'Test Book',
+        subjectTags: ['Fiction'],
+        description: 'A test book',
+      },
+      edition: {
+        isbn: '9780553109535',
+        publisher: 'Test Publisher',
+        publicationDate: '2024-01-01',
+        pageCount: 300,
+        language: 'en',
+        coverUrls: {
+          large: 'https://example.com/cover-large.jpg',
+          medium: 'https://example.com/cover-medium.jpg',
+          small: 'https://example.com/cover-small.jpg',
+          original: 'https://example.com/cover.jpg',
+        },
+        coverImageURL: 'https://example.com/cover.jpg',
+        format: 'PAPERBACK',
+        isbns: ['9780553109535'],
+        amazonASINs: [],
+      },
+      authors: [{ name: 'Test Author' }],
+    }),
+  ),
 }));
 
 describe('CSV Import End-to-End Flow Validation', () => {
