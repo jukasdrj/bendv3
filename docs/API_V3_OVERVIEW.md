@@ -2,7 +2,7 @@
 
 **Base URL:** `https://api.oooefam.net/v3`
 **OpenAPI Spec:** `https://api.oooefam.net/v3/openapi.json`
-**TypeScript SDK:** `npm install @jukasdrj/bookstrack-api-client@3.4.2`
+**TypeScript SDK:** `npm install @jukasdrj/bookstrack-api-client@3.4.3`
 **Documentation:** https://api.oooefam.net/v3/docs
 
 ---
@@ -35,7 +35,7 @@ BooksTrack V3 follows semantic versioning:
   - Example: Error handling improvements, performance fixes
   - No client changes required
 
-**Current Version:** 3.4.2
+**Current Version:** 3.4.3
 
 ---
 
@@ -76,7 +76,7 @@ BooksTrack V3 follows semantic versioning:
 
 **Installation:**
 ```bash
-npm install @jukasdrj/bookstrack-api-client@3.4.2
+npm install @jukasdrj/bookstrack-api-client@3.4.3
 ```
 
 **Usage:**
@@ -163,4 +163,4 @@ When V3 needs breaking changes, we will:
 **Last Updated:** January 9, 2026
 **Last Reviewed:** January 11, 2026
 **Maintained By:** @jukasdrj
-**Version:** 3.4.2
+**Version:** 3.4.3

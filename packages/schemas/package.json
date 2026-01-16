@@ -1,6 +1,6 @@
 {
   "name": "@bookstrack/schemas",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Shared Zod schemas for BooksTrack API - Backend + Frontend contract",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -23,7 +23,14 @@
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["bookstrack", "zod", "api", "schema", "validation", "rfc9457"],
+  "keywords": [
+    "bookstrack",
+    "zod",
+    "api",
+    "schema",
+    "validation",
+    "rfc9457"
+  ],
   "author": "BooksTrack Team",
   "license": "MIT",
   "peerDependencies": {

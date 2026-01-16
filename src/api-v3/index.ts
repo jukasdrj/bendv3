@@ -45,6 +45,7 @@ import {
 import { registerEnrichmentRoutes } from './jobs/enrichment'
 import { registerImportRoutes } from './jobs/imports'
 import { registerScanRoutes } from './jobs/scans'
+import { registerPersonalizedRecommendationsRoute } from './recommendations'
 import { registerAlexandriaWebhookRoutes } from './webhooks/alexandria'
 
 // Constants for V3 API data transformation
@@ -98,6 +99,7 @@ export function createV3Router() {
   // Discovery Routes (Capabilities, Recommendations)
   // ========================================================================
   registerDiscoveryRoutes(app)
+  registerPersonalizedRecommendationsRoute(app)
 
   // ========================================================================
   // Job Management Routes
@@ -997,6 +999,7 @@ for semantic search.`,
 
   console.log('[V3 API] Contract-first router with shared schemas created')
   console.log('[V3 API] Discovery Routes: GET /v3/capabilities, GET /v3/recommendations/weekly')
+  console.log('[V3 API] Personalized Recommendations: GET /v3/recommendations/personalized')
   console.log(
     '[V3 API] Book Routes: GET /v3/books/search, POST /v3/books/enrich, GET /v3/books/:isbn',
   )

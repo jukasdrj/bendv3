@@ -530,7 +530,7 @@ Request → KV Cache (hit?) → Alexandria RPC → Fallback Providers → KV Wri
 
 ## API Status
 
-**Current Version:** V3 (3.4.2) - ONLY supported version
+**Current Version:** V3 (3.4.3) - ONLY supported version
 **Legacy Versions:** V1 and V2 completely removed (all legacy endpoints return 404)
 
 **📖 Complete API Documentation:** [docs/API_V3_OVERVIEW.md](../docs/API_V3_OVERVIEW.md)
@@ -819,7 +819,7 @@ const book = await circuitBreaker.execute('google-books', () =>
   - Improved genre detection accuracy
   - Zero breaking changes, all tests passing
 - ✅ **Sprint 4: SDK Publication** - COMPLETE (Jan 7, 2026)
-  - TypeScript SDK published to npm (`@jukasdrj/bookstrack-api-client@3.4.2`)
+  - TypeScript SDK published to npm (`@jukasdrj/bookstrack-api-client@3.4.3`)
   - Full V3 API support (17 endpoints)
   - SSE streaming for long-running jobs
 - ✅ **Sprint 3: Test Architecture** - COMPLETE (Jan 7, 2026)

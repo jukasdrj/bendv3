@@ -11,7 +11,7 @@ export const openAPIConfig = {
   openapi: '3.0.3',
   info: {
     title: 'BooksTrack API',
-    version: '3.4.2',
+    version: '3.4.3',
     description: 'Book search, enrichment, and AI-powered scanning API',
     contact: {
       email: 'api-support@oooefam.net',

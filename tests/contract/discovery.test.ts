@@ -39,7 +39,7 @@ describe('V3 Discovery Endpoints - Contract Tests', () => {
           csv_max_rows: 5000,
           batch_max_photos: 5,
         },
-        version: '3.4.2',
+        version: '3.4.3',
       }
 
       const result = CapabilitiesResponseSchema.safeParse(validCapabilities)
@@ -99,7 +99,7 @@ describe('V3 Discovery Endpoints - Contract Tests', () => {
     })
 
     it('should enforce version string format', () => {
-      const validVersions = ['3.4.2', '1.0.0', '10.5.12']
+      const validVersions = ['3.4.3', '1.0.0', '10.5.12']
 
       for (const version of validVersions) {
         const capabilities = {
@@ -154,12 +154,12 @@ describe('V3 Discovery Endpoints - Contract Tests', () => {
         // Missing features
         {
           limits: { semantic_search_rpm: 10, text_search_rpm: 60, csv_max_rows: 5000, batch_max_photos: 5 },
-          version: '3.4.2',
+          version: '3.4.3',
         },
         // Missing limits
         {
           features: { semantic_search: true, similar_books: true, weekly_recommendations: true, sse_streaming: true, batch_enrichment: true, csv_import: true },
-          version: '3.4.2',
+          version: '3.4.3',
         },
         // Missing version
         {
@@ -244,7 +244,7 @@ describe('V3 Discovery Endpoints - Contract Tests', () => {
           csv_max_rows: 5000,
           batch_max_photos: 5,
         },
-        version: '3.4.2',
+        version: '3.4.3',
       }
 
       const result = CapabilitiesResponseSchema.safeParse(flatResponse)

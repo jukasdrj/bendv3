@@ -1,6 +1,6 @@
 # BooksTrack Backend - Claude Code Quick Reference
 
-**Version:** 3.1 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** January 11, 2026
+**Version:** 3.4.3 | **Tech Stack:** Cloudflare Workers, TypeScript | **Updated:** January 16, 2026
 
 ## Agent Role
 

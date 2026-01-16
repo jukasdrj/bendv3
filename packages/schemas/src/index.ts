@@ -114,3 +114,13 @@ export {
   type SSEErrorEvent,
   type SSEPingEvent
 } from './jobs'
+
+// Personalized Recommendations
+export {
+  PersonalizedRecommendationSchema,
+  PersonalizedRecommendationsDataSchema,
+  PersonalizedRecommendationsResponseSchema,
+  type PersonalizedRecommendation,
+  type PersonalizedRecommendationsData,
+  type PersonalizedRecommendationsResponse
+} from './recommendations'

@@ -33,7 +33,6 @@ import {
   createCacheRoutes,
   createImageRoutes,
   createJobApiRoutes,
-  createRecommendationRoutes,
   createTestRoutes,
   createWebSocketRoutes,
 } from './routes'
@@ -94,7 +93,7 @@ app.openapi(healthRoute, (c) => {
       data: {
         status: 'ok',
         worker: 'api-worker',
-        version: '3.4.2',
+        version: '3.4.3',
         router: 'hono',
       },
       metadata: {
@@ -129,8 +128,10 @@ app.route('/ws', createWebSocketRoutes())
 // Image routes: /images/*
 app.route('/images', createImageRoutes())
 
-// Recommendation routes: /api/recommendations/*
-app.route('/api/recommendations', createRecommendationRoutes())
+// Legacy /api/recommendations removed - migrated to /v3/recommendations/personalized
+// Personalized recommendations now available via V3 API discovery
+// See: src/api-v3/discovery.ts for weekly recommendations (global/non-personalized)
+// See: src/routes/recommendations.ts for future personalized recommendations implementation
 
 // Test routes: /test/* (DEBUG mode only - middleware handles auth)
 app.route('/test', createTestRoutes())

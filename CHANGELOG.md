@@ -24,6 +24,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.4.3] - 2026-01-16
+
+### Added
+- **Personalized Recommendations V3**: New `/v3/recommendations/personalized` endpoint
+- **Combo Endpoint Strategy**: Returns weekly recommendations with `strategy: "weekly_fallback"` until Alexandria ratings API available (Issue #258)
+- **Shared Schemas**: `@bookstrack/schemas/recommendations` for personalized recommendations
+- **Test Suite**: 80+ comprehensive tests for personalized recommendations (smoke + unit)
+- **Testing Guide**: `docs/guides/V3_PERSONALIZED_RECOMMENDATIONS_TESTING.md`
+
+### Changed
+- **BREAKING**: Removed legacy `/api/recommendations` endpoint (migrated to V3)
+- **Metadata Standardization**: `processingTimeMs` → `processingTime` for consistency across V3 endpoints
+- **Enhanced JSON Parsing**: Added defensive try-catch in recommendations fallback logic
+- **Cache Documentation**: Improved TTL documentation (7-day KV cache lifecycle)
+
+### Fixed
+- **Import Optimization**: Removed unused schema imports in V3 recommendations route
+- **Defensive Error Handling**: Added malformed JSON protection in D1 recommendations data
+
+### Migration
+**iOS Clients:**
+```swift
+// Before (3.4.2)
+GET /api/recommendations?limit=10
+
+// After (3.4.3)
+GET /v3/recommendations/personalized?limit=10
+
+// Response format changed to V3 envelope:
+{
+  "success": true,
+  "data": {
+    "recommendations": [...],
+    "total": 10,
+    "strategy": "weekly_fallback"
+  },
+  "metadata": { ... }
+}
+```
+
+---
+
 ## [3.4.0] - 2026-01-16
 
 ### Added
