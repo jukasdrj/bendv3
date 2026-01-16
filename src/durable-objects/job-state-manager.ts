@@ -1064,10 +1064,15 @@ export class JobStateManagerDO extends DurableObject<Env> {
           try {
             // Use Gemini Vision to detect books in this photo
             const { scanImageWithGemini } = await import('../providers/gemini-provider.js')
+            console.log(`[JobStateManager] 📸 Calling Gemini for photo ${i + 1}...`)
             const scanResult = await scanImageWithGemini(image.buffer, this.env)
 
             console.log(
-              `[JobStateManager] Photo ${i + 1}: detected ${scanResult.books?.length || 0} books`,
+              `[JobStateManager] ✅ Photo ${i + 1}: detected ${scanResult.books?.length || 0} books`,
+            )
+            console.log(
+              `[JobStateManager] 📊 Scan metadata:`,
+              JSON.stringify(scanResult.metadata, null, 2),
             )
 
             if (scanResult.books && scanResult.books.length > 0) {
@@ -1076,9 +1081,24 @@ export class JobStateManagerDO extends DurableObject<Env> {
                 book.photoIndex = i
                 allDetectedBooks.push(book)
               })
+              console.log(`[JobStateManager] 📚 Added ${scanResult.books.length} books from photo ${i + 1}`)
+            } else {
+              console.log(`[JobStateManager] ⚠️ No books detected in photo ${i + 1}`)
             }
           } catch (photoError) {
-            console.error(`[JobStateManager] Photo ${i + 1} processing failed:`, photoError)
+            console.error(`[JobStateManager] ❌ Photo ${i + 1} processing failed:`, photoError)
+            console.error(
+              `[JobStateManager] Error type:`,
+              photoError instanceof Error ? photoError.constructor.name : typeof photoError,
+            )
+            console.error(
+              `[JobStateManager] Error message:`,
+              photoError instanceof Error ? photoError.message : String(photoError),
+            )
+            console.error(
+              `[JobStateManager] Error stack:`,
+              photoError instanceof Error ? photoError.stack : 'No stack trace',
+            )
             // Continue with other photos even if one fails
           }
         }
