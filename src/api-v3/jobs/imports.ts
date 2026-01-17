@@ -441,10 +441,14 @@ Results cached in KV for 1 hour after completion.`,
         )
       }
 
+      // CSV processor stores results as {books: [...], errors: [...], ...}
+      // Extract the books array for the results field
+      const booksArray = (results as any)?.books || []
+
       const data: JobResultsData = {
         jobId: state.jobId,
         status: state.status,
-        results: Array.isArray(results) ? results : [],
+        results: Array.isArray(booksArray) ? booksArray : [],
       }
 
       return c.json(

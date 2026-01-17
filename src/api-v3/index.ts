@@ -522,10 +522,13 @@ for semantic search.`,
           const coverUrl = work.coverImageURL || edition?.coverImageURL || coverUrls?.large
           const thumbnailUrl = coverUrls?.small || work.coverImageURL || edition?.coverImageURL
 
+          // Flatten authors to simple strings for iOS client compatibility
+          const flattenedAuthors = authors.map((a) => (typeof a === 'string' ? a : a.name))
+
           const book = {
             isbn: edition?.isbn || isbn,
             title: work.title,
-            authors,
+            authors: flattenedAuthors,
             publisher: edition?.publisher,
             publishedDate: edition?.publicationDate,
             description: work.description,
@@ -660,12 +663,15 @@ for semantic search.`,
           const coverUrl = work.coverImageURL || edition?.coverImageURL || coverUrls?.large
           const thumbnailUrl = coverUrls?.small || work.coverImageURL || edition?.coverImageURL
 
+          // Flatten authors to simple strings for iOS client compatibility
+          const flattenedAuthors = authors.map((a) => (typeof a === 'string' ? a : a.name))
+
           const book = {
             isbn: edition?.isbn || isbn,
             isbn10: undefined, // Not available in canonical EditionDTO
             title: work.title,
             subtitle: undefined, // Not available in canonical WorkDTO
-            authors,
+            authors: flattenedAuthors,
             publisher: edition?.publisher,
             publishedDate: edition?.publicationDate,
             description: work.description,
@@ -764,11 +770,18 @@ for semantic search.`,
         `[V3 Enrich] Enriched ${enrichedBooks.length}/${isbns.length} books in ${Date.now() - ctx.startTime}ms`,
       )
 
+      // Flatten authors to simple strings for iOS client compatibility
+      // iOS expects authors: [String], but backend uses authors: Array<string | { name, ... }>
+      const flattenedBooks = enrichedBooks.map((book) => ({
+        ...book,
+        authors: book.authors.map((a) => (typeof a === 'string' ? a : a.name)),
+      }))
+
       return c.json(
         {
           success: true as const,
           data: {
-            books: enrichedBooks,
+            books: flattenedBooks,
             requested: isbns.length,
             found: enrichedBooks.length,
             notFound: notFound, // Always return array, even if empty (iOS requires non-optional)

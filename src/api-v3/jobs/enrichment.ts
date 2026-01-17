@@ -270,10 +270,13 @@ Results cached in KV for 2 hours after completion.`,
         )
       }
 
+      // Results stored as { enrichedBooks, notFound } - unwrap enrichedBooks array
+      const enrichedBooks = Array.isArray(results) ? results : (results as any)?.enrichedBooks || []
+
       const data: JobResultsData = {
         jobId: state.jobId,
         status: state.status,
-        results: Array.isArray(results) ? results : [],
+        results: enrichedBooks,
       }
 
       return c.json(

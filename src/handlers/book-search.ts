@@ -120,66 +120,103 @@ export async function searchByTitle(
   }
 
   const startTime = Date.now()
+  // Import dynamically to avoid circular dependencies if needed, or assume top-level import exists
+  const { enrichMultipleBooks } = await import('../services/enrichment')
 
   try {
-    // Search both Google Books and OpenLibrary in parallel
-    const searchPromises = [
-      externalApis.searchGoogleBooks(title, { maxResults }, env),
-      externalApis.searchOpenLibrary(title, { maxResults }, env),
-    ]
-
-    const results = await Promise.allSettled(searchPromises)
+    // REFACTOR: Use enrichment service (Alexandria) instead of direct external APIs
+    // This ensures consistency with V3 API and uses fallback logic
+    console.log(`[book-search] Delegating title search for "${title}" to enrichment service`)
+    
+    const enrichmentResult = await enrichMultipleBooks(
+      { title }, 
+      env, 
+      { maxResults }, 
+      ctx
+    )
 
     let finalItems: unknown[] = []
-    const successfulProviders: string[] = []
-
-    // Process Google Books results
-    const googleResult = results[0]
-    if (googleResult?.status === 'fulfilled' && googleResult.value) {
-      const googleData = googleResult.value as { works?: unknown[] }
-      if (googleData.works && googleData.works.length > 0) {
-        const transformedItems = googleData.works
-          .filter((work): work is Work => work !== null && typeof work === 'object')
-          .map((work) => transformWorkToGoogleFormat(work))
-        finalItems = [...finalItems, ...transformedItems]
-        successfulProviders.push('google')
-      }
+    
+    // Map EnrichmentResult (WorkDTO/EditionDTO) to Google Books format for legacy client compatibility
+    if (enrichmentResult.works && enrichmentResult.works.length > 0) {
+       finalItems = enrichmentResult.works.map((work, index) => {
+         const edition = enrichmentResult.editions?.[index]
+         // Cast work to any to access embedded authors (runtime property not in strictly typed WorkDTO interface)
+         const workAny = work as any
+         const authors = workAny.authors?.map((a: any) => typeof a === 'string' ? a : a.name) || []
+         
+         // Construct Google Books Volume object
+         return {
+           kind: 'books#volume',
+           id: work.googleBooksVolumeID || `alex_${index}`,
+           etag: `alex_${Date.now()}`,
+           selfLink: '',
+           volumeInfo: {
+             title: work.title,
+             // subtitle: undefined, // WorkDTO doesn't have subtitle
+             authors: authors,
+             publisher: edition?.publisher,
+             publishedDate: edition?.publicationDate,
+             description: work.description,
+             industryIdentifiers: edition?.isbns?.map(isbn => ({
+                type: isbn.length === 13 ? 'ISBN_13' : 'ISBN_10',
+                identifier: isbn
+             })) || (edition?.isbn ? [{ type: 'ISBN_13', identifier: edition.isbn }] : []),
+             readingModes: { text: false, image: false },
+             pageCount: edition?.pageCount,
+             printType: 'BOOK',
+             categories: work.subjectTags,
+             averageRating: 0,
+             ratingsCount: 0,
+             maturityRating: 'NOT_MATURE',
+             allowAnonLogging: false,
+             contentVersion: '1.0.0',
+             imageLinks: {
+               smallThumbnail: work.coverUrls?.small || work.coverImageURL || '',
+               thumbnail: work.coverUrls?.medium || work.coverUrls?.large || work.coverImageURL || ''
+             },
+             language: edition?.language || 'en',
+             previewLink: '',
+             infoLink: '',
+             canonicalVolumeLink: ''
+           },
+           saleInfo: { country: 'US', saleability: 'NOT_FOR_SALE', isEbook: false },
+           accessInfo: {
+             country: 'US',
+             viewability: 'NO_PAGES',
+             embeddable: false,
+             publicDomain: false,
+             textToSpeechPermission: 'ALLOWED',
+             epub: { isAvailable: false },
+             pdf: { isAvailable: false },
+             webReaderLink: '',
+             accessViewStatus: 'NONE',
+             quoteSharingAllowed: false
+           }
+         }
+       })
     }
 
-    // Process OpenLibrary results
-    const olResult = results[1]
-    if (olResult?.status === 'fulfilled' && olResult.value) {
-      const olData = olResult.value as { works?: unknown[] }
-      if (olData.works && olData.works.length > 0) {
-        const transformedItems = olData.works
-          .filter((work): work is Work => work !== null && typeof work === 'object')
-          .map((work) => transformWorkToGoogleFormat(work))
-        finalItems = [...finalItems, ...transformedItems]
-        successfulProviders.push('openlibrary')
-      }
-    }
-
-    // Deduplication by ISBN with title fallback
-    const dedupedItems = deduplicateByISBN(finalItems)
+    const successfulProviders = ['alexandria']
 
     const responseData: SearchResult = {
       kind: 'books#volumes',
-      totalItems: dedupedItems.length,
-      items: dedupedItems.slice(0, maxResults),
+      totalItems: finalItems.length,
+      items: finalItems,
       provider: `orchestrated:${successfulProviders.join('+')}`,
       cached: false,
       responseTime: Date.now() - startTime,
-      _cacheHeaders: await generateCacheHeaders(false, 0, 6 * 60 * 60, dedupedItems, env), // TTL: 6h
+      _cacheHeaders: await generateCacheHeaders(false, 0, 6 * 60 * 60, finalItems, env), // TTL: 6h
     }
 
     // Cache for 6 hours
     const ttl = 6 * 60 * 60 // 21600 seconds
-    const hotTtl = 2 * 60 * 60 // 2 hours (for TTL effectiveness tracking)
+    const hotTtl = 2 * 60 * 60 // 2 hours
     ctx.waitUntil(setCached(cacheKey, responseData, ttl, env, ctx, hotTtl))
 
     // Write cache metrics to Analytics Engine
     ctx.waitUntil(
-      writeCacheMetrics(env, {
+      writeCacheMetrics(env as any, {
         endpoint: '/search/title',
         cacheHit: false,
         responseTime: Date.now() - startTime,
@@ -188,7 +225,7 @@ export async function searchByTitle(
           responseData._cacheHeaders['X-Data-Completeness'] || '0',
           10,
         ),
-        itemCount: dedupedItems.length,
+        itemCount: finalItems.length,
       }),
     )
 
