@@ -60,6 +60,7 @@ app.use(
         'https://books.oooefam.net',
         'https://bookstrack-web.pages.dev',
         'https://ca2dc966.bookstrack-web.pages.dev',
+        'https://a6b28bf9.bookstrack-web.pages.dev', // Current deployment (Jan 2026)
         'capacitor://localhost',
         'http://localhost:3000',
         'http://localhost:8787',
