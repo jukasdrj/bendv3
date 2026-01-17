@@ -457,11 +457,16 @@ export async function processCSVCore(
 
         if (result && result.success) {
           // Extract cover URL from edition (prioritize large → medium → small → legacy coverImageURL)
+          // Fallback to work covers if edition covers are missing (Alexandria v2.2.4+)
           const coverUrl =
             result.edition?.coverUrls?.large ||
             result.edition?.coverUrls?.medium ||
             result.edition?.coverUrls?.small ||
             result.edition?.coverImageURL ||
+            result.work.coverUrls?.large ||
+            result.work.coverUrls?.medium ||
+            result.work.coverUrls?.small ||
+            result.work.coverImageURL ||
             undefined
 
           enrichedBooksMap.set(book.isbn, {
