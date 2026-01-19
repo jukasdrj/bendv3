@@ -310,11 +310,11 @@
     "crons": [
       "*/15 * * * *",
       "0 0 * * SUN",
-      "0 */6 * * *",
-      "0 * * * *"
+      "0 */6 * * *"
     ]
   },
-  "//": "Cron schedule: */15 * * * * = every 15min (alerts), 0 0 * * SUN = Sunday midnight (weekly recommendations), 0 */6 * * * = every 6 hours (static popular books cache warm-up), 0 * * * * = hourly (cache warm-up + Alexandria cover harvest)",
+  "//": "Cron schedule: */15 * * * * = every 15min (alerts), 0 0 * * SUN = Sunday midnight (weekly recommendations), 0 */6 * * * = every 6 hours (static popular books cache warm-up)",
+  "//": "DISABLED: 0 * * * * = hourly ISBNdb cover harvest (to avoid quota usage - Jan 19, 2026)",
   "//": "========================================================================",
   "//": "Cloudflare Workflows (Issue #71 - Launch Blocker)",
   "//": "Book import pipeline with automatic retries and state persistence",
