@@ -71,3 +71,4 @@ progress.md
 .claude/plans/*
 !.claude/plans/README.md
 !.claude/plans/SETUP.md
+.mcp.json

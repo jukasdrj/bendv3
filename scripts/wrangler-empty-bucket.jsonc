@@ -1,0 +1,15 @@
+{
+  "name": "r2-bucket-emptier",
+  "main": "scripts/empty-r2-bucket.ts",
+  "compatibility_date": "2026-01-15",
+  "r2_buckets": [
+    {
+      "binding": "COVERS_PROCESSED",
+      "bucket_name": "bookstrack-covers-processed"
+    },
+    {
+      "binding": "CLOUDFLARE_MANAGED",
+      "bucket_name": "cloudflare-managed-ea345b39"
+    }
+  ]
+}

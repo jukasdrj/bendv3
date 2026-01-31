@@ -30,12 +30,6 @@
     "enable_request_signal",
     "cache_no_cache_enabled"
   ],
-  "routes": [
-    {
-      "pattern": "api.oooefam.net/*",
-      "zone_name": "oooefam.net"
-    }
-  ],
   "vars": {
     "//": "========================================================================",
     "//": "Cloudflare Workflows Feature Flags (Issue #71 - Launch Blocker)",
@@ -293,16 +287,6 @@
       {
         "binding": "ALEXANDRIA_COVER_QUEUE",
         "queue": "alexandria-cover-queue"
-      }
-    ],
-    "consumers": [
-      {
-        "queue": "author-warming-queue",
-        "max_batch_size": 10,
-        "max_batch_timeout": 30,
-        "max_retries": 3,
-        "dead_letter_queue": "author-warming-dlq",
-        "max_concurrency": 5
       }
     ]
   },
